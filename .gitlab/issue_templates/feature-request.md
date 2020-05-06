@@ -1,31 +1,31 @@
 ### Functionality to add/problem to solve
 
-(Brief scope)
+(When I did an spack install openfoam using gcc with the defaultm options I could not find openFoam and work through the cavity example.)
 
 
 ### Target audience
 
-(Who will benefit from the changes?)
-(What type of cases?)
+(Users who want to build meshes and/or work through the examples in OpenFOAM v-1912?)
+(NA)
 
 
 ### Proposal
 
-(How are we going to solve the problem?)
+(Add blockMesh (or meshTools) as a variant or stand option to Spack?)
 
 
 ### What does success look like, and how can we measure that?
 
-(What are the success factors and acceptance criteria? e.g. test cases, error margins)
+(NA)
 
 
 ### Links / references
 
-(Links to literature, supporting information)
+(For example, required to follow examples at https://www.openfoam.com/documentation/tutorial-guide/tutorialse2.php#x6-60002.1)
 
 
 ### Funding
 
-(Does the functionality already exist/is sponsorship available?)
+(NA)
 
 /label ~feature
