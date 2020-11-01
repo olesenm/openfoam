@@ -5,6 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
+    Copyright (C) 2008 Mark Olesen
+    Copyright (C) 2010 Mark Olesen
     Copyright (C) 2011 OpenFOAM Foundation
 -------------------------------------------------------------------------------
 License
