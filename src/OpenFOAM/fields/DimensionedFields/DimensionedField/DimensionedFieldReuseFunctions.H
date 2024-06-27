@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2018-2024 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,6 +40,15 @@ namespace Foam
 template<class TypeR, class Type1, class GeoMesh>
 struct reuseTmpDimensionedField
 {
+    //- Dissimilar types: non-reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<Type1, GeoMesh>>& tf1
+    ) noexcept
+    {
+        return false;
+    }
+
     //- Pass-through to New DimensionedField
     static tmp<DimensionedField<TypeR, GeoMesh>> New
     (
@@ -79,6 +88,15 @@ struct reuseTmpDimensionedField
 template<class TypeR, class GeoMesh>
 struct reuseTmpDimensionedField<TypeR, TypeR, GeoMesh>
 {
+    //- Identical types: possibly reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<TypeR, GeoMesh>>& tf1
+    ) noexcept
+    {
+        return tf1.movable();
+    }
+
     //- Allow optional copy assignment of the initial content
     //- for identical input and output types
     static tmp<DimensionedField<TypeR, GeoMesh>> New
@@ -137,9 +155,22 @@ tmp<DimensionedField<TypeR, GeoMesh>> New
 }
 
 
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Two-parameter versions
+
 template<class TypeR, class Type1, class Type12, class Type2, class GeoMesh>
 struct reuseTmpTmpDimensionedField
 {
+    //- Dissimilar types: non-reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<Type1, GeoMesh>>& tf1,
+        const tmp<DimensionedField<Type2, GeoMesh>>& tf2
+    ) noexcept
+    {
+        return false;
+    }
+
     static tmp<DimensionedField<TypeR, GeoMesh>> New
     (
         const tmp<DimensionedField<Type1, GeoMesh>>& tf1,
@@ -163,6 +194,17 @@ struct reuseTmpTmpDimensionedField
 template<class TypeR, class Type1, class Type12, class GeoMesh>
 struct reuseTmpTmpDimensionedField<TypeR, Type1, Type12, TypeR, GeoMesh>
 {
+    //- Second input has return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<Type1, GeoMesh>>& tf1,
+        const tmp<DimensionedField<TypeR, GeoMesh>>& tf2
+    ) noexcept
+    {
+        return tf2.movable();
+    }
+
+    //- Second input has return type
     static tmp<DimensionedField<TypeR, GeoMesh>> New
     (
         const tmp<DimensionedField<Type1, GeoMesh>>& tf1,
@@ -195,6 +237,17 @@ struct reuseTmpTmpDimensionedField<TypeR, Type1, Type12, TypeR, GeoMesh>
 template<class TypeR, class Type2, class GeoMesh>
 struct reuseTmpTmpDimensionedField<TypeR, TypeR, TypeR, Type2, GeoMesh>
 {
+    //- First input has return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<TypeR, GeoMesh>>& tf1,
+        const tmp<DimensionedField<Type2, GeoMesh>>& tf2
+    ) noexcept
+    {
+        return tf1.movable();
+    }
+
+    //- First input has return type
     static tmp<DimensionedField<TypeR, GeoMesh>> New
     (
         const tmp<DimensionedField<TypeR, GeoMesh>>& tf1,
@@ -227,6 +280,17 @@ struct reuseTmpTmpDimensionedField<TypeR, TypeR, TypeR, Type2, GeoMesh>
 template<class TypeR, class GeoMesh>
 struct reuseTmpTmpDimensionedField<TypeR, TypeR, TypeR, TypeR, GeoMesh>
 {
+    //- Both inputs have return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<DimensionedField<TypeR, GeoMesh>>& tf1,
+        const tmp<DimensionedField<TypeR, GeoMesh>>& tf2
+    ) noexcept
+    {
+        return (tf1.movable() || tf2.movable());
+    }
+
+    //- Both inputs have return type
     static tmp<DimensionedField<TypeR, GeoMesh>> New
     (
         const tmp<DimensionedField<TypeR, GeoMesh>>& tf1,

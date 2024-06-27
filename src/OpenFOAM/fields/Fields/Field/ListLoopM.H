@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
-    Copyright (C) 2017 OpenCFD Ltd.
+    Copyright (C) 2017-2024 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,6 +31,30 @@ Description
 
 #ifndef Foam_ListLoopM_H
 #define Foam_ListLoopM_H
+
+#include "labelFwd.H"
+#include <type_traits>
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Element access looping
+
+// List begin, non-const access with __restrict__ (or not).
+// Also declares the element type as 'fp##_type', taken from the
+// list's value_type.
+//
+// Note: this works for List-like containers (with value_type and begin()
+// returning a pointer). For raw arrays, the element type would need to be
+// deduced with decltype(*(f).begin()) instead.
+#define TFOR_List_ACCESS(f, fp, Restrict) \
+    using fp##_type = typename std::decay_t<decltype(f)>::value_type; \
+    fp##_type* const Restrict fp = (f).begin()
+
+// List begin, const access with __restrict__ (or not).
+// Also declares the element type as 'fp##_type' (see TFOR_List_ACCESS).
+#define TFOR_List_CONST_ACCESS(f, fp, Restrict) \
+    using fp##_type = typename std::decay_t<decltype(f)>::value_type; \
+    const fp##_type* const Restrict fp = (f).begin()
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 // Element access looping

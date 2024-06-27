@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2019-2024 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,6 +40,15 @@ namespace Foam
 template<class TypeR, class Type1>
 struct reuseTmp
 {
+    //- Dissimilar types: non-reusable
+    static bool reusable
+    (
+        const tmp<Field<Type1>>& tf1
+    ) noexcept
+    {
+        return false;
+    }
+
     //- Pass-through to tmp New
     static tmp<Field<TypeR>> New(const Field<Type1>& f1)
     {
@@ -57,6 +66,15 @@ struct reuseTmp
 template<class TypeR>
 struct reuseTmp<TypeR, TypeR>
 {
+    //- Identical types: possibly reusable
+    static bool reusable
+    (
+        const tmp<Field<TypeR>>& tf1
+    ) noexcept
+    {
+        return tf1.movable();
+    }
+
     //- Identical input and return types:
     //- allow optional copy assignment of the initial content
     static tmp<Field<TypeR>> New
@@ -99,6 +117,16 @@ template<class TypeR> tmp<Field<TypeR>> New
 template<class TypeR, class Type1, class Type12, class Type2>
 struct reuseTmpTmp
 {
+    //- Dissimilar types: non-reusable
+    static bool reusable
+    (
+        const tmp<Field<Type1>>& tf1,
+        const tmp<Field<Type2>>& tf2
+    ) noexcept
+    {
+        return false;
+    }
+
     //- Dissimilar types: just use size
     static tmp<Field<TypeR>> New
     (
@@ -114,6 +142,16 @@ struct reuseTmpTmp
 template<class TypeR, class Type1, class Type12>
 struct reuseTmpTmp<TypeR, Type1, Type12, TypeR>
 {
+    //- Second input has return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<Field<Type1>>& tf1,
+        const tmp<Field<TypeR>>& tf2
+    ) noexcept
+    {
+        return tf2.movable();
+    }
+
     //- Second input has return type
     static tmp<Field<TypeR>> New
     (
@@ -134,6 +172,16 @@ struct reuseTmpTmp<TypeR, Type1, Type12, TypeR>
 template<class TypeR, class Type2>
 struct reuseTmpTmp<TypeR, TypeR, TypeR, Type2>
 {
+    //- First input has return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<Field<TypeR>>& tf1,
+        const tmp<Field<Type2>>& tf2
+    ) noexcept
+    {
+        return tf1.movable();
+    }
+
     //- First input has return type
     static tmp<Field<TypeR>> New
     (
@@ -154,6 +202,16 @@ struct reuseTmpTmp<TypeR, TypeR, TypeR, Type2>
 template<class TypeR>
 struct reuseTmpTmp<TypeR, TypeR, TypeR, TypeR>
 {
+    //- Both inputs have return type: possibly reusable
+    static bool reusable
+    (
+        const tmp<Field<TypeR>>& tf1,
+        const tmp<Field<TypeR>>& tf2
+    ) noexcept
+    {
+        return (tf1.movable() || tf2.movable());
+    }
+
     //- Both inputs have return type
     static tmp<Field<TypeR>> New
     (
