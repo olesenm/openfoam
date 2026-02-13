@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,7 +44,7 @@ namespace Foam
 
 bool Foam::fvGeometryScheme::setMeshPhi() const
 {
-    if (!mesh_.moving())
+    if (!mesh_.changing())
     {
         return false;
     }
@@ -91,6 +92,8 @@ bool Foam::fvGeometryScheme::setMeshPhi() const
                 meshPhip[facei] = f.sweptVol(oldPoints, currPoints)*rdt;
             }
         }
+
+        meshPhi.setUpToDate();
     }
 
     return true;

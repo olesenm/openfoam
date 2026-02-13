@@ -232,7 +232,8 @@ void Foam::fvMeshDistribute::printMeshInfo(const polyMesh& mesh)
         << "    bb           :" << boundBox(mesh.points(), false) << nl
         << "    internalFaces:" << mesh.nInternalFaces() << nl
         << "    faces        :" << mesh.nFaces() << nl
-        << "    cells        :" << mesh.nCells() << nl;
+        << "    cells        :" << mesh.nCells() << nl
+        << "    moving       :" << mesh.moving() << nl;
 
     Pout<< "Patches:" << endl;
     for (const polyPatch& pp : mesh.boundaryMesh())
@@ -669,13 +670,21 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::fvMeshDistribute::repatch
     // TBD: temporarily unset mesh moving to avoid problems in meshflux
     //      mapping. To be investigated.
     const bool oldMoving = mesh_.moving(false);
+    const bool oldTopoChanging = mesh_.topoChanging(false);
     autoPtr<mapPolyMesh> mapPtr = meshMod.changeMesh(mesh_, false, true);
     mesh_.moving(oldMoving);
+    // 'changeMesh()' resets 'topoChanging(true)' internally. Suppress it
+    // across the following 'updateMesh()'. Keeping 'topoChanging false' during
+    // 'changeMesh's 'resetPrimitives' and 'updateMesh' avoids triggering the
+    // 'cyclicAMI' face-creation process on a not-yet-evaluated AMI, which would
+    // access empty centroids and crash.
+    mesh_.topoChanging(false);
     mapPolyMesh& map = *mapPtr;
 
 
     // Update fields. No inflation, parallel sync.
     mesh_.updateMesh(map);
+    mesh_.topoChanging(oldTopoChanging);
 
     // Map patch fields using stored boundary fields. Note: assumes order
     // of fields has not changed in object registry!
@@ -802,12 +811,20 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::fvMeshDistribute::mergeSharedPoints
     // TBD: temporarily unset mesh moving to avoid problems in meshflux
     //      mapping. To be investigated.
     const bool oldMoving = mesh_.moving(false);
+    const bool oldTopoChanging = mesh_.topoChanging(false);
     autoPtr<mapPolyMesh> mapPtr = meshMod.changeMesh(mesh_, false, true);
     mesh_.moving(oldMoving);
+    // 'changeMesh()' resets 'topoChanging(true)' internally. Suppress it
+    // across the following 'updateMesh()'. Keeping 'topoChanging false' during
+    // 'changeMesh's 'resetPrimitives' and 'updateMesh' avoids triggering the
+    // 'cyclicAMI' face-creation process on a not-yet-evaluated AMI, which would
+    // access empty centroids and crash.
+    mesh_.topoChanging(false);
     mapPolyMesh& map = *mapPtr;
 
     // Update fields. No inflation, parallel sync.
     mesh_.updateMesh(map);
+    mesh_.topoChanging(oldTopoChanging);
 
     // Adapt constructMaps for merged points.
     forAll(constructPointMap, proci)
@@ -1443,11 +1460,19 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::fvMeshDistribute::doRemoveCells
     // TBD: temporarily unset mesh moving to avoid problems in meshflux
     //      mapping. To be investigated.
     const bool oldMoving = mesh_.moving(false);
+    const bool oldTopoChanging = mesh_.topoChanging(false);
     autoPtr<mapPolyMesh> map = meshMod.changeMesh(mesh_, false, false);
     mesh_.moving(oldMoving);
+    // 'changeMesh()' resets 'topoChanging(true)' internally. Suppress it
+    // across the following 'updateMesh()'. Keeping 'topoChanging false' during
+    // 'changeMesh's 'resetPrimitives' and 'updateMesh' avoids triggering the
+    // 'cyclicAMI' face-creation process on a not-yet-evaluated AMI, which would
+    // access empty centroids and crash.
+    mesh_.topoChanging(false);
 
     // Update fields
     mesh_.updateMesh(map());
+    mesh_.topoChanging(oldTopoChanging);
 
 
     // Any exposed faces in a surfaceField will not be mapped. Map the value
@@ -1759,8 +1784,13 @@ void Foam::fvMeshDistribute::sendMesh
         << sourceProc
         << sourcePatch
         << sourceNewNbrProc
-        << sourcePointMaster;
+        << sourcePointMaster
+        << mesh.moving();
 
+    if (mesh.moving())
+    {
+        toDomain << mesh.oldPoints();
+    }
 
     if (debug)
     {
@@ -1798,12 +1828,22 @@ Foam::autoPtr<Foam::fvMesh> Foam::fvMeshDistribute::receiveMesh
     CompactListList<bool> zoneFaceFlip(fromNbr);
     CompactListList<label> zoneCells(fromNbr);
 
+    bool domainMoving = false;
+
     fromNbr
         >> domainSourceFace
         >> domainSourceProc
         >> domainSourcePatch
         >> domainSourceNewNbrProc
-        >> domainSourcePointMaster;
+        >> domainSourcePointMaster
+        >> domainMoving;
+
+    pointField domainOldPoints;
+    if (domainMoving)
+    {
+        fromNbr >> domainOldPoints;
+    }
+
 
     // Construct fvMesh
     auto domainMeshPtr = autoPtr<fvMesh>::New
@@ -1880,6 +1920,13 @@ Foam::autoPtr<Foam::fvMesh> Foam::fvMeshDistribute::receiveMesh
         );
     }
     domainMesh.addZones(pZonePtrs, fZonePtrs, cZonePtrs);
+
+    if (domainMoving)
+    {
+        domainMesh.moving(true);
+        const_cast<pointField&>(domainMesh.oldPoints()) =
+            std::move(domainOldPoints);
+    }
 
     return domainMeshPtr;
 }
@@ -2058,18 +2105,11 @@ Foam::autoPtr<Foam::mapDistributePolyMesh> Foam::fvMeshDistribute::distribute
     );
 
 
-    // Remove meshPhi. Since this would otherwise disappear anyway
-    // during topo changes and we have to guarantee that all the fields
-    // can be sent.
+    // Remove 'clearOut()' and 'resetMotion' to avoid the issue otherwise that
+    // redistribution discards the mesh-motion flux field and the previous point
+    // positions before the mesh is split and reassembled.
+    // Keep 'meshPhi' and 'oldPoints'.
 
-    // NOTE: could/should use (isMeshUpdate = true) for mesh_.clearOut()
-    // but the bottom level will do a clearGeom() and that doesn't seem
-    // to work particularly well with isMeshUpdate at all.
-    // re-visit if needed...
-
-    mesh_.clearOut();
-
-    mesh_.resetMotion();
 
     // Get data to send. Make sure is synchronised
 
@@ -2235,6 +2275,19 @@ Foam::autoPtr<Foam::mapDistributePolyMesh> Foam::fvMeshDistribute::distribute
                 oldInternalPatchi,  // oldInternalFaces patch
                 false               // no parallel sync
             );
+
+            const bool meshMoving = mesh_.moving();
+            const bool submeshMoving = subsetter.subMesh().moving();
+            if (meshMoving != submeshMoving)
+            {
+                FatalErrorInFunction
+                    << "Mesh moving state of submesh should be same "
+                    << "as original mesh" << nl
+                    << "Original mesh moving:" << meshMoving
+                    << "Submesh moving:" << submeshMoving
+                    << abort(FatalError);
+            }
+
 
             subCellMap[recvProc] = subsetter.cellMap();
             subFaceMap[recvProc] = subsetter.faceFlipMap();

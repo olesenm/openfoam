@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017,2022 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -791,6 +792,20 @@ void Foam::fvMesh::mapFields(const mapPolyMesh& meshMap)
     MapGeometricFields<tensor, fvsPatchField, fvMeshMapper, surfaceMesh>
     (mapper);
 
+    // Map the old flux ourselves since not registered.
+    if (phiPtr_)
+    {
+        auto& fld = *phiPtr_;
+
+        // Store old time mesh motion fluxes if the time has been incremented
+        fld.storeOldTimes();
+
+        MapGeometricField(mapper, fld);
+
+        fld.instance() = fld.time().timeName();
+    }
+
+
     // Map all the dimensionedFields in the objectRegistry
     MapDimensionedFields<scalar, fvMeshMapper, volMesh>(mapper);
     MapDimensionedFields<vector, fvMeshMapper, volMesh>(mapper);
@@ -1007,41 +1022,16 @@ void Foam::fvMesh::updateMesh(const mapPolyMesh& mpm)
         }
     }
 
-
-    // Clear mesh motion flux (note: could instead save & map like volumes)
-    if (phiPtr_)
-    {
-        // Mesh moving and topology change. Recreate meshPhi
-        phiPtr_.reset(nullptr);
-
-        // Create mesh motion flux
-        phiPtr_ = std::make_unique<surfaceScalarField>
-        (
-            IOobject
-            (
-                "meshPhi",
-                this->time().timeName(),
-                *this,
-                IOobject::NO_READ,
-                IOobject::NO_WRITE,
-                IOobject::NO_REGISTER
-            ),
-            *this,
-            dimensionedScalar(dimVolume/dimTime, Foam::zero{})
-        );
-    }
-
     // Clear the sliced fields
     clearGeomNotOldVol();
-
-    // Map all fields
-    mapFields(mpm);
-
     // Clear the current volume and other geometry factors
     surfaceInterpolation::updateMesh(mpm);
 
     // Clear any non-updateable addressing
     clearAddressing(true);
+
+    // Map all fields
+    mapFields(mpm);
 
     meshObject::updateMesh<fvMesh>(*this, mpm);
     meshObject::updateMesh<lduMesh>(*this, mpm);
