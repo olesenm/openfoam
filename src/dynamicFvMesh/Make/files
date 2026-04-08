@@ -1,5 +1,7 @@
 dynamicFvMesh/dynamicFvMesh.C
 dynamicFvMesh/dynamicFvMeshNew.C
+dynamicFvMesh/dynamicLoadBalancingModel/dynamicLoadBalancingModel.C
+dynamicFvMesh/dynamicLoadBalancingModel/dynamicLoadBalancingModelNew.C
 staticFvMesh/staticFvMesh.C
 dynamicMotionSolverFvMesh/dynamicMotionSolverFvMesh.C
 dynamicMultiMotionSolverFvMesh/dynamicMultiMotionSolverFvMesh.C

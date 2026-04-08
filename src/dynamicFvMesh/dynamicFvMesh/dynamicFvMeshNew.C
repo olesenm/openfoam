@@ -29,6 +29,7 @@ License
 #include "staticFvMesh.H"
 #include "simplifiedDynamicFvMesh.H"
 #include "argList.H"
+#include "IOdictionary.H"
 
 // * * * * * * * * * * * * * * * * Selectors * * * * * * * * * * * * * * * * //
 
@@ -131,6 +132,43 @@ Foam::autoPtr<Foam::dynamicFvMesh> Foam::dynamicFvMesh::New
         runTime,
         IOobject::MUST_READ
     );
+
+    // When an alternative decomposeParDict is requested on the command line
+    // (-decomposeParDict), register it on the run-time registry under the
+    // canonical "decomposeParDict" name. In-library consumers that have no
+    // argList access of their own (e.g. the dynamic load balancer) can then
+    // resolve the correct dictionary via the registry. Mirrors snappyHexMesh.
+    // Guarded on args.found() so the default behaviour is unchanged when the
+    // option is absent.
+    if
+    (
+        UPstream::parRun()
+     && args.found("decomposeParDict")
+     && !runTime.foundObject<IOdictionary>("decomposeParDict")
+    )
+    {
+        IOdictionary* dictPtr = new IOdictionary
+        (
+            IOobject::selectIO
+            (
+                IOobject
+                (
+                    "decomposeParDict", // == decompositionModel::canonicalName
+                    runTime.system(),
+                    runTime,
+                    IOobject::MUST_READ,
+                    IOobject::NO_WRITE,
+                    IOobject::REGISTER
+                ),
+                args.get<fileName>("decomposeParDict")
+            )
+        );
+
+        // selectIO renames the object to the file basename; restore the
+        // canonical name so registry lookups can find it.
+        dictPtr->rename("decomposeParDict");
+        dictPtr->store();
+    }
 
     if (args.dryRun() || args.found("dry-run-write"))
     {

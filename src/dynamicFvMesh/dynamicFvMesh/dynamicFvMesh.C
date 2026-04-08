@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2012 OpenFOAM Foundation
     Copyright (C) 2018-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "dynamicFvMesh.H"
+#include "dynamicLoadBalancingModel.H"
 #include "profiling.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -74,12 +76,40 @@ void Foam::dynamicFvMesh::readDict()
 }
 
 
+void Foam::dynamicFvMesh::readDynamicLoadBalancingModel()
+{
+    if (!dlbModelInitialised_)
+    {
+        autoPtr<dynamicLoadBalancingModel> modelPtr =
+            dynamicLoadBalancingModel::New(*this);
+
+        dlbModelPtr_.reset(modelPtr.ptr());
+        dlbModelInitialised_ = true;
+    }
+}
+
+
+bool Foam::dynamicFvMesh::executeDynamicLoadBalancingModel()
+{
+    readDynamicLoadBalancingModel();
+
+    if (!dlbModelPtr_)
+    {
+        return false;
+    }
+
+    return dlbModelPtr_->execute();
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::dynamicFvMesh::dynamicFvMesh(const IOobject& io, const bool doInit)
 :
     fvMesh(io, doInit),
-    timeControl_(io.time(), "update")   // assume has no side effects
+    timeControl_(io.time(), "update"),   // assume has no side effects
+    dlbModelPtr_(nullptr),
+    dlbModelInitialised_(false)
 {
     if (doInit)
     {
@@ -110,7 +140,9 @@ Foam::dynamicFvMesh::dynamicFvMesh
 )
 :
     fvMesh(io, Foam::zero{}, syncPar),
-    timeControl_(io.time(), "update")
+    timeControl_(io.time(), "update"),
+    dlbModelPtr_(nullptr),
+    dlbModelInitialised_(false)
 {
     readDict();
 }
@@ -135,7 +167,9 @@ Foam::dynamicFvMesh::dynamicFvMesh
         std::move(allNeighbour),
         syncPar
     ),
-    timeControl_(io.time(), "update")
+    timeControl_(io.time(), "update"),
+    dlbModelPtr_(nullptr),
+    dlbModelInitialised_(false)
 {
     readDict();
 }
@@ -158,14 +192,26 @@ Foam::dynamicFvMesh::dynamicFvMesh
         std::move(cells),
         syncPar
     ),
-    timeControl_(io.time(), "update")
+    timeControl_(io.time(), "update"),
+    dlbModelPtr_(nullptr),
+    dlbModelInitialised_(false)
 {
     readDict();
 }
 
 
+// * * * * * * * * * * * * * * * * Destructor * * * * * * * * * * * * * * * * //
+
+Foam::dynamicFvMesh::~dynamicFvMesh()
+{}  // dynamicLoadBalancingModel was forward declared
+
+
+// * * * * * * * * * * * * * * Public Member Functions * * * * * * * * * * * //
+
 bool Foam::dynamicFvMesh::controlledUpdate()
 {
+    bool meshUpdated = false;
+
     if (timeControl_.execute())
     {
         if (!timeControl_.always())
@@ -176,10 +222,12 @@ bool Foam::dynamicFvMesh::controlledUpdate()
         }
 
         addProfiling(mesh, "mesh.update()");
-        return this->update();
+        meshUpdated = this->update();
     }
 
-    return false;
+    const bool dlbModelUpdated = executeDynamicLoadBalancingModel();
+
+    return meshUpdated || dlbModelUpdated;
 }
 
 
