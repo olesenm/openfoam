@@ -72,6 +72,7 @@ Foam::functionObjects::yPlus::yPlus
 :
     fvMeshFunctionObject(name, runTime, dict),
     writeFile(obr_, name, typeName, dict),
+    UName_("U"),
     useWallFunction_(true),
     writeFields_(true)  // May change in the future
 {
@@ -112,6 +113,7 @@ bool Foam::functionObjects::yPlus::read(const dictionary& dict)
 
         dict.readIfPresent("useWallFunction", useWallFunction_);
         dict.readIfPresent("writeFields", writeFields_);
+        UName_ = dict.getOrDefault<word>("field", "U");
 
         return true;
     }
@@ -143,7 +145,7 @@ bool Foam::functionObjects::yPlus::execute()
             if (isA<wallFvPatch>(patch))
             {
                 yPlusBf[patchi] =
-                    wallFunctionYPlus(model, patchi, useWallFunction_);
+                    wallFunctionYPlus(model, patchi, useWallFunction_, UName_);
             }
         }
     }

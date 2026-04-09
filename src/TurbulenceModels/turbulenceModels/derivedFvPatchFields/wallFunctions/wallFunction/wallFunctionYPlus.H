@@ -58,7 +58,8 @@ tmp<scalarField> wallFunctionYPlus
 (
     const turbulenceModel&,
     const label patchi,
-    const bool useWallFunction
+    const bool useWallFunction,
+    const word& UName = word("U")
 );
 
 } // End namespace Foam
