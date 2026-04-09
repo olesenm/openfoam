@@ -152,8 +152,14 @@ public:
         //- An empty name corresponds to "all"
         void resetZone(const polyMesh& mesh, const wordRe& cellZoneSelection);
 
+        //- Reset with cellZones specified by IDs
+        void resetZone(const polyMesh& mesh, const labelUList& cellZoneIds);
+
         //- Reset from dictionary (uses cellSet, cellZone entries)
         void resetZone(const polyMesh& mesh, const dictionary& dict);
+
+        //- Rebuild pointIDs_ and selection state from the current mesh
+        void rebuildPointIDs(const dictionary& dict, const polyMesh& mesh);
 };
 
 

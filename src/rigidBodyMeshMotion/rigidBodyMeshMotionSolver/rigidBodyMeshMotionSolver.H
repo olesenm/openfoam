@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,6 +50,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+class mapDistributePolyMesh;
+
 /*---------------------------------------------------------------------------*\
                   Class rigidBodyMeshMotionSolver Declaration
 \*---------------------------------------------------------------------------*/
@@ -70,7 +74,10 @@ class rigidBodyMeshMotionSolver
         const wordRes patches_;
 
         //- Patches to integrate forces
-        const labelHashSet patchSet_;
+        labelHashSet patchSet_;
+
+        //- Rebuild patch labels after mesh redistribution
+        void resetPatchSet(const polyMesh& mesh);
 
 
     public:
@@ -142,7 +149,7 @@ public:
 
 
     //- Destructor
-    ~rigidBodyMeshMotionSolver() = default;
+    ~rigidBodyMeshMotionSolver();
 
 
     // Member Functions
@@ -165,6 +172,9 @@ public:
 
         //- Update local data for geometry changes
         virtual void movePoints(const pointField&);
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //-  Update local data for topology changes
         virtual void updateMesh(const mapPolyMesh&);

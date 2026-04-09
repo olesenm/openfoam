@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 
 #include "codedPoints0MotionSolver.H"
 #include "dictionary.H"
+#include "mapDistributePolyMesh.H"
 #include "Time.H"
 #include "dynamicCode.H"
 #include "addToRunTimeSelectionTable.H"
@@ -176,6 +178,16 @@ void Foam::codedPoints0MotionSolver::movePoints(const pointField& fld)
 {
     updateLibrary(name_);
     return redirectMotionSolver().movePoints(fld);
+}
+
+
+void Foam::codedPoints0MotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    updateLibrary(name_);
+    redirectMotionSolver().distribute(map);
 }
 
 

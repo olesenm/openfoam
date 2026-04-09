@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "rigidBodyMeshMotionSolver.H"
 #include "addToRunTimeSelectionTable.H"
+#include "mapDistributePolyMesh.H"
 #include "polyMesh.H"
 #include "pointPatchDist.H"
 #include "pointConstraints.H"
@@ -65,6 +67,15 @@ Foam::rigidBodyMeshMotionSolver::bodyMesh::bodyMesh
     patches_(dict.get<wordRes>("patches")),
     patchSet_(mesh.boundaryMesh().patchSet(patches_))
 {}
+
+
+void Foam::rigidBodyMeshMotionSolver::bodyMesh::resetPatchSet
+(
+    const polyMesh& mesh
+)
+{
+    patchSet_ = mesh.boundaryMesh().patchSet(patches_);
+}
 
 
 Foam::rigidBodyMeshMotionSolver::rigidBodyMeshMotionSolver
@@ -161,6 +172,12 @@ Foam::rigidBodyMeshMotionSolver::rigidBodyMeshMotionSolver
         }
     }
 }
+
+
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::rigidBodyMeshMotionSolver::~rigidBodyMeshMotionSolver() = default;
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -320,6 +337,20 @@ bool Foam::rigidBodyMeshMotionSolver::read()
 void Foam::rigidBodyMeshMotionSolver::movePoints(const pointField& points)
 {
     meshSolverPtr_->movePoints(points);
+}
+
+
+void Foam::rigidBodyMeshMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    meshSolverPtr_->distribute(map);
+
+    for (auto& body : bodyMeshes_)
+    {
+        body.resetPatchSet(mesh());
+    }
 }
 
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2012 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,6 +31,7 @@ License
 #include "addToRunTimeSelectionTable.H"
 #include "motionSolver.H"
 #include "volFields.H"
+#include "mapDistributePolyMesh.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -115,6 +117,21 @@ Foam::dynamicMotionSolverFvMesh::~dynamicMotionSolverFvMesh() = default;
 const Foam::motionSolver& Foam::dynamicMotionSolverFvMesh::motion() const
 {
     return *motionPtr_;
+}
+
+
+Foam::motionSolver& Foam::dynamicMotionSolverFvMesh::motion()
+{
+    return *motionPtr_;
+}
+
+
+void Foam::dynamicMotionSolverFvMesh::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    motionPtr_->distribute(map);
 }
 
 

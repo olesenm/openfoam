@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,8 +33,8 @@ Description
 Usage
     \table
         Property     | Description                | Required | Default value
-        untangler    | pointSmoother for untangling | yes       | 
-        untangleQ    | quality below which untangling is applied | yes  | 
+        untangler    | pointSmoother for untangling | yes       |
+        untangleQ    | quality below which untangling is applied | yes  |
 
         pointSmoother | pointSmoother in 'normal' mode | yes
         minQ          | quality below which pointSmoother is applied | yes
@@ -75,6 +76,9 @@ SourceFiles
 
 namespace Foam
 {
+
+// Forward Declarations
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
          Class displacementSmartPointSmoothingMotionSolver Declaration
@@ -169,13 +173,16 @@ public:
 
 
     //- Destructor
-    virtual ~displacementSmartPointSmoothingMotionSolver() = default;
+    virtual ~displacementSmartPointSmoothingMotionSolver();
 
 
     // Member Functions
 
         //- Return point location obtained from the current motion field
         virtual tmp<pointField> curPoints() const;
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Solve for motion
         virtual void solve();

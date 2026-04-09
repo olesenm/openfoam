@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021,2024-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 
 #include "hexMeshSmootherMotionSolver.H"
 #include "addToRunTimeSelectionTable.H"
+#include "mapDistributePolyMesh.H"
 #include "syncTools.H"
 #include "pointConstraints.H"
 #include "unitConversion.H"
@@ -1006,6 +1008,29 @@ Foam::hexMeshSmootherMotionSolver::curPoints() const
 {
     //Note: twoDCorrect already done by ::solve
     return relaxedPoints_;
+}
+
+
+void Foam::hexMeshSmootherMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    displacementMotionSolver::distribute(map);
+    map.distributePointData(pointTypes_);
+    map.distributePointData(relaxationLevel_);
+    map.distributePointData(relaxedPoints_);
+
+    pointSmoother_ = pointSmoother::New(mesh(), coeffDict());
+    isMasterPoint_ = syncTools::getMasterPoints(mesh());
+    bnd0Ptr_ =
+        makePatch
+        (
+            mesh(),
+            nonConstraintPatches(mesh()),
+            labelUList::null(),
+            points0()
+        );
 }
 
 

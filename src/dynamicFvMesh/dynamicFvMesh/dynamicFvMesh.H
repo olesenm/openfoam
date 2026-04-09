@@ -57,6 +57,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+class mapDistributePolyMesh;
+
 /*---------------------------------------------------------------------------*\
                         Class dynamicFvMesh Declaration
 \*---------------------------------------------------------------------------*/
@@ -181,6 +184,9 @@ public:
 
         //- Update the mesh if controller permits
         virtual bool controlledUpdate();
+
+        //- Update local state after parallel mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh&) {}
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update() = 0;

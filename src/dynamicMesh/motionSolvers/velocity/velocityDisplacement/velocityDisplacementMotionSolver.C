@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2016 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "velocityDisplacementMotionSolver.H"
 #include "displacementMotionSolver.H"
+#include "mapDistributePolyMesh.H"
 #include "fixedValuePointPatchField.H"
 #include "addToRunTimeSelectionTable.H"
 
@@ -184,6 +186,15 @@ void Foam::velocityDisplacementMotionSolver::movePoints(const pointField& p)
     velocityMotionSolver::movePoints(p);
 
     displacementMotionSolverPtr_->movePoints(p);
+}
+
+
+void Foam::velocityDisplacementMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    displacementMotionSolverPtr_->distribute(map);
 }
 
 

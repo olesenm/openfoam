@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -2701,6 +2702,7 @@ void Foam::polyMeshAdder::add
         {
             const polyMesh& mesh = meshes[meshi];
             const cellZoneMesh& cellZones = mesh.cellZones();
+            const bool isTargetMesh = (meshi == 0);
 
             // Add cells in mesh order
             cellProcAddressing[meshi].setSize(mesh.nCells());
@@ -2716,7 +2718,7 @@ void Foam::polyMeshAdder::add
                     -1,
                     -1,
                     -1,
-                    celli,
+                    (isTargetMesh ? celli : -1),
                     zones
                 );
             }
@@ -2735,6 +2737,7 @@ void Foam::polyMeshAdder::add
             const polyMesh& mesh = meshes[meshi];
             const pointField& points = mesh.points();
             const pointZoneMesh& pointZones = mesh.pointZones();
+            const bool isTargetMesh = (meshi == 0);
 
             // Add points in mesh order
             const labelList& myUniquePoints = uniquePoints[meshi];
@@ -2749,7 +2752,7 @@ void Foam::polyMeshAdder::add
                 pointProcAddressing[meshi][pointi] = meshMod.addPoint
                 (
                     points[pointi],
-                    pointi,
+                    (isTargetMesh ? pointi : -1),
                     zones,
                     true
                 );
@@ -2784,6 +2787,7 @@ void Foam::polyMeshAdder::add
             const labelList& faceOwner = mesh.faceOwner();
             const labelList& faceNeighbour = mesh.faceNeighbour();
             const faceZoneMesh& faceZones = mesh.faceZones();
+            const bool isTargetMesh = (meshi == 0);
 
             DynamicList<label> zones;
             DynamicList<bool> flips;
@@ -2836,7 +2840,7 @@ void Foam::polyMeshAdder::add
                     newNei,
                     -1,                         // masterPointID
                     -1,                         // masterEdgeID
-                    facei,                      // masterFaceID
+                    (isTargetMesh ? facei : -1), // masterFaceID
                     flipFaceFlux,               // flipFaceFlux
                     -1,                         // patchID
                     zones,                      // zoneIDs
@@ -2903,7 +2907,7 @@ void Foam::polyMeshAdder::add
                         newNei,                     // neighbour
                         -1,                         // masterPointID
                         -1,                         // masterEdgeID
-                        facei,                      // masterFaceID
+                        (isTargetMesh ? facei : -1), // masterFaceID
                         flipFaceFlux,               // flipFaceFlux
                         -1,                         // patchID
                         zones,                      // zoneIDs
@@ -2962,7 +2966,7 @@ void Foam::polyMeshAdder::add
                                 -1,                         // neighbour
                                 -1,                         // masterPointID
                                 -1,                         // masterEdgeID
-                                facei,                      // masterFaceID
+                                (isTargetMesh ? facei : -1), // masterFaceID
                                 false,                      // flipFaceFlux
                                 newPatchi,                  // patchID
                                 zones,                      // zoneID

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,6 +52,7 @@ namespace Foam
 
 // Forward Declarations
 class mapPolyMesh;
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
                            Class motionSolver Declaration
@@ -169,6 +171,9 @@ public:
 
         //-  Update local data for topology changes
         virtual void updateMesh(const mapPolyMesh&) = 0;
+
+        //- Update local data after parallel redistribution
+        virtual void distribute(const mapDistributePolyMesh&) {}
 
         //- Write state using stream options
         virtual bool writeObject

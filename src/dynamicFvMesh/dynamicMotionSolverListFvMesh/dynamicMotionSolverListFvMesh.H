@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
     Copyright (C) 2020,2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -47,7 +48,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
 class motionSolver;
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
                 Class dynamicMotionSolverListFvMesh Declaration
@@ -108,6 +111,9 @@ public:
 
         //- Map all fields in time using given map. Triggered by topo change
         virtual void mapFields(const mapPolyMesh& mpm);
+
+        //- Update motion solver state after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 };
 
 

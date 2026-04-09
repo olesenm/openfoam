@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -45,6 +46,9 @@ SourceFiles
 
 namespace Foam
 {
+
+// Forward Declarations
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
             Class displacementPointSmoothingMotionSolver Declaration
@@ -125,13 +129,16 @@ public:
 
 
     //- Destructor
-    virtual ~displacementPointSmoothingMotionSolver() = default;
+    virtual ~displacementPointSmoothingMotionSolver();
 
 
     // Member Functions
 
         //- Return point location obtained from the current motion field
         virtual tmp<pointField> curPoints() const;
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Solve for motion
         virtual void solve();
