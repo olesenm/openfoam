@@ -358,10 +358,11 @@ void Foam::SurfaceFilmModel<CloudType>::inject(TrackCloudType& cloud)
                     (
                         patchi,
                         facei,
-                       -massParcelPatch_[filmFacei],// mass
-                        Zero,                       // tangential momentum
-                        Zero,                       // impingement
-                        Zero                        // energy
+                       -massParcelPatch_[filmFacei],    // mass
+                       -massParcelPatch_[filmFacei]*UFilmPatch_[filmFacei],
+                                                        // tangential momentum
+                        Zero,                           // impingement
+                        Zero                            // energy
                     );
                 }
             }
