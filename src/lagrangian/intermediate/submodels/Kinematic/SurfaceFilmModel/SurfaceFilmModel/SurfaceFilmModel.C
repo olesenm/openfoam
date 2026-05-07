@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -212,7 +213,8 @@ void Foam::SurfaceFilmModel<CloudType>::injectParticles
             }
             else
             {
-                // TODO: cache mass and re-distribute?
+                // Zero mass so addSources does not subtract from film
+                massParcelPatch_[facei] = 0;
                 delete pPtr;
             }
         }
@@ -280,7 +282,8 @@ void Foam::SurfaceFilmModel<CloudType>::injectParticles
             }
             else
             {
-                // TODO: cache mass and re-distribute?
+                // Zero mass so addSources does not subtract from film
+                massParcelPatch_[filmFacei] = 0;
                 delete pPtr;
             }
         }
