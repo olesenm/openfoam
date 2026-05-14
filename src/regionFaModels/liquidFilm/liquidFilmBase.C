@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -184,7 +185,7 @@ liquidFilmBase::liquidFilmBase
             primaryMesh().thisDb()
         ),
         primaryMesh(),
-        dimensionedVector(dimPressure, Zero)
+        dimensionedVector(dimMass*dimVelocity, Zero)
     ),
     pnSource_
     (
@@ -195,7 +196,7 @@ liquidFilmBase::liquidFilmBase
             primaryMesh().thisDb()
         ),
         primaryMesh(),
-        dimensionedScalar(dimPressure, Zero)
+        dimensionedScalar(dimMass*dimVelocity, Zero)
     ),
     addedMassTotal_(0),
     faOptions_
