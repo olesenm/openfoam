@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2017 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -58,6 +59,82 @@ Foam::fv::solidificationMeltingSource::thermoModeTypeNames_
 
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+void Foam::fv::solidificationMeltingSource::readPhaseChangeCoeffs
+(
+    const dictionary& dict
+)
+{
+    alphaSolidTptr_ = Function1<scalar>::NewIfPresent
+    (
+        "alphaSolidT",
+        dict,
+        &mesh_
+    );
+
+    const bool hasAlphaSolidT = alphaSolidTptr_.good();
+    const bool hasTsol = dict.found("Tsol");
+    const bool hasTliq = dict.found("Tliq");
+    const bool hasTmelt = dict.found("Tmelt");
+
+    if (hasTliq && !hasTsol)
+    {
+        FatalIOErrorInFunction(dict)
+            << "Entry Tliq requires Tsol"
+            << exit(FatalIOError);
+    }
+
+    if (hasTsol)
+    {
+        Tsol_ = dict.get<scalar>("Tsol");
+        Tliq_ = dict.getOrDefault<scalar>("Tliq", Tsol_);
+
+        if (Tliq_ < Tsol_)
+        {
+            FatalIOErrorInFunction(dict)
+                << "Liquidus temperature cannot be below solidus temperature"
+                << nl
+                << "Tsol = " << Tsol_ << nl
+                << "Tliq = " << Tliq_
+                << exit(FatalIOError);
+        }
+    }
+
+    if (hasAlphaSolidT)
+    {
+        phaseChangeMode_ = mdAlphaSolidT;
+
+        if (hasTmelt)
+        {
+            Tmelt_ = dict.get<scalar>("Tmelt");
+            hasTemperatureRef_ = true;
+        }
+        else if (hasTsol)
+        {
+            Tmelt_ = Tsol_;
+            hasTemperatureRef_ = true;
+        }
+        else
+        {
+            hasTemperatureRef_ = false;
+        }
+    }
+    else if (hasTsol)
+    {
+        phaseChangeMode_ = mdTsolTliq;
+        Tmelt_ = Tsol_;
+        hasTemperatureRef_ = true;
+    }
+    else
+    {
+        phaseChangeMode_ = mdTmelt;
+        Tmelt_ = dict.get<scalar>("Tmelt");
+        Tsol_ = Tmelt_;
+        Tliq_ = Tmelt_;
+        hasTemperatureRef_ = true;
+    }
+}
+
 
 Foam::tmp<Foam::volScalarField>
 Foam::fv::solidificationMeltingSource::Cp() const
@@ -138,10 +215,60 @@ void Foam::fv::solidificationMeltingSource::update(const volScalarField& Cp)
 
         scalar Tc = T[celli];
         scalar Cpc = Cp[celli];
-        scalar alpha1New = alpha1_[celli] + relax_*Cpc*(Tc - Tmelt_)/L_;
 
-        alpha1_[celli] = clamp(alpha1New, zero_one{});
-        deltaT_[i] = Tc - Tmelt_;
+        switch (phaseChangeMode_)
+        {
+            case mdAlphaSolidT:
+            {
+                const scalar alpha1Target =
+                    scalar(1)
+                  - Foam::clamp(alphaSolidTptr_->value(Tc), zero_one{});
+
+                const scalar alpha1New =
+                    relax_*alpha1Target
+                  + (scalar(1) - relax_)*alpha1_[celli];
+
+                alpha1_[celli] = Foam::clamp(alpha1New, zero_one{});
+                deltaT_[i] = hasTemperatureRef_ ? (Tc - Tmelt_) : scalar(0);
+                break;
+            }
+            case mdTsolTliq:
+            {
+                if (Tliq_ == Tsol_)
+                {
+                    const scalar alpha1New =
+                        alpha1_[celli] + relax_*Cpc*(Tc - Tsol_)/L_;
+
+                    alpha1_[celli] = Foam::clamp(alpha1New, zero_one{});
+                    deltaT_[i] = Tc - Tsol_;
+                }
+                else
+                {
+                    const scalar alpha1Target =
+                        Foam::clamp((Tc - Tsol_)/(Tliq_ - Tsol_), zero_one{});
+
+                    const scalar alpha1New =
+                        relax_*alpha1Target
+                      + (scalar(1) - relax_)*alpha1_[celli];
+
+                    alpha1_[celli] = Foam::clamp(alpha1New, zero_one{});
+                    deltaT_[i] =
+                        Tc - (Tsol_ + (Tliq_ - Tsol_)*alpha1_[celli]);
+                }
+                break;
+            }
+            case mdTmelt:
+            {
+                const scalar alpha1New =
+                    alpha1_[celli] + relax_*Cpc*(Tc - Tmelt_)/L_;
+
+                alpha1_[celli] = Foam::clamp(alpha1New, zero_one{});
+                deltaT_[i] = Tc - Tmelt_;
+                break;
+            }
+            default:  // should not happen
+                break;
+        }
     }
 
     alpha1_.correctBoundaryConditions();
@@ -161,18 +288,9 @@ Foam::fv::solidificationMeltingSource::solidificationMeltingSource
 )
 :
     fv::cellSetOption(sourceName, modelType, dict, mesh),
-    Tmelt_(coeffs_.get<scalar>("Tmelt")),
-    L_(coeffs_.get<scalar>("L")),
-    relax_(coeffs_.getOrDefault<scalar>("relax", 0.9)),
     mode_(thermoModeTypeNames_.get("thermoMode", coeffs_)),
-    rhoRef_(coeffs_.get<scalar>("rhoRef")),
-    TName_(coeffs_.getOrDefault<word>("T", "T")),
-    CpName_(coeffs_.getOrDefault<word>("Cp", "Cp")),
-    UName_(coeffs_.getOrDefault<word>("U", "U")),
-    phiName_(coeffs_.getOrDefault<word>("phi", "phi")),
-    Cu_(coeffs_.getOrDefault<scalar>("Cu", 100000)),
-    q_(coeffs_.getOrDefault<scalar>("q", 0.001)),
-    beta_(coeffs_.get<scalar>("beta")),
+    phaseChangeMode_(mdTmelt),
+    alphaSolidTptr_(nullptr),
     alpha1_
     (
         IOobject
@@ -188,9 +306,25 @@ Foam::fv::solidificationMeltingSource::solidificationMeltingSource
         dimensionedScalar(dimless, Zero),
         fvPatchFieldBase::zeroGradientType()
     ),
+    deltaT_(cells_.size(), 0),
+    TName_(coeffs_.getOrDefault<word>("T", "T")),
+    CpName_(coeffs_.getOrDefault<word>("Cp", "Cp")),
+    UName_(coeffs_.getOrDefault<word>("U", "U")),
+    phiName_(coeffs_.getOrDefault<word>("phi", "phi")),
+    Tmelt_(0),
+    Tsol_(0),
+    Tliq_(0),
+    L_(coeffs_.get<scalar>("L")),
+    relax_(coeffs_.getOrDefault<scalar>("relax", 0.9)),
+    rhoRef_(coeffs_.get<scalar>("rhoRef")),
+    Cu_(coeffs_.getOrDefault<scalar>("Cu", 100000)),
+    q_(coeffs_.getOrDefault<scalar>("q", 0.001)),
+    beta_(coeffs_.get<scalar>("beta")),
     curTimeIndex_(-1),
-    deltaT_(cells_.size(), 0)
+    hasTemperatureRef_(false)
 {
+    readPhaseChangeCoeffs(coeffs_);
+
     fieldNames_.resize(2);
     fieldNames_[0] = UName_;
 
@@ -297,7 +431,8 @@ bool Foam::fv::solidificationMeltingSource::read(const dictionary& dict)
 {
     if (fv::cellSetOption::read(dict))
     {
-        coeffs_.readEntry("Tmelt", Tmelt_);
+        readPhaseChangeCoeffs(coeffs_);
+
         coeffs_.readEntry("L", L_);
 
         coeffs_.readIfPresent("relax", relax_);
