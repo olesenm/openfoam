@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -404,7 +405,11 @@ tmp<scalarField> FriedrichModel::Fratio() const
         const vector Urel(Up[i] - Uf[i]);
         const scalar We = h[i]*rhop_*sqr(mag(Urel))/(2.0*sigma[i]);
 
+        if (We < VSMALL || Re < VSMALL) continue;  // Skip: no separation
+
         // Characteristic breakup length (FLW:Eq. 15)
+        // Note: this is an empirical correlation whose leading constant
+        // carries implied units; it is dimensionally consistent.
         const scalar Lb =
             0.0388*Foam::sqrt(h[i])*Foam::pow(Re, 0.6)*Foam::pow(We, -0.5);
 
@@ -412,7 +417,7 @@ tmp<scalarField> FriedrichModel::Fratio() const
         const scalar den =
             sigma[i]*(sinAngle + 1.0) + rho[i]*magG_*h[i]*Lb*cosAngle;
 
-        if (mag(den) > 0)
+        if (mag(den) > ROOTVSMALL)
         {
             // Force ratio (FLW:Eq. 20)
             Fratio[i] = rho[i]*sqr(mag(Uf[i]))*h[i]*sinAngle/den;
@@ -517,7 +522,7 @@ FriedrichModel::FriedrichModel
     if (mag(C2_) < VSMALL)
     {
         FatalIOErrorInFunction(dict)
-            << "Empirical constant, C2 = " << C2_ << "cannot be zero."
+            << "Empirical constant, C2 = " << C2_ << " cannot be zero."
             << abort(FatalIOError);
     }
 }
@@ -556,6 +561,10 @@ tmp<scalarField> FriedrichModel::separatedMassRatio() const
                 {
                     // (ZJD:Eq. 16)
                     separated[i] = C0_ + C1_*Foam::exp(-Fratio[i]/C2_);
+
+                    // Keep separated[i] in [0,1] against unreasonable coeffs
+                    separated[i] =
+                        Foam::clamp(separated[i], Foam::zero_one{});
                 }
             }
             break;
@@ -571,7 +580,7 @@ tmp<scalarField> FriedrichModel::separatedMassRatio() const
             (
                 mesh().newIOobject("Fratio"),
                 mesh(),
-                dimensionedScalar(dimForce, Zero)
+                dimensionedScalar(dimless, Zero)
             );
             areaFratio.primitiveFieldRef() = Fratio;
             areaFratio.write();
