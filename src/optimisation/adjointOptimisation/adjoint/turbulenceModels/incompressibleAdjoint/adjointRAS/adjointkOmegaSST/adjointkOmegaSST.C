@@ -63,10 +63,10 @@ tmp<volScalarField> adjointkOmegaSST::F1() const
         (
             max
             (
-                (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                scalar(500)*nu()/(sqr(py())*omega())
             ),
-            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
         ),
         scalar(10)
     );
@@ -81,8 +81,8 @@ tmp<volScalarField> adjointkOmegaSST::F2() const
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-            scalar(500)*nu()/(sqr(y_)*omega())
+            (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+            scalar(500)*nu()/(sqr(py())*omega())
         ),
         scalar(100)
     );
@@ -252,8 +252,8 @@ tmp<volScalarField> adjointkOmegaSST::dF2_domega
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-            scalar(500)*nu()/(sqr(y_)*omega())
+            (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+            scalar(500)*nu()/(sqr(py())*omega())
         ),
         scalar(100)
     );
@@ -261,8 +261,8 @@ tmp<volScalarField> adjointkOmegaSST::dF2_domega
     return
       - scalar(2)*arg2*(1 - F2*F2)*
         (
-            case_2_nut*scalar(2)*sqrt(k())/(betaStar_*sqr(omega())*y_)
-          + case_3_nut*scalar(500)*nu()/sqr(omega()*y_)
+            case_2_nut*scalar(2)*sqrt(k())/(betaStar_*sqr(omega())*py())
+          + case_3_nut*scalar(500)*nu()/sqr(omega()*py())
         );
 }
 
@@ -277,15 +277,15 @@ tmp<volScalarField> adjointkOmegaSST::dF2_dk
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-            scalar(500)*nu()/(sqr(y_)*omega())
+            (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+            scalar(500)*nu()/(sqr(py())*omega())
         ),
         scalar(100)
     );
 
     return
         case_2_nut*scalar(2)*arg2*(1 - F2*F2)
-       /(betaStar_*omega()*y_*sqrt(k()));
+       /(betaStar_*omega()*py()*sqrt(k()));
 }
 
 
@@ -397,9 +397,9 @@ tmp<volScalarField> adjointkOmegaSST::dF1_domega
         (
             4*pow3(arg1)*(scalar(1) - F1_*F1_)
            *(
-              - case_1_F1_*sqrt(k())/(betaStar_*omega()*omega()*y_)
-              - case_2_F1_*scalar(500)*nu()/sqr(omega()*y_)
-              + case_3_F1_*scalar(4)*alphaOmega2_*k()/sqr(CDkOmegaPlus_*y_)
+              - case_1_F1_*sqrt(k())/(betaStar_*omega()*omega()*py())
+              - case_2_F1_*scalar(500)*nu()/sqr(omega()*py())
+              + case_3_F1_*scalar(4)*alphaOmega2_*k()/sqr(CDkOmegaPlus_*py())
                *CDkOmega_/omega()
             )
         );
@@ -414,7 +414,7 @@ tmp<volVectorField> adjointkOmegaSST::dF1_dGradOmega
     return
         (
           - case_3_F1_*scalar(4)*pow3(arg1)*(scalar(1) - F1_*F1_)
-           *scalar(8)*k()*sqr(alphaOmega2_/(CDkOmegaPlus_*y_))/omega()*gradK_
+           *scalar(8)*k()*sqr(alphaOmega2_/(CDkOmegaPlus_*py()))/omega()*gradK_
         );
 }
 
@@ -427,10 +427,10 @@ tmp<volScalarField> adjointkOmegaSST::waEqnSourceFromF1() const
         (
             max
             (
-                (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                scalar(500)*nu()/(sqr(py())*omega())
             ),
-            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
         ),
         scalar(10)
     );
@@ -535,8 +535,8 @@ tmp<volScalarField> adjointkOmegaSST::dF1_dk
         (
             4*pow3(arg1)*(scalar(1) - F1_*F1_)
            *(
-                case_1_F1_*0.5/(betaStar_*omega()*sqrt(k())*y_)
-              + case_4_F1_*scalar(4)*alphaOmega2_/(CDkOmegaPlus_*sqr(y_))
+                case_1_F1_*0.5/(betaStar_*omega()*sqrt(k())*py())
+              + case_4_F1_*scalar(4)*alphaOmega2_/(CDkOmegaPlus_*sqr(py()))
             )
         );
 }
@@ -550,7 +550,7 @@ tmp<volVectorField> adjointkOmegaSST::dF1_dGradK
     return
         (
           - case_3_F1_*scalar(4)*pow3(arg1)*(scalar(1) - F1_*F1_)
-           *scalar(8)*k()*sqr(alphaOmega2_/(CDkOmegaPlus_*y_))/omega()
+           *scalar(8)*k()*sqr(alphaOmega2_/(CDkOmegaPlus_*py()))/omega()
            *gradOmega_
         );
 }
@@ -564,10 +564,10 @@ tmp<volScalarField> adjointkOmegaSST::kaEqnSourceFromF1() const
         (
             max
             (
-                (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                scalar(500)*nu()/(sqr(py())*omega())
             ),
-            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
         ),
         scalar(10)
     );
@@ -1095,17 +1095,17 @@ void adjointkOmegaSST::updatePrimalRelatedFields()
         {
             volScalarField arg1_C3
             (
-                (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_)
-              - scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(1)/betaStar_)*sqrt(k())/(omega()*py())
+              - scalar(500)*nu()/(sqr(py())*omega())
             );
             volScalarField arg1_C2
             (
                 max
                 (
-                    (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                    scalar(500)*nu()/(sqr(y_)*omega())
+                    (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                    scalar(500)*nu()/(sqr(py())*omega())
                 )
-              - (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+              - (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
             );
             volScalarField arg1_C1
             (
@@ -1113,10 +1113,10 @@ void adjointkOmegaSST::updatePrimalRelatedFields()
                 (
                     max
                     (
-                        (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                        scalar(500)*nu()/(sqr(y_)*omega())
+                        (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                        scalar(500)*nu()/(sqr(py())*omega())
                     ),
-                    (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+                    (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
                 ) - scalar(10)
             );
             volScalarField CDkOmegaPlus_C1
@@ -1136,15 +1136,15 @@ void adjointkOmegaSST::updatePrimalRelatedFields()
             volScalarField nut_C1(a1_*omega() - b1_*F2_*S_);
             volScalarField arg2_C2
             (
-                (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_)
-              - scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(2)/betaStar_)*sqrt(k())/(omega()*py())
+              - scalar(500)*nu()/(sqr(py())*omega())
             );
             volScalarField arg2_C1
             (
                 max
                 (
-                    (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-                    scalar(500)*nu()/(sqr(y_)*omega())
+                    (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+                    scalar(500)*nu()/(sqr(py())*omega())
                 ) - scalar(100)
             );
 
@@ -1340,8 +1340,6 @@ adjointkOmegaSST::adjointkOmegaSST
             false
         )
     ),
-
-    y_(primalVars_.RASModelVariables()().d()),
 
     //Primal Gradient Fields
     gradU_
@@ -2030,15 +2028,15 @@ tmp<volScalarField> adjointkOmegaSST::nutJacobianTMVar1() const
     volScalarField nut_C1(a1_*omega() - b1_*F2*S);
     volScalarField arg2_C2
     (
-        (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_)
-      - scalar(500)*nu()/(sqr(y_)*omega())
+        (scalar(2)/betaStar_)*sqrt(k())/(omega()*py())
+      - scalar(500)*nu()/(sqr(py())*omega())
     );
     volScalarField arg2_C1
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-            scalar(500)*nu()/(sqr(y_)*omega())
+            (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+            scalar(500)*nu()/(sqr(py())*omega())
         ) - scalar(100)
     );
     volScalarField case_2_nut(neg0(nut_C1)*pos(arg2_C2)*neg(arg2_C1));
@@ -2064,15 +2062,15 @@ tmp<volScalarField> adjointkOmegaSST::nutJacobianTMVar2() const
     volScalarField nut_C1(a1_*omega() - b1_*F2*S);
     volScalarField arg2_C2
     (
-        (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_)
-      - scalar(500)*nu()/(sqr(y_)*omega())
+        (scalar(2)/betaStar_)*sqrt(k())/(omega()*py())
+      - scalar(500)*nu()/(sqr(py())*omega())
     );
     volScalarField arg2_C1
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k())/(omega()*y_),
-            scalar(500)*nu()/(sqr(y_)*omega())
+            (scalar(2)/betaStar_)*sqrt(k())/(omega()*py()),
+            scalar(500)*nu()/(sqr(py())*omega())
         ) - scalar(100)
     );
     volScalarField case_1_nut(pos(nut_C1));
@@ -2269,10 +2267,10 @@ tmp<volTensorField> adjointkOmegaSST::FISensitivityTerm()
         (
             max
             (
-                (scalar(1)/betaStar_)*sqrt(k())/(omega()*y_),
-                scalar(500)*nu()/(sqr(y_)*omega())
+                (scalar(1)/betaStar_)*sqrt(k())/(omega()*py()),
+                scalar(500)*nu()/(sqr(py())*omega())
             ),
-            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(y_))
+            (4*alphaOmega2_)*k()/(CDkOmegaPlus_*sqr(py()))
         ),
         scalar(10)
     );

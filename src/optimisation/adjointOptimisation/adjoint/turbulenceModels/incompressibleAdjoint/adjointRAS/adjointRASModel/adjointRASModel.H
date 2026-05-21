@@ -151,6 +151,12 @@ protected:
         //- Set mean fields
         void setMeanFields();
 
+        //- Return the current primal wall-distance field
+        const volScalarField& py() const
+        {
+            return primalVars_.RASModelVariables()().d();
+        }
+
 
 public:
 

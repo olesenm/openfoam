@@ -29,6 +29,7 @@ License
 
 #include "RASModelVariables.H"
 #include "addToRunTimeSelectionTable.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -41,6 +42,15 @@ namespace incompressible
 
 defineTypeNameAndDebug(RASModelVariables, 0);
 defineRunTimeSelectionTable(RASModelVariables, dictionary);
+
+
+void RASModelVariables::refreshWallDist() const
+{
+    if (distPtr_.is_reference())
+    {
+        distPtr_.ref(wallDist::New(mesh_).y().constCast());
+    }
+}
 
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //

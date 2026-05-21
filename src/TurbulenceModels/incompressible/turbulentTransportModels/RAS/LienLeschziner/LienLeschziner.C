@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2020,2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,7 +50,9 @@ addToRunTimeSelectionTable(RASModel, LienLeschziner, dictionary);
 
 tmp<volScalarField> LienLeschziner::fMu() const
 {
-    const volScalarField yStar(sqrt(k_)*y_/nu());
+    const volScalarField& y = wallDist::New(mesh_).y();
+
+    const volScalarField yStar(sqrt(k_)*y/nu());
 
     return
         (scalar(1) - exp(-Anu_*yStar))
@@ -67,10 +70,12 @@ tmp<volScalarField> LienLeschziner::f2() const
 
 tmp<volScalarField> LienLeschziner::E(const volScalarField& f2) const
 {
-    const volScalarField yStar(sqrt(k_)*y_/nu());
+    const volScalarField& y = wallDist::New(mesh_).y();
+
+    const volScalarField yStar(sqrt(k_)*y/nu());
     const volScalarField le
     (
-        kappa_*y_*((scalar(1) + SMALL) - exp(-Aeps_*yStar))
+        kappa_*y*((scalar(1) + SMALL) - exp(-Aeps_*yStar))
     );
 
     return
@@ -218,9 +223,7 @@ LienLeschziner::LienLeschziner
             IOobject::AUTO_WRITE
         ),
         mesh_
-    ),
-
-    y_(wallDist::New(mesh_).y())
+    )
 {
     bound(k_, kMin_);
     bound(epsilon_, epsilonMin_);

@@ -98,7 +98,7 @@ tmp<volScalarField> adjointSpalartAllmaras::Stilda
         max
         (
             Omega
-          + fv2(chi, fv1)*nuTilda()/sqr(kappa_*y_),
+          + fv2(chi, fv1)*nuTilda()/sqr(kappa_*py()),
             Cs_*Omega
         )
     );
@@ -115,7 +115,7 @@ tmp<volScalarField> adjointSpalartAllmaras::r
         (
             min
             (
-                nuTilda()/(max(Stilda, minStilda_)*sqr(kappa_*y_)),
+                nuTilda()/(max(Stilda, minStilda_)*sqr(kappa_*py())),
                 scalar(10)
             )
         );
@@ -188,7 +188,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dStilda_dOmega
 {
     volScalarField fieldSwitch
     (
-        Omega + fv2*nuTilda()/sqr(kappa_*y_) - Cs_*Omega
+        Omega + fv2*nuTilda()/sqr(kappa_*py()) - Cs_*Omega
     );
 
     return pos(fieldSwitch) + neg(fieldSwitch)*Cs_;
@@ -202,7 +202,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dStilda_dNuTilda
     const volScalarField& dFv2dChi
 ) const
 {
-    volScalarField invDenom(1./sqr(kappa_*y_));
+    volScalarField invDenom(1./sqr(kappa_*py()));
     volScalarField fieldSwitch(Omega + fv2*nuTilda()*invDenom - Cs_*Omega);
 
     return pos(fieldSwitch)*(dFv2dChi*nuTilda()*invDenom/nu() + fv2*invDenom);
@@ -215,10 +215,10 @@ tmp<volScalarField> adjointSpalartAllmaras::dStilda_dDelta
     const volScalarField& fv2
 ) const
 {
-    volScalarField aux(fv2*nuTilda()/sqr(kappa_*y_));
+    volScalarField aux(fv2*nuTilda()/sqr(kappa_*py()));
     volScalarField fieldSwitch(Omega + aux - Cs_*Omega);
 
-    return - 2.*pos(fieldSwitch)*aux/y_;
+    return - 2.*pos(fieldSwitch)*aux/py();
 }
 
 
@@ -229,7 +229,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dr_dNuTilda
 {
     tmp<volScalarField> tdrdNutilda
     (
-        1./(max(Stilda, minStilda_)*sqr(kappa_*y_))
+        1./(max(Stilda, minStilda_)*sqr(kappa_*py()))
         *(scalar(10) - r_)/(scalar(10) - r_ + SMALL)
     );
     tdrdNutilda.ref().boundaryFieldRef() == Zero;
@@ -245,7 +245,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dr_dStilda
 {
     tmp<volScalarField> tdrdStilda
     (
-      - nuTilda()/sqr(max(Stilda, minStilda_)*kappa_*y_)
+      - nuTilda()/sqr(max(Stilda, minStilda_)*kappa_*py())
        *(scalar(10) - r_)/(scalar(10) - r_ + SMALL)
     );
     tdrdStilda.ref().boundaryFieldRef() == Zero;
@@ -261,7 +261,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dr_dDelta
 {
     tmp<volScalarField> tdrdDelta
     (
-      - 2.*nuTilda()/(max(Stilda, minStilda_)*sqr(kappa_*y_)*y_)
+      - 2.*nuTilda()/(max(Stilda, minStilda_)*sqr(kappa_*py())*py())
        *(scalar(10) - r_)/(scalar(10) - r_ + SMALL)
     );
     tdrdDelta.ref().boundaryFieldRef() == Zero;
@@ -294,7 +294,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dfw_dNuTilda
     const volScalarField& dStildadNuTilda
 ) const
 {
-    volScalarField invDenom(1./sqr(kappa_*y_));
+    volScalarField invDenom(1./sqr(kappa_*py()));
 
     return
         dfwdr*(dr_dNuTilda(Stilda) + dr_dStilda(Stilda)*dStildadNuTilda);
@@ -329,7 +329,7 @@ tmp<volScalarField> adjointSpalartAllmaras::dD_dNuTilda
     const volScalarField& dfwdNuTilda
 ) const
 {
-    return Cw1_*(nuTilda()*dfwdNuTilda + fw)/sqr(y_);
+    return Cw1_*(nuTilda()*dfwdNuTilda + fw)/sqr(py());
 }
 
 
@@ -428,7 +428,7 @@ void adjointSpalartAllmaras::updatePrimalRelatedFields()
            /(Omega + dimensionedScalar("SMALL", Omega.dimensions(), SMALL))
            *(
               - Cb1_*nuTilda()*dStilda_dOmega
-              + Cw1_*sqr(nuTilda()/y_)*dfw_dOmega
+              + Cw1_*sqr(nuTilda()/py())*dfw_dOmega
             );
 
         // Set changedPrimalSolution_ to false to avoid recomputing these
@@ -554,8 +554,6 @@ adjointSpalartAllmaras::adjointSpalartAllmaras
     (
         coeffDict_.getOrDefault("limitAdjointProduction", true)
     ),
-
-    y_(primalVars_.RASModelVariables()().d()),
 
     mask_(allocateMask()),
 
@@ -834,7 +832,7 @@ tmp<volScalarField> adjointSpalartAllmaras::distanceSensitivities()
             "adjointEikonalSource" + type(),
             (
               - Cb1_*nuTilda()*dStilda_dDelta
-              + Cw1_*sqr(nuTilda()/y_)*(dfw_dDelta - 2.*fw_/y_)
+              + Cw1_*sqr(nuTilda()/py())*(dfw_dDelta - 2.*fw_/py())
             )*nuaTilda()
         );
     volScalarField& adjointEikonalSource = tadjointEikonalSource.ref();
@@ -1009,7 +1007,7 @@ tmp<volTensorField> adjointSpalartAllmaras::FISensitivityTerm()
           + 2.*nuaTilda()*Cb2_/sigmaNut_*(gradNuTilda*gradNuTilda)
           + (
               - Cb1_*nuTilda()*dStilda_dOmega
-              + Cw1_*sqr(nuTilda()/y_)*dfw_dOmega
+              + Cw1_*sqr(nuTilda()/py())*dfw_dOmega
             )
            *nuaTilda()*deltaOmega; // jk
     FISens.correctBoundaryConditions();
@@ -1088,7 +1086,7 @@ void adjointSpalartAllmaras::correct()
         // Always a negative contribution to the lhs. No Sp used!
         Cb1_*Stilda_*nuaTilda()
         // Always a positive contribution to the lhs. no need for SuSp
-      - fvm::Sp(Cw1_*fw_*nuTilda()/sqr(y_), nuaTilda())
+      - fvm::Sp(Cw1_*fw_*nuTilda()/sqr(py()), nuaTilda())
       - Cdnut_*gradUaR
       + fvOptions(nuaTilda())
     );

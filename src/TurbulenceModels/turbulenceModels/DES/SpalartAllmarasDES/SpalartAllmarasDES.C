@@ -8,6 +8,7 @@
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2022 Upstream CFD GmbH
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,6 +30,7 @@ License
 
 #include "SpalartAllmarasDES.H"
 #include "fvOptions.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -106,7 +108,7 @@ tmp<volScalarField> SpalartAllmarasDES<BasicTurbulenceModel>::Stilda
 {
     if (useSigma_)
     {
-        const volScalarField& lRAS = this->y_;
+        const volScalarField& lRAS = wallDist::New(this->mesh_).y();
         const volScalarField fv2(this->fv2(chi, fv1));
         const volScalarField lLES(this->lengthScaleLES(chi, fv1));
         const volScalarField Omega(this->Omega(gradU));
@@ -147,7 +149,8 @@ tmp<volScalarField> SpalartAllmarasDES<BasicTurbulenceModel>::dTilda
     tmp<volScalarField> tdTilda = lengthScaleLES(chi, fv1);
 
     // Take min vs wall distance
-    min(tdTilda.ref(), tdTilda(), this->y_);
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    min(tdTilda.ref(), tdTilda(), y);
     return tdTilda;
 }
 
@@ -268,6 +271,7 @@ SpalartAllmarasDES<BasicTurbulenceModel>::LESRegion() const
 {
     const volScalarField chi(this->chi());
     const volScalarField fv1(this->fv1(chi));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
 
     return tmp<volScalarField>::New
     (
@@ -279,7 +283,7 @@ SpalartAllmarasDES<BasicTurbulenceModel>::LESRegion() const
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        neg(dTilda(chi, fv1, fvc::grad(this->U_)) - this->y_)
+        neg(dTilda(chi, fv1, fvc::grad(this->U_)) - y)
     );
 }
 

@@ -203,9 +203,6 @@ class GEKO
 
     // Operand Fields
 
-        //- Wall-distance field [m]
-        const volScalarField& y_;
-
         //- Turbulent kinetic energy field [m^2/s^2]
         volScalarField k_;
 

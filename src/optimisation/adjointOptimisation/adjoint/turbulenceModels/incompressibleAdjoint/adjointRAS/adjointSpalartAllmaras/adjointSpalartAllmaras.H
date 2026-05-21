@@ -122,10 +122,6 @@ protected:
 
         // Fields
 
-            //- Wall distance
-            //  Note: reference to the distance known by the primal model
-            const volScalarField& y_;
-
             //- Field for masking (convergence enhancement)
             volScalarField mask_;
 

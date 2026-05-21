@@ -115,10 +115,6 @@ protected:
 
             // Primal Fields
 
-                //- Wall distance
-                //  Note: reference to the distance known by the primal model
-                const volScalarField& y_;
-
                 //- Cached primal gradient fields
                 volTensorField gradU_;
                 volVectorField gradOmega_;
