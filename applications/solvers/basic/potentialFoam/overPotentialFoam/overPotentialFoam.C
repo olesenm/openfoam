@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 
     Info<< nl << "Calculating potential flow" << endl;
 
-    mesh.update();
+    mesh.controlledUpdate();
 
 
     // Since solver contains no time loop it would never execute

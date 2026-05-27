@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
             Info<< "Time = " << runTime.timeName() << nl << endl;
 
             // Do any mesh changes
-            mesh.update();
+            mesh.controlledUpdate();
 
             if (mesh.changing() && correctPhi)
             {

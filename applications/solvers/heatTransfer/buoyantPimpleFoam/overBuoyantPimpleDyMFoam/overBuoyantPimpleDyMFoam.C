@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
             if (pimple.firstIter() || moveMeshOuterCorrectors)
             {
                 // Do any mesh changes
-                mesh.update();
+                mesh.controlledUpdate();
 
                 if (mesh.changing())
                 {

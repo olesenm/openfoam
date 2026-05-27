@@ -98,11 +98,11 @@ int main(int argc, char *argv[])
             {
                 scalar timeBeforeMeshUpdate = runTime.elapsedCpuTime();
 
-                mesh.update();
+                mesh.controlledUpdate();
 
                 if (mesh.changing())
                 {
-                    Info<< "Execution time for mesh.update() = "
+                    Info<< "Execution time for mesh.controlledUpdate() = "
                         << runTime.elapsedCpuTime() - timeBeforeMeshUpdate
                         << " s" << endl;
 

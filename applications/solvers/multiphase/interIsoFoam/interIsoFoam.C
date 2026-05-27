@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
                     advector.surf().reconstruct();
                 }
 
-                mesh.update();
+                mesh.controlledUpdate();
 
                 if (mesh.changing())
                 {

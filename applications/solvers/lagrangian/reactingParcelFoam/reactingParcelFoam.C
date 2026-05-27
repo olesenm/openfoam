@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
         parcels.storeGlobalPositions();
 
         // Do any mesh changes
-        mesh.update();
+        mesh.controlledUpdate();
 
         if (solvePrimaryRegion && mesh.changing())
         {

@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
                     advector.surf().reconstruct();
                 }
 
-                mesh.update();
+                mesh.controlledUpdate();
 
                 if (mesh.changing())
                 {
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 
                     MRF.update();
 
-                    Info<< "Execution time for mesh.update() = "
+                    Info<< "Execution time for mesh.controlledUpdate() = "
                         << runTime.elapsedCpuTime() - timeBeforeMeshUpdate
                         << " s" << endl;
 

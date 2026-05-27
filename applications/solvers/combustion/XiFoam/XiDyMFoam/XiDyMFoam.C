@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
             volVectorField rhoU("rhoU", rho*U);
 
             // Do any mesh changes
-            mesh.update();
+            mesh.controlledUpdate();
 
             if (mesh.changing() && correctPhi)
             {

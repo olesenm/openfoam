@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     {
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
-        mesh.update();
+        mesh.controlledUpdate();
 
         while (simple.correctNonOrthogonal())
         {

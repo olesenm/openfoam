@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
         kinematicCloud.storeGlobalPositions();
 
-        mesh.update();
+        mesh.controlledUpdate();
 
         U.correctBoundaryConditions();
 

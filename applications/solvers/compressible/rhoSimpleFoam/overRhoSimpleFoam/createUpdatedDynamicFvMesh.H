@@ -44,7 +44,7 @@ dynamicFvMesh& mesh = meshPtr();
 
 // Calculate initial mesh-to-mesh mapping. Note that this should be
 // done under the hood, e.g. as a MeshObject
-mesh.update();
+mesh.controlledUpdate();
 
 Foam::Info << Foam::endl;
 

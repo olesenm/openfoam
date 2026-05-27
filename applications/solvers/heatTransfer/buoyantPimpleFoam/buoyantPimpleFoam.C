@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
                 }
 
                 // Do any mesh changes
-                mesh.update();
+                mesh.controlledUpdate();
 
                 if (mesh.changing())
                 {

@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
         // Store the particle positions
         kinematicCloud.storeGlobalPositions();
 
-        mesh.update();
+        mesh.controlledUpdate();
 
         // Calculate absolute flux from the mapped surface velocity
         phic = mesh.Sf() & Ucf;

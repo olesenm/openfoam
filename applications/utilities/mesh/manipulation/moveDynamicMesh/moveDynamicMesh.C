@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
         {
             if (pimple.firstIter() || moveMeshOuterCorrectors)
             {
-                mesh.update();
+                mesh.controlledUpdate();
             }
         }
 

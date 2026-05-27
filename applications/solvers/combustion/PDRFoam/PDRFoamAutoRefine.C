@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
             volVectorField rhoU("rhoU", rho*U);
 
             // Do any mesh changes
-            bool meshChanged = mesh.update();
+            bool meshChanged = mesh.controlledUpdate();
 
 
             if (meshChanged)
