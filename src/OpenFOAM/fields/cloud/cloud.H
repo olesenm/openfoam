@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -120,6 +121,13 @@ public:
             //- Remap the cells of particles corresponding to the
             //- mesh topology change
             virtual void autoMap(const mapPolyMesh&);
+
+            //- Store the particles' global positions for use during mapping.
+            //  Call before a topology/redistribution change so that autoMap
+            //  can recover positions from the pre-change mesh state.
+            //  No-op by default. Cloud types tracking positions override this
+            //  to snapshot their global positions ahead of a mesh change.
+            virtual void storeGlobalPositions() const;
 
 
         // I-O

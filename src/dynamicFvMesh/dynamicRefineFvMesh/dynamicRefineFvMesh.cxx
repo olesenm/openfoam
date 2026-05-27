@@ -40,6 +40,7 @@ License
 #include "HashOps.H"
 #include "Function1.H"
 #include "globalIndex.H"
+#include "cloud.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -477,6 +478,13 @@ Foam::dynamicRefineFvMesh::refine
     // might get triggered when doing processor patches.
     // (TBD: should be in changeMesh if no inflation?)
     moving(false);
+
+    // Snapshot cloud positions before topology change
+    for (cloud* cloudPtr : lookupClass<cloud>())
+    {
+        cloudPtr->storeGlobalPositions();
+    }
+
     // Create mesh (no inflation), return map from old to new mesh.
     autoPtr<mapPolyMesh> map = meshMod.changeMesh(*this, false);
 
@@ -600,6 +608,13 @@ Foam::dynamicRefineFvMesh::unrefine
     // might get triggered when doing processor patches.
     // (TBD: should be in changeMesh if no inflation?)
     moving(false);
+
+    // Snapshot cloud positions before topology change
+    for (cloud* cloudPtr : lookupClass<cloud>())
+    {
+        cloudPtr->storeGlobalPositions();
+    }
+
     // Create mesh (no inflation), return map from old to new mesh.
     autoPtr<mapPolyMesh> map = meshMod.changeMesh(*this, false);
 
