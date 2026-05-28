@@ -530,6 +530,10 @@ public:
             //- Return old-time cell volumes
             DimensionedField<scalar, volMesh>& setV0();
 
+            //- Initialise old-time cell volumes from current V if absent
+            //  Used after mesh redistribution of a moving mesh
+            void initV0FromV();
+
 
         // Write
 

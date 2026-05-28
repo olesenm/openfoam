@@ -54,6 +54,19 @@ bool Foam::fvGeometryScheme::setMeshPhi() const
 
     if (oldPoints.size() != currPoints.size())
     {
+        if (mesh_.topoChanging())
+        {
+            DebugInFunction
+                << "Skipping meshPhi update due to topology change with "
+                << "non-conformal old/current point sizes"
+                << " old:" << oldPoints.size()
+                << " current:" << currPoints.size()
+                << endl;
+
+            return false;
+        }
+
+
         FatalErrorInFunction
             << "Old and current points sizes must be the same. "
             << "Old points:" << oldPoints.size()

@@ -989,37 +989,40 @@ void Foam::fvMesh::updateMesh(const mapPolyMesh& mpm)
     // Our slice of the addressing is no longer valid
     lduPtr_.reset(nullptr);
 
-    if (VPtr_)
+    // Grab old time volumes if the time has been incremented.
+    // This will update V0, V00. Required before mapFields for
+    // dynamicRefineFvMesh even when V() has not yet been
+    // demand-constructed, e.g. 'solidFoam' mesh update before the
+    // first equation assembly.
+    if (curTimeIndex_ < time().timeIndex())
     {
-        // Grab old time volumes if the time has been incremented
-        // This will update V0, V00
         storeOldVol(mpm.oldCellVolumes());
+    }
 
-        // Few checks
-        if (VPtr_ && (VPtr_->size() != mpm.nOldCells()))
-        {
-            FatalErrorInFunction
-                << "V:" << VPtr_->size()
-                << " not equal to the number of old cells "
-                << mpm.nOldCells()
-                << exit(FatalError);
-        }
-        if (V0Ptr_ && (V0Ptr_->size() != mpm.nOldCells()))
-        {
-            FatalErrorInFunction
-                << "V0:" << V0Ptr_->size()
-                << " not equal to the number of old cells "
-                << mpm.nOldCells()
-                << exit(FatalError);
-        }
-        if (V00Ptr_ && (V00Ptr_->size() != mpm.nOldCells()))
-        {
-            FatalErrorInFunction
-                << "V0:" << V00Ptr_->size()
-                << " not equal to the number of old cells "
-                << mpm.nOldCells()
-                << exit(FatalError);
-        }
+    // Few checks
+    if (VPtr_ && (VPtr_->size() != mpm.nOldCells()))
+    {
+        FatalErrorInFunction
+            << "V:" << VPtr_->size()
+            << " not equal to the number of old cells "
+            << mpm.nOldCells()
+            << exit(FatalError);
+    }
+    if (V0Ptr_ && (V0Ptr_->size() != mpm.nOldCells()))
+    {
+        FatalErrorInFunction
+            << "V0:" << V0Ptr_->size()
+            << " not equal to the number of old cells "
+            << mpm.nOldCells()
+            << exit(FatalError);
+    }
+    if (V00Ptr_ && (V00Ptr_->size() != mpm.nOldCells()))
+    {
+        FatalErrorInFunction
+            << "V0:" << V00Ptr_->size()
+            << " not equal to the number of old cells "
+            << mpm.nOldCells()
+            << exit(FatalError);
     }
 
     // Clear the sliced fields
@@ -1033,6 +1036,10 @@ void Foam::fvMesh::updateMesh(const mapPolyMesh& mpm)
     // Map all fields
     mapFields(mpm);
 
+    // Ensure mesh flux field exists for solvers using meshFluxCorrection
+    // after topology change (zero flux for static mesh refinement).
+    createMeshPhi();
+
     meshObject::updateMesh<fvMesh>(*this, mpm);
     meshObject::updateMesh<lduMesh>(*this, mpm);
 }
@@ -1045,7 +1052,7 @@ bool Foam::fvMesh::writeObject
 ) const
 {
     bool ok = true;
-    if (phiPtr_)
+    if (phiPtr_ && phiPtr_->writeOpt() != IOobjectOption::NO_WRITE)
     {
         ok = phiPtr_->write(writeOnProc);
         // NOTE: The old old time mesh phi might be necessary for certain
