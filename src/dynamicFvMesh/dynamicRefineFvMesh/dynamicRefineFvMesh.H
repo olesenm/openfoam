@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2017-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,6 +50,8 @@ Description
         maxRefinement   2;
         // Stop refinement if maxCells reached
         maxCells        200000;
+        // Cap selected refinement cells per step as a percentage of total cells
+        maxRefinementCellsPercentage 5;
         // Flux field and corresponding velocity field. Fluxes on changed
         // faces get recalculated by interpolating the velocity. Use 'none'
         // on surfaceScalarFields that do not need to be reinterpolated, use
@@ -85,6 +88,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+template<class Type> class Function1;
+
 /*---------------------------------------------------------------------------*\
                      Class dynamicRefineFvMesh Declaration
 \*---------------------------------------------------------------------------*/
@@ -107,6 +113,13 @@ protected:
 
         //- Number of refinement/unrefinement steps done so far.
         label nRefinementIterations_;
+
+        //- Maximum number of selected refinement cells per step
+        label maxRefinementCells_;
+
+        //- Cap for selected refinement cells per step as percentage of total
+        //- cells
+        autoPtr<Function1<scalar>> maxRefinementCellsPercentagePtr_;
 
         //- Dump cellLevel for post-processing
         bool dumpLevel_;
@@ -164,6 +177,12 @@ protected:
                 const scalarField& vFld,
                 bitSet& candidateCell
             ) const;
+
+            //- Limit the globally-marked refinement candidates per step.
+            //  0: clears all candidates; no refinement in this interval
+            //  positive: truncates the candidate set to that global cell count
+            //  negative: leaves the candidates unchanged
+            void capRefineCandidates(bitSet& candidateCell) const;
 
             //- Subset candidate cells for refinement
             virtual labelList selectRefineCells
@@ -241,7 +260,7 @@ public:
 
 
     //- Destructor
-    virtual ~dynamicRefineFvMesh() = default;
+    virtual ~dynamicRefineFvMesh();
 
 
     // Member Functions

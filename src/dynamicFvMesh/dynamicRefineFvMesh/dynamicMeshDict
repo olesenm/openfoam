@@ -49,6 +49,9 @@ dynamicRefineFvMeshCoeffs
     // Maximum cell limit (approximate)
     maxCells 1000000;
 
+    // Cap selected refinement cells per step as a percentage of total cells
+    // maxRefinementCellsPercentage 5;
+
     // volScalarField to base refinement on
     field gamma;
 
