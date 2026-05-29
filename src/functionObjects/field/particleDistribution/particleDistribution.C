@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -140,7 +141,7 @@ bool Foam::functionObjects::particleDistribution::write()
     if
     (
         tagFieldName_ != "none"
-     && cloudObr.foundObject<IOField<scalar>>(tagFieldName_)
+     && cloudObr.foundObject<IOField<label>>(tagFieldName_)
     )
     {
         // Tag field present - generate distribution per tag
@@ -149,7 +150,7 @@ bool Foam::functionObjects::particleDistribution::write()
         const labelHashSet tagMap(tag);
         const label tagMax = tagMap.size();
 
-        List<DynamicList<label>> tagAddr(tagMax);
+        tagAddr.resize(tagMax);
         forAll(tag, i)
         {
             label newTag = tagMap[tag[i]];
@@ -167,7 +168,6 @@ bool Foam::functionObjects::particleDistribution::write()
          || processField<tensor>(cloudObr, i, tagAddr)
          || processField<sphericalTensor>(cloudObr, i, tagAddr)
          || processField<symmTensor>(cloudObr, i, tagAddr)
-         || processField<tensor>(cloudObr, i, tagAddr)
         );
 
         if (log && !ok)
