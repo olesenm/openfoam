@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -651,7 +652,46 @@ bool Foam::functionObjects::forces::read(const dictionary& dict)
     dict.readIfPresent("porosity", porosity_);
     if (porosity_)
     {
-        Info<< "    Including porosity effects" << endl;
+        porosityZones_.clear();
+
+        if
+        (
+            dict.readIfPresent("porosityZones", porosityZones_)
+         && !porosityZones_.empty()
+        )
+        {
+            const auto& cellZones = mesh_.cellZones();
+            const wordList cellZoneNames(cellZones.names());
+            wordRes validZones;
+
+            for (const auto& zonei : porosityZones_)
+            {
+                if (cellZones.findIndex(zonei) < 0)
+                {
+                    WarningInFunction
+                        << "Ignoring porosityZones entry " << zonei
+                        << " since it matches no cellZone. "
+                        << "Available cellZones: " << cellZoneNames << endl;
+                }
+                else
+                {
+                    validZones.push_back(zonei);
+                }
+            }
+
+            porosityZones_.transfer(validZones);
+        }
+
+        Info<< "    Including porosity effects";
+
+        if (porosityZones_.empty())
+        {
+            Info<< ", all zones" << endl;
+        }
+        else
+        {
+            Info<< ", zones: " << flatOutput(porosityZones_) << endl;
+        }
     }
     else
     {
@@ -758,16 +798,51 @@ void Foam::functionObjects::forces::calcForcesMoments()
 
         for (const porosityModel& mdl : models)
         {
+            const labelList& modelZoneIDs = mdl.cellZoneIDs();
+
+            bool zoneSelected = porosityZones_.empty();
+
+            if (!zoneSelected)
+            {
+                const auto& cellZones = mesh_.cellZones();
+
+                for (const label zonei : modelZoneIDs)
+                {
+                    if
+                    (
+                        const cellZone& cZone = cellZones[zonei];
+                        porosityZones_.match(cZone.name())
+                    )
+                    {
+                        zoneSelected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!zoneSelected)
+            {
+                continue;
+            }
+
             // Non-const access required if mesh is changing
             auto& pm = const_cast<porosityModel&>(mdl);
 
             const vectorField fPTot(pm.force(U, rho, mu));
+            const auto& cellZones = mesh_.cellZones();
 
-            const labelList& cellZoneIDs = pm.cellZoneIDs();
-
-            for (const label zonei : cellZoneIDs)
+            for (const label zonei : modelZoneIDs)
             {
-                const cellZone& cZone = mesh_.cellZones()[zonei];
+                const cellZone& cZone = cellZones[zonei];
+
+                if
+                (
+                    !porosityZones_.empty()
+                 && !porosityZones_.match(cZone.name())
+                )
+                {
+                    continue;
+                }
 
                 const vectorField d(mesh_.C(), cZone);
                 const vectorField fP(fPTot, cZone);
