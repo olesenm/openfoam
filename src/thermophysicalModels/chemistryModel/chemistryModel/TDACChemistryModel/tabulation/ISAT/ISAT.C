@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2019-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -145,19 +146,20 @@ void Foam::chemistryTabulationMethods::ISAT<CompType, ThermoType>::addToMRU
     if (maxMRUSize_ > 0 && MRURetrieve_)
     {
         auto iter = MRUList_.begin();
+        auto leastRecentIter = iter;
 
-        // First search if the chemPoint is already in the list
-        bool isInList = false;
+        // Check if chemPoint is already in the list
         for (; iter.good(); ++iter)
         {
             if (*iter == phi0)
             {
-                isInList = true;
                 break;
             }
+
+            leastRecentIter = iter;
         }
 
-        if (isInList)
+        if (iter.good())
         {
             // If it is in the list, then move it to front
             if (iter != MRUList_.begin())
@@ -168,25 +170,13 @@ void Foam::chemistryTabulationMethods::ISAT<CompType, ThermoType>::addToMRU
         }
         else
         {
-            // chemPoint not yet in the list, iter is last
+            // chemPoint not yet in the list, add it
             if (MRUList_.size() == maxMRUSize_)
             {
-                if (iter == MRUList_.end())
-                {
-                    MRUList_.remove(iter);
-                    MRUList_.insert(phi0);
-                }
-                else
-                {
-                    FatalErrorInFunction
-                        << "Error in MRUList construction"
-                        << exit(FatalError);
-                }
+                MRUList_.remove(leastRecentIter);
             }
-            else
-            {
-                MRUList_.insert(phi0);
-            }
+
+            MRUList_.insert(phi0);
         }
     }
 }
