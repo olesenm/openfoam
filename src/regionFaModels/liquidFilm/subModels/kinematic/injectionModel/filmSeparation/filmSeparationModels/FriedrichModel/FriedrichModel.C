@@ -425,63 +425,6 @@ tmp<scalarField> FriedrichModel::Fratio() const
     }
 
 
-    // Skip the rest of the routine if the simulation is a serial run
-    if (!Pstream::parRun()) return tFratio;
-
-    // Process processor faces
-    const faBoundaryMesh& patches = mesh().boundary();
-
-    for (const faPatch& fap : patches)
-    {
-        if (isA<processorFaPatch>(fap))
-        {
-            const label patchi = fap.index();
-            const label internalEdgei = fap.start();
-
-            const auto& hp = h.boundaryField()[patchi];
-            const auto& Ufp = Uf.boundaryField()[patchi];
-            const auto& Upp = Up.boundaryField()[patchi];
-            const auto& rhop = rho.boundaryField()[patchi];
-            const auto& sigmap = sigma.boundaryField()[patchi];
-            const auto& mup = mu.boundaryField()[patchi];
-
-            forAll(hp, i)
-            {
-                // Skip the routine if the face is not a candidate for separation
-                if (!separationFaces[i]) continue;
-
-                const label meshEdgei = internalEdgei + i;
-
-                // Calculate the corner-angle trigonometric values
-                const scalar sinAngle = std::sin(cornerAngles_[meshEdgei]);
-                const scalar cosAngle = std::cos(cornerAngles_[meshEdgei]);
-
-                // Reynolds number (FLW:Eq. 16)
-                const scalar Re = hp[i]*mag(Ufp[i])*rhop[i]/mup[i];
-
-                // Weber number (FLW:Eq. 17)
-                const vector Urelp(Upp[i] - Ufp[i]);
-                const scalar We = hp[i]*rhop_*sqr(mag(Urelp))/(2.0*sigmap[i]);
-
-                // Characteristic breakup length (FLW:Eq. 15)
-                const scalar Lb =
-                    0.0388*Foam::sqrt(hp[i])
-                   *Foam::pow(Re, 0.6)*Foam::pow(We, -0.5);
-
-                // Force ratio - denominator (FLW:Eq. 20)
-                const scalar den =
-                    sigmap[i]*(sinAngle + 1.0)
-                  + rhop[i]*magG_*hp[i]*Lb*cosAngle;
-
-                if (mag(den) > 0)
-                {
-                    // Force ratio (FLW:Eq. 20)
-                    Fratio[i] = rhop[i]*sqr(mag(Ufp[i]))*hp[i]*sinAngle/den;
-                }
-            }
-        }
-    }
-
     return tFratio;
 }
 
