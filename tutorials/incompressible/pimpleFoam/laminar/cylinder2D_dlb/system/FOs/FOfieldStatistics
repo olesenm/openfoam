@@ -1,0 +1,30 @@
+
+fieldStatistics1
+{
+    type            fieldStatistics;
+    libs            (fieldFunctionObjects);
+    fields          ( U p );
+    statistics
+    (
+        min
+        max
+        mean
+        variance
+    );
+
+    mode            component;
+    mean            arithmetic;
+    internal        false;
+    extrema         true;
+
+    writePrecision  10;
+    writeToFile     true;
+    useUserTime     true;
+
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+
+// ************************************************************************* //

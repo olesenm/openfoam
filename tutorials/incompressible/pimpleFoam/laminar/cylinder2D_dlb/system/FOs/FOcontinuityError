@@ -1,0 +1,15 @@
+
+continuityError1
+{
+    type            continuityError;
+    libs            (fieldFunctionObjects);
+    writePrecision  10;
+    writeToFile     true;
+    useUserTime     true;
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    writeTime;
+}
+
+
+// ************************************************************************* //

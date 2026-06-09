@@ -1,0 +1,35 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dynamicLoadBalanceDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Mandatory entries
+balanceModel            distributed;   // {distributed}
+performanceMetric       cellNumber;    // {cellNumber, cpuLoad}
+frequency               20;            // <Function1<label>>;
+imbalanceThreshold      0.1;           // <Function1<label>>;
+
+// Optional entries
+// active              <bool>;
+// skipBalance         <Function1<label>>;
+// smoothing           <scalar>;
+// minUsage            <scalar>;
+
+// chronicImbalanceSettings
+//{
+//    recomputeImbalanceTolerance  <scalar>;
+//    backoffPeriod                <scalar>;
+//}
+
+// ************************************************************************* //
