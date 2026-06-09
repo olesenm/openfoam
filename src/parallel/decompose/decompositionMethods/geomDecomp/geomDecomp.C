@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -84,6 +85,43 @@ void Foam::geomDecomp::readCoeffs()
     }
     setOrder();
 
+
+    procWeights_.clear();
+    if
+    (
+        coeffsDict_.readIfPresent("processorWeights", procWeights_)
+     && !procWeights_.empty()
+    )
+    {
+        if (procWeights_.size() != nDomains_)
+        {
+            FatalIOErrorInFunction(coeffsDict_)
+                << "processorWeights (" << procWeights_.size()
+                << ") != number of domains (" << nDomains_ << ")" << nl
+                << exit(FatalIOError);
+        }
+
+        scalar sumW = 0; scalar minW = 0;
+        for (auto& w : procWeights_)
+        {
+            sumW += w;
+            minW = Foam::min(w, minW);
+        }
+
+        if (!std::isfinite(sumW) || sumW <= SMALL || minW < 0)
+        {
+            FatalIOErrorInFunction(coeffsDict_)
+                << "Invalid processorWeights " << procWeights_ << nl
+                << "(sum:" << sumW << ", min:" << minW << ")."
+                << exit(FatalIOError);
+        }
+
+        for (auto& w : procWeights_)
+        {
+            w /= sumW;
+        }
+    }
+
     // Optional (cartesian) coordinate system transform
     auto csysPtr = coordinateSystem::NewIfPresent(coeffsDict_, "transform");
 
@@ -144,6 +182,115 @@ void Foam::geomDecomp::checkDecompositionDirections
                 << endl;
         }
     }
+}
+
+
+Foam::scalarList Foam::geomDecomp::binWeightFractions
+(
+    const label procOffset,
+    const label stride,
+    const label nBins
+) const
+{
+    // procOffset: first proc ID in current subtree
+    // stride: spacing between proc IDs while advancing current decomp digit
+    // nBins: num of child bins created at this recursion level
+
+    if (stride <= 0 || nBins <= 0)
+    {
+        return scalarList();
+    }
+    else if (procWeights_.size() != nDomains_)
+    {
+        return scalarList(nBins, scalar(1));
+    }
+
+    scalarList fractions(nBins, Zero);
+
+    // group: Number of final processors represented by each current bin
+    const label group = nDomains_/(stride*nBins);
+
+    scalar total = 0;
+    for (label b = 0; b < nBins; ++b)
+    {
+        scalar w = 0;
+        for (label m = 0; m < group; ++m)
+        {
+            const label proci = procOffset + (b + m*nBins)*stride;
+            w += procWeights_[proci];
+        }
+        fractions[b] = w;
+        total += w;
+    }
+
+    if (total > SMALL)
+    {
+        for (auto& fraction : fractions)
+        {
+            fraction /= total;
+        }
+    }
+    else
+    {
+        fractions = scalar(1)/scalar(nBins);
+    }
+
+    return fractions;
+}
+
+
+Foam::scalarList Foam::geomDecomp::axisWeightFractions
+(
+    const direction cmpt
+) const
+{
+    const label nBins = n_[cmpt];
+
+    if (nBins <= 0)
+    {
+        return scalarList();
+    }
+    else if (procWeights_.size() != nDomains_)
+    {
+        return scalarList(nBins, scalar(1));
+    }
+
+    scalarList fractions(nBins, Zero);
+    scalar total = 0;
+
+    forAll(procWeights_, proci)
+    {
+        const label x = proci % n_.x();
+        const label y = (proci/n_.x()) % n_.y();
+        const label z = proci/(n_.x()*n_.y());
+
+        label bin = x;
+        if (cmpt == vector::Y)
+        {
+            bin = y;
+        }
+        else if (cmpt == vector::Z)
+        {
+            bin = z;
+        }
+
+        fractions[bin] += procWeights_[proci];
+        total += procWeights_[proci];
+    }
+
+    if (total > SMALL)
+    {
+        for (auto& fraction : fractions)
+        {
+            fraction /= total;
+        }
+    }
+    else
+    {
+        fractions = scalar(1)/scalar(nBins);
+    }
+
+    return fractions;
 }
 
 

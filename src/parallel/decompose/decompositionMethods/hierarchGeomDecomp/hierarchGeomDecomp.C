@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -295,6 +296,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
     const labelList& current,       // slice of points to decompose
     const direction componentIndex, // index in order_
     const label mult,               // multiplication factor for finalDecomp
+    const label procOffset,         // processor offset of this subtree
     labelList& finalDecomp
 ) const
 {
@@ -323,25 +325,16 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
 
     label globalCurrentSize = returnReduce(current.size(), sumOp<label>());
 
-    scalar minCoord = returnReduce
-    (
-        (
-            sortedCoord.size()
-          ? sortedCoord.first()
-          : GREAT
-        ),
-        minOp<scalar>()
-    );
+    // Per-bin target fractions
+    const scalarList binFracs(binWeightFractions(procOffset, mult, n_[compI]));
 
-    scalar maxCoord = returnReduce
-    (
-        (
-            sortedCoord.size()
-          ? sortedCoord.last()
-          : -GREAT
-        ),
-        maxOp<scalar>()
-    );
+    scalarMinMax coordLimits(GREAT, -GREAT);
+    if (!sortedCoord.empty())
+    {
+        coordLimits.reset(sortedCoord.front(), sortedCoord.back());
+    }
+    reduce(coordLimits, sumOp<scalarMinMax>());
+    const auto& [minCoord, maxCoord] = coordLimits;
 
     if (debug)
     {
@@ -377,7 +370,20 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
         else if (Pstream::nProcs() == 1)
         {
             // No need for binary searching of bin size
-            localSize = label(current.size()/n_[compI]);
+            if (procWeights_.empty())
+            {
+                localSize = label(current.size()/n_[compI]);
+            }
+            else
+            {
+                localSize = label(globalCurrentSize*binFracs[bin] + 0.5);
+                localSize =
+                    Foam::max
+                    (
+                        label(0),
+                        Foam::min(localSize, current.size() - leftIndex)
+                    );
+            }
             if (leftIndex+localSize < sortedCoord.size())
             {
                 rightCoord = sortedCoord[leftIndex+localSize];
@@ -390,11 +396,19 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
         else
         {
             // For the current bin (starting at leftCoord) we want a rightCoord
-            // such that the sum of all sizes are globalCurrentSize/n_[compI].
+            // such that sum of all sizes are globalCurrentSize*binFracs[bin]
+            // , = globalCurrentSize/n_[compI] for an even split.
             // We have to iterate to obtain this.
 
             label rightIndex = current.size();
             rightCoord = maxCoord;
+
+            const scalar wantedBinSize =
+            (
+                procWeights_.empty()
+              ? scalar(globalCurrentSize/n_[compI])
+              : globalCurrentSize*binFracs[bin]
+            );
 
             // Calculate rightIndex/rightCoord to have wanted size
             bool ok = findBinary
@@ -404,7 +418,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
                 leftIndex,
                 leftCoord,
                 maxCoord,
-                globalCurrentSize/n_[compI],  // wanted size
+                wantedBinSize,  // wanted size
 
                 rightIndex,
                 rightCoord
@@ -460,6 +474,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
                 slice,
                 componentIndex+1,
                 mult*n_[compI],     // Multiplier to apply to decomposition.
+                procOffset + bin*mult,  // Processor offset of child subtree
                 finalDecomp
             );
 
@@ -487,6 +502,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
     const labelList& current,       // slice of points to decompose
     const direction componentIndex, // index in order_
     const label mult,               // multiplication factor for finalDecomp
+    const label procOffset,         // processor offset of this subtree
     labelList& finalDecomp
 ) const
 {
@@ -515,6 +531,9 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
 
     label globalCurrentSize = returnReduce(current.size(), sumOp<label>());
 
+    // Per-bin target fractions
+    const scalarList binFracs(binWeightFractions(procOffset, mult, n_[compI]));
+
     // Now evaluate local cumulative weights, based on the sorting.
     // Make one bigger than the nodes.
     scalarField sortedWeightedSizes(current.size()+1, Zero);
@@ -527,25 +546,13 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
         sortedWeightedSizes
     );
 
-    scalar minCoord = returnReduce
-    (
-        (
-            sortedCoord.size()
-          ? sortedCoord.first()
-          : GREAT
-        ),
-        minOp<scalar>()
-    );
-
-    scalar maxCoord = returnReduce
-    (
-        (
-            sortedCoord.size()
-          ? sortedCoord.last()
-          : -GREAT
-        ),
-        maxOp<scalar>()
-    );
+    scalarMinMax coordLimits(GREAT, -GREAT);
+    if (!sortedCoord.empty())
+    {
+        coordLimits.reset(sortedCoord.front(), sortedCoord.back());
+    }
+    reduce(coordLimits, sumOp<scalarMinMax>());
+    const auto& [minCoord, maxCoord] = coordLimits;
 
     if (debug)
     {
@@ -582,11 +589,19 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
         {
             // For the current bin (starting at leftCoord) we want a rightCoord
             // such that the sum of all weighted sizes are
-            // globalCurrentLength/n_[compI].
+            // globalCurrentSize*binFracs[bin], = globalCurrentSize/n_[compI]
+            // for an even split.
             // We have to iterate to obtain this.
 
             label rightIndex = current.size();
             rightCoord = maxCoord;
+
+            const scalar wantedBinSize =
+            (
+                procWeights_.empty()
+              ? scalar(globalCurrentSize/n_[compI])
+              : globalCurrentSize*binFracs[bin]
+            );
 
             // Calculate rightIndex/rightCoord to have wanted size
             bool ok = findBinary
@@ -597,7 +612,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
                 leftIndex,
                 leftCoord,
                 maxCoord,
-                globalCurrentSize/n_[compI],  // wanted size
+                wantedBinSize,  // wanted size
 
                 rightIndex,
                 rightCoord
@@ -654,6 +669,7 @@ Foam::label Foam::hierarchGeomDecomp::sortComponent
                 slice,
                 componentIndex+1,
                 mult*n_[compI],     // Multiplier to apply to decomposition.
+                procOffset + bin*mult,  // Processor offset of child subtree
                 finalDecomp
             );
 
@@ -727,6 +743,7 @@ Foam::labelList Foam::hierarchGeomDecomp::decompose
             slice,
             0,              // Sort first component in order_
             1,              // Offset for different x bins.
+            0,              // Processor offset of the root subtree
             finalDecomp
         );
     }
@@ -739,6 +756,7 @@ Foam::labelList Foam::hierarchGeomDecomp::decompose
             slice,
             0,              // Sort first component in order_
             1,              // Offset for different x bins.
+            0,              // Processor offset of the root subtree
             finalDecomp
         );
     }
