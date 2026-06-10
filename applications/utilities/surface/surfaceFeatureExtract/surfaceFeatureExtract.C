@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -117,6 +118,9 @@ Description
 
             // Remove features shorter than the specified cumulative length
             minLen          0.0;
+
+            // Require both minElem and minLen criteria before trimming
+            requireBoth     no;    // default: no
         }
     \endverbatim
 
@@ -393,6 +397,8 @@ int main(int argc, char *argv[])
                 trimDict.getOrDefault<scalar>("minLen", 0);
             const label minElem =
                 trimDict.getOrDefault<label>("minElem", 0);
+            const bool requireBoth =
+                trimDict.getOrDefault<Switch>("requireBoth", false);
 
             // Trim away small groups of features
             if (minLen > 0 || minElem > 0)
@@ -407,10 +413,18 @@ int main(int argc, char *argv[])
                     Info<< "Removing features with number of edges < "
                         << minElem << endl;
                 }
+                if (requireBoth)
+                {
+                    Info<< "Require both length and element count criteria"
+                        << endl;
+                }
 
                 features().trimFeatures
                 (
-                    minLen, minElem, extractor().includedAngle()
+                    minLen,
+                    minElem,
+                    extractor().includedAngle(),
+                    requireBoth
                 );
             }
         }

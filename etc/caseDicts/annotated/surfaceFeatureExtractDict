@@ -81,6 +81,9 @@ surface2.nas
 
         // Remove features shorter than the specified cumulative length
         minLen          0.0;
+
+        // Require both minElem and minLen criteria before trimming
+        // requireBoth     no;    // default: no
     }
 
     subsetFeatures

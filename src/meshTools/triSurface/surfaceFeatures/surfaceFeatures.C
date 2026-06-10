@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1151,7 +1152,8 @@ Foam::labelList Foam::surfaceFeatures::trimFeatures
 (
     const scalar minLen,
     const label minElems,
-    const scalar includedAngle
+    const scalar includedAngle,
+    const bool requireBoth
 )
 {
     // Convert feature edge list to status per edge.
@@ -1220,16 +1222,44 @@ Foam::labelList Foam::surfaceFeatures::trimFeatures
                 featLines
             );
 
-        if
+        const scalar totalLen =
         (
-            (
-                leftPath.len_
-              + rightPath.len_
-              + startEdge.mag(surf_.localPoints())
-              < minLen
-            )
-         || (leftPath.n_ + rightPath.n_ + 1 < minElems)
-        )
+            leftPath.len_
+          + rightPath.len_
+          + startEdge.mag(surf_.localPoints())
+        );
+
+        const label nElems = leftPath.n_ + rightPath.n_ + 1;
+
+        const bool lenActive = (minLen > 0);
+        const bool elemActive = (minElems > 0);
+
+        const bool trimByLen = lenActive && (totalLen < minLen);
+        const bool trimByElems = elemActive && (nElems < minElems);
+
+        bool trim = false;
+
+        if (requireBoth)
+        {
+            if (lenActive && elemActive)
+            {
+                trim = trimByLen && trimByElems;
+            }
+            else if (lenActive)
+            {
+                trim = trimByLen;
+            }
+            else if (elemActive)
+            {
+                trim = trimByElems;
+            }
+        }
+        else
+        {
+            trim = trimByLen || trimByElems;
+        }
+
+        if (trim)
         {
             // Rewalk same route (recognizable by featLines == featI)
             // to reset featLines.
