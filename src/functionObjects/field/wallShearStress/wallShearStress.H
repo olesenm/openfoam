@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -34,14 +35,22 @@ Description
     Computes the wall-shear stress at selected wall patches.
 
     \f[
-        \vec \tau = \vec R \cdot \vec n
+        \vec t = \vec R \cdot \vec n
     \f]
+    \f[
+        \vec \tau = \vec t - \vec n (\vec n \cdot \vec t)
+    \f]
+
+    By default the output is the tangential (shear) component of the wall
+    traction. Set \c wallTraction to \c true to output the full wall traction
+    vector \f$\vec t = \vec R \cdot \vec n\f$ (legacy behaviour).
 
     where
     \vartable
-        \vec \tau   | Wall shear stress vector [m^2/s^2]
-        \vec R | Shear-stress symmetric tensor (retrieved from turbulence model)
-        \vec n | Patch normal vector (into the domain)
+      \vec \tau   | Wall shear stress vector [m^2/s^2]
+      \vec t      | Wall traction vector [m^2/s^2]
+      \vec R   | Shear-stress symmetric tensor (retrieved from turbulence model)
+      \vec n      | Patch normal vector (into the domain)
     \endvartable
 
     Operands:
@@ -63,6 +72,7 @@ Usage
 
         // Optional entries
         patches         (<patch1> ... <patchN>); // (wall1 "(wall2|wall3)");
+        wallTraction    <bool>;
         writeFields     <bool>;
 
         // Inherited entries
@@ -76,6 +86,7 @@ Usage
       type         | Type name: wallShearStress            | word |  yes  | -
       libs         | Library name: fieldFunctionObjects    | word |  yes  | -
       patches    | Names of operand patches   | wordRes | no | all wall patches
+      wallTraction | Flag to output full wall traction     | bool | no | false
       writeFields | Flag to write shear stress field       | bool |  no   | true
     \endtable
 
@@ -118,6 +129,9 @@ class wallShearStress
     public writeFile
 {
     // Private Data
+
+        //- Flag to output full wall traction instead of tangential shear stress
+        bool wallTraction_;
 
         //- Write the shear stress field ?
         bool writeFields_;

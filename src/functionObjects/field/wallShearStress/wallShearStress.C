@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -74,7 +75,14 @@ void Foam::functionObjects::wallShearStress::calcShearStress
         const scalarField& magSfp = mesh_.magSf().boundaryField()[patchi];
         const symmTensorField& Reffp = Reff.boundaryField()[patchi];
 
-        ssp = (-Sfp/magSfp) & Reffp;
+        const vectorField nHat(-Sfp/magSfp);
+
+        ssp = nHat & Reffp;
+
+        if (!wallTraction_)
+        {
+            ssp -= nHat*(nHat & ssp);
+        }
     }
 }
 
@@ -90,6 +98,7 @@ Foam::functionObjects::wallShearStress::wallShearStress
 :
     fvMeshFunctionObject(name, runTime, dict),
     writeFile(mesh_, name, typeName, dict),
+    wallTraction_(false),
     writeFields_(true)  // May change in the future
 {
     read(dict);
@@ -127,6 +136,8 @@ bool Foam::functionObjects::wallShearStress::read(const dictionary& dict)
 
     writeFields_ = true;   // May change in the future
     dict.readIfPresent("writeFields", writeFields_);
+
+    dict.readIfPresent("wallTraction", wallTraction_);
 
     const polyBoundaryMesh& pbm = mesh_.boundaryMesh();
 
