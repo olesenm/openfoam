@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -415,7 +416,7 @@ void Foam::MultiComponentPhaseModel<BasePhaseModel, phaseThermo>::solveYi
                     fvm::ddt(Yi) - fvc::ddt(Yi)
                   - fvm::laplacian
                     (
-                        alpha*this->fluid().turbulence()->nut()/Sct_,
+                        alpha*this->fluid().turbulence()->nuEff()/Sct_,
                         Yi
                     )
                 );
