@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,6 +43,9 @@ Description
 
 namespace Foam
 {
+
+// Forward Declarations
+class complex;
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -155,6 +159,16 @@ class scalarProduct
 public:
 
     typedef typename pTraits<arg1>::cmptType type;
+};
+
+
+//- Complex field sumProd returns complex (not scalar cmptType)
+template<>
+class scalarProduct<complex, complex>
+{
+public:
+
+    typedef complex type;
 };
 
 

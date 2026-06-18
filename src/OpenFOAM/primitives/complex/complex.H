@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2014 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -226,9 +227,7 @@ public:
                         Specialization pTraits<complex>
 \*---------------------------------------------------------------------------*/
 
-//- The underlying component data type for complex is scalar.
-//  The regular pTraits<T>:cmptType as complex is currently (2023-11)
-//  likely not quite correct (issue #3018)
+//- The underlying component data type for complex is scalar
 template<>
 struct pTraits_cmptType<complex> { typedef scalar type; };
 
@@ -251,7 +250,7 @@ public:
     // Typedefs
 
         //- Component type
-        typedef complex cmptType;
+        typedef scalar cmptType;
 
         //- Magnitude type
         typedef scalar magType;
