@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2017 OpenFOAM Foundation
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "DistortedSphereDragForce.H"
+#include "mathematicalConstants.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -91,7 +93,11 @@ Foam::forceSuSp Foam::DistortedSphereDragForce<CloudType>::calcCoupled
         forceSuSp
         (
             Zero,
-            mass*0.75*muc*CdRe(Re)*(1.0 + 2.632*y)/(p.rho()*sqr(p.d()))
+            constant::mathematical::pi/8.0
+           *max(p.d(), ROOTVSMALL)
+           *muc
+           *CdRe(Re)
+           *(1.0 + 2.632*y)
         );
 }
 

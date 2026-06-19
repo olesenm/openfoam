@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "SphereDragForce.H"
+#include "mathematicalConstants.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -81,7 +83,16 @@ Foam::forceSuSp Foam::SphereDragForce<CloudType>::calcCoupled
 ) const
 {
     // (AOB:Eq. 34)
-    return forceSuSp(Zero, mass*0.75*muc*CdRe(Re)/(p.rho()*sqr(p.d())));
+    // Sp = (pi/8)*d*mu*CdRe - equivalent to mass*0.75*mu*CdRe/(rho*d^2)
+    // but avoids division by d^2 for better conditioning at small diameters
+    return forceSuSp
+    (
+        Zero,
+        constant::mathematical::pi/8.0
+       *max(p.d(), ROOTVSMALL)
+       *muc
+       *CdRe(Re)
+    );
 }
 
 
