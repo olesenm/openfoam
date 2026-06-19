@@ -9,6 +9,7 @@
     Copyright (C) 2016-2021,2023 OpenCFD Ltd.
     Copyright (C) 2023 Huawei (Yu Ankun)
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -67,7 +68,16 @@ Foam::solverPerformance Foam::GAMGSolver::solve
     }
 
     // Calculate initial finest-grid residual field
-    solveScalarField finestResidual(tsource() - Apsi);
+    solveScalarField finestResidual(psi.size());
+    matrix_.residual
+    (
+        finestResidual,
+        psi,
+        source,
+        interfaceBouCoeffs_,
+        interfaces_,
+        cmpt
+    );
 
     matrix().setResidualField
     (
@@ -136,9 +146,15 @@ Foam::solverPerformance Foam::GAMGSolver::solve
             );
 
             // Calculate finest level residual field
-            matrix_.Amul(Apsi, psi, interfaceBouCoeffs_, interfaces_, cmpt);
-            finestResidual = tsource();
-            finestResidual -= Apsi;
+            matrix_.residual
+            (
+                finestResidual,
+                psi,
+                source,
+                interfaceBouCoeffs_,
+                interfaces_,
+                cmpt
+            );
 
             solverPerf.finalResidual() = gSumMag
             (
