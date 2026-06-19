@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -41,11 +42,11 @@ void Foam::sixDoFRigidBodyMotion::applyRestraints()
 
     if (Pstream::master())
     {
-        forAll(restraints_, rI)
+        for (auto& ri : restraints_)
         {
             if (report_)
             {
-                Info<< "Restraint " << restraints_[rI].name() << ": ";
+                Info<< "Restraint " << ri.name() << ": ";
             }
 
             // Restraint position
@@ -58,7 +59,7 @@ void Foam::sixDoFRigidBodyMotion::applyRestraints()
             vector rM = Zero;
 
             // Accumulate the restraints
-            restraints_[rI].restrain(*this, rP, rF, rM);
+            ri.restrain(*this, rP, rF, rM);
 
             // Update the acceleration
             a() += rF/mass_;
@@ -67,6 +68,127 @@ void Foam::sixDoFRigidBodyMotion::applyRestraints()
             // body local to add to torque.
             tau() += Q().T() & (rM + ((rP - centreOfRotation()) ^ rF));
         }
+    }
+}
+
+
+void Foam::sixDoFRigidBodyMotion::applyRestraintTorques()
+{
+    if (restraints_.empty())
+    {
+        return;
+    }
+
+    if (Pstream::master())
+    {
+        for (auto& ri : restraints_)
+        {
+            if (report_)
+            {
+                Info<< "Restraint " << ri.name() << ": ";
+            }
+
+            // Restraint position
+            point rP = Zero;
+
+            // Restraint force
+            vector rF = Zero;
+
+            // Restraint moment
+            vector rM = Zero;
+
+            // Accumulate the restraints
+            ri.restrain(*this, rP, rF, rM);
+
+            // Moments are returned in global axes, transforming to
+            // body local to add to torque
+            tau() += Q().T() & (rM + ((rP - centreOfRotation()) ^ rF));
+        }
+    }
+}
+
+
+void Foam::sixDoFRigidBodyMotion::restraintJacobian
+(
+    symmTensor& translationalStiffness,
+    symmTensor& translationalDamping,
+    symmTensor& rotationalStiffness,
+    symmTensor& rotationalDamping
+) const
+{
+    if (restraints_.empty())
+    {
+        return;
+    }
+
+    if (Pstream::master())
+    {
+        for (auto& ri : restraints_)
+        {
+            ri.restraintJacobian
+            (
+                *this,
+                translationalStiffness,
+                translationalDamping,
+                rotationalStiffness,
+                rotationalDamping
+            );
+        }
+    }
+}
+
+
+void Foam::sixDoFRigidBodyMotion::newmarkTranslationalAcceleration
+(
+    const vector& fGlobal,
+    const scalar gamma,
+    const scalar beta,
+    const scalar deltaT,
+    const bool firstIter
+)
+{
+    symmTensor translationalStiffness(Zero);
+    symmTensor translationalDamping(Zero);
+    symmTensor rotationalStiffness(Zero);
+    symmTensor rotationalDamping(Zero);
+
+    restraintJacobian
+    (
+        translationalStiffness,
+        translationalDamping,
+        rotationalStiffness,
+        rotationalDamping
+    );
+
+    const vector& x0 = motionState0_.centreOfRotation();
+    const vector& v0 = motionState0_.v();
+    const vector& a0 = motionState0_.a();
+
+    const vector xPred(x0 + deltaT*v0 + (0.5 - beta)*Foam::sqr(deltaT)*a0);
+    const vector vPred(v0 + (1 - gamma)*deltaT*a0);
+
+    const symmTensor Keff
+    (
+        mass_*symmTensor::I
+      + gamma*deltaT*translationalDamping
+      + beta*Foam::sqr(deltaT)*translationalStiffness
+    );
+
+    const vector Feff
+    (
+        fGlobal
+      - (translationalDamping & vPred)
+      - (translationalStiffness & xPred)
+    );
+
+    const vector aPrev(a());
+
+    a() = inv(Keff) & Feff;
+
+    // Relax accelerations on all but first iteration
+    if (!firstIter)
+    {
+        a() = aRelax_*a() + (1 - aRelax_)*aPrev;
     }
 }
 

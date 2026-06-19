@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -37,6 +38,10 @@ Description
     values of 0.5 for each are used if they are not specified.  With the default
     off-centering this scheme is equivalent to the Newmark scheme with default
     coefficients.
+
+    The translational acceleration is solved implicitly using the restraint
+    stiffness and damping contributions.  For non-default off-centering
+    coefficients the effective position coefficient is voc*aoc.
 
     Example specification in dynamicMeshDict:
     \verbatim

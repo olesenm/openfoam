@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -48,6 +49,10 @@ Description
         beta    0.25;   // Position integration coefficient
     }
     \endverbatim
+
+    The translational acceleration is solved implicitly using the restraint
+    stiffness and damping contributions from the Newmark-beta method.  Setting
+    beta to zero selects the explicit variant of the scheme.
 
 SourceFiles
     Newmark.C

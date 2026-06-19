@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -86,6 +87,19 @@ void Foam::sixDoFRigidBodyMotionRestraints::linearDamper::restrain
         Info<< " force " << restraintForce
             << endl;
     }
+}
+
+
+void Foam::sixDoFRigidBodyMotionRestraints::linearDamper::restraintJacobian
+(
+    const sixDoFRigidBodyMotion&,
+    symmTensor&,
+    symmTensor& translationalDamping,
+    symmTensor&,
+    symmTensor&
+) const
+{
+    translationalDamping += coeff_*symmTensor::I;
 }
 
 

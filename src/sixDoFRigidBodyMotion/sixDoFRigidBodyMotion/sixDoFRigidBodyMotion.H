@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -151,6 +152,28 @@ class sixDoFRigidBodyMotion
 
         //- Apply the restraints to the object
         void applyRestraints();
+
+        //- Apply restraint moments only
+        void applyRestraintTorques();
+
+        //- Accumulate restraint stiffness and damping contributions
+        void restraintJacobian
+        (
+            symmTensor& translationalStiffness,
+            symmTensor& translationalDamping,
+            symmTensor& rotationalStiffness,
+            symmTensor& rotationalDamping
+        ) const;
+
+        //- Solve implicit Newmark-beta translational acceleration
+        void newmarkTranslationalAcceleration
+        (
+            const vector& fGlobal,
+            const scalar gamma,
+            const scalar beta,
+            const scalar deltaT,
+            const bool firstIter
+        );
 
         //- Update and relax accelerations from the force and torque
         void updateAcceleration(const vector& fGlobal, const vector& tauGlobal);
