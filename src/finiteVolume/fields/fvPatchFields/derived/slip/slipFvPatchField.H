@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -149,28 +150,26 @@ public:
 
     // Member Operators
 
-        //- Inherit assignment
-        using parent_bctype::operator=;
+        // Disable assignment operators
+        virtual void operator=(const UList<Type>&) {}
 
-        // virtual void operator=(const UList<Type>&) {}
+        virtual void operator=(const fvPatchField<Type>&) {}
+        virtual void operator+=(const fvPatchField<Type>&) {}
+        virtual void operator-=(const fvPatchField<Type>&) {}
+        virtual void operator*=(const fvPatchField<scalar>&) {}
+        virtual void operator/=(const fvPatchField<scalar>&) {}
 
-        // virtual void operator=(const fvPatchField<Type>&) {}
-        // virtual void operator+=(const fvPatchField<Type>&) {}
-        // virtual void operator-=(const fvPatchField<Type>&) {}
-        // virtual void operator*=(const fvPatchField<scalar>&) {}
-        // virtual void operator/=(const fvPatchField<scalar>&) {}
+        virtual void operator+=(const Field<Type>&) {}
+        virtual void operator-=(const Field<Type>&) {}
 
-        // virtual void operator+=(const Field<Type>&) {}
-        // virtual void operator-=(const Field<Type>&) {}
+        virtual void operator*=(const Field<scalar>&) {}
+        virtual void operator/=(const Field<scalar>&) {}
 
-        // virtual void operator*=(const Field<scalar>&) {}
-        // virtual void operator/=(const Field<scalar>&) {}
-
-        // virtual void operator=(const Type&) {}
-        // virtual void operator+=(const Type&) {}
-        // virtual void operator-=(const Type&) {}
-        // virtual void operator*=(const scalar) {}
-        // virtual void operator/=(const scalar) {}
+        virtual void operator=(const Type&) {}
+        virtual void operator+=(const Type&) {}
+        virtual void operator-=(const Type&) {}
+        virtual void operator*=(const scalar) {}
+        virtual void operator/=(const scalar) {}
 };
 
 
