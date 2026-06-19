@@ -53,6 +53,8 @@
 
     p = p_rgh + rho*gh;
 
+    pressureControl.limit(p);
+
     #include "continuityErrs.H"
 
     // For closed-volume cases adjust the pressure level

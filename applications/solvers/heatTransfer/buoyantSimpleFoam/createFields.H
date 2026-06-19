@@ -35,6 +35,8 @@ volVectorField U
 
 #include "compressibleCreatePhi.H"
 
+pressureControl pressureControl(p, rho, simple.dict(), false);
+
 Info<< "Creating turbulence model\n" << endl;
 autoPtr<compressible::turbulenceModel> turbulence
 (
