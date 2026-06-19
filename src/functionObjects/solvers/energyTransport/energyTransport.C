@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -187,12 +188,12 @@ Foam::functionObjects::energyTransport::energyTransport
     (
         IOobject
         (
-            "rhoCp",
+            scopedName("rhoCp"),
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE,
-            IOobject::NO_REGISTER
+            IOobject::REGISTER
         ),
         mesh_,
         dimensionedScalar(dimEnergy/dimTemperature/dimVolume, Zero)
