@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016,2024 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -343,9 +344,6 @@ public:
 
     public:
 
-        //- The type of values held by the compound
-        typedef typename T::value_type value_type;
-
         //- Declare type-name, virtual type (without debug switch)
         TypeNameNoDebug("Compound<T>");
 
@@ -435,13 +433,13 @@ public:
             //- of the underlying data content
             virtual direction nComponents() const
             {
-                return pTraits_nComponents<value_type>();
+                return pTraits_nComponents<typename T::value_type>();
             }
 
             //- The vector-space rank associated with the data content
             virtual direction rank() const
             {
-                return pTraits_rank<value_type>();
+                return pTraits_rank<typename T::value_type>();
             }
 
             //- Pointer to the underlying data as byte data
