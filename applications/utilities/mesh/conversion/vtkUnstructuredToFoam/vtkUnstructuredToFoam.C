@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2021-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,9 +43,11 @@ Usage
         Do not attempt to recreate volFields
 
 Note
-    The .vtk format does not contain any boundary information.
-    It is purely a description of the internal mesh. This also limits the
-    usefulness of reconstructing the volFields.
+  - The .vtk format does not contain any boundary information. Boundary fields
+    are written with \c zeroGradient type since VTK legacy format cannot
+    preserve patch names or boundary condition types.
+  - Known field names (T, U, k) are assigned physical dimensions; all other
+    imported fields are dimensionless.
 
     Not extensively tested.
 
@@ -57,6 +60,8 @@ Note
 #include "vtkUnstructuredReader.H"
 
 #include "columnFvMesh.H"
+#include "dimensionSets.H"
+#include "labelIOField.H"
 #include "scalarIOField.H"
 #include "vectorIOField.H"
 #include "volFields.H"
@@ -65,50 +70,102 @@ using namespace Foam;
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-template<class Type>
-void constructVolFields(fvMesh& mesh, const vtkUnstructuredReader& reader)
+const dimensionSet& fieldDimensions(const word& name)
 {
-    const auto fields(reader.cellData().csorted<IOField<Type>>());
-    for (const auto& field : fields)
+    static const HashTable<dimensionSet> dims
+    ({
+        { "T", dimTemperature },
+        { "U", dimVelocity },
+        { "k", sqr(dimVelocity) },
+    });
+
+    return dims.found(name) ? dims[name] : dimless;
+}
+
+
+template<class Type>
+void writeImportedVolField
+(
+    fvMesh& mesh,
+    const word& name,
+    const Field<Type>& internal
+)
+{
+    GeometricField<Type, fvPatchField, volMesh> fld
+    (
+        IOobject
+        (
+            name,
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        fieldDimensions(name),
+        internal,
+        fvPatchFieldBase::zeroGradientType()
+    );
+
+    fld.correctBoundaryConditions();
+    fld.write();
+}
+
+
+template<class Type>
+void constructVolFieldsFromIO
+(
+    fvMesh& mesh,
+    const vtkUnstructuredReader& reader
+)
+{
+    const labelUList& cellMap = reader.cellMap();
+
+    for (const auto& field : reader.cellData().csorted<IOField<Type>>())
     {
         Info<< "Constructing volField " << field.name() << endl;
 
-        // field is
-        //  - cell data followed by
-        //  - boundary face data
-
-
-        auto tfld = GeometricField<Type, fvPatchField, volMesh>::New
+        writeImportedVolField
         (
-            field.name(),
             mesh,
-            dimless
+            field.name(),
+            Field<Type>(UIndirectList<Type>(field, cellMap))
         );
-        auto& fld = tfld.ref();
-        fld.instance() = mesh.time().timeName();
-        fld.writeOpt(IOobject::AUTO_WRITE);
+    }
+}
 
-        // Fill cell values
-        fld.internalFieldRef().field() =
-            UIndirectList<Type>(field, reader.cellMap());
 
-        // Fill boundary values
-        const auto& map = reader.faceMap();
-        if (map.size())
+template<class Type>
+void constructVolFields(fvMesh& mesh, const vtkUnstructuredReader& reader)
+{
+    constructVolFieldsFromIO<Type>(mesh, reader);
+}
+
+
+template<>
+void constructVolFields<scalar>
+(
+    fvMesh& mesh,
+    const vtkUnstructuredReader& reader
+)
+{
+    constructVolFieldsFromIO<scalar>(mesh, reader);
+
+    const labelUList& cellMap = reader.cellMap();
+
+    for (const auto& field : reader.cellData().csorted<labelIOField>())
+    {
+        Info<< "Constructing volScalarField " << field.name()
+            << " (from label VTK data)" << endl;
+
+        scalarField internal(cellMap.size());
+
+        forAll(cellMap, celli)
         {
-            for (auto& pfld : fld.boundaryFieldRef())
-            {
-                const auto& pp = pfld.patch();
-
-                forAll(pfld, i)
-                {
-                    const label bFacei = pp.patch().offset()+i;
-                    pfld[i] = field[map[bFacei]];
-                }
-            }
+            internal[celli] = scalar(field[cellMap[celli]]);
         }
 
-        regIOobject::store(std::move(tfld));
+        writeImportedVolField(mesh, field.name(), internal);
     }
 }
 
@@ -172,9 +229,6 @@ int main(int argc, char *argv[])
         constructVolFields<sphericalTensor>(mesh, reader);
         constructVolFields<symmTensor>(mesh, reader);
         constructVolFields<tensor>(mesh, reader);
-
-        // No need to write the mesh, only fields
-        mesh.thisDb().write();
     }
 
 
