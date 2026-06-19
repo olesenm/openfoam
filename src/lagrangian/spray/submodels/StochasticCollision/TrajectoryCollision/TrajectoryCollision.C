@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -112,7 +113,7 @@ bool Foam::TrajectoryCollision<CloudType>::collideParcels
                 scalar xx = this->owner().rndGen().template sample01<scalar>();
 
                 // collision occurs
-                if (xx > collProb)
+                if (xx < collProb)
                 {
                     if (d1 > d2)
                     {
