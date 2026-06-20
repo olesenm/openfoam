@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1018,6 +1019,11 @@ void Foam::cyclicPolyPatch::initUpdateMesh(PstreamBuffers& pBufs)
 void Foam::cyclicPolyPatch::updateMesh(PstreamBuffers& pBufs)
 {
     polyPatch::updateMesh(pBufs);
+
+    // Invalidate cached neighbour-patch index so it is re-resolved against
+    // the possibly-reordered boundaryMesh on next access.
+    neighbPatchID_ = -1;
+
     coupledPointsPtr_.reset(nullptr);
     coupledEdgesPtr_.reset(nullptr);
 }
