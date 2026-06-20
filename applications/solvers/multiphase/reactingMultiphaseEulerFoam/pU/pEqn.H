@@ -224,7 +224,7 @@ while (pimple.correct())
 
     rAUf = mag(rAUf);
 
-    // Update the fixedFluxPressure BCs to ensure flux consistency
+    // Update the updateableSnGrad p_rgh BCs to ensure flux consistency
     {
         surfaceScalarField::Boundary phib
         (
@@ -239,7 +239,7 @@ while (pimple.correct())
                 alphafs[phasei].boundaryField()*phase.phi()().boundaryField();
         }
 
-        setSnGrad<fixedFluxPressureFvPatchScalarField>
+        setSnGrad
         (
             p_rgh.boundaryFieldRef(),
             (

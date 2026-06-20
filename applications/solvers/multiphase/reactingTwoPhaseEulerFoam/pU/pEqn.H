@@ -157,8 +157,8 @@ while (pimple.correct())
         mag(alphaf1*alpharAUf1 + alphaf2*alpharAUf2)
     );
 
-    // Update the fixedFluxPressure BCs to ensure flux consistency
-    setSnGrad<fixedFluxPressureFvPatchScalarField>
+    // Update the updateableSnGrad p_rgh BCs to ensure flux consistency
+    setSnGrad
     (
         p_rgh.boundaryFieldRef(),
         (

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -187,6 +188,22 @@ namespace Foam
     {
         setSnGrad<GradBC>(bf, tsnGrad());
     }
+
+    //- Dispatch updateSnGrad on every patch field that derives from
+    //- updateablePatchTypes::updateableSnGrad, e.g. fixedFluxPressure.
+    //  Used by multiphase Euler pressure equations where multiple
+    //  updateableSnGrad p_rgh BC types may coexist.
+    void setSnGrad
+    (
+        volScalarField::Boundary& bf,
+        const FieldField<fvsPatchField, scalar>& snGrad
+    );
+
+    void setSnGrad
+    (
+        volScalarField::Boundary& bf,
+        const tmp<FieldField<fvsPatchField, scalar>>& tsnGrad
+    );
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
