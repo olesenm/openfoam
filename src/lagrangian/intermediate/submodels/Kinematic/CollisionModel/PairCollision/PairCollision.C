@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -110,9 +111,16 @@ void Foam::PairCollision<CloudType>::realRealInteraction()
             {
                 pB_ptr = cellOccupancy[realCelli][aO];
 
-                // Do not double-evaluate, compare pointers, arbitrary
-                // order
-                if (pB_ptr > pA_ptr)
+                // Do not double-evaluate. Use stable parcel identity
+                // ordering for repeatability (not memory addresses).
+                if
+                (
+                    pB_ptr->origProc() > pA_ptr->origProc()
+                 || (
+                        pB_ptr->origProc() == pA_ptr->origProc()
+                     && pB_ptr->origId() > pA_ptr->origId()
+                    )
+                )
                 {
                     evaluatePair(*pA_ptr, *pB_ptr);
                 }
