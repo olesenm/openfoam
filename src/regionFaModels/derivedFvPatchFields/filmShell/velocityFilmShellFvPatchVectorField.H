@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -74,6 +75,12 @@ Usage
         );
 
         forces ();
+
+        primaryPhaseVelocityModel   prescribed;
+        prescribedCoeffs
+        {
+            value   (30 0 0);
+        }
 
         curvatureSeparationCoeffs
         {

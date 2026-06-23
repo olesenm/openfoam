@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016, 2019 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,6 +32,7 @@ License
 #include "fvPatchFieldMapper.H"
 #include "volFields.H"
 #include "addToRunTimeSelectionTable.H"
+#include "wallFunctionRoughness.H"
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
@@ -40,18 +42,7 @@ Foam::scalar Foam::nutkRoughWallFunctionFvPatchScalarField::fnRough
     const scalar Cs
 ) const
 {
-    // Return fn based on non-dimensional roughness height
-
-    if (KsPlus < 90.0)
-    {
-        return pow
-        (
-            (KsPlus - 2.25)/87.75 + Cs*KsPlus,
-            sin(0.4258*(log(KsPlus) - 0.811))
-        );
-    }
-
-    return (1.0 + Cs*KsPlus);
+    return wallFunctionRoughness(KsPlus, Cs);
 }
 
 

@@ -21,6 +21,13 @@ $(kinematic)/filmTurbulenceModel/filmTurbulenceModel/filmTurbulenceModel.C
 $(kinematic)/filmTurbulenceModel/filmTurbulenceModel/filmTurbulenceModelNew.C
 $(kinematic)/filmTurbulenceModel/laminar/laminar.C
 
+primaryPhaseVelocityModel=$(kinematic)/primaryPhaseVelocityModel
+$(primaryPhaseVelocityModel)/primaryPhaseVelocityModel/primaryPhaseVelocityModel.C
+$(primaryPhaseVelocityModel)/primaryPhaseVelocityModel/primaryPhaseVelocityModelNew.C
+$(primaryPhaseVelocityModel)/extrapolated/extrapolated.C
+$(primaryPhaseVelocityModel)/prescribed/prescribed.C
+$(primaryPhaseVelocityModel)/yPlus/yPlus.C
+
 $(kinematic)/injectionModel/injectionModelList/injectionModelList.C
 $(kinematic)/injectionModel/injectionModel/injectionModel.C
 $(kinematic)/injectionModel/injectionModel/injectionModelNew.C
