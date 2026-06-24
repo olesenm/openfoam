@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2021-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -125,10 +126,17 @@ tmp<scalarField> OwenRyleyModel::calcCosAngle
             forAll(phip, edgei)
             {
                 const label cellO = edgeFaces[edgei];
-                if (phip[edgei] > phiMax[cellO])
+                const scalar phiEdge = phip[edgei];
+
+                if (phiEdge > phiMax[cellO])
                 {
-                    phiMax[cellO] = phip[edgei];
+                    phiMax[cellO] = phiEdge;
                     cosAngle[cellO] = -gHat & UHatp[edgei];
+                }
+                if (-phiEdge > phiMax[cellO])
+                {
+                    phiMax[cellO] = -phiEdge;
+                    cosAngle[cellO] = -gHat & UHat[cellO];
                 }
             }
         }
@@ -282,4 +290,3 @@ tmp<scalarField> OwenRyleyModel::separatedMassRatio() const
 
 
 // ************************************************************************* //
-
