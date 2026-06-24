@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,6 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "contactAngleForce.H"
+#include "processorFaPatch.H"
 #include "addToRunTimeSelectionTable.H"
 #include "unitConversion.H"
 
@@ -129,6 +131,41 @@ tmp<faVectorMatrix> contactAngleForce::correct(areaVectorField& U)
             if (hf[facei] > hCrit_)
             {
                 force[facei] -= mu[facei]*Uf[facei]/hCrit_;
+            }
+        }
+    }
+
+    if (Pstream::parRun())
+    {
+        const faBoundaryMesh& patches = film().regionMesh().boundary();
+
+        for (const faPatch& fap : patches)
+        {
+            if (!isA<processorFaPatch>(fap)) continue;
+
+            const label patchi = fap.index();
+            const auto& alphap = alpha.boundaryField()[patchi];
+            const auto& invDxp = invDx.boundaryField()[patchi];
+            const auto& edgeFaces = fap.edgeFaces();
+
+            forAll(alphap, edgei)
+            {
+                const label faceO = edgeFaces[edgei];
+
+                if ((alpha[faceO] > 0.5) && (alphap[edgei] < 0.5))
+                {
+                    const vector n(normalised(gradAlpha[faceO]));
+                    const scalar cosTheta = cos(degToRad(theta[faceO]));
+
+                    force[faceO] +=
+                        Ccf_*n*sigma[faceO]*(1 - cosTheta)
+                       /invDxp[edgei]/rhof[faceO]/magSff[faceO];
+
+                    if (hf[faceO] > hCrit_)
+                    {
+                        force[faceO] -= mu[faceO]*Uf[faceO]/hCrit_;
+                    }
+                }
             }
         }
     }
