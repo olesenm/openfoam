@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -94,7 +95,7 @@ void Foam::freestreamVelocityFvPatchVectorField::updateCoeffs()
 
     const Field<vector>& Up = *this;
 
-    valueFraction() = 0.5 - 0.5*(Up & patch().nf())/mag(Up);
+    valueFraction() = 0.5 - 0.5*(Up & patch().nf())/stabilise(mag(Up), VSMALL);
 
     mixedFvPatchField<vector>::updateCoeffs();
 }

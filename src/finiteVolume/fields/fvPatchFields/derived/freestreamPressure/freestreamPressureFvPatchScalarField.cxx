@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2018 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -105,7 +106,7 @@ void Foam::freestreamPressureFvPatchScalarField::updateCoeffs()
     const Field<vector>& Up =
         patch().template lookupPatchField<volVectorField>(UName_);
 
-    valueFraction() = 0.5 + 0.5*(Up & patch().nf())/mag(Up);
+    valueFraction() = 0.5 + 0.5*(Up & patch().nf())/stabilise(mag(Up), VSMALL);
 
     mixedFvPatchField<scalar>::updateCoeffs();
 }
