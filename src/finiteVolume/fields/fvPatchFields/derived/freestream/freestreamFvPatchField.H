@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2018 OpenFOAM Foundation
     Copyright (C) 2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -54,25 +55,18 @@ Usage
     }
     \endverbatim
 
-    Example of the boundary condition specification using a separate condition
-    to proveide the inlet condition:
+    Example of the boundary condition specification using a separate condition:
     \verbatim
     <patchName>
     {
         type            freestream;
         freestreamBC
         {
-            type            atmBoundaryLayerInletVelocity;
-            flowDir         (1 0 0);
-            zDir            (0 0 1);
-            Uref            20;
-            Zref            20;
-            z0              uniform 0.1;
-            zGround         uniform 935;
+            type        timeVaryingMappedFixedValue;
+            ...
         }
     }
     \endverbatim
-
 
 See also
     Foam::mixedFvPatchField
