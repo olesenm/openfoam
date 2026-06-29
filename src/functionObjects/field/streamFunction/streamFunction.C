@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
     Copyright (C) 2019-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -172,18 +173,18 @@ Foam::tmp<Foam::pointScalarField> Foam::functionObjects::streamFunction::calc
             {
                 labelList zeroPoints = c.labels(mesh_.faces());
 
-                bool found = true;
+                bool unvisitedCell = true;
 
                 for (const label pointi : zeroPoints)
                 {
                     if (visitedPoint.test(pointi))
                     {
-                        found = false;
+                        unvisitedCell = false;
                         break;
                     }
                 }
 
-                if (found)
+                if (unvisitedCell)
                 {
                     for (const label pointi : zeroPoints)
                     {
@@ -193,14 +194,16 @@ Foam::tmp<Foam::pointScalarField> Foam::functionObjects::streamFunction::calc
                         streamFunction[pointi] = 0;
                     }
 
+                    found = true;
                     break;
                 }
-                else
-                {
-                    FatalErrorInFunction
-                        << "Cannot find initialisation face or a cell."
-                        << exit(FatalError);
-                }
+            }
+
+            if (!found)
+            {
+                FatalErrorInFunction
+                    << "Cannot find initialisation face or a cell."
+                    << exit(FatalError);
             }
         }
 
@@ -400,10 +403,17 @@ Foam::tmp<Foam::pointScalarField> Foam::functionObjects::streamFunction::calc
 
             if (nVisited == nVisitedOld)
             {
-                // Find new seed.  This must be a
-                // multiply connected domain
-                Log << "        Exhausted a seed, looking for new seed "
-                    << "(this is correct for multiply connected domains).";
+                if (nVisited == mesh_.nPoints())
+                {
+                    finished = true;
+                }
+                else
+                {
+                    // Find new seed.  This must be a
+                    // multiply connected domain
+                    Log << "        Exhausted a seed, looking for new seed "
+                        << "(multiply connected domain)." << endl;
+                }
 
                 break;
             }
