@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -304,6 +305,14 @@ class hexRef8
             const bool maxSet,
             const labelUList& cellLevel,
             bitSet& refineCell
+        ) const;
+
+        //- Updates unrefineCell so consistent 2:1 unrefinement. Returns local
+        //- number of cells changed.
+        label faceConsistentUnrefinement
+        (
+            const bool maxSet,
+            bitSet& unrefineCell
         ) const;
 
         //- Check wanted refinement for 2:1 consistency

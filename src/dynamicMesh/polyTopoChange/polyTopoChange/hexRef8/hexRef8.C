@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1651,6 +1652,126 @@ Foam::label Foam::hexRef8::faceConsistentRefinement
 }
 
 
+// Updates unrefineCell (cells marked for unrefinement) so across all faces
+// there will be 2:1 consistency after unrefinement.
+Foam::label Foam::hexRef8::faceConsistentUnrefinement
+(
+    const bool maxSet,
+    bitSet& unrefineCell
+) const
+{
+    label nChanged = 0;
+
+    // Internal faces.
+    for (label facei = 0; facei < mesh_.nInternalFaces(); ++facei)
+    {
+        label own = mesh_.faceOwner()[facei];
+        label nei = mesh_.faceNeighbour()[facei];
+
+        label ownLevel = cellLevel_[own] - unrefineCell.get(own);
+        label neiLevel = cellLevel_[nei] - unrefineCell.get(nei);
+
+        if (ownLevel < (neiLevel-1))
+        {
+            // Since was 2:1 this can only occur if own is marked for
+            // unrefinement.
+
+            if (maxSet)
+            {
+                unrefineCell.set(nei);
+            }
+            else
+            {
+                // could also combine with unset:
+                // if (!unrefineCell.unset(own))
+                // {
+                //     FatalErrorInFunction
+                //         << "problem cell already unset"
+                //         << abort(FatalError);
+                // }
+                if (!unrefineCell.test(own))
+                {
+                    FatalErrorInFunction
+                        << "problem" << abort(FatalError);
+                }
+
+                unrefineCell.unset(own);
+            }
+            nChanged++;
+        }
+        else if (neiLevel < (ownLevel-1))
+        {
+            if (maxSet)
+            {
+                unrefineCell.set(own);
+            }
+            else
+            {
+                if (!unrefineCell.test(nei))
+                {
+                    FatalErrorInFunction
+                        << "problem" << abort(FatalError);
+                }
+
+                unrefineCell.unset(nei);
+            }
+            nChanged++;
+        }
+    }
+
+
+    // Coupled faces. Swap owner level to get neighbouring cell level.
+    labelList neiLevel(mesh_.nBoundaryFaces());
+
+    forAll(neiLevel, i)
+    {
+        label own = mesh_.faceOwner()[i+mesh_.nInternalFaces()];
+
+        neiLevel[i] = cellLevel_[own] - unrefineCell.get(own);
+    }
+
+    // Swap to neighbour
+    syncTools::swapBoundaryFaceList(mesh_, neiLevel);
+
+    forAll(neiLevel, i)
+    {
+        label own = mesh_.faceOwner()[i+mesh_.nInternalFaces()];
+        label ownLevel = cellLevel_[own] - unrefineCell.get(own);
+
+        if (ownLevel < (neiLevel[i]-1))
+        {
+            if (!maxSet)
+            {
+                if (!unrefineCell.test(own))
+                {
+                    FatalErrorInFunction
+                        << "problem" << abort(FatalError);
+                }
+
+                unrefineCell.unset(own);
+                nChanged++;
+            }
+        }
+        else if (neiLevel[i] < (ownLevel-1))
+        {
+            if (maxSet)
+            {
+                if (unrefineCell.test(own))
+                {
+                    FatalErrorInFunction
+                        << "problem" << abort(FatalError);
+                }
+
+                unrefineCell.set(own);
+                nChanged++;
+            }
+        }
+    }
+
+    return nChanged;
+}
+
+
 // Debug: check if wanted refinement is compatible with 2:1
 void Foam::hexRef8::checkWantedRefinementLevels
 (
@@ -2957,7 +3078,7 @@ Foam::labelList Foam::hexRef8::consistentSlowRefinement2
             label neiLevel;
             point neiCc;
             if (mesh_.isInternalFace(facei))
-            { 
+            {
                 const label nei = faceNeighbour[facei];
                 neiLevel =
                 (
@@ -3047,7 +3168,7 @@ Foam::labelList Foam::hexRef8::consistentSlowRefinement2
             label neiLevel;
             point neiCc;
             if (mesh_.isInternalFace(facei))
-            { 
+            {
                 const label nei = faceNeighbour[facei];
                 neiLevel =
                 (
@@ -5408,134 +5529,20 @@ Foam::labelList Foam::hexRef8::consistentUnrefinement
 
     while (true)
     {
+        const labelList pointLabels(unrefinePoint.toc());
+
         // Construct cells to unrefine
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         bitSet unrefineCell(mesh_.nCells());
 
-        forAll(unrefinePoint, pointi)
+        for (const label pointi : pointLabels)
         {
-            if (unrefinePoint.test(pointi))
-            {
-                const labelList& pCells = mesh_.pointCells(pointi);
-
-                unrefineCell.set(pCells);
-            }
+            unrefineCell.set(mesh_.pointCells(pointi));
         }
 
 
-        label nChanged = 0;
-
-
-        // Check 2:1 consistency taking refinement into account
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // Internal faces.
-        for (label facei = 0; facei < mesh_.nInternalFaces(); facei++)
-        {
-            label own = mesh_.faceOwner()[facei];
-            label nei = mesh_.faceNeighbour()[facei];
-
-            label ownLevel = cellLevel_[own] - unrefineCell.get(own);
-            label neiLevel = cellLevel_[nei] - unrefineCell.get(nei);
-
-            if (ownLevel < (neiLevel-1))
-            {
-                // Since was 2:1 this can only occur if own is marked for
-                // unrefinement.
-
-                if (maxSet)
-                {
-                    unrefineCell.set(nei);
-                }
-                else
-                {
-                    // could also combine with unset:
-                    // if (!unrefineCell.unset(own))
-                    // {
-                    //     FatalErrorInFunction
-                    //         << "problem cell already unset"
-                    //         << abort(FatalError);
-                    // }
-                    if (!unrefineCell.test(own))
-                    {
-                        FatalErrorInFunction
-                            << "problem" << abort(FatalError);
-                    }
-
-                    unrefineCell.unset(own);
-                }
-                nChanged++;
-            }
-            else if (neiLevel < (ownLevel-1))
-            {
-                if (maxSet)
-                {
-                    unrefineCell.set(own);
-                }
-                else
-                {
-                    if (!unrefineCell.test(nei))
-                    {
-                        FatalErrorInFunction
-                            << "problem" << abort(FatalError);
-                    }
-
-                    unrefineCell.unset(nei);
-                }
-                nChanged++;
-            }
-        }
-
-
-        // Coupled faces. Swap owner level to get neighbouring cell level.
-        labelList neiLevel(mesh_.nBoundaryFaces());
-
-        forAll(neiLevel, i)
-        {
-            label own = mesh_.faceOwner()[i+mesh_.nInternalFaces()];
-
-            neiLevel[i] = cellLevel_[own] - unrefineCell.get(own);
-        }
-
-        // Swap to neighbour
-        syncTools::swapBoundaryFaceList(mesh_, neiLevel);
-
-        forAll(neiLevel, i)
-        {
-            label facei = i+mesh_.nInternalFaces();
-            label own = mesh_.faceOwner()[facei];
-            label ownLevel = cellLevel_[own] - unrefineCell.get(own);
-
-            if (ownLevel < (neiLevel[i]-1))
-            {
-                if (!maxSet)
-                {
-                    if (!unrefineCell.test(own))
-                    {
-                        FatalErrorInFunction
-                            << "problem" << abort(FatalError);
-                    }
-
-                    unrefineCell.unset(own);
-                    nChanged++;
-                }
-            }
-            else if (neiLevel[i] < (ownLevel-1))
-            {
-                if (maxSet)
-                {
-                    if (unrefineCell.test(own))
-                    {
-                        FatalErrorInFunction
-                            << "problem" << abort(FatalError);
-                    }
-
-                    unrefineCell.set(own);
-                    nChanged++;
-                }
-            }
-        }
+        label nChanged = faceConsistentUnrefinement(maxSet, unrefineCell);
 
         reduce(nChanged, sumOp<label>());
 
@@ -5557,48 +5564,22 @@ Foam::labelList Foam::hexRef8::consistentUnrefinement
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // Knock out any point whose cell neighbour cannot be unrefined.
-        forAll(unrefinePoint, pointi)
+        for (const label pointi : pointLabels)
         {
-            if (unrefinePoint.test(pointi))
-            {
-                const labelList& pCells = mesh_.pointCells(pointi);
+            const labelList& pCells = mesh_.pointCells(pointi);
 
-                forAll(pCells, j)
+            forAll(pCells, j)
+            {
+                if (!unrefineCell.test(pCells[j]))
                 {
-                    if (!unrefineCell.test(pCells[j]))
-                    {
-                        unrefinePoint.unset(pointi);
-                        break;
-                    }
+                    unrefinePoint.unset(pointi);
+                    break;
                 }
             }
         }
     }
 
-
-    // Convert back to labelList.
-    label nSet = 0;
-
-    forAll(unrefinePoint, pointi)
-    {
-        if (unrefinePoint.test(pointi))
-        {
-            nSet++;
-        }
-    }
-
-    labelList newPointsToUnrefine(nSet);
-    nSet = 0;
-
-    forAll(unrefinePoint, pointi)
-    {
-        if (unrefinePoint.test(pointi))
-        {
-            newPointsToUnrefine[nSet++] = pointi;
-        }
-    }
-
-    return newPointsToUnrefine;
+    return unrefinePoint.toc();
 }
 
 
