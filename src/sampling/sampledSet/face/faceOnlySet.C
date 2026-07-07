@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -124,7 +125,7 @@ void Foam::faceOnlySet::calcSamples
     const bool oldMoving = const_cast<polyMesh&>(mesh()).moving(false);
     passiveParticleCloud particleCloud(mesh());
 
-    // Get all boundary intersections
+    // Get all boundary intersections (includes processor patches for entry)
     List<pointIndexHit> bHits = searchEngine().intersections
     (
         start_ - smallVec,
@@ -158,6 +159,29 @@ void Foam::faceOnlySet::calcSamples
         trackCelli,
         trackFacei
     );
+
+    // Initial-start logic failed to find a containing cell; refine search
+    if (trackCelli == -1)
+    {
+        // The line may pass through this processor subdomain without the
+        // boundary intersection tree reporting a hit, e.g. neighbouring
+        // processor patch ordering. Search along the segment.
+        constexpr int nDiv = 100;
+        for (int i = 0; i <= nDiv; ++i)
+        {
+            const point p(start_ + (scalar(i)/scalar(nDiv))*(end_ - start_));
+
+            const label celli = mesh().findCell(p, searchEngine().decompMode());
+
+            if (celli != -1)
+            {
+                trackPt = p;
+                trackCelli = celli;
+                trackFacei = -1;
+                break;
+            }
+        }
+    }
 
     // Pout<< "after getTrackingPoint : "
     //     << " trackPt:" << trackPt
@@ -199,18 +223,64 @@ void Foam::faceOnlySet::calcSamples
     // starting index of current segment in samplePts
     label startSegmentI = 0;
 
-    // index in bHits; current boundary intersection
-    label bHitI = 1;
+    // In parallel or cyclic cases, coupled patches are not physical exits from
+    // overall domain, so advance to next meaningful non-coupled boundary hit
+    label bHitI = 0;
+    while (bHitI < bHits.size())
+    {
+        const label patchi =
+            mesh().boundaryMesh().whichPatch(bHits[bHitI].index());
+
+        if (mesh().boundaryMesh()[patchi].coupled())
+        {
+            ++bHitI;
+            continue;
+        }
+
+        const scalar dist = (bHits[bHitI].hitPoint() - trackPt) & normOffset;
+
+        if (dist > smallDist)
+        {
+            break;
+        }
+
+        ++bHitI;
+    }
 
     while (true)
     {
         if (trackFacei != -1)
         {
-            // Pout<< "trackPt:" << trackPt << " on face so use." << endl;
-            samplingPts.append(trackPt);
-            samplingCells.append(trackCelli);
-            samplingFaces.append(trackFacei);
-            samplingCurveDist.append(mag(trackPt - start_));
+            const label patchi =
+                mesh().boundaryMesh().whichPatch(trackFacei);
+
+            if (mesh().boundaryMesh()[patchi].coupled())
+            {
+                // Entering through processor/cyclic patch. Push into the
+                // domain without sampling the coupled face.
+                const label entryFacei = trackFacei;
+                trackPt = pushIn(trackPt, entryFacei);
+                trackCelli = mesh().findCell
+                (
+                    trackPt,
+                    searchEngine().decompMode()
+                );
+
+                if (trackCelli == -1)
+                {
+                    trackCelli = getBoundaryCell(entryFacei);
+                }
+
+                trackFacei = -1;
+            }
+            else
+            {
+                // Pout<< "trackPt:" << trackPt << " on face so use." << endl;
+                samplingPts.append(trackPt);
+                samplingCells.append(trackCelli);
+                samplingFaces.append(trackFacei);
+                samplingCurveDist.append(mag(trackPt - start_));
+            }
         }
 
         // Initialize tracking starting from trackPt
@@ -246,10 +316,68 @@ void Foam::faceOnlySet::calcSamples
             break;
         }
 
+        if (singleParticle.onBoundaryFace())
+        {
+            const polyPatch& pp = mesh().boundaryMesh()[singleParticle.patch()];
+
+            // Processor can own multiple disjoint pieces of the sampling line;
+            // try to continue with a later local piece instead of stopping
+            // permanently at the first coupled interface
+            if (pp.coupled() && samplingPts.size() > startSegmentI)
+            {
+                const vector nf(mesh().faceAreas()[singleParticle.face()]);
+
+                // Only terminate local tracking when leaving the subdomain
+                if ((nf & normOffset) > 0)
+                {
+                    bool foundAhead = false;
+                    const point pos(singleParticle.position());
+
+                    for (int i = 1; i <= 100; ++i)
+                    {
+                        const point p
+                        (
+                            pos + (scalar(i)/scalar(100))*(end_ - pos)
+                        );
+
+                        const label celli =
+                            mesh().findCell(p, searchEngine().decompMode());
+
+                        if (celli != -1)
+                        {
+                            trackPt = p;
+                            trackCelli = celli;
+                            trackFacei = -1;
+                            foundAhead = true;
+                            break;
+                        }
+                    }
+
+                    if (!foundAhead)
+                    {
+                        break;
+                    }
+
+                    ++segmentI;
+                    startSegmentI = samplingPts.size();
+                    continue;
+                }
+            }
+        }
+
         bool foundValidB = false;
 
         while (bHitI < bHits.size())
         {
+            const label patchi =
+                mesh().boundaryMesh().whichPatch(bHits[bHitI].index());
+
+            if (mesh().boundaryMesh()[patchi].coupled())
+            {
+                ++bHitI;
+                continue;
+            }
+
             scalar dist =
                 (bHits[bHitI].hitPoint() - singleParticle.position())
               & normOffset;
@@ -272,7 +400,7 @@ void Foam::faceOnlySet::calcSamples
             }
         }
 
-        if (!foundValidB || bHitI == bHits.size() - 1)
+        if (!foundValidB)
         {
             // No valid boundary intersection found beyond tracking position
             break;

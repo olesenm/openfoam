@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2021-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -212,7 +213,7 @@ void Foam::uniformSet::calcSamples
     const bool oldMoving = const_cast<polyMesh&>(mesh()).moving(false);
     passiveParticleCloud particleCloud(mesh());
 
-    // Get all boundary intersections
+    // Get all boundary intersections (includes processor patches for entry)
     List<pointIndexHit> bHits = searchEngine().intersections
     (
         start_ - smallVec,
@@ -247,6 +248,29 @@ void Foam::uniformSet::calcSamples
             trackFacei
         );
 
+    // Initial-start logic failed to find a containing cell; refine search
+    if (trackCelli == -1)
+    {
+        // The line may pass through this processor subdomain without the
+        // boundary intersection tree reporting a hit, e.g. neighbouring
+        // processor patch ordering. Search along the segment.
+        constexpr int nDiv = 100;
+        for (int i = 0; i <= nDiv; ++i)
+        {
+            const point p(start_ + (scalar(i)/scalar(nDiv))*(end_ - start_));
+
+            const label celli = mesh().findCell(p, searchEngine().decompMode());
+
+            if (celli != -1)
+            {
+                trackPt = p;
+                trackCelli = celli;
+                trackFacei = -1;
+                break;
+            }
+        }
+    }
+
     if (trackCelli == -1)
     {
         // Line start_ - end_ does not intersect domain at all.
@@ -279,8 +303,29 @@ void Foam::uniformSet::calcSamples
     label sampleI = 0;
     point samplePt = start_;
 
-    // index in bHits; current boundary intersection
-    label bHitI = 1;
+    // In parallel or cyclic cases, coupled patches are not physical exits from
+    // overall domain, so advance to next meaningful non-coupled boundary hit
+    label bHitI = 0;
+    while (bHitI < bHits.size())
+    {
+        const label patchi =
+            mesh().boundaryMesh().whichPatch(bHits[bHitI].index());
+
+        if (mesh().boundaryMesh()[patchi].coupled())
+        {
+            ++bHitI;
+            continue;
+        }
+
+        const scalar dist = (bHits[bHitI].hitPoint() - trackPt) & normOffset;
+
+        if (dist > smallDist)
+        {
+            break;
+        }
+
+        ++bHitI;
+    }
 
     while (true)
     {
@@ -318,11 +363,64 @@ void Foam::uniformSet::calcSamples
             break;
         }
 
+        if (singleParticle.onBoundaryFace())
+        {
+            const polyPatch& pp = mesh().boundaryMesh()[singleParticle.patch()];
+
+            if (pp.coupled() && samplingPts.size() > startSegmentI)
+            {
+                const vector nf(mesh().faceAreas()[singleParticle.face()]);
+
+                if ((nf & normOffset) > 0)
+                {
+                    bool foundAhead = false;
+                    const point pos(singleParticle.position());
+
+                    for (int i = 1; i <= 100; ++i)
+                    {
+                        const point p
+                        (
+                            pos + (scalar(i)/scalar(100))*(end_ - pos)
+                        );
+
+                        const label celli =
+                            mesh().findCell(p, searchEngine().decompMode());
+
+                        if (celli != -1)
+                        {
+                            trackPt = p;
+                            trackCelli = celli;
+                            trackFacei = -1;
+                            foundAhead = true;
+                            break;
+                        }
+                    }
+
+                    if (!foundAhead)
+                    {
+                        break;
+                    }
+
+                    ++segmentI;
+                    startSegmentI = samplingPts.size();
+                    continue;
+                }
+            }
+        }
 
         bool foundValidB = false;
 
         while (bHitI < bHits.size())
         {
+            const label patchi =
+                mesh().boundaryMesh().whichPatch(bHits[bHitI].index());
+
+            if (mesh().boundaryMesh()[patchi].coupled())
+            {
+                ++bHitI;
+                continue;
+            }
+
             const scalar dist =
                 (bHits[bHitI].hitPoint() - singleParticle.position())
               & normOffset;
