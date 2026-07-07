@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -75,6 +76,7 @@ SourceFiles
 #define Foam_functionObjects_processorField_H
 
 #include "fvMeshFunctionObject.H"
+#include "volFieldsFwd.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -91,6 +93,13 @@ class processorField
 :
     public fvMeshFunctionObject
 {
+    // Private Data
+
+        //- Processor ID field (not stored on mesh registry to avoid
+        //  conflicts with fvMesh::mapFields and fvMeshDistribute)
+        autoPtr<volScalarField> procFieldPtr_;
+
+
 public:
 
     //- Runtime type information
@@ -119,6 +128,9 @@ public:
 
 
     // Member Functions
+
+        //- Create the processorID field if not present
+        void createProcessorIDField();
 
         //- Read the function-object dictionary
         virtual bool read(const dictionary& dict);

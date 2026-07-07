@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,11 +52,25 @@ Foam::functionObjects::processorField::processorField
     const dictionary& dict
 )
 :
-    fvMeshFunctionObject(name, runTime, dict)
+    fvMeshFunctionObject(name, runTime, dict),
+    procFieldPtr_(nullptr)
 {
     read(dict);
 
-    volScalarField* procFieldPtr
+    createProcessorIDField();
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::functionObjects::processorField::createProcessorIDField()
+{
+    if (procFieldPtr_)
+    {
+        return;
+    }
+
+    procFieldPtr_.reset
     (
         new volScalarField
         (
@@ -64,20 +79,16 @@ Foam::functionObjects::processorField::processorField
                 "processorID",
                 mesh_.time().timeName(),
                 mesh_,
-                IOobject::NO_READ,
-                IOobject::NO_WRITE,
-                IOobject::REGISTER
+                IOobjectOption::NO_READ,
+                IOobjectOption::NO_WRITE,
+                IOobjectOption::NO_REGISTER
             ),
             mesh_,
             dimensionedScalar(dimless, UPstream::myProcNo())
         )
     );
-
-    mesh_.thisDb().store(procFieldPtr);
 }
 
-
-// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 bool Foam::functionObjects::processorField::read(const dictionary& dict)
 {
@@ -89,11 +100,9 @@ bool Foam::functionObjects::processorField::read(const dictionary& dict)
 
 bool Foam::functionObjects::processorField::execute()
 {
-    volScalarField& procField =
-        mesh_.lookupObjectRef<volScalarField>("processorID");
+    createProcessorIDField();
 
-    procField ==
-        dimensionedScalar("proci", dimless, UPstream::myProcNo());
+    *procFieldPtr_ == dimensionedScalar(dimless, UPstream::myProcNo());
 
     return true;
 }
@@ -101,38 +110,20 @@ bool Foam::functionObjects::processorField::execute()
 
 bool Foam::functionObjects::processorField::write()
 {
-    const volScalarField& procField =
-        mesh_.lookupObject<volScalarField>("processorID");
+    if (!procFieldPtr_)
+    {
+        execute();
+    }
 
-    procField.write();
+    procFieldPtr_().write();
 
     return true;
 }
 
 
-void Foam::functionObjects::processorField::updateMesh(const mapPolyMesh& mpm)
+void Foam::functionObjects::processorField::updateMesh(const mapPolyMesh&)
 {
-    const_cast<objectRegistry&>(mesh_.thisDb()).erase("processorID");
-
-    volScalarField* procFieldPtr
-    (
-        new volScalarField
-        (
-            IOobject
-            (
-                "processorID",
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::NO_WRITE,
-                IOobject::REGISTER
-            ),
-            mesh_,
-            dimensionedScalar(dimless, UPstream::myProcNo())
-        )
-    );
-
-    mesh_.thisDb().store(procFieldPtr);
+    procFieldPtr_.clear();
 }
 
 
