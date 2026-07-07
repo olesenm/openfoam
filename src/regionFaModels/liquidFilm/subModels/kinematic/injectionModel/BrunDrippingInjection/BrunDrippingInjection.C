@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -89,6 +90,7 @@ void BrunDrippingInjection::correct
     const areaScalarField& delta = film().h();
     const areaScalarField& rho = film().rho();
     const areaScalarField& sigma = film().sigma();
+    const scalarField& magSf = film().regionMesh().S().field();
     const scalar magg = mag(film().g().value());
 
     forAll(delta, facei)
@@ -108,8 +110,10 @@ void BrunDrippingInjection::correct
 
             if (delta[facei] > deltaStable)
             {
+                const scalar ddelta = max(delta[facei] - deltaStable, 0);
+
                 const scalar massDrip =
-                    availableMass[facei]*(delta[facei] - deltaStable);
+                    min(availableMass[facei], max(ddelta*rhoc*magSf[facei], 0));
 
                 if (massDrip > 0)
                 {
