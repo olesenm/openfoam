@@ -685,7 +685,7 @@ Foam::cyclicPolyPatch::cyclicPolyPatch
             dict.readEntry("rotationCentre", rotationCentre_);
 
             scalar magRot = mag(rotationAxis_);
-            if (magRot < SMALL)
+            if (magRot < ROOTSMALL)
             {
                 FatalIOErrorInFunction(dict)
                     << "Illegal rotationAxis " << rotationAxis_ << endl

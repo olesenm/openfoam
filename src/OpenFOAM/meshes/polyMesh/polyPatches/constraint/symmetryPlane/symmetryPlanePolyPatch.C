@@ -73,7 +73,7 @@ void Foam::symmetryPlanePolyPatch::calcGeometry(PstreamBuffers&)
                 {
                     const vector nf(areas[facei]/a);
 
-                    if (magSqr(n_ - nf) > SMALL)
+                    if (magSqr(n_ - nf) > ROOTSMALL)
                     {
                         FatalErrorInFunction
                             << "Symmetry plane '" << name()

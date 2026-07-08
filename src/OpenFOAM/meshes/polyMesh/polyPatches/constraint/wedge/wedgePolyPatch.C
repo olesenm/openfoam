@@ -66,7 +66,7 @@ void Foam::wedgePolyPatch::calcGeometry(PstreamBuffers&)
         // Check the wedge is planar
         forAll(nf, facei)
         {
-            if (magSqr(n_ - nf[facei]) > SMALL)
+            if (magSqr(n_ - nf[facei]) > ROOTSMALL)
             {
                 // only issue warning instead of error so that the case can
                 // still be read for post-processing
@@ -96,7 +96,7 @@ void Foam::wedgePolyPatch::calcGeometry(PstreamBuffers&)
         const scalar cnCmptSum =
             centreNormal_.x() + centreNormal_.y() + centreNormal_.z();
 
-        if (mag(cnCmptSum) < (1 - SMALL))
+        if (mag(cnCmptSum) < (1 - ROOTSMALL))
         {
             FatalErrorInFunction
                 << "wedge " << name()
