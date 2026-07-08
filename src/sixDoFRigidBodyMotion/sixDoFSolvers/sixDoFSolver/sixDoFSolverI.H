@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -133,6 +134,51 @@ inline void Foam::sixDoFSolver::updateAcceleration
 inline void Foam::sixDoFSolver::updateConstraints()
 {
     body_.updateConstraints();
+}
+
+
+inline void Foam::sixDoFSolver::applyRestraintTorques()
+{
+    body_.applyRestraintTorques();
+}
+
+
+inline void Foam::sixDoFSolver::newmarkTranslationalAcceleration
+(
+    const vector& fGlobal,
+    const scalar gamma,
+    const scalar beta,
+    const scalar deltaT,
+    const bool firstIter
+)
+{
+    body_.newmarkTranslationalAcceleration
+    (
+        fGlobal,
+        gamma,
+        beta,
+        deltaT,
+        firstIter
+    );
+}
+
+
+inline void Foam::sixDoFSolver::updateTorque
+(
+    const vector& tauGlobal,
+    const bool firstIter
+)
+{
+    const vector tauPrev(tau());
+
+    tau() = Q().T() & tauGlobal;
+
+    applyRestraintTorques();
+
+    if (!firstIter)
+    {
+        tau() = body_.aRelax_*tau() + (1 - body_.aRelax_)*tauPrev;
+    }
 }
 
 

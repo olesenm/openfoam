@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2013 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,6 +50,7 @@ SourceFiles
 #include "dictionary.H"
 #include "autoPtr.H"
 #include "vector.H"
+#include "symmTensor.H"
 #include "runTimeSelectionTables.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -140,6 +142,17 @@ public:
             vector& restraintForce,
             vector& restraintMoment
         ) const = 0;
+
+        //- Add linearised translational/rotational stiffness and damping
+        //- contributions for implicit time integration (no-op)
+        virtual void restraintJacobian
+        (
+            const sixDoFRigidBodyMotion& motion,
+            symmTensor& translationalStiffness,
+            symmTensor& translationalDamping,
+            symmTensor& rotationalStiffness,
+            symmTensor& rotationalDamping
+        ) const {};
 
         //- Update properties from given dictionary
         virtual bool read(const dictionary& sDoFRBMRDict);

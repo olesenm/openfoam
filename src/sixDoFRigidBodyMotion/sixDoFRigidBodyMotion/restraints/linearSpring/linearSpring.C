@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -102,6 +103,45 @@ void Foam::sixDoFRigidBodyMotionRestraints::linearSpring::restrain
             << " force " << restraintForce
             << endl;
     }
+}
+
+
+void Foam::sixDoFRigidBodyMotionRestraints::linearSpring::restraintJacobian
+(
+    const sixDoFRigidBodyMotion& motion,
+    symmTensor& translationalStiffness,
+    symmTensor& translationalDamping,
+    symmTensor&,
+    symmTensor&
+) const
+{
+    const point restraintPosition(motion.transform(refAttachmentPt_));
+
+    vector r(restraintPosition - anchor_);
+
+    vector rHat;
+
+    if (mag(r) > VSMALL)
+    {
+        rHat = r/mag(r);
+    }
+    else
+    {
+        const vector& vel = motion.v();
+
+        if (mag(vel) > VSMALL)
+        {
+            rHat = vel/mag(vel);
+        }
+        else
+        {
+            return;
+        }
+    }
+    const symmTensor rHatSqr(symm(Foam::sqr(rHat)));
+
+    translationalStiffness += stiffness_*rHatSqr;
+    translationalDamping += damping_*rHatSqr;
 }
 
 

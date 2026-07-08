@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2013 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -114,6 +115,17 @@ public:
             vector& restraintPosition,
             vector& restraintForce,
             vector& restraintMoment
+        ) const;
+
+        //- Add linearised translational/rotational stiffness and damping
+        //- contributions for implicit time integration
+        virtual void restraintJacobian
+        (
+            const sixDoFRigidBodyMotion& motion,
+            symmTensor& translationalStiffness,
+            symmTensor& translationalDamping,
+            symmTensor& rotationalStiffness,
+            symmTensor& rotationalDamping
         ) const;
 
         //- Update properties from given dictionary

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2016 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -79,21 +80,29 @@ void Foam::sixDoFSolvers::Newmark::solve
     scalar deltaT0
 )
 {
-    // Update the linear acceleration and torque
-    updateAcceleration(fGlobal, tauGlobal);
-
     // Update the constraints to the object
     updateConstraints();
+
+    // Implicit Newmark-beta Version 1 translational acceleration
+    newmarkTranslationalAcceleration
+    (
+        fGlobal,
+        gamma_,
+        beta_,
+        deltaT,
+        firstIter
+    );
+
+    // Update torque from external moment and restraint moments
+    updateTorque(tauGlobal, firstIter);
 
     // Correct linear velocity
     v() =
         tConstraints()
-      & (v0() + aDamp()*deltaT*(gamma_*a() + (1 - gamma_)*a0()));
-
-    // Correct angular momentum
-    pi() =
-        rConstraints()
-      & (pi0() + aDamp()*deltaT*(gamma_*tau() + (1 - gamma_)*tau0()));
+      & (
+            v0()
+          + aDamp()*deltaT*((1 - gamma_)*a0() + gamma_*a())
+        );
 
     // Correct position
     centreOfRotation() =
@@ -102,8 +111,16 @@ void Foam::sixDoFSolvers::Newmark::solve
             tConstraints()
           & (
                 deltaT*v0()
-              + aDamp()*sqr(deltaT)*(beta_*a() + (0.5 - beta_)*a0())
+              + aDamp()*0.5*sqr(deltaT)*((1 - 2*beta_)*a0() + 2*beta_*a())
             )
+        );
+
+    // Correct angular momentum
+    pi() =
+        rConstraints()
+      & (
+            pi0()
+          + aDamp()*deltaT*((1 - gamma_)*tau0() + gamma_*tau())
         );
 
     // Correct orientation
@@ -111,7 +128,7 @@ void Foam::sixDoFSolvers::Newmark::solve
         rConstraints()
       & (
             deltaT*pi0()
-          + aDamp()*sqr(deltaT)*(beta_*tau() + (0.5 - beta_)*tau0())
+          + aDamp()*0.5*sqr(deltaT)*((1 - 2*beta_)*tau0() + 2*beta_*tau())
         );
     Tuple2<tensor, vector> Qpi = rotate(Q0(), piDeltaT, 1);
     Q() = Qpi.first();

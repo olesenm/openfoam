@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -72,23 +73,36 @@ void Foam::sixDoFSolvers::CrankNicolson::solve
     scalar deltaT0
 )
 {
-    // Update the linear acceleration and torque
-    updateAcceleration(fGlobal, tauGlobal);
-
     // Update the constraints to the object
     updateConstraints();
+
+    // Implicit acceleration solve. For the default aoc=voc=0.5 this is
+    // equivalent to Newmark with gamma=0.5 and beta=0.25.
+    const scalar beta = voc_*aoc_;
+
+    newmarkTranslationalAcceleration
+    (
+        fGlobal,
+        aoc_,
+        beta,
+        deltaT,
+        firstIter
+    );
+
+    // Update torque from external moment and restraint moments
+    updateTorque(tauGlobal, firstIter);
 
     // Correct linear velocity
     v() = tConstraints()
       & (v0() + aDamp()*deltaT*(aoc_*a() + (1 - aoc_)*a0()));
 
-    // Correct angular momentum
-    pi() = rConstraints()
-      & (pi0() + aDamp()*deltaT*(aoc_*tau() + (1 - aoc_)*tau0()));
-
     // Correct position
     centreOfRotation() =
         centreOfRotation0() + deltaT*(voc_*v() + (1 - voc_)*v0());
+
+    // Correct angular momentum
+    pi() = rConstraints()
+      & (pi0() + aDamp()*deltaT*(aoc_*tau() + (1 - aoc_)*tau0()));
 
     // Correct orientation
     Tuple2<tensor, vector> Qpi =

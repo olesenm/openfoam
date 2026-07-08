@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -131,6 +132,26 @@ protected:
 
         //- Update the constraints to the object
         inline void updateConstraints();
+
+        //- Apply restraint moments only
+        inline void applyRestraintTorques();
+
+        //- Solve implicit Newmark-beta translational acceleration
+        inline void newmarkTranslationalAcceleration
+        (
+            const vector& fGlobal,
+            const scalar gamma,
+            const scalar beta,
+            const scalar deltaT,
+            const bool firstIter
+        );
+
+        //- Update torque from external moment and restraint moments
+        inline void updateTorque
+        (
+            const vector& tauGlobal,
+            const bool firstIter
+        );
 
 
 public:
