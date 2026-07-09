@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -2658,14 +2659,39 @@ void Foam::snappySnapDriver::doSnap
         }
 
         // Temporary patches from faceZones
-        for (const auto& fz : mesh.faceZones())
+        const PtrList<surfaceZonesInfo>& surfZones =
+            meshRefiner_.surfaces().surfZones();
+        const auto& surfaces = meshRefiner_.surfaces();
+
+        forAll(surfZones, surfI)
         {
-            label mpI, spI;
-            surfaceZonesInfo::faceZoneType type;
-            if (meshRefiner_.getFaceZoneInfo(fz.name(), mpI, spI, type))
+            const wordList& faceZoneNames = surfZones[surfI].faceZoneNames();
+
+            forAll(faceZoneNames, fzI)
             {
-                bufPatchIDs.push_uniq(mpI);
-                bufPatchIDs.push_uniq(spI);
+                const label globalRegioni = surfaces.globalRegion(surfI, fzI);
+
+                if (!addLayers[globalRegioni])
+                {
+                    continue;
+                }
+
+                label mpI, spI;
+                surfaceZonesInfo::faceZoneType type;
+                if
+                (
+                    meshRefiner_.getFaceZoneInfo
+                    (
+                        faceZoneNames[fzI],
+                        mpI,
+                        spI,
+                        type
+                    )
+                )
+                {
+                    bufPatchIDs.push_uniq(mpI);
+                    bufPatchIDs.push_uniq(spI);
+                }
             }
         }
     }
