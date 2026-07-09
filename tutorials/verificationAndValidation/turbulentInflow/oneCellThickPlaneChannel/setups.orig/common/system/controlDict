@@ -51,17 +51,6 @@ timeStart       #eval{ 0.1 * ${/endTime} };
 
 functions
 {
-    fieldMinMax1
-    {
-        type            fieldMinMax;
-        libs            (fieldFunctionObjects);
-        writeToFile     no;
-        log             yes;
-        location        yes;
-        mode            magnitude;
-        fields          ( p U );
-    }
-
     scalarTransport1
     {
         type            scalarTransport;
