@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -600,6 +601,61 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::snappySnapDriver::addBufferLayers
         minEqOp<label>(),
         labelMax            // null value
     );
+
+    // Check for extrusion of baffles i.e. all edges of a face having the
+    // same two neighbouring faces, one of which is the current face.
+    // This is detected locally already before - this test is for the extremely
+    // rare occurrence where the baffle faces are on different processors.
+    {
+        label nBaffleFaces = 0;
+
+        const labelListList& faceEdges = pp.faceEdges();
+        forAll(pp, facei)
+        {
+            const labelList& fEdges = faceEdges[facei];
+
+            const labelList& globFaces0 = edgeGlobalFaces[fEdges[0]];
+            if (globFaces0.size() == 2)
+            {
+                const edge e0(globFaces0[0], globFaces0[1]);
+                bool isBaffle = true;
+                for (label fp = 1; fp < fEdges.size(); ++fp)
+                {
+                    const labelList& globFaces = edgeGlobalFaces[fEdges[fp]];
+                    if
+                    (
+                        (globFaces.size() != 2)
+                     || (edge(globFaces[0], globFaces[1]) != e0)
+                    )
+                    {
+                        isBaffle = false;
+                        break;
+                    }
+                }
+
+                if (isBaffle)
+                {
+                    const face& f = pp.localFaces()[facei];
+                    for (const auto& fp : f)
+                    {
+                        nPointLayers[fp] = 0;
+                    }
+                    ++nBaffleFaces;
+                }
+            }
+        }
+
+        if (debug)
+        {
+            reduce(nBaffleFaces, sumOp<label>());
+
+            if (nBaffleFaces)
+            {
+                Info<< "Set number of buffer layers to zero for all points on "
+                    << nBaffleFaces << " baffle faces" << endl;
+            }
+        }
+    }
 
     forAll(pp.localFaces(), facei)
     {
@@ -1850,7 +1906,7 @@ void Foam::snappySnapDriver::doSnapBufferLayers
 
         // Re-do the patch
         ppPtr = meshRefinement::makePatch(mesh, adaptPatchIDs);
-        
+
         // Map the old-patch-point data to the new patch points
         // pointMap (new-to-old) for new pp points
         labelList ppMap(ppPtr->nPoints(), -1);
