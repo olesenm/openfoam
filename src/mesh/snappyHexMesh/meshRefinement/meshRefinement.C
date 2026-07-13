@@ -2220,8 +2220,6 @@ Foam::tmp<Foam::pointVectorField> Foam::meshRefinement::makeDisplacementField
     const labelList& adaptPatchIDs
 )
 {
-    const polyMesh& mesh = pMesh();
-
     // Construct displacement field.
     const pointBoundaryMesh& pointPatches = pMesh.boundary();
 
@@ -2230,6 +2228,11 @@ Foam::tmp<Foam::pointVectorField> Foam::meshRefinement::makeDisplacementField
         pointPatches.size(),
         slipPointPatchVectorField::typeName
     );
+    wordList actualPatchTypes(patchFieldTypes.size());
+    forAll(pointPatches, patchi)
+    {
+        actualPatchTypes[patchi] = pointPatches[patchi].type();
+    }
 
     forAll(adaptPatchIDs, i)
     {
@@ -2247,7 +2250,13 @@ Foam::tmp<Foam::pointVectorField> Foam::meshRefinement::makeDisplacementField
         {
             patchFieldTypes[patchi] = cyclicSlipPointPatchVectorField::typeName;
         }
+        else if (polyPatch::constraintType(pointPatches[patchi].type()))
+        {
+            patchFieldTypes[patchi] = pointPatches[patchi].type();
+        }
     }
+
+    const polyMesh& mesh = pMesh();
 
     // Note: time().timeName() instead of meshRefinement::timeName() since
     // postprocessable field.
@@ -2263,7 +2272,8 @@ Foam::tmp<Foam::pointVectorField> Foam::meshRefinement::makeDisplacementField
         ),
         pMesh,
         dimensionedVector(dimLength, Zero),
-        patchFieldTypes
+        patchFieldTypes,
+        actualPatchTypes
     );
 }
 

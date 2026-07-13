@@ -1166,8 +1166,11 @@ Foam::snappyLayerDriver::makeLayerDisplacementField
         {
             patchFieldTypes[patchi] = cyclicSlipPointPatchVectorField::typeName;
         }
+        else if (polyPatch::constraintType(pointPatches[patchi].type()))
+        {
+            patchFieldTypes[patchi] = pointPatches[patchi].type();
+        }
     }
-
 
     const polyMesh& mesh = pMesh();
 
