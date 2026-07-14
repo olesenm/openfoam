@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -56,10 +57,10 @@ Foam::bound(volScalarField& vsf, const dimensionedScalar& lowerBound)
             lowerBound.value()
         );
 
+        // operator= internally checks if patch is assignable
         vsf.boundaryFieldRef() = max(vsf.boundaryField(), lowerBound.value());
 
-        // Give coupled bcs chance to update since cell values changed
-        vsf.boundaryFieldRef().evaluateCoupled<coupledFvPatch>();
+        vsf.correctBoundaryConditions();
     }
 
     return vsf;
