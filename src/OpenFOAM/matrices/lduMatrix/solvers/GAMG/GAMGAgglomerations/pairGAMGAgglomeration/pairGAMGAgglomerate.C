@@ -250,6 +250,67 @@ void Foam::pairGAMGAgglomeration::agglomerate
 
     // Shrink the storage of the levels to those created
     compactLevels(nCreatedLevels, doProcessorAgglomerate);
+
+
+    // Renumber coarse cells at each level (CutHill-McKee) to improve
+    // the band profile of the agglomerated matrices
+    if (renumber_)
+    {
+        for (label leveli = 0; leveli < nCreatedLevels; leveli++)
+        {
+            // Build coarse cell-cell adjacency from the existing coarse mesh
+            const lduAddressing& coarseAddr = meshLevels_[leveli].lduAddr();
+            const labelUList& upper = coarseAddr.upperAddr();
+            const labelUList& lower = coarseAddr.lowerAddr();
+            const label nCoarse = nCells_[leveli];
+
+            labelList nNbrs(nCoarse, 0);
+            forAll(upper, facei)
+            {
+                nNbrs[upper[facei]]++;
+                nNbrs[lower[facei]]++;
+            }
+
+            labelList cellOffsets(nCoarse + 1);
+            cellOffsets[0] = 0;
+            forAll(nNbrs, celli)
+            {
+                cellOffsets[celli + 1] = cellOffsets[celli] + nNbrs[celli];
+            }
+
+            labelList nbrCells(cellOffsets.last());
+            nNbrs = 0;
+            forAll(upper, facei)
+            {
+                nbrCells[cellOffsets[upper[facei]] + nNbrs[upper[facei]]++] =
+                    lower[facei];
+                nbrCells[cellOffsets[lower[facei]] + nNbrs[lower[facei]]++] =
+                    upper[facei];
+            }
+
+            // Compute CutHill-McKee ordering
+            const labelList newToOld
+            (
+                meshTools::bandCompression(nbrCells, cellOffsets)
+            );
+            const labelList oldToNew(invert(newToOld.size(), newToOld));
+
+            // Apply new coarse-cell numbering to the restrict map at this level
+            labelField& restrict = restrictAddressing_[leveli];
+            restrict = UIndirectList<label>(oldToNew, restrict)();
+
+            // Permute the next level's restrict map so its domain indices
+            // match the new coarse-cell ordering of this level
+            if (leveli + 1 < nCreatedLevels)
+            {
+                labelField& nextRestrict = restrictAddressing_[leveli + 1];
+                nextRestrict = UIndirectList<label>(nextRestrict, newToOld)();
+            }
+
+            // Rebuild the coarse mesh with the new cell ordering
+            agglomerateLduAddressing(leveli);
+        }
+    }
 }
 
 
@@ -469,33 +530,7 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
         }
     }
 
-    if (renumber)
-    {
-        // Construct cell-cell addressing on coarse level
-        labelList nbrCells;
-        labelList cellOffsets;
-
-        cellCells
-        (
-            fineMatrixAddressing,
-            nCoarseCells,
-            coarseCellMap,
-            nbrCells,
-            cellOffsets
-        );
-        // Renumber (CutHill-McKee) and apply to cell map
-        const labelList newToOld
-        (
-            meshTools::bandCompression
-            (
-                nbrCells,
-                cellOffsets
-            )
-        );
-        const labelList oldToNew(invert(newToOld.size(), newToOld));
-        coarseCellMap = UIndirectList<label>(oldToNew, coarseCellMap)();
-    }
-    else if (!forward_)
+    if (!forward_)
     {
         forAll(coarseCellMap, celli)
         {
