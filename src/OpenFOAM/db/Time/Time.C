@@ -153,6 +153,10 @@ void Foam::Time::setControls()
         "latestTime"
     );
 
+    instant startInstant;
+    bool haveStartInstant = false;
+    instantList timeDirs;
+
     if (startFrom == "startTime")
     {
         controlDict_.readEntry("startTime", startTime_);
@@ -160,7 +164,7 @@ void Foam::Time::setControls()
     else
     {
         // Search directory for valid time directories
-        instantList timeDirs = findTimes(path(), constant());
+        timeDirs = findTimes(path(), constant());
 
         const label nTimes = timeDirs.size();
 
@@ -168,18 +172,21 @@ void Foam::Time::setControls()
         {
             if (nTimes > 1 && timeDirs.front().name() == constant())
             {
-                startTime_ = timeDirs[1].value();
+                startInstant = timeDirs[1];
+                haveStartInstant = true;
             }
             else if (nTimes)
             {
-                startTime_ = timeDirs.front().value();
+                startInstant = timeDirs.front();
+                haveStartInstant = true;
             }
         }
         else if (startFrom == "latestTime")
         {
             if (nTimes)
             {
-                startTime_ = timeDirs.back().value();
+                startInstant = timeDirs.back();
+                haveStartInstant = true;
             }
         }
         else
@@ -189,13 +196,60 @@ void Foam::Time::setControls()
                 << " found '" << startFrom << "'"
                 << exit(FatalIOError);
         }
+
+        if (haveStartInstant)
+        {
+            startTime_ = startInstant.value();
+        }
     }
 
-    setTime(startTime_, 0);
-
+    // Read controlDict settings before setting the simulation time
     readDict();
+    const scalar controlDictDeltaT = deltaT_;
     deltaTSave_ = deltaT_;
     deltaT0_ = deltaT_;
+
+    if (haveStartInstant)
+    {
+        // Preserve the on-disk time directory name
+        setTime(startInstant, 0);
+    }
+    else
+    {
+        setTime(startTime_, 0);
+    }
+
+    // Use controlDict deltaT unless time-step adjustment is active
+    if (!controlDict_.getOrDefault("adjustTimeStep", false))
+    {
+        deltaT_ = controlDictDeltaT;
+        deltaTSave_ = controlDictDeltaT;
+    }
+
+    // Align timePrecision with the restored time directory name
+    {
+        const int oldPrecision = precision_;
+        const word tmName(timeName());
+        const scalar userTime(timeToUserTime(value()));
+
+        for (int p = oldPrecision; p <= maxPrecision_; ++p)
+        {
+            if (timeName(userTime, p) == tmName)
+            {
+                if (p > oldPrecision)
+                {
+                    precision_ = p;
+
+                    WarningInFunction
+                        << "Increasing the timePrecision from " << oldPrecision
+                        << " to " << precision_
+                        << " to support the formatting of the current time"
+                        << " directory " << tmName << nl << endl;
+                }
+                break;
+            }
+        }
+    }
 
     // Check if time directory exists
     // If not increase time precision to see if it is formatted differently.
@@ -208,29 +262,63 @@ void Foam::Time::setControls()
     {
         const int oldPrecision = precision_;
         int requiredPrecision = -1;
-        word oldTime(timeName());
-        for
-        (
-            precision_ = maxPrecision_;
-            precision_ > oldPrecision;
-            --precision_
-        )
+
+        // Try locate directory via time listing (handles formatting differences)
+        if (!timeDirs.empty())
         {
-            // Update the time formatting
-            setTime(startTime_, 0);
+            const word instancePath = findInstancePath
+            (
+                timeDirs,
+                instant(timeName())
+            );
 
-            word newTime(timeName());
-            if (newTime == oldTime)
+            if (!instancePath.empty() && instancePath != timeName())
             {
-                break;
+                resetTimeState(instancePath, value(), timeIndex_);
+                fileHandler().setTime(*this);
+
+                const scalar userTime(timeToUserTime(value()));
+
+                for (int p = oldPrecision; p <= maxPrecision_; ++p)
+                {
+                    if (timeName(userTime, p) == instancePath)
+                    {
+                        requiredPrecision = p;
+                        break;
+                    }
+                }
             }
-            oldTime = std::move(newTime);
+        }
 
-            // Does a time directory exist with the new format?
-            const fileName timeDir(fileHandler().filePath(timePath(), false));
-            if (returnReduceOr(!timeDir.empty()))
+        if (requiredPrecision < 0)
+        {
+            word oldTime(timeName());
+            for
+            (
+                precision_ = maxPrecision_;
+                precision_ > oldPrecision;
+                --precision_
+            )
             {
-                requiredPrecision = precision_;
+                // Update the time formatting
+                setTime(startTime_, 0);
+
+                word newTime(timeName());
+                if (newTime == oldTime)
+                {
+                    break;
+                }
+                oldTime = std::move(newTime);
+
+                // Does a time directory exist with the new format?
+                const fileName timeDir
+                (
+                    fileHandler().filePath(timePath(), false)
+                );
+                if (returnReduceOr(!timeDir.empty()))
+                {
+                    requiredPrecision = precision_;
+                }
             }
         }
 
@@ -240,7 +328,14 @@ void Foam::Time::setControls()
             precision_ = requiredPrecision;
 
             // Update the time formatting
-            setTime(startTime_, 0);
+            if (haveStartInstant)
+            {
+                setTime(startInstant, 0);
+            }
+            else
+            {
+                setTime(startTime_, 0);
+            }
 
             WarningInFunction
                 << "Increasing the timePrecision from " << oldPrecision
@@ -254,7 +349,14 @@ void Foam::Time::setControls()
             precision_ = oldPrecision;
 
             // Revert the time formatting
-            setTime(startTime_, 0);
+            if (haveStartInstant)
+            {
+                setTime(startInstant, 0);
+            }
+            else
+            {
+                setTime(startTime_, 0);
+            }
         }
     }
 
@@ -932,6 +1034,15 @@ void Foam::Time::setTime(const instant& inst, const label newIndex)
             IOobjectOption::NO_REGISTER
         )
     );
+
+    // Prefer stored name from uniform/time
+    if (string storedTimeName; timeDict.readIfPresent("name", storedTimeName))
+    {
+        if (storedTimeName != timeName())
+        {
+            resetTimeState(word(storedTimeName), value(), newIndex);
+        }
+    }
 
     timeDict.readIfPresent("deltaT", deltaT_);
     timeDict.readIfPresent("deltaT0", deltaT0_);
