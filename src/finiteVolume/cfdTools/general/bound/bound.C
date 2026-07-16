@@ -60,7 +60,16 @@ Foam::bound(volScalarField& vsf, const dimensionedScalar& lowerBound)
         // operator= internally checks if patch is assignable
         vsf.boundaryFieldRef() = max(vsf.boundaryField(), lowerBound.value());
 
-        vsf.correctBoundaryConditions();
+        // Give coupled bcs chance to update since cell values changed
+        vsf.boundaryFieldRef().evaluateCoupled<coupledFvPatch>();
+
+        vsf.boundaryFieldRef().evaluate_if
+        (
+            [](const auto& pfld)
+            {
+                return !pfld.assignable() && !pfld.fixesValue();
+            }
+        );
     }
 
     return vsf;
