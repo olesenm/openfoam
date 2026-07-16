@@ -200,6 +200,12 @@ void Foam::Time::setControls()
         if (haveStartInstant)
         {
             startTime_ = startInstant.value();
+
+            // 'constant' is not a simulation time directory name to preserve
+            if (startInstant.name() == constant())
+            {
+                haveStartInstant = false;
+            }
         }
     }
 
