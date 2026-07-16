@@ -98,8 +98,6 @@ class masterCoarsestGAMGProcAgglomeration
 
         const bool compactMasters_;
 
-        DynamicList<label> comms_;
-
 
     // Private Member Functions
 
