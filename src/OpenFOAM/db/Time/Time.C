@@ -1041,12 +1041,26 @@ void Foam::Time::setTime(const instant& inst, const label newIndex)
         )
     );
 
-    // Prefer stored name from uniform/time
+    // Prefer stored name from uniform/time only when it is a formatting
+    // alias for the current time value
     if (string storedTimeName; timeDict.readIfPresent("name", storedTimeName))
     {
-        if (storedTimeName != timeName())
+        if
+        (
+            storedTimeName != timeName()
+         && storedTimeName != constant()
+        )
         {
-            resetTimeState(word(storedTimeName), value(), newIndex);
+            scalar storedValue;
+            if
+            (
+                timeDict.readIfPresent("value", storedValue)
+             && timeName(timeToUserTime(storedValue))
+             == timeName(timeToUserTime(value()))
+            )
+            {
+                resetTimeState(word(storedTimeName), value(), newIndex);
+            }
         }
     }
 
