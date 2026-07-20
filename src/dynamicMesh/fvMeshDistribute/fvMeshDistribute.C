@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2018 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -48,6 +49,8 @@ License
 #include "globalIndex.H"
 #include "cyclicACMIPolyPatch.H"
 #include "mappedPatchBase.H"
+#include "polyPatch.H"
+#include "calculatedFvPatchField.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -291,7 +294,7 @@ void Foam::fvMeshDistribute::printCoupleInfo
 }
 
 
-Foam::label Foam::fvMeshDistribute::findNonEmptyPatch() const
+Foam::label Foam::fvMeshDistribute::findScratchPatch() const
 {
     // Finds (non-empty) patch that exposed internal and proc faces can be
     // put into.
@@ -322,8 +325,6 @@ Foam::label Foam::fvMeshDistribute::findNonEmptyPatch() const
         }
     }
 
-    label nonEmptyPatchi = -1;
-
     forAllReverse(patches, patchi)
     {
         const polyPatch& pp = patches[patchi];
@@ -335,31 +336,19 @@ Foam::label Foam::fvMeshDistribute::findNonEmptyPatch() const
         && !isA<mappedPatchBase>(pp)
         )
         {
-            nonEmptyPatchi = patchi;
-            break;
+            return patchi;
         }
     }
 
-    if (nonEmptyPatchi == -1)
-    {
-        FatalErrorInFunction
-            << "Cannot find a patch which is not of type empty, mapped or"
-            << " coupled in patches " << patches.names() << endl
-            << "There has to be at least one such patch for"
-            << " distribution to work" << abort(FatalError);
-    }
-
-    if (debug)
-    {
-        Pout<< "findNonEmptyPatch : using patch " << nonEmptyPatchi
-            << " name:" << patches[nonEmptyPatchi].name()
-            << " type:" << patches[nonEmptyPatchi].type()
-            << " to put exposed faces into." << endl;
-    }
+    return -1;
+}
 
 
-    // Do additional test for processor patches intermingled with non-proc
-    // patches.
+void Foam::fvMeshDistribute::checkProcessorPatchOrder() const
+{
+    const polyBoundaryMesh& patches = mesh_.boundaryMesh();
+
+    // Processor patches should be at end of patch list.
     label procPatchi = -1;
 
     forAll(patches, patchi)
@@ -379,8 +368,63 @@ Foam::label Foam::fvMeshDistribute::findNonEmptyPatch() const
                 << abort(FatalError);
         }
     }
+}
 
-    return nonEmptyPatchi;
+
+Foam::label Foam::fvMeshDistribute::findOrCreateScratchPatch()
+{
+    label scratchPatchi = findScratchPatch();
+
+    if (scratchPatchi != -1)
+    {
+        if (debug)
+        {
+            const polyPatch& pp = mesh_.boundaryMesh()[scratchPatchi];
+
+            Pout<< "findOrCreateScratchPatch : using patch "
+                << scratchPatchi
+                << " name:" << pp.name()
+                << " type:" << pp.type()
+                << " to put exposed faces into." << endl;
+        }
+    }
+    else
+    {
+        // No suitable existing patch (e.g. only empty/cyclic/mapped
+        // boundaries). Create temporary scratch patch, as fvMeshSubset
+        // does when patchID == -1.
+
+        if (debug)
+        {
+            Pout<< "findOrCreateScratchPatch : creating scratch patch "
+                << fvMeshSubset::exposedPatchName << endl;
+        }
+
+        const polyBoundaryMesh& patches = mesh_.boundaryMesh();
+
+        polyPatch newPatch
+        (
+            fvMeshSubset::exposedPatchName,
+            label(0),
+            mesh_.nFaces(),
+            patches.size(),
+            patches,
+            polyPatch::typeName
+        );
+
+        scratchPatchi = fvMeshTools::addPatch
+        (
+            mesh_,
+            newPatch,
+            dictionary(),
+            calculatedFvPatchField<scalar>::typeName,
+            false           // no parallel sync
+        );
+    }
+
+    checkProcessorPatchOrder();
+
+    return scratchPatchi;
 }
 
 
@@ -2076,7 +2120,9 @@ Foam::autoPtr<Foam::mapDistributePolyMesh> Foam::fvMeshDistribute::distribute
 
 
     // Find patch to temporarily put exposed and processor faces into.
-    const label oldInternalPatchi = findNonEmptyPatch();
+    const label nOldPatches = mesh_.boundary().size();
+    const label oldInternalPatchi = findOrCreateScratchPatch();
+    const bool scratchPatchCreated = (mesh_.boundary().size() > nOldPatches);
 
 
     // Delete processor patches, starting from the back. Move all faces into
@@ -2895,6 +2941,11 @@ Foam::autoPtr<Foam::mapDistributePolyMesh> Foam::fvMeshDistribute::distribute
 
     mesh_.setInstance(mesh_.time().timeName());
 
+    // Remove auto-created scratch patch if now empty
+    if (scratchPatchCreated)
+    {
+        fvMeshTools::removeEmptyPatches(mesh_, false);
+    }
 
     // Print a bit
     if (debug)
