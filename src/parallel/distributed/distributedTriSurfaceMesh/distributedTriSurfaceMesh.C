@@ -6131,6 +6131,18 @@ void Foam::distributedTriSurfaceMesh::distribute
     }
     else
     {
+        // independent/distributed only redistribute when the distribution
+        // type itself changes. follow must keep tracking the supplied bbs
+        // (usually the mesh bounds).
+        if
+        (
+            (distType_ == INDEPENDENT || distType_ == DISTRIBUTED)
+         && distType_ == currentDistType_
+        )
+        {
+            return;
+        }
+
         // Per triangle the destination processor
         labelList distribution;
         // Per processor the bounding box of all (destination) triangles
