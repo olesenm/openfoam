@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -218,6 +219,30 @@ Foam::List<T>::List(List<T>& list, bool reuse)
 {
     if (reuse)
     {
+        // Steal content
+        this->v_ = list.v_;
+        this->size_ = list.size_;
+        list.v_ = nullptr;
+        list.size_ = 0;
+    }
+    else if (!list.empty())
+    {
+        doAlloc(list.size());
+        UList<T>::deepCopy(list);
+    }
+}
+
+
+template<class T>
+template<int SizeMin>
+Foam::List<T>::List(DynamicList<T, SizeMin>& list, bool reuse)
+:
+    UList<T>()
+{
+    if (reuse)
+    {
+        list.shrink_to_fit();  // Shrink to logical size before transfer
+
         // Steal content
         this->v_ = list.v_;
         this->size_ = list.size_;

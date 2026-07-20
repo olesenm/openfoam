@@ -159,6 +159,10 @@ public:
         //- Construct as copy or re-use as specified
         List(List<T>& list, bool reuse);
 
+        //- Construct as copy or re-use as specified
+        template<int SizeMin>
+        List(DynamicList<T, SizeMin>& list, bool reuse);
+
         //- Copy construct subset of list
         List(const UList<T>& list, const labelUList& indices);
 
