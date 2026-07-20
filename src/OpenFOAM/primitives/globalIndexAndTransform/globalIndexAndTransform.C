@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -163,12 +164,25 @@ void Foam::globalIndexAndTransform::determineTransforms()
             if (cpp.separated())
             {
                 const vectorField& sepVecs = cpp.separation();
+                const scalarField faceLen = coupledPolyPatch::calcFaceTol
+                (
+                    cpp,
+                    cpp.points(),
+                    cpp.faceCentres()
+                );
+                // Use global length scale for non-processor patches
+                const scalar lenScale =
+                (
+                    patchi < patches.nNonProcessor()
+                  ? gAverage(faceLen)
+                  : average(faceLen)
+                );
 
                 forAll(sepVecs, sVI)
                 {
                     const vector& sepVec = sepVecs[sVI];
 
-                    if (mag(sepVec) > SMALL)
+                    if (mag(sepVec) > cpp.matchTolerance()*lenScale)
                     {
                         vectorTensorTransform transform(sepVec);
 
@@ -198,7 +212,14 @@ void Foam::globalIndexAndTransform::determineTransforms()
                 {
                     const tensor& transT = transTensors[tTI];
 
-                    if (mag(transT - I) > SMALL)
+                    // Gate on matchTolerance, not SMALL: in SPDP (float scalar,
+                    // SMALL=1e-6) processor-patch normal noise produces a
+                    // near-identity reverseT that would otherwise be registered
+                    // as a spurious global transform. matchTolerance is the
+                    // same scale matchTransform() uses and is
+                    // precision-independent.
+
+                    if (mag(transT - I) > cpp.matchTolerance())
                     {
                         vectorTensorTransform transform(transT);
 
@@ -347,6 +368,19 @@ void Foam::globalIndexAndTransform::determinePatchTransformSign()
             if (cpp.separated())
             {
                 const vectorField& sepVecs = cpp.separation();
+                const scalarField faceLen = coupledPolyPatch::calcFaceTol
+                (
+                    cpp,
+                    cpp.points(),
+                    cpp.faceCentres()
+                );
+                // Use global length scale for non-processor patches
+                const scalar lenScale =
+                (
+                    patchi < patches.nNonProcessor()
+                  ? gAverage(faceLen)
+                  : average(faceLen)
+                );
 
                 // This loop is implicitly expecting only a single
                 // value for separation()
@@ -354,7 +388,7 @@ void Foam::globalIndexAndTransform::determinePatchTransformSign()
                 {
                     const vector& sepVec = sepVecs[sVI];
 
-                    if (mag(sepVec) > SMALL)
+                    if (mag(sepVec) > cpp.matchTolerance()*lenScale)
                     {
                         vectorTensorTransform t(sepVec);
 
@@ -383,7 +417,10 @@ void Foam::globalIndexAndTransform::determinePatchTransformSign()
                 {
                     const tensor& transT = transTensors[tTI];
 
-                    if (mag(transT - I) > SMALL)
+                    // See determineTransforms(): use matchTolerance so SPDP
+                    // float noise on processor patches is not mistaken for a
+                    // real rotation.
+                    if (mag(transT - I) > cpp.matchTolerance())
                     {
                         vectorTensorTransform t(transT);
 
