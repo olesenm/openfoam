@@ -161,22 +161,28 @@ void Foam::globalIndexAndTransform::determineTransforms()
         {
             const coupledPolyPatch& cpp = refCast<const coupledPolyPatch>(pp);
 
+            // Use global length scale for non-processor patches. Note:
+            // - cpp.separated() is false on processors without patch faces
+            //   so we cannot use any comms-triggering routines inside that
+            //   condition. TBD: make cpp.separated() return true on processors
+            //   without patch faces.
+            const scalarField faceLen = coupledPolyPatch::calcFaceTol
+            (
+                cpp,
+                cpp.points(),
+                cpp.faceCentres()
+            );
+            // Use global length scale for non-processor patches
+            const scalar lenScale =
+            (
+                patchi < patches.nNonProcessor()
+                ? gAverage(faceLen)
+                : average(faceLen)
+            );
+
             if (cpp.separated())
             {
                 const vectorField& sepVecs = cpp.separation();
-                const scalarField faceLen = coupledPolyPatch::calcFaceTol
-                (
-                    cpp,
-                    cpp.points(),
-                    cpp.faceCentres()
-                );
-                // Use global length scale for non-processor patches
-                const scalar lenScale =
-                (
-                    patchi < patches.nNonProcessor()
-                  ? gAverage(faceLen)
-                  : average(faceLen)
-                );
 
                 forAll(sepVecs, sVI)
                 {
@@ -365,22 +371,28 @@ void Foam::globalIndexAndTransform::determinePatchTransformSign()
         {
             const coupledPolyPatch& cpp = refCast<const coupledPolyPatch>(pp);
 
+            // Use global length scale for non-processor patches. Note:
+            // - cpp.separated() is false on processors without patch faces
+            //   so we cannot use any comms-triggering routines inside that
+            //   condition. TBD: make cpp.separated() return true on processors
+            //   without patch faces.
+            const scalarField faceLen = coupledPolyPatch::calcFaceTol
+            (
+                cpp,
+                cpp.points(),
+                cpp.faceCentres()
+            );
+            // Use global length scale for non-processor patches
+            const scalar lenScale =
+            (
+                patchi < patches.nNonProcessor()
+                ? gAverage(faceLen)
+                : average(faceLen)
+            );
+
             if (cpp.separated())
             {
                 const vectorField& sepVecs = cpp.separation();
-                const scalarField faceLen = coupledPolyPatch::calcFaceTol
-                (
-                    cpp,
-                    cpp.points(),
-                    cpp.faceCentres()
-                );
-                // Use global length scale for non-processor patches
-                const scalar lenScale =
-                (
-                    patchi < patches.nNonProcessor()
-                  ? gAverage(faceLen)
-                  : average(faceLen)
-                );
 
                 // This loop is implicitly expecting only a single
                 // value for separation()
