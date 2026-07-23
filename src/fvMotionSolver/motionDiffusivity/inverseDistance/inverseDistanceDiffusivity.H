@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2012 OpenFOAM Foundation
     Copyright (C) 2017-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -59,6 +60,10 @@ class inverseDistanceDiffusivity
         //- Patches selected to base the distance on
         //  These can contain patch names or regular expressions to search for.
         wordRes patchNames_;
+
+        //- Optional type for distance field (e.g. zeroGradient). Default
+        //  is calculatedType().
+        word patchFieldType_;
 
 
     // Private Member Functions

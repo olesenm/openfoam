@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -58,8 +59,14 @@ Foam::inverseDistanceDiffusivity::inverseDistanceDiffusivity
 )
 :
     uniformDiffusivity(mesh, mdData),
-    patchNames_(mdData)
+    patchNames_(mdData),
+    patchFieldType_(fvPatchField<scalar>::calculatedType())
 {
+    if (!mdData.eof())
+    {
+        mdData >> patchFieldType_;
+    }
+
     correct();
 }
 
@@ -73,17 +80,16 @@ void Foam::inverseDistanceDiffusivity::correct()
         "y",
         mesh(),
         dimLength,
-        fvPatchFieldBase::zeroGradientType()
+        patchFieldType_
     );
     auto& y_ = tyfield.ref();
 
-    y_.primitiveFieldRef() =
-        wallDist::New
-        (
-            mesh(),
-            patchDistMethods::meshWave::typeName,
-            mesh().boundaryMesh().patchSet(patchNames_)
-        ).y();
+    y_ = wallDist::New
+    (
+        mesh(),
+        patchDistMethods::meshWave::typeName,
+        mesh().boundaryMesh().patchSet(patchNames_)
+    ).y();
     y_.correctBoundaryConditions();
 
     faceDiffusivity_ = dimensionedScalar(dimLength, 1)/fvc::interpolate(y_);
