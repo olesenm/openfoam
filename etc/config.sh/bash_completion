@@ -58,7 +58,7 @@ foamAddCompletion()
     local appName choices
     local verboseOnMissing=true
 
-    for appName
+    for appName in "$@"
     do
         if [ "$appName" = "-quiet" ]
         then

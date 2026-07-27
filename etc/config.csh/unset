@@ -7,6 +7,7 @@
 #------------------------------------------------------------------------------
 #     Copyright (C) 2011-2016 OpenFOAM Foundation
 #     Copyright (C) 2016-2022 OpenCFD Ltd.
+#     Copyright (C) 2026 Keysight Technologies
 #------------------------------------------------------------------------------
 # License
 #     This file is part of OpenFOAM, distributed under GPL-3.0-or-later.
@@ -88,6 +89,7 @@ unsetenv FOAM_EXTRA_CFLAGS FOAM_EXTRA_CXXFLAGS FOAM_EXTRA_LDFLAGS
 unsetenv FOAM_EXT_LIBBIN
 unsetenv FOAM_JOB_DIR
 unsetenv FOAM_LIBBIN
+unsetenv FOAM_MEMORY_POOL
 unsetenv FOAM_MODULE_APPBIN
 unsetenv FOAM_MODULE_LIBBIN
 unsetenv FOAM_MODULE_PREFIX

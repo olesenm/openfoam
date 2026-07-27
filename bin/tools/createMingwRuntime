@@ -40,7 +40,8 @@
 #   - copies tutorials (can be deactivated)
 #
 # Note
-#     Can only be called when the linux64Mingw environment is active.
+#     Can only be called when the linux64Mingw (or linuxARM64Mingw)
+#     environment is active.
 #
 #     Slightly ad hoc, potentially incomplete.
 #
@@ -110,7 +111,10 @@ cleanTarName() {
 while [ "$#" -gt 0 ]
 do
     case "$1" in
-    -h | -help*)
+    ('')  ;;                # Ignore empty option
+    (--)  shift; break ;;   # Stop option parsing
+
+    -h | -help* | --help*)
         printHelp
         ;;
     -name=*)
@@ -148,12 +152,8 @@ do
     -with-testbin*)
         withTestBin=true
         ;;
-    -tgz | -xz | -zip)
+    -tgz | -xz | -zip | -bzip)
         compress="${1#*-}"
-        ;;
-    --)
-        shift
-        break
         ;;
     -*)
         die "unknown option: '$1'"
@@ -185,7 +185,7 @@ esac
 
 if [ "$buildPlatform" != "$expectedBuildPlatform" ]
 then
-    die "Requires <$expectedBuildPlatform> environment: found <$buildPlatform>"
+    die "Expected <$expectedBuildPlatform> environment: found <$buildPlatform>"
 fi
 
 #-------------------------------------------------------------------------------
@@ -242,6 +242,10 @@ then
         tarName="${tarName}-win64"
         ;;
     esac
+
+    # Additional compilation qualifiers (SPDP, Int64, etc)
+    case "$compOptions" in (*SPDP*)  tarName="${tarName}_spdp" ;; esac
+    case "$compOptions" in (*Int64*) tarName="${tarName}_int64" ;; esac
 fi
 
 echo 1>&2
@@ -258,7 +262,13 @@ cd "$WM_PROJECT_DIR" || exit
 tmpDir="$(mktemp -d openfoam-mingw-runtime.XXXXXXXX --tmpdir)"
 tmpTarget="$tmpDir${prefixDir:+/}${prefixDir}"
 
-trap 'echo "remove $tmpDir"; rm -f $tmpDir 2>/dev/null; exit' EXIT TERM INT
+cleanup() {
+    echo "Removing tmp directory: $tmpDir" 1>&2
+    rm -rf "$tmpDir" 2>/dev/null
+}
+trap cleanup EXIT
+trap 'exit 1' TERM INT
+
 echo "Using tmp directory: $tmpDir"
 
 # Proper umask
@@ -278,13 +288,78 @@ do
 done
 
 echo "Copy common files" 1>&2
-rsync -a --exclude .gitignore $miscFiles META-INFO bin etc "$tmpTarget"
+rsync -a \
+    --exclude .gitignore \
+    --exclude prefs.sh --exclude prefs.csh \
+    --exclude '*.bak' --exclude '*.orig' \
+    $miscFiles META-INFO bin etc "$tmpTarget"
 
 # Remove branch info (probably spurious)
 if [ -f "$tmpTarget/META-INFO/build-info" ]
 then
     sed -i -e '/^branch=/d' "$tmpTarget/META-INFO/build-info"
 fi
+
+# Create <etc/prefs.sh>
+if :
+then
+    echo "Generating <etc/prefs.sh>" 1>&2
+    prefs_file="$tmpTarget"/etc/prefs.sh
+
+    echo '# [mingw] cross-compile settings -*- sh -*-' >| "$prefs_file"
+
+    if [ -n "$FOAM_CONFIG_ETC" ]
+    then
+        echo; echo "export FOAM_CONFIG_ETC=$FOAM_CONFIG_ETC"
+    fi >> "$prefs_file"
+
+    if [ -n "$WM_COMPILER" ]
+    then
+        echo; echo "export WM_COMPILER=$WM_COMPILER"
+    fi >> "$prefs_file"
+
+    if [ -n "$WM_COMPILE_CONTROL" ]
+    then
+        echo "export WM_COMPILE_CONTROL=\"$WM_COMPILE_CONTROL\""
+    else
+        echo "unset WM_COMPILE_CONTROL"
+    fi >> "$prefs_file"
+
+    case "$WM_MPLIB" in
+    ('' | none | dummy)
+        echo; echo "export WM_MPLIB=none"
+        ;;
+    (*)
+        echo; echo "export WM_MPLIB=$WM_MPLIB"
+        ;;
+    esac >> "$prefs_file"
+
+    if [ "${WM_LABEL_SIZE:-32}" != 32 ]
+    then
+        echo; echo "export WM_LABEL_SIZE=$WM_LABEL_SIZE"
+    fi >> "$prefs_file"
+
+    case "$WM_PRECISION_OPTION" in
+    (SP*)
+        echo; echo "export WM_PRECISION_OPTION=$WM_PRECISION_OPTION"
+        ;;
+    esac >> "$prefs_file"
+
+    echo >> "$prefs_file"
+    echo "# --------------------------------------------------" >> "$prefs_file"
+fi
+# End <etc/prefs.sh>
+
+# Report contents
+if [ -f "$prefs_file" ]
+then
+    echo "BEGIN [etc/prefs.sh]"
+    sed 's/^/> /' "$prefs_file"
+    echo "END [etc/prefs.sh]"
+else
+    echo ">>>> no etc/prefs.sh generated? <<<<"
+fi 1>&2
+
 
 # One-level only?
 configEtcDir="${FOAM_CONFIG_ETC##*/}"
@@ -293,7 +368,21 @@ then
     case "$FOAM_CONFIG_ETC" in
     ("$configEtcDir" | "$WM_PROJECT_DIR/$configEtcDir")
         echo "Copy config dir: $configEtcDir" 1>&2
-        rsync -a "$configEtcDir" "$tmpTarget"
+        rsync -a \
+            --exclude prefs.sh --exclude prefs.csh \
+            "$configEtcDir" "$tmpTarget"
+
+        # Remove duplicate prefs.sh, prefs.csh files.
+        # Not certain of their validity or conflicts with the generated one
+        for file in prefs.sh prefs.csh
+        do
+            prefs_file="$tmpTarget/$configEtcDir/$file"
+            if [ -f "$prefs_file" ]
+            then
+                echo "Remove duplicate $configEtcDir/$file file" 1>&2
+                rm -f "$prefs_file"
+            fi
+        done
         ;;
     (*)
         echo "Do not know how to copy additional config dir: $FOAM_CONFIG_ETC" 1>&2
@@ -340,11 +429,10 @@ then
     rsync -a "$other"/*.dll "$binDir"
 
     ending="$(echo "$FOAM_MPI" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^A-Za-z].*//')"
-    [ -n "$ending" ] || continue
 
     for name in libPstream.dll
     do
-        if [ -f "$other/$name" ]
+        if [ -n "$ending" ] && [ -f "$other/$name" ]
         then
             # Keep duplicate for manual replacement if needed
             newName="$name-$ending"
@@ -362,7 +450,7 @@ then
     echo "Copy (dummy) *.dll -> platforms bin/" 1>&2
     for fullpath in "$other"/*.dll
     do
-        [ -f "$fullpath" ] || continue;
+        [ -f "$fullpath" ] || continue
         name="${fullpath##*/}"
 
         if [ -f "$binDir/$name" ]
@@ -472,7 +560,7 @@ case "$compress" in
     ;;
 
     (bz | bz2 | bzip | bzip2)
-    echo "Use bzip2 compression" 1>&2
+    echo "Use bzip2 compression (.bz2 ending)" 1>&2
     archiveCommand="tar -cjf"
     archiveSuffix=".tar.bz2"
     ;;
@@ -490,14 +578,14 @@ case "$compress" in
     ;;
 
     (*)
-    echo "Unknown compression scheme: $compress" 1>&2
+    echo "Ignoring unknown compression scheme: $compress" 1>&2
     ;;
 esac
 
 finalOutput="$outputDir/$tarName$archiveSuffix"
 (
     cd "$tmpDir" || exit
-    time $archiveCommand "$finalOutput" "${prefixDir:-.}"
+    time $archiveCommand "${finalOutput}" "${prefixDir:-.}"
 )
 
 echo
@@ -507,7 +595,7 @@ echo
 echo "# Possible further commands:"
 echo
 # Split into 10 files with "_part<digits>" suffix
-echo "    split -d -n10 $finalOutput ${finalOutput}_part"
+echo "    split -d -n10 ${finalOutput} ${finalOutput}_part"
 echo
 
 

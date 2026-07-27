@@ -7,6 +7,7 @@
 #------------------------------------------------------------------------------
 #     Copyright (C) 2011-2016 OpenFOAM Foundation
 #     Copyright (C) 2016-2025 OpenCFD Ltd.
+#     Copyright (C) 2026 Keysight Technologies
 #------------------------------------------------------------------------------
 # License
 #     This file is part of OpenFOAM, distributed under GPL-3.0-or-later.
@@ -66,7 +67,7 @@ setenv WM_PROJECT_VERSION v2606
 setenv WM_COMPILER_TYPE system
 
 # [WM_COMPILER] - Compiler:
-# = Gcc | Clang | Icc | Icx | Amd | Arm | Cray | Fujitsu | Nvidia |
+# = Gcc | Clang | Icc | Icx | Amd | Arm | Cray | Fujitsu | Mingw | Nvidia |
 #   Gcc<digits> | Clang<digits>
 setenv WM_COMPILER Gcc
 
@@ -101,9 +102,9 @@ setenv WM_COMPILE_OPTION Opt
 #setenv WM_COMPILE_CONTROL "+strict"
 
 # [WM_MPLIB] - MPI implementation:
-# = SYSTEMOPENMPI | OPENMPI | SYSTEMMPI | MPI | MPICH | MPICH-GM |
+# = none | SYSTEMOPENMPI | OPENMPI | SYSTEMMPI | MPI | MPICH | MPICH-GM |
 #   HPMPI | CRAY-MPICH | FJMPI | QSMPI | SGIMPI | INTELMPI | USERMPI
-# Specify SYSTEMOPENMPI1, SYSTEMOPENMPI2 for internal tracking (if desired)
+# For internal tracking can specify SYSTEMOPENMPI-1, SYSTEMOPENMPI-2, ...
 # Can also use INTELMPI-xyz etc and define your own wmake rule
 setenv WM_MPLIB SYSTEMOPENMPI
 

@@ -119,7 +119,8 @@ then
     then
         export FOAM_SETTINGS
 
-        for foamVar_eval
+        # Explicit use of args (zsh)
+        for foamVar_eval in "$@"
         do
             case "$foamVar_eval" in
             (-*)
