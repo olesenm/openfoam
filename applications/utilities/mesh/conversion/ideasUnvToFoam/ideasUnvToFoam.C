@@ -8,6 +8,7 @@
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2021-2024 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,7 +52,6 @@ Description
 #include "faceSet.H"
 #include "DynamicList.H"
 
-#include <cassert>
 #include "MeshedSurfaces.H"
 
 using namespace Foam;
@@ -895,7 +895,6 @@ int main(int argc, char *argv[])
 
     labelList own(boundaryFaces.size(), -1);
     labelList nei(boundaryFaces.size(), -1);
-    Pair<Map<label>> faceToCell;
 
     {
         // Can use face::symmHasher or use sorted indices instead
@@ -959,8 +958,6 @@ int main(int argc, char *argv[])
         {
             if (own[facei] != -1 && nei[facei] != -1)
             {
-                faceToCell[1].insert(facei, own[facei]);
-                faceToCell[0].insert(facei, nei[facei]);
                 cnt++;
             }
         }
@@ -1241,10 +1238,17 @@ int main(int argc, char *argv[])
         }
         if (faceZones.size())
         {
-            const labelList& own = mesh.faceOwner();
-            const labelList& nei = mesh.faceNeighbour();
-            const pointField& centers = mesh.faceCentres();
-            const pointField& points = mesh.points();
+            const faceList& meshFaces = mesh.faces();
+
+            // Sorted vertices to mesh face, the key the patch assignment
+            // above already uses for the unv faces
+            HashTable<label, face> vertsToMeshFace(2*meshFaces.size());
+            forAll(meshFaces, facei)
+            {
+                face sortedVerts(meshFaces[facei]);
+                Foam::sort(sortedVerts);
+                vertsToMeshFace.insert(sortedVerts, facei);
+            }
 
             forAll(faceZones.toc(), cnt)
             {
@@ -1258,47 +1262,22 @@ int main(int argc, char *argv[])
                 forAll(indizes, i)
                 {
                     const label old = oldIndizes[i];
-                    label noveau = -1;
 
-                    label c1 = faceToCell[0].lookup(old, -1);
-                    label c2 = faceToCell[1].lookup(old, -1);
+                    face sortedVerts(boundaryFaces[old]);
+                    Foam::sort(sortedVerts);
 
-                    if (c1 < c2)
+                    const label noveau =
+                        vertsToMeshFace.lookup(sortedVerts, -1);
+
+                    if (noveau == -1)
                     {
-                        std::swap(c1, c2);
+                        FatalErrorInFunction
+                            << "No mesh face has the vertices of unv face "
+                            << boundaryFaceIndices[old]
+                            << " in faceZone " << name << nl
+                            << "    mesh point labels " << boundaryFaces[old]
+                            << exit(FatalError);
                     }
-                    if (c2 == -1)
-                    {
-                        // Boundary face is part of the faceZone
-                        forAll(own, j)
-                        {
-                            if (own[j] == c1)
-                            {
-                                const face& f = boundaryFaces[old];
-                                if (mag(centers[j]- f.centre(points)) < SMALL)
-                                {
-                                    noveau = j;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        forAll(nei, j)
-                        {
-                            if
-                            (
-                                (c1 == own[j] && c2 == nei[j])
-                             || (c2 == own[j] && c1 == nei[j])
-                            )
-                            {
-                                noveau = j;
-                                break;
-                            }
-                        }
-                    }
-                    assert(noveau > -1);
                     indizes[i] = noveau;
                 }
                 fZones[cnt] = new faceZone
