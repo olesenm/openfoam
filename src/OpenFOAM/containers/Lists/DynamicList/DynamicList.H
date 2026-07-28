@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -110,7 +111,7 @@ public:
         inline constexpr DynamicList() noexcept;
 
         //- Construct an empty list with given initial capacity
-        inline explicit DynamicList(const label initialCapacity);
+        inline explicit DynamicList(label initialCapacity);
 
         //- Construct with given size and capacity
         inline explicit DynamicList(std::pair<label,label> sizing);
@@ -118,31 +119,31 @@ public:
         //- Construct with given size and value for all elements.
         inline DynamicList(const label len, const T& val);
 
-        //- Construct with given size initializing all elements to zero
+        //- Construct with given size, initializing all elements to zero
         inline DynamicList(const label len, Foam::zero);
 
-        //- Copy construct.
-        inline DynamicList(const DynamicList<T, SizeMin>& lst);
+        //- Copy construct. Capacity set to list size.
+        inline DynamicList(const DynamicList<T, SizeMin>& list);
 
-        //- Copy construct from DynamicList with different sizing parameters
+        //- Copy construct with different sizing parameters.
+        //- Capacity set to list size.
         template<int AnySizeMin>
-        inline DynamicList(const DynamicList<T, AnySizeMin>& lst);
+        inline DynamicList(const DynamicList<T, AnySizeMin>& list);
 
-        //- Copy construct from UList. Size set to UList size.
-        //  Also constructs from DynamicList with different sizing parameters.
-        inline explicit DynamicList(const UList<T>& lst);
+        //- Copy construct from UList. Capacity set to list size.
+        inline explicit DynamicList(const UList<T>& list);
 
         //- Copy construct subset of list
         inline DynamicList(const UList<T>& list, const labelUList& indices);
 
-        //- Copy construct from a FixedList
+        //- Copy construct from a FixedList. Capacity set to list size.
         template<unsigned N>
-        inline explicit DynamicList(const FixedList<T, N>& lst);
+        inline explicit DynamicList(const FixedList<T, N>& list);
 
-        //- Copy construct from an initializer list. Size set to list size.
-        inline explicit DynamicList(std::initializer_list<T> lst);
+        //- Copy construct from an initializer list. Capacity set to list size.
+        inline explicit DynamicList(std::initializer_list<T> list);
 
-        //- Copy construct from IndirectList. Size set to addressing size.
+        //- Copy construct from IndirectList
         template<class Addr>
         inline explicit DynamicList(const IndirectListBase<T, Addr>& lst);
 
@@ -153,8 +154,23 @@ public:
         template<int AnySizeMin>
         inline DynamicList(DynamicList<T, AnySizeMin>&& list) noexcept;
 
+        //- Move construct from DynamicField
+        template<int AnySizeMin>
+        inline DynamicList(DynamicField<T, AnySizeMin>&& list) noexcept;
+
         //- Move construct from List
         inline DynamicList(List<T>&& list) noexcept;
+
+        //- Copy or move construct from List
+        inline DynamicList(List<T>& content, bool reuse);
+
+        //- Copy or move construct from DynamicList
+        template<int AnySizeMin>
+        inline DynamicList(DynamicList<T, AnySizeMin>& content, bool reuse);
+
+        //- Copy or move construct from DynamicField
+        template<int AnySizeMin>
+        inline DynamicList(DynamicField<T, AnySizeMin>& content, bool reuse);
 
         //- Construct from Istream. Size set to size of list read.
         explicit DynamicList(Istream& is);
@@ -257,12 +273,22 @@ public:
         template<int AnySizeMin>
         inline void swap(DynamicList<T, AnySizeMin>& other) noexcept;
 
+        //- Swap content, independent of sizing parameter
+        template<int AnySizeMin>
+        inline void swap(DynamicField<T, AnySizeMin>& other) noexcept;
+
         //- Transfer contents of the argument List into this.
         inline void transfer(List<T>& list);
 
-        //- Transfer contents of any DynamicList into this.
+        //- Transfer contents of any DynamicList into this,
+        //- retains the capacity of the transferred content
         template<int AnySizeMin>
         inline void transfer(DynamicList<T, AnySizeMin>& list);
+
+        //- Transfer contents of any DynamicField into this,
+        //- retains the capacity of the transferred content
+        template<int AnySizeMin>
+        inline void transfer(DynamicField<T, AnySizeMin>& list);
 
         //- Construct an element at the end of the list,
         //- return reference to the new list element
@@ -295,6 +321,10 @@ public:
         //- Move append list
         template<int AnySizeMin>
         inline void push_back(DynamicList<T, AnySizeMin>&& list);
+
+        //- Move append list
+        template<int AnySizeMin>
+        inline void push_back(DynamicField<T, AnySizeMin>&& list);
 
         //- Append an element if not already in the list.
         //  \return the change in list length

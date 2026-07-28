@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -97,15 +98,15 @@ public:
         inline constexpr DynamicField() noexcept;
 
         //- Construct empty field with given initial capacity
-        inline explicit DynamicField(const label initialCapacity);
+        inline explicit DynamicField(label initialCapacity);
 
         //- Construct with given size and capacity
         inline explicit DynamicField(std::pair<label,label> sizing);
 
-        //- Construct given size and initial value
+        //- Construct with given size and value for all elements.
         inline DynamicField(const label len, const T& val);
 
-        //- Construct given size and initial value of zero
+        //- Construct with given size, initializing all elements to zero
         inline DynamicField(const label len, Foam::zero);
 
         //- Copy construct
@@ -126,27 +127,27 @@ public:
         //- Move construct from List contents
         inline explicit DynamicField(List<T>&& content) noexcept;
 
-        //- Move construct from dynamic Field contents
+        //- Move construct from dynamic field contents
         inline DynamicField(DynamicField<T, SizeMin>&& content) noexcept;
-
-        //- Move construct with different sizing parameters
-        template<int AnySizeMin>
-        inline DynamicField(DynamicField<T, AnySizeMin>&& content) noexcept;
 
         //- Move construct from DynamicList
         template<int AnySizeMin>
         inline DynamicField(DynamicList<T, AnySizeMin>&& content) noexcept;
 
-        //- Copy or move construct from DynamicField
+        //- Move construct with different sizing parameters
         template<int AnySizeMin>
-        inline DynamicField(DynamicField<T, AnySizeMin>& content, bool reuse);
+        inline DynamicField(DynamicField<T, AnySizeMin>&& content) noexcept;
+
+        //- Copy or move construct from List
+        inline DynamicField(List<T>& content, bool reuse);
 
         //- Copy or move construct from DynamicList
         template<int AnySizeMin>
         inline DynamicField(DynamicList<T, AnySizeMin>& content, bool reuse);
 
-        //- Copy or move construct from List
-        inline DynamicField(List<T>& content, bool reuse);
+        //- Copy or move construct from DynamicField
+        template<int AnySizeMin>
+        inline DynamicField(DynamicField<T, AnySizeMin>& content, bool reuse);
 
         //- Construct by 1 to 1 mapping from the given field
         inline DynamicField
@@ -270,13 +271,13 @@ public:
         //- Swap with plain List content. Implies shrink_to_fit().
         inline void swap(List<T>& other);
 
-        //- Swap content, independent of sizing parameter
-        template<int AnySizeMin>
-        inline void swap(DynamicField<T, AnySizeMin>& other) noexcept;
-
         //- Swap content with DynamicList, independent of sizing parameter
         template<int AnySizeMin>
         inline void swap(DynamicList<T, AnySizeMin>& other) noexcept;
+
+        //- Swap content, independent of sizing parameter
+        template<int AnySizeMin>
+        inline void swap(DynamicField<T, AnySizeMin>& other) noexcept;
 
         //- Transfer the parameter contents into this
         inline void transfer(List<T>& list);
@@ -305,6 +306,14 @@ public:
 
         //- Move append another list to the end of this list
         inline void push_back(List<T>&& list);
+
+        //- Move append list
+        template<int AnySizeMin>
+        inline void push_back(DynamicList<T, AnySizeMin>&& list);
+
+        //- Move append list
+        template<int AnySizeMin>
+        inline void push_back(DynamicField<T, AnySizeMin>&& list);
 
         //- Reduce size by 1 or more elements. Can be called on an empty list.
         inline void pop_back(label n = 1);

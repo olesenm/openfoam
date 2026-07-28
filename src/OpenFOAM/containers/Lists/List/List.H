@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,6 +56,7 @@ namespace Foam
 // Forward Declarations
 template<class T> class List;
 template<class T, int SizeMin> class DynamicList;
+template<class T, int SizeMin> class DynamicField;
 
 template<class T> class UPtrList;
 
@@ -163,6 +165,10 @@ public:
         template<int SizeMin>
         List(DynamicList<T, SizeMin>& list, bool reuse);
 
+        //- Construct as copy or re-use as specified
+        template<int SizeMin>
+        List(DynamicField<T, SizeMin>& list, bool reuse);
+
         //- Copy construct subset of list
         List(const UList<T>& list, const labelUList& indices);
 
@@ -190,6 +196,10 @@ public:
         //- Move construct from DynamicList
         template<int SizeMin>
         List(DynamicList<T, SizeMin>&& list);
+
+        //- Move construct from DynamicField
+        template<int SizeMin>
+        List(DynamicField<T, SizeMin>&& list);
 
         //- Construct from Istream
         List(Istream& is);
@@ -237,10 +247,13 @@ public:
         //- and annul the argument list
         void transfer(List<T>& list);
 
-        //- Transfer the contents of the argument List into this list
-        //- and annul the argument list
+        //- Transfer contents of any DynamicList into this.
         template<int SizeMin>
         void transfer(DynamicList<T, SizeMin>& list);
+
+        //- Transfer contents of any DynamicField into this.
+        template<int SizeMin>
+        void transfer(DynamicField<T, SizeMin>& list);
 
         //- Return subscript-checked element of UList and resizing the list
         //- if required.
@@ -311,6 +324,10 @@ public:
         //- Move assignment. Takes constant time.
         template<int SizeMin>
         void operator=(DynamicList<T, SizeMin>&& list);
+
+        //- Move assignment. Takes constant time.
+        template<int SizeMin>
+        void operator=(DynamicField<T, SizeMin>&& list);
 
 
     // Reading/writing

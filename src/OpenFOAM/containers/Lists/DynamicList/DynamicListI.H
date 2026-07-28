@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -137,7 +138,7 @@ inline constexpr Foam::DynamicList<T, SizeMin>::DynamicList() noexcept
 
 
 template<class T, int SizeMin>
-inline Foam::DynamicList<T, SizeMin>::DynamicList(const label initialCapacity)
+inline Foam::DynamicList<T, SizeMin>::DynamicList(label initialCapacity)
 :
     List<T>(),
     capacity_(0)
@@ -292,6 +293,20 @@ inline Foam::DynamicList<T, SizeMin>::DynamicList
 
 
 template<class T, int SizeMin>
+template<int AnySizeMin>
+inline Foam::DynamicList<T, SizeMin>::DynamicList
+(
+    DynamicField<T, AnySizeMin>&& list
+) noexcept
+:
+    List<T>(std::move(static_cast<List<T>&>(list))),
+    capacity_(list.capacity())
+{
+    list.setCapacity_unsafe(0);  // All contents moved
+}
+
+
+template<class T, int SizeMin>
 inline Foam::DynamicList<T, SizeMin>::DynamicList
 (
     List<T>&& list
@@ -300,6 +315,56 @@ inline Foam::DynamicList<T, SizeMin>::DynamicList
     List<T>(std::move(list)),
     capacity_(List<T>::size())
 {}
+
+
+template<class T, int SizeMin>
+inline Foam::DynamicList<T, SizeMin>::DynamicList
+(
+    List<T>& content,
+    bool reuse
+)
+:
+    List<T>(content, reuse),
+    capacity_(List<T>::size())
+{}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline Foam::DynamicList<T, SizeMin>::DynamicList
+(
+    DynamicList<T, AnySizeMin>& content,
+    bool reuse
+)
+:
+    List<T>(static_cast<List<T>&>(content), reuse),
+    capacity_(List<T>::size())
+{
+    if (reuse)
+    {
+        capacity_ = content.capacity();
+        content.setCapacity_unsafe(0);  // All contents moved
+    }
+}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline Foam::DynamicList<T, SizeMin>::DynamicList
+(
+    DynamicField<T, AnySizeMin>& content,
+    bool reuse
+)
+:
+    List<T>(static_cast<List<T>&>(content), reuse),
+    capacity_(List<T>::size())
+{
+    if (reuse)
+    {
+        capacity_ = content.capacity();
+        content.setCapacity_unsafe(0);  // All contents moved
+    }
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -537,7 +602,38 @@ inline void Foam::DynamicList<T, SizeMin>::swap
     UList<T>::swap(other);
 
     // Swap capacity
-    std::swap(capacity_, other.capacity_);
+    const auto oldCapacity = capacity_;
+    this->setCapacity_unsafe(other.capacity());
+    other.setCapacity_unsafe(oldCapacity);
+}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline void Foam::DynamicList<T, SizeMin>::swap
+(
+    DynamicField<T, AnySizeMin>& other
+) noexcept
+{
+    if
+    (
+        FOAM_UNLIKELY
+        (
+            static_cast<const List<T>*>(this)
+         == static_cast<const List<T>*>(&other)
+        )
+    )
+    {
+        return;  // Self-swap is a no-op
+    }
+
+    // Swap storage and addressable size
+    UList<T>::swap(other);
+
+    // Swap capacity
+    const auto oldCapacity = capacity_;
+    this->setCapacity_unsafe(other.capacity());
+    other.setCapacity_unsafe(oldCapacity);
 }
 
 
@@ -562,6 +658,37 @@ Foam::DynamicList<T, SizeMin>::transfer
     DynamicList<T, AnySizeMin>& other
 )
 {
+    if
+    (
+        FOAM_UNLIKELY
+        (
+            static_cast<const List<T>*>(this)
+         == static_cast<const List<T>*>(&other)
+        )
+    )
+    {
+        return;  // Self-assignment is a no-op
+    }
+
+    // Consistent allocated sizing
+    List<T>::setAddressableSize(capacity_);
+    List<T>::transfer(static_cast<List<T>&>(other));
+
+    // Update capacity information
+    capacity_ = other.capacity();
+    other.setCapacity_unsafe(0);  // All contents moved
+}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline void
+Foam::DynamicList<T, SizeMin>::transfer
+(
+    DynamicField<T, AnySizeMin>& other
+)
+{
+    // Different types, but check for self-assignment anyhow
     if
     (
         FOAM_UNLIKELY
@@ -637,8 +764,8 @@ inline void Foam::DynamicList<T, SizeMin>::push_back
     (
         FOAM_UNLIKELY
         (
-            static_cast<const List<T>*>(this)
-         == static_cast<const List<T>*>(&list)
+            static_cast<const UList<T>*>(this)
+         == static_cast<const UList<T>*>(&list)
         )
     )
     {
@@ -740,6 +867,37 @@ template<int AnySizeMin>
 inline void Foam::DynamicList<T, SizeMin>::push_back
 (
     DynamicList<T, AnySizeMin>&& list
+)
+{
+    if
+    (
+        FOAM_UNLIKELY
+        (
+            static_cast<const List<T>*>(this)
+         == static_cast<const List<T>*>(&list)
+        )
+    )
+    {
+        FatalErrorInFunction
+            << "Attempted push_back to self"
+            << abort(FatalError);
+    }
+
+    const label idx = List<T>::size();
+    resize(idx + list.size());
+
+    // Move the elements
+    std::move(list.begin(), list.end(), this->begin(idx));
+
+    list.clearStorage();  // Deletion, capacity=0 etc.
+}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline void Foam::DynamicList<T, SizeMin>::push_back
+(
+    DynamicField<T, AnySizeMin>&& list
 )
 {
     if

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,7 +44,7 @@ SourceFiles
     FieldI.H
     FieldM.H
     Field.C
-    FieldBase.C
+    FieldBase.cxx
     FieldFunctions.C
     FieldFunctionsM.C
 
@@ -216,6 +217,10 @@ public:
         template<int SizeMin>
         inline Field(DynamicList<Type, SizeMin>&& list);
 
+        //- Move construct from DynamicField
+        template<int SizeMin>
+        inline Field(DynamicField<Type, SizeMin>&& list);
+
         //- Construct by 1 to 1 mapping from the given field
         Field
         (
@@ -303,6 +308,17 @@ public:
         //- Copy construct or re-use as specified.
         inline Field(Field<Type>& fld, bool reuse);
 
+        //- Copy construct or re-use as specified.
+        inline Field(List<Type>& fld, bool reuse);
+
+        //- Copy construct or re-use as specified.
+        template<int SizeMin>
+        inline Field(DynamicList<Type, SizeMin>& fld, bool reuse);
+
+        //- Copy construct or re-use as specified.
+        template<int SizeMin>
+        inline Field(DynamicField<Type, SizeMin>& fld, bool reuse);
+
         //- Copy or move construct from tmp
         inline Field(const tmp<Field<Type>>& tfld);
 
@@ -336,8 +352,8 @@ public:
             return autoPtr<Field<Type>>(new Field<Type>(is));
         }
 
-        //- Return a pointer to a new calculatedFvPatchFieldField created on
-        //- freestore without setting patchField values
+        //- Return Field with a compatibility length.
+        //- Provides method name compatibility with patch field methods
         template<class Type2>
         static tmp<Field<Type>> NewCalculatedType(const Field<Type2>& f)
         {
@@ -543,6 +559,9 @@ public:
 
         template<int SizeMin>
         inline void operator=(DynamicList<Type, SizeMin>&& rhs);
+
+        template<int SizeMin>
+        inline void operator=(DynamicField<Type, SizeMin>&& rhs);
 
         //- Assign entries to the given value
         inline void operator=(const Type& val);
