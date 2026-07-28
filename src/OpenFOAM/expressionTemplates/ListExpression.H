@@ -8,6 +8,7 @@
     Copyright (C) 2024,2025 M. Janssens
     Copyright (C) 2025 OpenCFD Ltd.
     Copyright (C) 2025 Advanced Micro Devices, Inc.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -656,7 +657,7 @@ public:
         return (elems_.get() == lst);
     }
 
-    typedef typename List<T>::const_iterator const_iterator;
+    typedef typename T::const_iterator const_iterator;
     auto cbegin() const
     {
         return elems_().cbegin();
@@ -665,7 +666,8 @@ public:
     {
         return elems_().cend();
     }
-    typedef typename List<T>::iterator iterator;
+
+    typedef typename T::iterator iterator;
     auto begin()
     {
         return elems_.ref().begin();
@@ -824,7 +826,7 @@ public:
     //         return base_;
     //     }
     // };
-    typedef typename List<T>::const_iterator const_iterator;
+    typedef typename T::const_iterator const_iterator;
     auto cbegin() const
     {
         return const_iterator(elems_().cbegin());
@@ -1068,9 +1070,10 @@ public:
 
         //- Iterator definition for E1
         typedef typename E1::const_iterator ConstIter;
-        using value_type = typename ConstIter::value_type;
-        using pointer = typename ConstIter::pointer;
-        using reference = typename ConstIter::reference;
+        typedef std::iterator_traits<ConstIter> Traits;
+        using value_type = typename Traits::value_type;
+        using pointer = typename Traits::pointer;
+        using reference = typename Traits::reference;
         using iterator_category = std::random_access_iterator_tag;
 
         ConstIter begin_;
@@ -1216,11 +1219,12 @@ public:                                                                        \
     struct const_iterator                                                      \
     {                                                                          \
         typedef typename E1::const_iterator ConstIter;                         \
-        using difference_type = typename ConstIter::difference_type;           \
-        using value_type = typename ConstIter::value_type;                     \
-        using pointer = typename ConstIter::pointer;                           \
-        using reference = typename ConstIter::reference;                       \
-        using iterator_category = typename ConstIter::iterator_category;       \
+        typedef std::iterator_traits<ConstIter> Traits;                        \
+        using difference_type = typename Traits::difference_type;              \
+        using value_type = typename Traits::value_type;                        \
+        using pointer = typename Traits::pointer;                              \
+        using reference = typename Traits::reference;                          \
+        using iterator_category = typename Traits::iterator_category;          \
                                                                                \
         ConstIter base_;                                                       \
                                                                                \
@@ -1363,11 +1367,12 @@ public:
         // Minimalistic const_iter implementation
 
         typedef typename E1::const_iterator ConstIter;
-        using difference_type = typename ConstIter::difference_type;
-        using value_type = typename ConstIter::value_type;
-        using pointer = typename ConstIter::pointer;
-        using reference = typename ConstIter::reference;
-        using iterator_category = typename ConstIter::iterator_category;
+        typedef std::iterator_traits<ConstIter> Traits;
+        using difference_type = typename Traits::difference_type;
+        using value_type = typename Traits::value_type;
+        using pointer = typename Traits::pointer;
+        using reference = typename Traits::reference;
+        using iterator_category = typename Traits::iterator_category;
 
         ConstIter base_;
 
@@ -1512,11 +1517,12 @@ public:                                                                        \
     {                                                                          \
         typedef typename E1::const_iterator E1Iter;                            \
         typedef typename E2::const_iterator E2Iter;                            \
-        using difference_type = typename E1Iter::difference_type;              \
-        using value_type = typename E1Iter::value_type;                        \
-        using pointer = typename E1Iter::pointer;                              \
-        using reference = typename E1Iter::reference;                          \
-        using iterator_category = typename E1Iter::iterator_category;          \
+        typedef std::iterator_traits<E1Iter> Traits;                           \
+        using difference_type = typename Traits::difference_type;              \
+        using value_type = typename Traits::value_type;                        \
+        using pointer = typename Traits::pointer;                              \
+        using reference = typename Traits::reference;                          \
+        using iterator_category = typename Traits::iterator_category;          \
                                                                                \
         E1Iter uIter_;                                                         \
         E2Iter vIter_;                                                         \
@@ -1741,11 +1747,12 @@ public:                                                                        \
     {                                                                          \
         typedef typename E1::const_iterator E1Iter;                            \
         typedef typename E2::const_iterator E2Iter;                            \
-        using difference_type = typename E1Iter::difference_type;              \
-        using value_type = typename E1Iter::value_type;                        \
-        using pointer = typename E1Iter::pointer;                              \
-        using reference = typename E1Iter::reference;                          \
-        using iterator_category = typename E1Iter::iterator_category;          \
+        typedef std::iterator_traits<E1Iter> Traits;                           \
+        using difference_type = typename Traits::difference_type;              \
+        using value_type = typename Traits::value_type;                        \
+        using pointer = typename Traits::pointer;                              \
+        using reference = typename Traits::reference;                          \
+        using iterator_category = typename Traits::iterator_category;          \
                                                                                \
         E1Iter uIter_;                                                         \
         E2Iter vIter_;                                                         \
@@ -2088,11 +2095,13 @@ public:
         typedef typename E1::const_iterator E1Iter;
         typedef typename E2::const_iterator E2Iter;
         typedef typename E3::const_iterator E3Iter;
-        using difference_type = typename E3Iter::difference_type;
-        using value_type = typename E1Iter::value_type;
-        using pointer = typename E1Iter::pointer;
-        using reference = typename E1Iter::reference;
-        using iterator_category = typename E3Iter::iterator_category;
+        typedef std::iterator_traits<E1Iter> Traits1;
+        typedef std::iterator_traits<E3Iter> Traits3;
+        using difference_type = typename Traits3::difference_type;
+        using value_type = typename Traits1::value_type;
+        using pointer = typename Traits1::pointer;
+        using reference = typename Traits1::reference;
+        using iterator_category = typename Traits3::iterator_category;
         E1Iter uIter_;
         E2Iter vIter_;
         E3Iter weightIter_;
