@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -157,9 +158,6 @@ class contactHeatFluxSource
 
         //- Total contact resistance
         scalar contactRes_;
-
-        //- Current time index (used for updating)
-        label curTimeIndex_;
 
         //- Contact coupling (per-patch)
         PtrList<temperatureCoupling> coupling_;

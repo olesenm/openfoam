@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -64,8 +65,7 @@ Foam::fa::contactHeatFluxSource::contactHeatFluxSource
     ),
     TprimaryName_(dict.getOrDefault<word>("Tprimary", "T")),
     Tprimary_(mesh_.lookupObject<volScalarField>(TprimaryName_)),
-    contactRes_(0),
-    curTimeIndex_(-1)
+    contactRes_(0)
 {
     fieldNames_.resize(1, TName_);
 
@@ -140,24 +140,19 @@ void Foam::fa::contactHeatFluxSource::addSup
 
     DebugInfo<< name() << ": applying source to " << eqn.psi().name() << endl;
 
-    if (curTimeIndex_ != mesh().time().timeIndex())
-    {
-        tmp<DimensionedField<scalar, areaMesh>> htcw(htc());
+    tmp<DimensionedField<scalar, areaMesh>> htcw(htc());
 
-        // Wall temperature - mapped from primary field to finite-area
-        auto Twall = DimensionedField<scalar, areaMesh>::New
-        (
-            "Tw_" + option::name(),
-            regionMesh(),
-            dimensionedScalar(dimTemperature, Zero)
-        );
+    // Wall temperature - mapped from primary field to finite-area
+    auto Twall = DimensionedField<scalar, areaMesh>::New
+    (
+        "Tw_" + option::name(),
+        regionMesh(),
+        dimensionedScalar(dimTemperature, Zero)
+    );
 
-        vsm().mapInternalToSurface<scalar>(Tprimary_, Twall.ref().field());
+    vsm().mapInternalToSurface<scalar>(Tprimary_, Twall.ref().field());
 
-        eqn += -fam::Sp(htcw(), eqn.psi()) + htcw()*Twall;
-
-        curTimeIndex_ = mesh().time().timeIndex();
-    }
+    eqn += -fam::Sp(htcw(), eqn.psi()) + htcw()*Twall;
 }
 
 
