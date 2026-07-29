@@ -31,8 +31,8 @@ Description
     Used to calculate time durations, elapsed times etc.
 
 SourceFiles
+    clockValue.cxx
     clockValueI.H
-    clockValue.C
 
 \*---------------------------------------------------------------------------*/
 

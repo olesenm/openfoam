@@ -1051,7 +1051,7 @@ Foam::moleculeCloud::moleculeCloud
     cellOccupancy_(mesh_.nCells()),
     il_(mesh_, pot_.pairPotentials().rCutMax(), false),
     constPropList_(),
-    rndGen_(clock::getTime())
+    rndGen_(clock::now())
 {
     if (readFields)
     {
@@ -1081,7 +1081,7 @@ Foam::moleculeCloud::moleculeCloud
     pot_(pot),
     il_(mesh_, 0.0, false),
     constPropList_(),
-    rndGen_(clock::getTime())
+    rndGen_(clock::now())
 {
     if (readFields)
     {

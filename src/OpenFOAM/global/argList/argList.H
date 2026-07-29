@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -91,7 +92,8 @@ Note
       manipulating the argList::validOptions static member.
 
 SourceFiles
-    argList.C
+    argList.cxx
+    argListHelp.cxx
     argListI.H
 
 \*---------------------------------------------------------------------------*/
@@ -287,6 +289,12 @@ public:
     // Member Functions
 
     // Environment
+
+        //- Name of the project directory from environment variable
+        //
+        //  Returns the contents of the \c WM_PROJECT_DIR variable,
+        //  which will normally have been set by the calling environment
+        static fileName envProjectDir();
 
         //- Name of the executable from environment variable
         //

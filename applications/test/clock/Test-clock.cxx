@@ -91,7 +91,8 @@ int main(int argc, char *argv[])
 
         Info<< "clock: date "  << clock::date() << nl
             << "clock: time "  << clock::clockTime() << nl
-            << "clock: iso  "  << clock::dateTime() << nl;
+            << "clock: iso  "  << clock::dateTime() << nl
+            << "clock: date "  << clock::iso_date() << nl;
     }
 
     testEpoch<clockValue>();
@@ -106,7 +107,6 @@ int main(int argc, char *argv[])
 
         Info<< "sleep 4..." << endl;
         sleep(4);
-
         Info<< "increment = " << clk.timeIncrement() << nl;
         Info<< "elapsed   = " << clk.elapsedTime() << nl;
 

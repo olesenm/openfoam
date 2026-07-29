@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2018-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,12 +32,12 @@ Description
     Read access to the system clock with formatting.
 
 SourceFiles
-    clock.C
+    clock.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef clock_H
-#define clock_H
+#ifndef Foam_clock_H
+#define Foam_clock_H
 
 #include <ctime>
 #include <string>
@@ -55,10 +56,10 @@ class clock
     // Private Data
 
         //- Time point at start (in seconds)
-        time_t start_;
+        std::time_t start_;
 
         //- Last time when elapsedClockTime or clockTimeIncrement was called
-        mutable time_t last_;
+        mutable std::time_t last_;
 
 
 public:
@@ -69,40 +70,55 @@ public:
         clock();
 
 
-    // Low-level Member Functions
+    // Factory Methods
 
-        //- Get the current clock time in seconds
-        static time_t getTime();
-
-        //- The current wall-clock date as a raw struct
-        //  \deprecated(2020-05) may be removed in future versions
-        static const struct tm rawDate();
+        //- The current clock time [seconds] as \c time_t type
+        inline static std::time_t now() { return std::time(nullptr); }
 
 
     // Static Member Functions
 
         //- The current wall-clock date/time (in local time) as a string
-        //- in ISO-8601 format (yyyy-mm-ddThh:mm:ss).
-        //  Without time-zone information.
+        //- in ISO-8601 format (yyyy-mm-ddThh:mm:ss)
+        //- without time-zone information.
         static std::string dateTime();
+
+        //- The current wall-clock date as a string
+        //- in ISO-8601 format (yyyy-mm-dd).
+        static std::string iso_date();
 
         //- The current wall-clock date as a string formatted as
         //- (MON dd yyyy), where MON is Jan, Feb, etc.
         static std::string date();
 
         //- The current wall-clock (in local time) as a string formatted as
-        //- as (hh:mm:ss).
-        //  Without time-zone information.
+        //- as (hh:mm:ss)
+        //- without time-zone information.
         static std::string clockTime();
 
 
     // Member Functions
 
-        //- Returns wall-clock time since clock instantiation
+        //- The wall-clock time [seconds] since the start point
         double elapsedClockTime() const;
 
-        //- Returns wall-clock time since last clockTimeIncrement() call
+        //- The wall-clock time [seconds] since the last call to
+        //- elapsedClockTime() or clockTimeIncrement
         double clockTimeIncrement() const;
+
+
+    // Housekeeping
+
+        //- Same as now()
+        static std::time_t getTime() { return now(); }
+
+        //- The current wall-clock date as a raw struct
+        //  \deprecated(2020-05) may be removed in future versions
+        static std::tm rawDate()
+        {
+            std::time_t t = std::time(nullptr);
+            return *std::localtime(&t);
+        }
 };
 
 

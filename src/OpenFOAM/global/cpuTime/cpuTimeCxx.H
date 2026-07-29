@@ -33,7 +33,7 @@ See also
     clockTime
 
 SourceFiles
-    cpuTimeCxx.C
+    cpuTimeCxx.cxx
 
 \*---------------------------------------------------------------------------*/
 

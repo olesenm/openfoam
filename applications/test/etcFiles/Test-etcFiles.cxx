@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
     {
         if (args.found("config"))
         {
-            Info<<"config:project=" << foamVersion::configuredProjectDir << nl;
-            Info<<"config:etc=" << foamVersion::configuredEtcDir << nl;
+            Info<<"config:project=" << foamVersion::configuredProjectDir() << nl
+                <<"config:etc=" << foamVersion::configuredEtcDir() << nl;
             return 0;
         }
         else if (args.found("list-all"))

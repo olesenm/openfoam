@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -666,6 +667,12 @@ int Foam::argList::verbose(int argc, char *argv[])
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
+Foam::fileName Foam::argList::envProjectDir()
+{
+    return Foam::getEnv("WM_PROJECT_DIR");
+}
+
+
 Foam::word Foam::argList::envExecutable()
 {
     return Foam::getEnv("FOAM_EXECUTABLE");
@@ -1320,15 +1327,19 @@ void Foam::argList::parse
 
     if (initialise)
     {
-        const string dateString = clock::date();
-        const string timeString = clock::clockTime();
+        const std::string dateString(Foam::clock::date());
+        const std::string timeString(Foam::clock::clockTime());
 
         // Print the banner once only for parallel runs
         if (UPstream::master() && bannerEnabled())
         {
-            IOobject::writeBanner(Info, true)
-                << "Build  : ";
+            IOobject::writeBanner(Info, true);
 
+            // The installation directory (run-time information)
+            Info<< "Project: " << envProjectDir().c_str() << nl;
+
+            // Build information
+            Info<< "Build  : ";
             if (foamVersion::build.size())
             {
                 Info<< foamVersion::build.c_str() << ' ';
@@ -1350,12 +1361,12 @@ void Foam::argList::parse
                 << "Date   : " << dateString.c_str() << nl
                 << "Time   : " << timeString.c_str() << nl
                 << "Host   : " << Foam::hostName().c_str() << nl
-                << "PID    : " << pid() << nl;
+                << "PID    : " << Foam::pid() << nl;
         }
 
         jobInfo.add("startDate", dateString);
         jobInfo.add("startTime", timeString);
-        jobInfo.add("userName", userName());
+        jobInfo.add("userName", Foam::userName());
 
         jobInfo.add("foamApi", foamVersion::api);
         jobInfo.add("foamVersion", word(foamVersion::version));
@@ -1373,9 +1384,9 @@ void Foam::argList::parse
 
         jobInfo.add("code", executable_);
         jobInfo.add("argList", commandLine_);
-        jobInfo.add("currentDir", cwd());
-        jobInfo.add("PPID", ppid());
-        jobInfo.add("PGID", pgid());
+        jobInfo.add("currentDir", Foam::cwd());
+        jobInfo.add("PPID", Foam::ppid());
+        jobInfo.add("PGID", Foam::pgid());
 
         // Load additional libraries (verbosity according to banner setting)
         libs().open(bannerEnabled());
@@ -2432,7 +2443,7 @@ void Foam::argList::displayDoc(bool source) const
         return;
     }
 
-    string docBrowser = getEnv("FOAM_DOC_BROWSER");
+    string docBrowser = Foam::getEnv("FOAM_DOC_BROWSER");
     if (docBrowser.empty())
     {
         docDict.readEntry("docBrowser", docBrowser);
