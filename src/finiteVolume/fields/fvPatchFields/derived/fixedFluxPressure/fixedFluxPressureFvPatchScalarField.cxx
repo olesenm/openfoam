@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -170,6 +171,36 @@ namespace Foam
         fvPatchScalarField,
         fixedFluxPressureFvPatchScalarField
     );
+}
+
+
+void Foam::setSnGrad
+(
+    volScalarField::Boundary& bf,
+    const FieldField<fvsPatchField, scalar>& snGrad
+)
+{
+    typedef updateablePatchTypes::updateableSnGrad snGradType;
+
+    forAll(bf, patchi)
+    {
+        const auto* snGradPtr = isA<snGradType>(bf[patchi]);
+
+        if (snGradPtr)
+        {
+            const_cast<snGradType&>(*snGradPtr).updateSnGrad(snGrad[patchi]);
+        }
+    }
+}
+
+
+void Foam::setSnGrad
+(
+    volScalarField::Boundary& bf,
+    const tmp<FieldField<fvsPatchField, scalar>>& tsnGrad
+)
+{
+    setSnGrad(bf, tsnGrad());
 }
 
 

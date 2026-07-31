@@ -219,8 +219,8 @@ while (pimple.correct())
         mag(alphaf1*alpharAUf1 + alphaf2*alpharAUf2)
     );
 
-    // Update the fixedFluxPressure BCs to ensure flux consistency
-    setSnGrad<fixedFluxPressureFvPatchScalarField>
+    // Update the updateableSnGrad p_rgh BCs to ensure flux consistency
+    setSnGrad
     (
         p_rgh.boundaryFieldRef(),
         (
@@ -232,69 +232,7 @@ while (pimple.correct())
         )/(mesh.magSf().boundaryField()*rAUf.boundaryField())
     );
 
-    tmp<fvScalarMatrix> pEqnComp1;
-    tmp<fvScalarMatrix> pEqnComp2;
-
-    // Construct the compressibility parts of the pressure equation
-    if (pimple.transonic())
-    {
-        surfaceScalarField phid1
-        (
-            IOobject::groupName("phid", phase1.name()),
-            fvc::interpolate(psi1)*phi1
-        );
-        surfaceScalarField phid2
-        (
-            IOobject::groupName("phid", phase2.name()),
-            fvc::interpolate(psi2)*phi2
-        );
-
-        pEqnComp1 =
-            (
-                contErr1
-              - fvc::Sp(fvc::ddt(alpha1) + fvc::div(alphaPhi1), rho1)
-            )/rho1
-          + correction
-            (
-                (alpha1/rho1)*
-                (
-                    psi1*fvm::ddt(p_rgh)
-                  + fvm::div(phid1, p_rgh) - fvm::Sp(fvc::div(phid1), p_rgh)
-                )
-            );
-        pEqnComp1.ref().relax();
-
-        pEqnComp2 =
-            (
-                contErr2
-              - fvc::Sp(fvc::ddt(alpha2) + fvc::div(alphaPhi2), rho2)
-            )/rho2
-          + correction
-            (
-                (alpha2/rho2)*
-                (
-                    psi2*fvm::ddt(p_rgh)
-                  + fvm::div(phid2, p_rgh) - fvm::Sp(fvc::div(phid2), p_rgh)
-                )
-            );
-        pEqnComp2.ref().relax();
-    }
-    else
-    {
-        pEqnComp1 =
-            (
-                contErr1
-              - fvc::Sp(fvc::ddt(alpha1) + fvc::div(alphaPhi1), rho1)
-            )/rho1
-          + (alpha1*psi1/rho1)*correction(fvm::ddt(p_rgh));
-
-        pEqnComp2 =
-            (
-                contErr2
-              - fvc::Sp(fvc::ddt(alpha2) + fvc::div(alphaPhi2), rho2)
-            )/rho2
-          + (alpha2*psi2/rho2)*correction(fvm::ddt(p_rgh));
-    }
+    #include "pEqnCompressible.H"
 
     // Cache p prior to solve for density update
     volScalarField p_rgh_0(p_rgh);
@@ -389,20 +327,7 @@ while (pimple.correct())
         }
     }
 
-    // Update and limit the static pressure
-    p = max(p_rgh + rho*gh, pMin);
-
-    // Limit p_rgh
-    p_rgh = p - rho*gh;
-
-    // Update densities from change in p_rgh
-    rho1 += psi1*(p_rgh - p_rgh_0);
-    rho2 += psi2*(p_rgh - p_rgh_0);
-
-    // Correct p_rgh for consistency with p and the updated densities
-    rho = fluid.rho();
-    p_rgh = p - rho*gh;
-    p_rgh.correctBoundaryConditions();
+    #include "pEqnUpdatePressure.H"
 }
 
 // Update the phase kinetic energies

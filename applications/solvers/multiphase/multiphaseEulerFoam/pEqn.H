@@ -184,7 +184,7 @@
         ++phasei;
     }
 
-    // Update the fixedFluxPressure BCs to ensure flux consistency
+    // Update the updateableSnGrad p_rgh BCs to ensure flux consistency
     {
         surfaceScalarField::Boundary phib
         (
@@ -202,7 +202,7 @@
             ++phasei;
         }
 
-        setSnGrad<fixedFluxPressureFvPatchScalarField>
+        setSnGrad
         (
             p_rgh.boundaryFieldRef(),
             (
