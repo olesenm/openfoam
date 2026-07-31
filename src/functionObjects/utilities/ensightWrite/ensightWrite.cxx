@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -123,27 +124,14 @@ bool Foam::functionObjects::ensightWrite::read(const dictionary& dict)
 
     readSelection(dict);
 
-
     // Writer options
 
     consecutive_ = dict.getOrDefault("consecutive", false);
 
     writeOpts_.useBoundaryMesh(dict.getOrDefault("boundary", true));
     writeOpts_.useInternalMesh(dict.getOrDefault("internal", true));
-
-
-    // Warn if noPatches keyword (1806) exists and contradicts our settings
-    // Cannot readily use Compat since the boolean has the opposite value.
-    if
-    (
-        dict.getOrDefault("noPatches", false)
-     && writeOpts_.useBoundaryMesh()
-    )
-    {
-        WarningInFunction
-            << "Use 'boundary' instead of 'noPatches' to enable/disable "
-            << "conversion of the boundaries" << endl;
-    }
+    // Use separate parts for cell zones
+    writeOpts_.useCellZones(dict.getOrDefault("zoned", true));
 
     if (wordRes list; dict.readIfPresent("patches", list))
     {
@@ -159,7 +147,7 @@ bool Foam::functionObjects::ensightWrite::read(const dictionary& dict)
     if (wordRes list; dict.readIfPresent("faceZones", list))
     {
         list.uniq();  // usually a no-op
-        writeOpts_.faceZoneSelection(std::move(list));
+        writeOpts_.faceZoneInclude(std::move(list));
     }
 
 

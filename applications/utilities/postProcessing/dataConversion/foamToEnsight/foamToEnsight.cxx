@@ -300,9 +300,17 @@ int main(int argc, char *argv[])
     (
         "faceZones",
         "wordRes",
-        "Specify single or multiple faceZones to write\n"
+        "Specify single or multiple face zones to write\n"
         "Eg, 'cells' or '( slice \"mfp-.*\" )'."
     );
+    argList::addOption
+    (
+        "exclude-faceZones",
+        "wordRes",
+        "Exclude single or multiple face zones from writing"
+        , true  // mark as an advanced option
+    );
+
     argList::addOption
     (
         "fields",
@@ -327,10 +335,17 @@ int main(int argc, char *argv[])
     (
         "cellZones",
         "wordRes",
-        "Specify single or multiple cellZones to write\n"
+        "Specify single or multiple cell zones to write\n"
         "Eg, 'cells' or '( slice \"mfp-.*\" )'."
     );
     argList::addOptionCompat("cellZones", {"cellZone", 1912});
+    argList::addOption
+    (
+        "exclude-cellZones",
+        "wordRes",
+        "Exclude single or multiple cell zones from writing"
+        , true  // mark as an advanced option
+    );
 
     // Prevent volume BCs from triggering finite-area
     regionModels::allowFaModels(false);
@@ -394,23 +409,34 @@ int main(int argc, char *argv[])
     writeOpts.useInternalMesh(doInternal);
     writeOpts.useCellZones(doCellZones);
 
-    // Patch selection/deselection
-    if (args.found("patches"))
+    // Include/exclude patches
+    if (wordRes list; args.readListIfPresent<wordRe>("patches", list))
     {
-        writeOpts.patchSelection(args.getList<wordRe>("patches"));
+        writeOpts.patchInclude(list);
     }
-    if (args.found("exclude-patches"))
+    if (wordRes list; args.readListIfPresent<wordRe>("exclude-patches", list))
     {
-        writeOpts.patchExclude(args.getList<wordRe>("exclude-patches"));
+        writeOpts.patchExclude(list);
     }
 
-    if (args.found("faceZones"))
+    // Include/exclude cell zones
+    if (wordRes list; args.readListIfPresent<wordRe>("cellZones", list))
     {
-        writeOpts.faceZoneSelection(args.getList<wordRe>("faceZones"));
+        writeOpts.cellZoneInclude(list);
     }
-    if (args.found("cellZones"))
+    if (wordRes list; args.readListIfPresent<wordRe>("exclude-cellZones", list))
     {
-        writeOpts.cellZoneSelection(args.getList<wordRe>("cellZones"));
+        writeOpts.cellZoneExclude(list);
+    }
+
+    // Include/exclude face zones
+    if (wordRes list; args.readListIfPresent<wordRe>("faceZones", list))
+    {
+        writeOpts.faceZoneInclude(list);
+    }
+    if (wordRes list; args.readListIfPresent<wordRe>("exclude-faceZones", list))
+    {
+        writeOpts.faceZoneExclude(list);
     }
 
     // Report the setup

@@ -11,8 +11,8 @@ ensight/file/ensightFile.C
 ensight/file/ensightGeoFile.C
 ensight/file/ensightWriterCaching.C
 
-ensight/mesh/ensightMesh.C
-ensight/mesh/ensightMeshOptions.C
+ensight/mesh/ensightMesh.cxx
+ensight/mesh/ensightMeshOptions.cxx
 
 ensight/output/ensightOutput.C
 

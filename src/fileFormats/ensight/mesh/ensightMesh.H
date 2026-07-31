@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,9 +52,9 @@ Note
     they are treated as indirect patches rather than regular poly patches.
 
 SourceFiles
-    ensightMesh.C
+    ensightMesh.cxx
     ensightMeshI.H
-    ensightMeshOptions.C
+    ensightMeshOptions.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -88,7 +89,7 @@ public:
     class options;
 
     //- The zone-id for internal mesh or unzoned cells.
-    static const label internalZone;
+    static constexpr label internalZone = -1;
 
 
 private:
@@ -126,14 +127,16 @@ private:
         //- Enforce consistent index/part numbering
         void renumber();
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         ensightMesh(const ensightMesh&) = delete;
 
         //- No copy assignment
         void operator=(const ensightMesh&) = delete;
 
-
-public:
 
     // Constructors
 
@@ -151,7 +154,7 @@ public:
 
         //- Change the output verbosity level.
         //  \return old level
-        int verbose(const int level) noexcept;
+        int verbose(int level) noexcept;
 
 
     // Access
@@ -162,7 +165,7 @@ public:
             return mesh_;
         }
 
-        //- Reference to the writer/mesh options
+        //- Const-reference to the writer/mesh options
         inline const ensightMesh::options& option() const;
 
         //- Face elements per selected patch, lookup by patch index
@@ -255,20 +258,26 @@ class ensightMesh::options
         //- Use the boundary mesh
         bool boundary_;
 
-        //- Handle cellZones (if internal_ is true)
+        //- Handle cell zones
         bool cellZones_;
 
-        //- Selected patches only
+        //- Selected patches
         wordRes patchInclude_;
 
         //- Deselected patches
         wordRes patchExclude_;
 
-        //- Selected cellZones
+        //- Selected cell zones
         wordRes cellZoneInclude_;
 
-        //- Selected faceZones
+        //- Deselected cell zones
+        wordRes cellZoneExclude_;
+
+        //- Selected face zones
         wordRes faceZoneInclude_;
+
+        //- Deselected face zones
+        wordRes faceZoneExclude_;
 
 
 public:
@@ -276,7 +285,7 @@ public:
     // Constructors
 
         //- Default construct. Non-lazy with internal/boundary/cellZones.
-        options();
+        options() noexcept;
 
 
     // Member Functions
@@ -284,54 +293,72 @@ public:
     // Access
 
         //- Lazy creation? (ie, starts as needsUpdate)
-        bool lazy() const noexcept;
+        bool lazy() const noexcept { return lazy_; }
 
         //- Using internal?
-        bool useInternalMesh() const noexcept;
+        bool useInternalMesh() const noexcept { return internal_; }
 
         //- Using boundary?
-        bool useBoundaryMesh() const noexcept;
+        bool useBoundaryMesh() const noexcept { return boundary_; }
 
-        //- Using cellZones?
-        bool useCellZones() const noexcept;
+        //- Handle cellZones separately?
+        bool useCellZones() const noexcept { return cellZones_; }
 
-        //- Using faceZones?
+        //- Using faceZones? True when faceZoneInclude() is non-empty
         bool useFaceZones() const noexcept;
 
-        //- Selection of patches. Empty if unspecified.
-        const wordRes& patchSelection() const noexcept
+        //- Any included/excluded patches specified?
+        bool anyPatchFilters() const noexcept
+        {
+            return (!patchInclude_.empty() || !patchExclude_.empty());
+        }
+
+        //- Any included/excluded cell zones specified?
+        bool anyCellZoneFilters() const noexcept
+        {
+            return (!cellZoneInclude_.empty() || !cellZoneExclude_.empty());
+        }
+
+        //- Any included/excluded cell zones specified?
+        bool anyFaceZoneFilters() const noexcept
+        {
+            return (!faceZoneInclude_.empty() || !faceZoneExclude_.empty());
+        }
+
+        //- Explicitly included patches. Empty if unspecified.
+        const wordRes& patchInclude() const noexcept
         {
             return patchInclude_;
         }
 
-        //- Excluded patches. Empty if unspecified.
+        //- Explicitly excluded patches. Empty if unspecified.
         const wordRes& patchExclude() const noexcept
         {
             return patchExclude_;
         }
 
-        //- Selection of cell zones. Empty if unspecified.
-        const wordRes& cellZoneSelection() const noexcept
+        //- Explicitly included cell zones. Empty if unspecified.
+        const wordRes& cellZoneInclude() const noexcept
         {
             return cellZoneInclude_;
         }
 
-        //- Excluded cell zones. Future use
+        //- Explicitly excluded cell zones. Empty if unspecified.
         const wordRes& cellZoneExclude() const noexcept
         {
-            return wordRes::null();
+            return cellZoneExclude_;
         }
 
-        //- Selection of face zones. Empty if unspecified.
-        const wordRes& faceZoneSelection() const noexcept
+        //- Explicitly included face zones. Empty if unspecified.
+        const wordRes& faceZoneInclude() const noexcept
         {
             return faceZoneInclude_;
         }
 
-        //- Excluded face zones. Future use
+        //- Explicitly excluded face zones. Empty if unspecified.
         const wordRes& faceZoneExclude() const noexcept
         {
-            return wordRes::null();
+            return faceZoneExclude_;
         }
 
 
@@ -344,7 +371,7 @@ public:
         //  \return old value
         bool lazy(bool on) noexcept;
 
-        //- Alter the useBoundaryMesh state
+        //- Alter the useInternalMesh state
         //  \return old value
         bool useInternalMesh(bool on) noexcept;
 
@@ -356,35 +383,68 @@ public:
         //  \return old value
         bool useCellZones(bool on);
 
-        //- Define patch selection matcher
-        void patchSelection(const UList<wordRe>& patterns);
+        //- Define explicitly included patches
+        void patchInclude(const UList<wordRe>& patterns);
 
-        //- Define patch selection matcher
-        void patchSelection(List<wordRe>&& patterns);
+        //- Define explicitly included patches
+        void patchInclude(List<wordRe>&& patterns);
 
-        //- Define patch selection to exclude
+        //- Define explicitly excluded patches
         void patchExclude(const UList<wordRe>& patterns);
 
-        //- Define patch selection to exclude
+        //- Define explicitly excluded patches
         void patchExclude(List<wordRe>&& patterns);
 
-        //- Define cellZone selection matcher
-        void cellZoneSelection(const UList<wordRe>& patterns);
+        //- Define explicitly included cell zones
+        void cellZoneInclude(const UList<wordRe>& patterns);
 
-        //- Define cellZone selection matcher
-        void cellZoneSelection(List<wordRe>&& patterns);
+        //- Define explicitly included cell zones
+        void cellZoneInclude(List<wordRe>&& patterns);
 
-        //- Define faceZone selection matcher
-        void faceZoneSelection(const UList<wordRe>& patterns);
+        //- Define explicitly excluded cell zones
+        void cellZoneExclude(const UList<wordRe>& patterns);
 
-        //- Define faceZone selection matcher
-        void faceZoneSelection(List<wordRe>&& patterns);
+        //- Define explicitly excluded cell zones
+        void cellZoneExclude(List<wordRe>&& patterns);
+
+        //- Define explicitly included face zones
+        void faceZoneInclude(const UList<wordRe>& patterns);
+
+        //- Define explicitly included face zones
+        void faceZoneInclude(List<wordRe>&& patterns);
+
+        //- Define explicitly excluded face zones
+        void faceZoneExclude(const UList<wordRe>& patterns);
+
+        //- Define explicitly excluded face zones
+        void faceZoneExclude(List<wordRe>&& patterns);
 
 
     // Output
 
         //- Report values
         void print(Ostream& os) const;
+
+
+    // Housekeeping
+
+        //- \deprecated(2026-07) - same as patchInclude()
+        const wordRes& patchSelection() const { return patchInclude(); }
+
+        //- \deprecated(2026-07) - same as patchInclude()
+        void patchSelection(const UList<wordRe>& m) { patchInclude(m); }
+
+        //- \deprecated(2026-07) - same as cellZoneInclude()
+        const wordRes& cellZoneSelection() const { return cellZoneInclude(); }
+
+        //- \deprecated(2026-07) - same as cellZoneInclude()
+        void cellZoneSelection(const UList<wordRe>& m) { cellZoneInclude(m); }
+
+        //- \deprecated(2026-07) - same faceZoneInclude()
+        const wordRes& faceZoneSelection() const { return faceZoneInclude(); }
+
+        //- \deprecated(2026-07) - same faceZoneInclude()
+        void faceZoneSelection(const UList<wordRe>& m) { faceZoneInclude(m); }
 };
 
 

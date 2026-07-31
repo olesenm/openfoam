@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -92,6 +93,7 @@ Description
         excludeFields | Exclude fields from output (wordRe list) | no  |
         boundary    | Convert boundary fields               | no  | true
         internal    | Convert internal fields               | no  | true
+        zoned       | Use separate parts for cell zones     | no  | true
         nodeValues  | Write values at nodes                 | no  | false
     \endtable
 
@@ -112,9 +114,9 @@ Description
     \table
         Property    | Description                           | Required | Default
         region      | Name for a single region              | no  | region0
+        patches     | Limit to listed patches (wordRes)     | no  |
+        excludePatches | Exclude specified patches (wordRes) | no  |
         faceZones   | Select faceZones to write             | no  |
-        patches     | Limit to listed patches (wordRe list) | no  |
-        excludePatches | Exclude specified patches          | no  |
         selection   | Cell selection (topoSet actions)      | no  | empty dict
     \endtable
 

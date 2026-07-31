@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,11 +33,6 @@ License
 #include "emptyPolyPatch.H"
 #include "processorPolyPatch.H"
 #include "ListOps.H"
-
-// * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
-
-const Foam::label Foam::ensightMesh::internalZone = -1;
-
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -106,7 +102,7 @@ int Foam::ensightMesh::verbose() const noexcept
 }
 
 
-int Foam::ensightMesh::verbose(const int level) noexcept
+int Foam::ensightMesh::verbose(int level) noexcept
 {
     int old(verbose_);
     verbose_ = level;
@@ -127,7 +123,7 @@ void Foam::ensightMesh::correct()
     {
         patchIds = pbm.indices
         (
-            option().patchSelection(),
+            option().patchInclude(),
             option().patchExclude()
         );
 
@@ -152,19 +148,23 @@ void Foam::ensightMesh::correct()
         patchIds.resize(count);
     }
 
-
-    // Selection of cellZones
-    const auto& czMatcher = option().cellZoneSelection();
-
     // Selected cell zone indices
     labelList czoneIds;
 
-    if (option().useCellZones())
+    if
+    (
+        option().useCellZones()
+     && (option().useInternalMesh() || option().anyCellZoneFilters())
+    )
     {
         // Use allow/deny to have desired behaviour with empty selection
+        // but when internalMesh is disabled, require that some type of
+        // cellZone filter has been specified.
+        // This ensures that face filtering based on cellZones is not
+        // inadvertently applied.
         czoneIds = mesh_.cellZones().indices
         (
-            option().cellZoneSelection(),
+            option().cellZoneInclude(),
             option().cellZoneExclude()
         );
     }
@@ -177,7 +177,7 @@ void Foam::ensightMesh::correct()
         // Use allow/deny to have desired behaviour with empty selection
         fzoneIds = mesh_.faceZones().indices
         (
-            option().faceZoneSelection(),
+            option().faceZoneInclude(),
             option().faceZoneExclude()
         );
     }
@@ -220,7 +220,7 @@ void Foam::ensightMesh::correct()
         }
     }
 
-    if (option().useInternalMesh() && czMatcher.empty())
+    if (option().useInternalMesh())
     {
         // The internal mesh:
         // Either the entire mesh (if no zones specified)
@@ -284,7 +284,7 @@ void Foam::ensightMesh::correct()
         // Ensure full mesh coverage
         excludeFace.resize(mesh_.nFaces());
 
-        const labelList& owner = mesh_.faceOwner();
+        const labelUList& owner = mesh_.faceOwner();
 
         forAll(owner, facei)
         {
