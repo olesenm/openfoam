@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 Wikki Ltd
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,6 +36,7 @@ License
 #include "scalarMatrices.H"
 #include "processorFaPatch.H"
 #include "processorFaPatchFields.H"
+#include "emptyFaPatch.H"
 #include "emptyFaPatchFields.H"
 #include "wedgeFaPatch.H"
 #include "triangle.H"
@@ -325,8 +327,9 @@ static inline vector calcLeVector
     }
     else
     {
-        // The additional orientation is probably unnecessary
-        leVector *= edgeLine.mag()/s * sign(leVector & centreToEdge);
+        // The additional orientation by reapplying a sign based on centreToEdge
+        // can discontinuously flip the local-edge vector
+        leVector *= edgeLine.mag()/s;
     }
 
     return leVector;
@@ -550,11 +553,10 @@ Foam::tmp<Foam::vectorField> Foam::faMesh::calcRawEdgeNormals(int order) const
                     e.removeCollinear(wedgeNorm);
                 }
             }
-            // TBD:
-            /// else if (isA<emptyFaPatch>(fap))
-            /// {
-            ///     // Ignore this boundary
-            /// }
+            else if (isA<emptyFaPatch>(fap))
+            {
+                // Empty patches have no finite-area geometry to correct
+            }
             else if (correctPatchPointNormals(patchi) && !fap.coupled())
             {
                 // Neighbour correction requested
@@ -712,9 +714,14 @@ void Foam::faMesh::calcLe() const
             vectorField& fld = Le.primitiveFieldRef();
             for (label edgei = 0; edgei < nInternalEdges_; ++edgei)
             {
+                const label own = edgeOwner()[edgei];
+                const label nei = edgeNeighbour()[edgei];
+
+                // Use the centre-to-centre midpoint to avoid owner-biased
+                // local-edge vectors and alternating curvature
                 fld[edgei] = calcLeVector
                 (
-                    fCentres[edgeOwner()[edgei]],
+                    0.5*(fCentres[own] + fCentres[nei]),
                     edges_[edgei].line(localPoints),
                     edgeNormals[edgei]
                 );
@@ -1288,14 +1295,25 @@ void Foam::faMesh::calcFaceCurvatures() const
     );
     areaScalarField& faceCurvatures = *faceCurvaturesPtr_;
 
+    tmp<edgeVectorField> tLeCorr = Le()*edgeLengthCorrection();
+    auto& leCorr = tLeCorr.ref();
 
-//     faceCurvatures =
-//         fac::edgeIntegrate(Le()*edgeLengthCorrection())
-//         &faceAreaNormals();
+    // Empty patches represent the 2D extrusion: exclude their out-of-plane
+    // edge contributions before integrating curvature
+    forAll(boundary(), patchi)
+    {
+        if (isA<emptyFaPatch>(boundary()[patchi]))
+        {
+            leCorr.boundaryFieldRef()[patchi] == Zero;
+        }
+    }
 
-    areaVectorField kN(fac::edgeIntegrate(Le()*edgeLengthCorrection()));
+    areaVectorField kN(fac::edgeIntegrate(leCorr));
 
-    faceCurvatures = sign(kN&faceAreaNormals())*mag(kN);
+    // Use the normal projection directly: 'sign(kN & nf)*mag(kN)' would retain
+    // tangential contributions rather than the projected curvature.
+    // Average twice to damp the residual checkerboard modes.
+    faceCurvatures = fac::average(fac::average(kN & faceAreaNormals()));
 }
 
 
@@ -1632,11 +1650,10 @@ void Foam::faMesh::calcPointAreaNormals(vectorField& result) const
                     patchPointNormals[nbrPatchPoints[pti]];
             }
         }
-        // TBD:
-        /// else if (isA<emptyFaPatch>(fap))
-        /// {
-        ///     // Ignore this boundary
-        /// }
+        else if (isA<emptyFaPatch>(fap))
+        {
+            // Empty patches have no finite-area geometry to correct
+        }
         else if (correctPatchPointNormals(patchi) && !fap.coupled())
         {
             // Neighbour correction requested
