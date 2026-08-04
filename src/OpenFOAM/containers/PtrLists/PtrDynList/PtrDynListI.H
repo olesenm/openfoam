@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,12 +41,12 @@ inline constexpr Foam::PtrDynList<T, SizeMin>::PtrDynList() noexcept
 
 
 template<class T, int SizeMin>
-inline Foam::PtrDynList<T, SizeMin>::PtrDynList(const label len)
+inline Foam::PtrDynList<T, SizeMin>::PtrDynList(label initialCapacity)
 :
     PtrList<T>(),
     capacity_(0)
 {
-    reserve(len);
+    reserve(initialCapacity);
 }
 
 
@@ -77,9 +78,9 @@ template<class T, int SizeMin>
 inline Foam::PtrDynList<T, SizeMin>::PtrDynList
 (
     PtrDynList<T, SizeMin>&& list
-)
+) noexcept
 :
-    PtrList<T>(std::move(list)),
+    PtrList<T>(std::move(static_cast<PtrList<T>&>(list))),
     capacity_(list.capacity())
 {
     list.setCapacity_unsafe(0);  // All contents moved
@@ -91,9 +92,9 @@ template<int AnySizeMin>
 inline Foam::PtrDynList<T, SizeMin>::PtrDynList
 (
     PtrDynList<T, AnySizeMin>&& list
-)
+) noexcept
 :
-    PtrList<T>(std::move(list)),
+    PtrList<T>(std::move(static_cast<PtrList<T>&>(list))),
     capacity_(list.capacity())
 {
     list.setCapacity_unsafe(0);  // All contents moved
@@ -109,6 +110,37 @@ inline Foam::PtrDynList<T, SizeMin>::PtrDynList
     PtrList<T>(std::move(list)),
     capacity_(PtrList<T>::size())
 {}
+
+
+template<class T, int SizeMin>
+inline Foam::PtrDynList<T, SizeMin>::PtrDynList
+(
+    PtrList<T>& list,
+    bool reuse
+)
+:
+    PtrList<T>(list, reuse),
+    capacity_(PtrList<T>::size())
+{}
+
+
+template<class T, int SizeMin>
+template<int AnySizeMin>
+inline Foam::PtrDynList<T, SizeMin>::PtrDynList
+(
+    PtrDynList<T, AnySizeMin>& list,
+    bool reuse
+)
+:
+    PtrList<T>(static_cast<PtrList<T>&>(list), reuse),
+    capacity_(PtrList<T>::size())
+{
+    if (reuse)
+    {
+        capacity_ = list.capacity();
+        list.setCapacity_unsafe(0);  // All contents moved
+    }
+}
 
 
 template<class T, int SizeMin>
@@ -136,7 +168,7 @@ inline void Foam::PtrDynList<T, SizeMin>::reserve(const label len)
         capacity_ =
             Foam::ListPolicy::reserve_size<SizeMin, 2>(len, capacity_);
 
-        // No PtrList<T>::resize_copy(...) -> copying nullptr is cheap
+        // No PtrList<T>::resize_nocopy(...) -> copying nullptr is cheap
         PtrList<T>::resize(capacity_);
 
         capacity_ = PtrList<T>::size();
@@ -156,7 +188,7 @@ inline void Foam::PtrDynList<T, SizeMin>::reserve_exact(const label len)
         // Consistent allocated sizing
         PtrList<T>::setAddressableSize(capacity_);
 
-        // No PtrList<T>::resize_copy(...) -> copying nullptr is cheap
+        // No PtrList<T>::resize_nocopy(...) -> copying nullptr is cheap
         PtrList<T>::resize(len);
 
         capacity_ = PtrList<T>::size();

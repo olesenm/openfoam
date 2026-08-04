@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -114,16 +115,45 @@ template<class Type>
 template<int SizeMin>
 inline Foam::Field<Type>::Field(DynamicList<Type, SizeMin>&& list)
 :
-    List<Type>()
-{
-    List<Type>::transfer(list);
-}
+    List<Type>(std::move(list))
+{}
+
+
+template<class Type>
+template<int SizeMin>
+inline Foam::Field<Type>::Field(DynamicField<Type, SizeMin>&& list)
+:
+    List<Type>(std::move(list))
+{}
 
 
 template<class Type>
 inline Foam::Field<Type>::Field(Field<Type>& fld, bool reuse)
 :
     List<Type>(fld, reuse)
+{}
+
+
+template<class Type>
+inline Foam::Field<Type>::Field(List<Type>& list, bool reuse)
+:
+    List<Type>(list, reuse)
+{}
+
+
+template<class Type>
+template<int SizeMin>
+inline Foam::Field<Type>::Field(DynamicList<Type, SizeMin>& list, bool reuse)
+:
+    List<Type>(list, reuse)
+{}
+
+
+template<class Type>
+template<int SizeMin>
+inline Foam::Field<Type>::Field(DynamicField<Type, SizeMin>& list, bool reuse)
+:
+    List<Type>(list, reuse)
 {}
 
 
@@ -194,6 +224,14 @@ inline void Foam::Field<Type>::operator=(List<Type>&& rhs)
 template<class Type>
 template<int SizeMin>
 inline void Foam::Field<Type>::operator=(DynamicList<Type, SizeMin>&& rhs)
+{
+    List<Type>::transfer(rhs);
+}
+
+
+template<class Type>
+template<int SizeMin>
+inline void Foam::Field<Type>::operator=(DynamicField<Type, SizeMin>&& rhs)
 {
     List<Type>::transfer(rhs);
 }

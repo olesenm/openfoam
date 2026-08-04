@@ -241,13 +241,25 @@ Foam::List<T>::List(DynamicList<T, SizeMin>& list, bool reuse)
 {
     if (reuse)
     {
-        list.shrink_to_fit();  // Shrink to logical size before transfer
+        transfer(list);
+    }
+    else if (!list.empty())
+    {
+        doAlloc(list.size());
+        UList<T>::deepCopy(list);
+    }
+}
 
-        // Steal content
-        this->v_ = list.v_;
-        this->size_ = list.size_;
-        list.v_ = nullptr;
-        list.size_ = 0;
+
+template<class T>
+template<int SizeMin>
+Foam::List<T>::List(DynamicField<T, SizeMin>& list, bool reuse)
+:
+    UList<T>()
+{
+    if (reuse)
+    {
+        transfer(list);
     }
     else if (!list.empty())
     {
@@ -340,6 +352,16 @@ Foam::List<T>::List(DynamicList<T, SizeMin>&& list)
 }
 
 
+template<class T>
+template<int SizeMin>
+Foam::List<T>::List(DynamicField<T, SizeMin>&& list)
+:
+    UList<T>()
+{
+    transfer(list);
+}
+
+
 // * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * * //
 
 template<class T>
@@ -378,7 +400,7 @@ void Foam::List<T>::resize(const label len, const T& val)
 template<class T>
 void Foam::List<T>::transfer(List<T>& list)
 {
-    if (this == &list)
+    if (FOAM_UNLIKELY(this == &list))
     {
         return;  // Self-assignment is a no-op
     }
@@ -396,6 +418,20 @@ void Foam::List<T>::transfer(List<T>& list)
 template<class T>
 template<int SizeMin>
 void Foam::List<T>::transfer(DynamicList<T, SizeMin>& list)
+{
+    // Remove existing contents before anything else.
+    clear();
+
+    // Shrink the allocated space to the number of elements used
+    list.shrink_to_fit();
+    transfer(static_cast<List<T>&>(list));
+    list.setCapacity_unsafe(0);  // All contents moved
+}
+
+
+template<class T>
+template<int SizeMin>
+void Foam::List<T>::transfer(DynamicField<T, SizeMin>& list)
 {
     // Remove existing contents before anything else.
     clear();
@@ -485,6 +521,14 @@ void Foam::List<T>::operator=(List<T>&& list)
 template<class T>
 template<int SizeMin>
 void Foam::List<T>::operator=(DynamicList<T, SizeMin>&& list)
+{
+    transfer(list);
+}
+
+
+template<class T>
+template<int SizeMin>
+void Foam::List<T>::operator=(DynamicField<T, SizeMin>&& list)
 {
     transfer(list);
 }

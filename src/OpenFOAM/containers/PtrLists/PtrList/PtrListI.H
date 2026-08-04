@@ -67,6 +67,16 @@ inline Foam::PtrList<T>::PtrList
 
 
 template<class T>
+inline Foam::PtrList<T>::PtrList(UList<T*>& list)
+:
+    UPtrList<T>(list)
+{
+    // Took ownership of the pointers
+    list = static_cast<T*>(nullptr);
+}
+
+
+template<class T>
 inline Foam::PtrList<T>::PtrList(PtrList<T>&& list) noexcept
 :
     UPtrList<T>(std::move(list))
@@ -91,12 +101,20 @@ inline Foam::PtrList<T>::PtrList(PtrList<T>& list, bool reuse)
 
 
 template<class T>
-inline Foam::PtrList<T>::PtrList(UList<T*>& list)
+template<int SizeMin>
+inline Foam::PtrList<T>::PtrList(PtrDynList<T, SizeMin>& list, bool reuse)
 :
-    UPtrList<T>(list)
+    UPtrList<T>()
 {
-    // Took ownership of the pointers
-    list = static_cast<T*>(nullptr);
+    if (reuse)
+    {
+        transfer(list);
+    }
+    else
+    {
+        // No check for self-assignment
+        copyPtrList<false>(list);
+    }
 }
 
 
@@ -303,6 +321,21 @@ inline void Foam::PtrList<T>::transfer(PtrList<T>& list)
 
     (this->ptrs_).free();  // Free and nullify old pointers
     UPtrList<T>::transfer(list);
+}
+
+
+template<class T>
+template<int SizeMin>
+inline void Foam::PtrList<T>::transfer(PtrDynList<T, SizeMin>& list)
+{
+    // Remove existing contents before anything else.
+    clear();
+
+    // Shrink the allocated space to the number of elements used
+    list.shrink_to_fit();
+
+    UPtrList<T>::transfer(static_cast<PtrList<T>&>(list));
+    list.setCapacity_unsafe(0);  // All contents moved
 }
 
 

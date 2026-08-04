@@ -59,6 +59,8 @@ template<class T> class autoPtr;
 template<class T> class refPtr;
 template<class T> class tmp;
 template<class T> class PtrList;
+template<class T, int SizeMin> class PtrDynList;
+
 template<class T> Istream& operator>>(Istream& is, PtrList<T>& list);
 
 /*---------------------------------------------------------------------------*\
@@ -107,14 +109,18 @@ public:
         template<class CloneArg, class... CloneArgs>
         inline PtrList(const PtrList<T>&, const CloneArg&, CloneArgs&&...);
 
-        //- Move construct
-        inline PtrList(PtrList<T>&& list) noexcept;
-
         //- Take ownership of pointers in the list, set old pointers to null.
         inline explicit PtrList(UList<T*>& list);
 
+        //- Move construct
+        inline PtrList(PtrList<T>&& list) noexcept;
+
         //- Construct as copy or re-use as specified
         inline PtrList(PtrList<T>& list, bool reuse);
+
+        //- Construct as copy or re-use as specified
+        template<int SizeMin>
+        inline PtrList(PtrDynList<T, SizeMin>& list, bool reuse);
 
         //- Copy construct using 'clone()' on each element of SLPtrList\<T\>
         explicit PtrList(const SLPtrList<T>& list);
@@ -226,8 +232,12 @@ public:
         //  Out of bounds addressing is a no-op and returns nullptr.
         inline autoPtr<T> release(const label i);
 
-        //- Transfer into this list and annul the argument list
+        //- Transfer pointer ownership into this list
         inline void transfer(PtrList<T>& list);
+
+        //- Transfer pointer ownership into this list
+        template<int SizeMin>
+        inline void transfer(PtrDynList<T, SizeMin>& list);
 
 
     // Member Operators
