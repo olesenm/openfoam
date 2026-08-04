@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,7 +56,7 @@ Foam::IOMap<T>::IOMap(const IOobject& io)
 :
     regIOobject(io)
 {
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 
@@ -88,9 +89,10 @@ Foam::IOMap<T>::IOMap(const IOobject& io, Map<T>&& content)
 :
     regIOobject(io)
 {
+    // Transfer first to reclaim memory before continuing
     Map<T>::transfer(content);
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 

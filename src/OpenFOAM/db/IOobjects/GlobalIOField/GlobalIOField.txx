@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -61,6 +62,46 @@ template<class Type>
 Foam::GlobalIOField<Type>::GlobalIOField
 (
     const IOobject& io,
+    const label len,
+    const Type& val
+)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<GlobalIOField<Type>>();
+
+    if (!readHeaderOk(IOstreamOption::BINARY, typeName))
+    {
+        Field<Type>::resize(len, val);
+    }
+}
+
+
+template<class Type>
+Foam::GlobalIOField<Type>::GlobalIOField
+(
+    const IOobject& io,
+    const label len,
+    Foam::zero
+)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<GlobalIOField<Type>>();
+
+    if (!readHeaderOk(IOstreamOption::BINARY, typeName))
+    {
+        Field<Type>::resize(len, Foam::zero{});
+    }
+}
+
+
+template<class Type>
+Foam::GlobalIOField<Type>::GlobalIOField
+(
+    const IOobject& io,
     const UList<Type>& content
 )
 :
@@ -88,6 +129,7 @@ Foam::GlobalIOField<Type>::GlobalIOField
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<GlobalIOField<Type>>();
 
+    // Transfer first to reclaim memory before continuing
     Field<Type>::transfer(content);
 
     readHeaderOk(IOstreamOption::BINARY, typeName);

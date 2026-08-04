@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ Description
     A List of objects of type \<T\> with automated input and output.
 
 SourceFiles
-    IOList.C
+    IOList.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -79,16 +80,22 @@ public:
         //- Default copy construct
         IOList(const IOList&) = default;
 
-        //- Construct from IOobject. Will be zero size if not read.
+        //- Construct from IOobject. If not read, will be zero size.
         explicit IOList(const IOobject& io);
 
-        //- Construct from IOobject and zero size (if not read)
+        //- Construct from IOobject. If not read, will be zero size.
         IOList(const IOobject& io, Foam::zero);
 
-        //- Construct from IOobject and list size (if not read)
+        //- Construct from IOobject. If not read, use given size.
         IOList(const IOobject& io, const label len);
 
-        //- Construct from IOobject and a copy of content
+        //- Construct from IOobject. If not read, use given size/value.
+        IOList(const IOobject& io, const label len, const T& val);
+
+        //- Construct from IOobject. If not read, use given size/zero-value.
+        IOList(const IOobject& io, const label len, Foam::zero);
+
+        //- Construct from IOobject. If not read, copy content.
         IOList(const IOobject& io, const UList<T>& content);
 
         //- Construct by transferring the content
@@ -210,7 +217,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "IOList.C"
+    #include "IOList.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

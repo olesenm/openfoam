@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -86,7 +87,7 @@ Foam::IOList<T>::IOList(const IOobject& io)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOList<T>>();
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 
@@ -98,7 +99,7 @@ Foam::IOList<T>::IOList(const IOobject& io, Foam::zero)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOList<T>>();
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 
@@ -113,6 +114,36 @@ Foam::IOList<T>::IOList(const IOobject& io, const label len)
     if (!readIOcontents())
     {
         List<T>::resize(len);
+    }
+}
+
+
+template<class T>
+Foam::IOList<T>::IOList(const IOobject& io, const label len, const T& val)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<IOList<T>>();
+
+    if (!readIOcontents())
+    {
+        List<T>::resize(len, val);
+    }
+}
+
+
+template<class T>
+Foam::IOList<T>::IOList(const IOobject& io, const label len, Foam::zero)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<IOList<T>>();
+
+    if (!readIOcontents())
+    {
+        List<T>::resize(len, Foam::zero{});
     }
 }
 
@@ -140,9 +171,10 @@ Foam::IOList<T>::IOList(const IOobject& io, List<T>&& content)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOList<T>>();
 
+    // Transfer first to reclaim memory before continuing
     List<T>::transfer(content);
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 

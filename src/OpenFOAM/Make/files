@@ -334,12 +334,13 @@ $(IOdictionary)/localIOdictionary.C
 $(IOdictionary)/unwatchedIOdictionary.C
 $(IOdictionary)/IOdictionary.C
 
-db/IOobjects/IOMap/IOMaps.C
 db/IOobjects/decomposedBlockData/decomposedBlockData.C
 db/IOobjects/decomposedBlockData/decomposedBlockDataHeader.C
-db/IOobjects/rawIOField/rawIOFields.C
-db/IOobjects/GlobalIOField/GlobalIOFields.C
-db/IOobjects/GlobalIOList/globalIOLists.C
+
+db/IOobjects/rawIOField/rawIOFields.cxx
+db/IOobjects/GlobalIOField/globalIOFields.cxx
+db/IOobjects/GlobalIOList/globalIOLists.cxx
+db/IOobjects/IOMap/IOMaps.cxx
 
 
 IOobject = db/IOobject

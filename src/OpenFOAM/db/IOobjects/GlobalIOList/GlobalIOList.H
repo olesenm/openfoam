@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ Description
     IOList with global data (so optionally read from master)
 
 SourceFiles
-    GlobalIOList.C
+    GlobalIOList.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -69,16 +70,22 @@ public:
         //- Default copy construct
         GlobalIOList(const GlobalIOList&) = default;
 
-        //- Construct from IOobject. Will be zero size if not read.
+        //- Construct from IOobject. If not read, will be zero size.
         explicit GlobalIOList(const IOobject& io);
 
-        //- Construct from IOobject and zero size (if not read)
+        //- Construct from IOobject. If not read, will be zero size.
         GlobalIOList(const IOobject& io, Foam::zero);
 
-        //- Construct from IOobject and list size (if not read)
+        //- Construct from IOobject. If not read, use given size.
         GlobalIOList(const IOobject& io, const label len);
 
-        //- Construct from IOobject and a List
+        //- Construct from IOobject. If not read, use given size/value.
+        GlobalIOList(const IOobject& io, const label len, const Type& val);
+
+        //- Construct from IOobject. If not read, use given size/zero-value.
+        GlobalIOList(const IOobject& io, const label len, Foam::zero);
+
+        //- Construct from IOobject. If not read, copy content
         GlobalIOList(const IOobject& io, const UList<Type>& content);
 
         //- Construct by transferring the List content
@@ -150,7 +157,7 @@ struct is_globalIOobject<GlobalIOList<T>> : std::true_type {};
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-#   include "GlobalIOList.C"
+#   include "GlobalIOList.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

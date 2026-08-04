@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ Description
     A primitive field of type \<T\> with automated input and output.
 
 SourceFiles
-    IOField.C
+    IOField.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -80,19 +81,25 @@ public:
         //- Default copy construct
         IOField(const IOField&) = default;
 
-        //- Construct from IOobject. Will be zero size if not read.
+        //- Construct from IOobject. If not read, will be zero size.
         explicit IOField(const IOobject& io);
 
         //- Construct from IOobject, with local processor conditional reading
         IOField(const IOobject& io, const bool readOnProc);
 
-        //- Construct from IOobject and zero size (if not read)
+        //- Construct from IOobject. If not read, use zero size.
         IOField(const IOobject& io, Foam::zero);
 
-        //- Construct from IOobject and field size (if not read)
+        //- Construct from IOobject. If not read, use given size.
         IOField(const IOobject& io, const label len);
 
-        //- Construct from IOobject and copy of List/Field content
+        //- Construct from IOobject. If not read, use given size/value.
+        IOField(const IOobject& io, const label len, const Type& val);
+
+        //- Construct from IOobject. If not read, use given size/zero-value.
+        IOField(const IOobject& io, const label len, Foam::zero);
+
+        //- Construct from IOobject. If not read, copy content.
         IOField(const IOobject& io, const UList<Type>& content);
 
         //- Construct by transferring the Field content
@@ -214,7 +221,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "IOField.C"
+    #include "IOField.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,7 +36,7 @@ Description
     Useful for fields of small subfields e.g. in lagrangian
 
 SourceFiles
-    CompactIOField.C
+    CompactIOField.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -93,17 +94,23 @@ public:
         //- Default copy construct
         CompactIOField(const CompactIOField&) = default;
 
-        //- Construct from IOobject. Will be zero size if not read.
+        //- Construct from IOobject. If not read, will be zero size.
         explicit CompactIOField(const IOobject& io);
 
         //- Construct from IOobject, with local processor conditional reading
         CompactIOField(const IOobject& io, const bool readOnProc);
 
-        //- Construct from IOobject and zero size (if not read)
+        //- Construct from IOobject. If not read, will be zero size.
         CompactIOField(const IOobject& io, Foam::zero);
 
-        //- Construct from IOobject and size (if not read)
+        //- Construct from IOobject. If not read, use given size.
         CompactIOField(const IOobject& io, const label len);
+
+        //- Construct from IOobject. If not read, use given size/value.
+        CompactIOField(const IOobject& io, const label len, const T& value);
+
+        //- Construct from IOobject. If not read, use given size/zero-value.
+        CompactIOField(const IOobject& io, const label len, Foam::zero);
 
         //- Construct from IOobject and a List/Field content
         CompactIOField(const IOobject& io, const UList<T>& content);
@@ -171,7 +178,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "CompactIOField.C"
+    #include "CompactIOField.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
