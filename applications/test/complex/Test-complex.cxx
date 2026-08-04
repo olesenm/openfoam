@@ -39,6 +39,7 @@ Description
 #include "symmTensor2D.H"
 #include "ListOps.H"
 #include "ops.H"
+#include "products.H"
 
 using namespace Foam;
 
@@ -59,6 +60,10 @@ int main(int argc, char *argv[])
     static_assert(std::is_trivially_copyable_v<Foam::vector>);
     static_assert(std::is_trivially_copyable_v<Foam::tensor>);
     static_assert(std::is_trivially_move_constructible_v<Foam::vector>);
+
+    static_assert(std::is_same_v<pTraits<complex>::cmptType, scalar>);
+    static_assert(pTraits_nComponents<complex>::value == 2);
+    static_assert(std::is_same_v<scalarProduct<complex, complex>::type, complex>);
 
     std::complex<scalar> c1(10, -3);
     Info<< "std::complex : " << c1 << nl;
