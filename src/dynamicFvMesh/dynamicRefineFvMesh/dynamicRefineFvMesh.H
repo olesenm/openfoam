@@ -71,12 +71,13 @@ Description
 
 
 SourceFiles
-    dynamicRefineFvMesh.C
+    dynamicRefineFvMesh.cxx
+    dynamicRefineFvMesh.txx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef dynamicRefineFvMesh_H
-#define dynamicRefineFvMesh_H
+#ifndef Foam_dynamicRefineFvMesh_H
+#define Foam_dynamicRefineFvMesh_H
 
 //#include "dynamicFvMesh.H"
 #include "dynamicMotionSolverListFvMesh.H"
@@ -158,7 +159,7 @@ protected:
             scalarField maxPointField(const scalarField&) const;
 
             //- Get point max of connected cell
-            scalarField maxCellField(const volScalarField&) const;
+            scalarField maxCellField(const scalarField& vFld) const;
 
             scalarField cellToPoint(const scalarField& vFld) const;
 
@@ -234,8 +235,9 @@ protected:
             //- Update topology (refinement, unrefinement)
             bool updateTopology();
 
+public:
 
-private:
+    // Generated Methods
 
         //- No copy construct
         dynamicRefineFvMesh(const dynamicRefineFvMesh&) = delete;
@@ -243,7 +245,6 @@ private:
         //- No copy assignment
         void operator=(const dynamicRefineFvMesh&) = delete;
 
-public:
 
     //- Runtime type information
     TypeName("dynamicRefineFvMesh");
@@ -269,22 +270,16 @@ public:
         virtual bool init(const bool doInit);
 
         //- Direct access to the refinement engine
-        const hexRef8& meshCutter() const
-        {
-            return meshCutter_;
-        }
+        const hexRef8& meshCutter() const noexcept { return meshCutter_; }
+
+        //- Direct (non-const) access to the refinement engine
+        hexRef8& meshCutter() noexcept { return meshCutter_; }
 
         //- Cells which should not be refined/unrefined
-        const bitSet& protectedCell() const
-        {
-            return protectedCell_;
-        }
+        const bitSet& protectedCell() const noexcept { return protectedCell_; }
 
-        //- Cells which should not be refined/unrefined
-        bitSet& protectedCell()
-        {
-            return protectedCell_;
-        }
+        //- Cells (non-const) which should not be refined/unrefined
+        bitSet& protectedCell() noexcept { return protectedCell_; }
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update();
@@ -310,7 +305,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "dynamicRefineFvMeshTemplates.C"
+    #include "dynamicRefineFvMesh.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

@@ -63,27 +63,22 @@ void Foam::dynamicRefineFvMesh::calculateProtectedCells
         return;
     }
 
-    const labelList& cellLevel = meshCutter_.cellLevel();
+    const labelUList& cellLevel = meshCutter_.cellLevel();
 
     unrefineableCell = protectedCell_;
 
-    // Get neighbouring cell level
-    labelList neiLevel(nBoundaryFaces());
+    // Neighbouring cell level (on boundaries)
+    labelList neiLevel(cellLevel, boundaryMesh().faceOwner());
 
-    for (label facei = nInternalFaces(); facei < nFaces(); ++facei)
-    {
-        neiLevel[facei-nInternalFaces()] = cellLevel[faceOwner()[facei]];
-    }
     syncTools::swapBoundaryFaceList(*this, neiLevel);
 
 
-    bitSet seedFace;
+    bitSet seedFace(nFaces());
 
     while (true)
     {
         // Pick up faces on border of protected cells
-        seedFace.reset();
-        seedFace.resize(nFaces());
+        seedFace.fill(false);
 
         for (label facei = 0; facei < nInternalFaces(); ++facei)
         {
@@ -131,30 +126,20 @@ void Foam::dynamicRefineFvMesh::calculateProtectedCells
         // Extend unrefineableCell
         bool hasExtended = false;
 
-        for (label facei = 0; facei < nInternalFaces(); ++facei)
+        for (const label facei : seedFace)
         {
-            if (seedFace.test(facei))
+            if (unrefineableCell.set(faceOwner()[facei]))
             {
-                if (unrefineableCell.set(faceOwner()[facei]))
-                {
-                    hasExtended = true;
-                }
-                if (unrefineableCell.set(faceNeighbour()[facei]))
-                {
-                    hasExtended = true;
-                }
+                hasExtended = true;  // changed state
             }
-        }
-        for (label facei = nInternalFaces(); facei < nFaces(); ++facei)
-        {
-            if (seedFace.test(facei))
-            {
-                const label own = faceOwner()[facei];
 
-                if (unrefineableCell.set(own))
-                {
-                    hasExtended = true;
-                }
+            if
+            (
+                isInternalFace(facei)
+             && unrefineableCell.set(faceNeighbour()[facei])
+            )
+            {
+                hasExtended = true;  // changed state
             }
         }
 
@@ -221,7 +206,7 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
         const labelList& reverseCellMap = mpm.reverseCellMap();
 
         // Each split cell becomes original + 7 additional
-        labelList nSubCells(mpm.nOldCells(), 0);
+        labelList nSubCells(mpm.nOldCells(), Foam::zero{});
 
         forAll(cellMap, celli)
         {
@@ -269,8 +254,8 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
     // Correct the flux for modified/added faces. All the faces which only
     // have been renumbered will already have been handled by the mapping.
     {
-        const labelList& faceMap = mpm.faceMap();
-        const labelList& reverseFaceMap = mpm.reverseFaceMap();
+        const labelUList& faceMap = mpm.faceMap();
+        const labelUList& reverseFaceMap = mpm.reverseFaceMap();
 
         // Storage for any master faces. These will be the original faces
         // on the coarse cell that get split into four (or rather the
@@ -419,15 +404,15 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
                 }
                 else
                 {
-                    const label patchi = boundaryMesh().whichPatch(facei);
-                    const label i = facei - boundaryMesh()[patchi].start();
+                    const auto [patchi, pfacei] =
+                        boundaryMesh().whichPatchFace(facei);
+
+                    fvsPatchScalarField& patchPhi = phiBf[patchi];
 
                     const fvsPatchScalarField& patchPhiU =
                         phiU.boundaryField()[patchi];
 
-                    fvsPatchScalarField& patchPhi = phiBf[patchi];
-
-                    patchPhi[i] = patchPhiU[i];
+                    patchPhi[pfacei] = patchPhiU[pfacei];
                 }
             }
         }
@@ -686,13 +671,14 @@ Foam::dynamicRefineFvMesh::unrefine
                         }
                         else
                         {
-                            label patchi = boundaryMesh().whichPatch(facei);
-                            label i = facei - boundaryMesh()[patchi].start();
+                            const auto [patchi, pfacei] =
+                                boundaryMesh().whichPatchFace(facei);
 
                             const fvsPatchScalarField& patchPhiU =
                                 phiU.boundaryField()[patchi];
+
                             fvsPatchScalarField& patchPhi = phiBf[patchi];
-                            patchPhi[i] = patchPhiU[i];
+                            patchPhi[pfacei] = patchPhiU[pfacei];
                         }
                     }
                 }
@@ -734,11 +720,9 @@ Foam::dynamicRefineFvMesh::maxPointField(const scalarField& pFld) const
 
     forAll(pointCells(), pointi)
     {
-        const labelList& pCells = pointCells()[pointi];
-
-        for (const label celli : pCells)
+        for (const label celli : pointCells()[pointi])
         {
-            vFld[celli] = max(vFld[celli], pFld[pointi]);
+            vFld[celli] = Foam::max(vFld[celli], pFld[pointi]);
         }
     }
     return vFld;
@@ -746,17 +730,15 @@ Foam::dynamicRefineFvMesh::maxPointField(const scalarField& pFld) const
 
 
 Foam::scalarField
-Foam::dynamicRefineFvMesh::maxCellField(const volScalarField& vFld) const
+Foam::dynamicRefineFvMesh::maxCellField(const scalarField& vFld) const
 {
     scalarField pFld(nPoints(), -GREAT);
 
     forAll(pointCells(), pointi)
     {
-        const labelList& pCells = pointCells()[pointi];
-
-        for (const label celli : pCells)
+        for (const label celli : pointCells()[pointi])
         {
-            pFld[pointi] = max(pFld[pointi], vFld[celli]);
+            pFld[pointi] = Foam::max(pFld[pointi], vFld[celli]);
         }
     }
     return pFld;
@@ -794,7 +776,7 @@ Foam::scalarField Foam::dynamicRefineFvMesh::error
 
     forAll(fld, i)
     {
-        scalar err = min(fld[i]-minLevel, maxLevel-fld[i]);
+        scalar err = Foam::min(fld[i]-minLevel, maxLevel-fld[i]);
 
         if (err >= 0)
         {
@@ -867,9 +849,8 @@ void Foam::dynamicRefineFvMesh::capRefineCandidates(bitSet& candidateCell) const
     // ordering, dropping the remainder.
     const label myStart = giCandidates.localStart();
 
-    const labelList marked(candidateCell.sortedToc());
     label locali = 0;
-    for (const label celli : marked)
+    for (const label celli : candidateCell)
     {
         if (myStart + locali >= maxRefinementCells_)
         {
@@ -951,7 +932,7 @@ Foam::labelList Foam::dynamicRefineFvMesh::selectRefineCells
     (
         meshCutter_.consistentRefinement
         (
-            candidates.shrink(),
+            candidates,
             true               // Add to set to guarantee 2:1
         )
     );
@@ -1033,7 +1014,7 @@ Foam::labelList Foam::dynamicRefineFvMesh::selectUnrefinePoints
 
             if (!hasMarked)
             {
-                newSplitPoints.append(pointi);
+                newSplitPoints.push_back(pointi);
             }
         }
     }
@@ -1074,20 +1055,14 @@ void Foam::dynamicRefineFvMesh::extendMarkedCells
 
     syncTools::syncFaceList(*this, markedFace, orEqOp<unsigned int>());
 
-    // Update cells using any markedFace
-    for (label facei = 0; facei < nInternalFaces(); ++facei)
+    // Update cells using any marked face
+    for (const label facei : markedFace)
     {
-        if (markedFace.test(facei))
+        markedCell.set(faceOwner()[facei]);
+
+        if (isInternalFace(facei))
         {
-            markedCell.set(faceOwner()[facei]);
             markedCell.set(faceNeighbour()[facei]);
-        }
-    }
-    for (label facei = nInternalFaces(); facei < nFaces(); ++facei)
-    {
-        if (markedFace.test(facei))
-        {
-            markedCell.set(faceOwner()[facei]);
         }
     }
 }
@@ -1259,19 +1234,13 @@ bool Foam::dynamicRefineFvMesh::init(const bool doInit)
 
         syncTools::syncFaceList(*this, protectedFace, orEqOp<unsigned int>());
 
-        for (label facei = 0; facei < nInternalFaces(); ++facei)
+        for (const label facei : protectedFace)
         {
-            if (protectedFace.test(facei))
+            protectedCell_.set(faceOwner()[facei]);
+
+            if (isInternalFace(facei))
             {
-                protectedCell_.set(faceOwner()[facei]);
                 protectedCell_.set(faceNeighbour()[facei]);
-            }
-        }
-        for (label facei = nInternalFaces(); facei < nFaces(); ++facei)
-        {
-            if (protectedFace.test(facei))
-            {
-                protectedCell_.set(faceOwner()[facei]);
             }
         }
 
@@ -1533,7 +1502,7 @@ bool Foam::dynamicRefineFvMesh::updateTopology()
                 (
                     unrefineLevel,
                     refineCell,
-                    maxCellField(vFld)
+                    maxCellField(vFld.primitiveField())
                 )
             );
 

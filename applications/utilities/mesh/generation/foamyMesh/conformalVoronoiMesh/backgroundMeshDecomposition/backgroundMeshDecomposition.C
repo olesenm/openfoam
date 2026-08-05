@@ -842,7 +842,7 @@ Foam::backgroundMeshDecomposition::distribute
         (
             meshCutter_.consistentRefinement
             (
-                cellsToRefine.toc(),
+                cellsToRefine,
                 true                  // extend set
             )
         );

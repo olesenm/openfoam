@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
     (
         meshCutter.consistentRefinement
         (
-            cellsToRefine.toc(),
+            cellsToRefine,
             !minSet                 // extend set
         )
     );
