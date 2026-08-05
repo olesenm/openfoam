@@ -27,6 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "liquidFilmBase.H"
+#include "primaryPhaseVelocityModel.H"
 #include "gravityMeshObject.H"
 #include "movingWallVelocityFvPatchVectorField.H"
 #include "turbulentFluidThermoModel.H"
@@ -213,6 +214,8 @@ liquidFilmBase::liquidFilmBase
         Info<< "No finite area options present for area : "
             << polyMesh::regionName(regionFaModel::areaName()) << endl;
     }
+
+    UpModelPtr_ = primaryPhaseVelocityModel::New(*this, dict);
 }
 
 
@@ -316,45 +319,7 @@ Foam::tmp<Foam::areaVectorField> liquidFilmBase::Us() const
 
 Foam::tmp<Foam::areaVectorField> liquidFilmBase::Up() const
 {
-    const volVectorField& Uprimary =
-        primaryMesh().lookupObject<volVectorField>(UName_);
-
-    auto tUp = areaVectorField::New
-    (
-        "tUp",
-        IOobjectOption::NO_REGISTER,
-        regionMesh(),
-        dimensionedVector(dimVelocity, Zero)
-    );
-    auto& Up = tUp.ref();
-
-
-    // Set up mapping values per patch
-
-    const labelList& patches = regionMesh().whichPolyPatches();
-
-    PtrMap<vectorField> patchValues(2*patches.size());
-
-    // U tangential on primary
-    for (const label patchi : patches)
-    {
-        const fvPatchVectorField& Uw = Uprimary.boundaryField()[patchi];
-
-        patchValues.set(patchi, -Uw.snGrad());
-    }
-
-
-    // Map U tang to surface
-    vsmPtr_->mapToSurface(patchValues, Up.primitiveFieldRef());
-
-    Up.primitiveFieldRef() *= h_.primitiveField();
-
-    // U tangent on surface
-    const vectorField& nHat = regionMesh().faceAreaNormals().internalField();
-
-    Up.primitiveFieldRef() -= nHat*(Up.primitiveField() & nHat);
-
-    return tUp;
+    return UpModelPtr_->Up();
 }
 
 

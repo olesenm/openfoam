@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,6 +43,7 @@ Usage
         h0                      <scalar>;
         deltaWet                <scalar>;
         p                       <word>;
+        primaryPhaseVelocityModel <word>;
 
         // Inherited entries
         ...
@@ -61,7 +63,16 @@ Usage
       deltaWet   | Film thickness beyond which face is assumed to be wet <!--
                  -->                               | scalar | no   | 1e-4
       p          | Name of pressure field           | word  | no   | null
+      primaryPhaseVelocityModel | Primary-phase velocity model <!--
+                 -->                               | word  | no   | extrapolated
     \endtable
+
+    Options for the \c primaryPhaseVelocityModel entry:
+    \verbatim
+      extrapolated   | Linear near-wall extrapolation: snGrad(U)*h (default)
+      prescribed     | Uniform vector or mapped volVectorField
+      yPlus          | Log-law velocity at target yPlus (requires turbulence)
+    \endverbatim
 
     The inherited entries are elaborated in:
       - \link regionFaModel.H \endlink
@@ -88,6 +99,9 @@ namespace regionModels
 {
 namespace areaSurfaceFilmModels
 {
+
+// Forward Declarations
+class primaryPhaseVelocityModel;
 
 /*---------------------------------------------------------------------------*\
                          Class liquidFilmBase Declaration
@@ -180,6 +194,9 @@ protected:
         //- faOptions
         Foam::fa::options& faOptions_;
 
+        //- Primary-phase velocity model
+        autoPtr<primaryPhaseVelocityModel> UpModelPtr_;
+
 
 public:
 
@@ -248,8 +265,7 @@ public:
             //- Film surface film velocity
             tmp<areaVectorField> Us() const;
 
-            //- Primary region velocity at film hight. Assume the film to be
-            // in the viscous sub-layer
+            //- Tangential primary-phase velocity at the film surface
             tmp<areaVectorField> Up() const;
 
             //- Map primary static pressure
