@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,7 @@ License
 #include "yPlus.H"
 #include "volFields.H"
 #include "turbulenceModel.H"
-#include "nutWallFunctionFvPatchScalarField.H"
+#include "wallFunctionYPlus.H"
 #include "wallFvPatch.H"
 #include "addToRunTimeSelectionTable.H"
 
@@ -133,38 +134,16 @@ bool Foam::functionObjects::yPlus::execute()
                 turbulenceModel::propertiesName
             );
 
-        const nearWallDist nwd(mesh_);
-        const volScalarField::Boundary& d = nwd.y();
-
-        // nut needed for wall function patches
-        tmp<volScalarField> tnut = model.nut();
-        const volScalarField::Boundary& nutBf = tnut().boundaryField();
-
-        // U needed for plain wall patches
-        const volVectorField::Boundary& UBf = model.U().boundaryField();
-
         const fvPatchList& patches = mesh_.boundary();
 
         forAll(patches, patchi)
         {
             const fvPatch& patch = patches[patchi];
 
-            const auto* nutWallPatch =
-                isA<nutWallFunctionFvPatchScalarField>(nutBf[patchi]);
-
-            if (useWallFunction_ && nutWallPatch)
-            {
-                yPlusBf[patchi] = nutWallPatch->yPlus();
-            }
-            else if (isA<wallFvPatch>(patch))
+            if (isA<wallFvPatch>(patch))
             {
                 yPlusBf[patchi] =
-                    d[patchi]
-                   *sqrt
-                    (
-                        model.nuEff(patchi)
-                       *mag(UBf[patchi].snGrad())
-                    )/model.nu(patchi);
+                    wallFunctionYPlus(model, patchi, useWallFunction_);
             }
         }
     }

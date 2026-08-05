@@ -29,6 +29,7 @@ License
 #include "turbulenceModel.H"
 #include "volFields.H"
 #include "addToRunTimeSelectionTable.H"
+#include "wallFunctionYPlus.H"
 #include "wallFunctionRoughness.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -98,16 +99,17 @@ Foam::regionModels::areaSurfaceFilmModels::yPlus::Up() const
 
     const auto& Uprimary = mesh.lookupObject<volVectorField>(film_.UName());
 
-    const tmp<volScalarField> tk = turbModel.k();
-    const volScalarField& k = tk.cref();
-
-    const scalar Cmu25 = pow025(wallCoeffs_.Cmu());
-
     auto tUp = newUpField();
     auto& Up = tUp.ref();
 
     const List<labelPair>& patchFaces = mesh_.whichPatchFaces();
     const vectorField& nHat = mesh_.faceAreaNormals().internalField();
+
+    const label szPatches = mesh.boundary().size();
+    bitSet calculated(szPatches, false);
+    List<scalarField> yPlusByPatch(szPatches);
+    List<scalarField> yByPatch(szPatches);
+    List<scalarField> nuByPatch(szPatches);
 
     forAll(patchFaces, i)
     {
@@ -133,10 +135,44 @@ Foam::regionModels::areaSurfaceFilmModels::yPlus::Up() const
 
         const vector UparHat(Upar/magUpar);
 
-        const tmp<scalarField> tnuw = turbModel.nu(patchi);
-        const scalar nuw = tnuw.cref()[facei];
+        if (!calculated[patchi])
+        {
+            constexpr bool useWallFunction = true;
 
-        const scalar uStar = Cmu25*Foam::sqrt(k[celli]);
+            tmp<scalarField> tyPlus =
+                wallFunctionYPlus(turbModel, patchi, useWallFunction);
+
+            yPlusByPatch[patchi] = tyPlus.cref();
+            yByPatch[patchi] = turbModel.y()[patchi];
+
+            tmp<scalarField> tnu = turbModel.nu(patchi);
+            nuByPatch[patchi] = tnu.cref();
+
+            calculated[patchi] = true;
+        }
+
+        const scalar yPlus = yPlusByPatch[patchi][facei];
+        const scalar y = yByPatch[patchi][facei];
+        const scalar nuw = nuByPatch[patchi][facei];
+
+        if (yPlus < ROOTVSMALL)
+        {
+            Up[i] = Upar;
+            continue;
+        }
+
+        if (y < ROOTVSMALL || nuw < ROOTVSMALL)
+        {
+            FatalErrorInFunction
+                << "Invalid wall distance or viscosity on primary patch "
+                << mesh.boundary()[patchi].name()
+                << " at face " << facei << nl
+                << "    y = " << y << nl
+                << "    nu = " << nuw << nl
+                << exit(FatalError);
+        }
+
+        const scalar uStar = yPlus*nuw/y;
 
         if (uStar < ROOTVSMALL)
         {

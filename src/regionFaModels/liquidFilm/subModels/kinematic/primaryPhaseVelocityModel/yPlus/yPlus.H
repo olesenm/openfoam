@@ -28,8 +28,9 @@ Class
 
 Description
     Primary-phase velocity from a rough-wall logarithmic law evaluated at a
-    target \f$y^+\f$ with direction taken from the patch-internal tangential
-    primary-phase velocity.
+    target \f$y^+\f$. The local friction velocity is obtained from the
+    primary-region wall-function yPlus calculation, with direction taken
+    from the patch-internal tangential primary-phase velocity.
 
 Usage
     Minimal example:
@@ -56,7 +57,6 @@ Usage
     \table
       Property  | Description                    | Type   | Reqd | Deflt
       yPlus     | Target yPlus value             | scalar | yes  | -
-      Cmu       | Empirical model coefficient    | scalar | no   | 0.09
       kappa     | von Karman constant            | scalar | no   | 0.41
       E         | Wall roughness parameter       | scalar | no   | 9.8
       Ks        | Roughness height [m]           | scalar | no   | 0
@@ -65,6 +65,8 @@ Usage
 
 Note
   - The model requires a turbulence model on the primary region.
+  - The selected primary-region wall function supplies the local friction
+    velocity; \c Ks and \c Cs apply to the target log-law.
 
 SourceFiles
     yPlus.C
