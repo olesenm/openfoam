@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -300,6 +301,26 @@ Foam::bitSet::bitSet(const bitSet& bitset, const labelRange& range)
     {
         set(i, bitset.get(pos));
         ++pos;
+    }
+}
+
+
+Foam::bitSet::bitSet(const label minSize, const bitSet& bitset)
+:
+    bitSet(bitset)
+{
+    if (bitset.size() < minSize)
+    {
+        // Need to extend the size
+        resize(minSize);
+    }
+    else if (bitset.size() > minSize)
+    {
+        // Avoid over allocated size
+        const label extent = (this->find_last()+1);
+
+        // Shrink to the actually used length or the expected length
+        resize(std::max(extent, minSize));
     }
 }
 

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -174,6 +175,9 @@ public:
         //- Construct from a list of bools
         inline explicit bitSet(const UList<bool>& bools);
 
+        //- Copy construct with given min size
+        explicit bitSet(const label minSize, const bitSet& bitset);
+
         //- Construct with given pre-size (filled with 0),
         //- subsequently add specified locations as 1,
         //- auto-vivify entries if needed.
@@ -235,21 +239,21 @@ public:
         //  Returning true for an empty set may not seem intuitive, but
         //  conforms with boost definitions and std::all_of behaviour.
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline bool all() const;
+        inline bool all() const noexcept;
 
         //- True if any bits in this bitset are set.
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline bool any() const;
+        inline bool any() const noexcept;
 
         //- True if no bits in this bitset are set.
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline bool none() const;
+        inline bool none() const noexcept;
 
         //- Count number of bits set.
         //  \param on can be set to false to count the number of unset bits
         //     instead.
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline unsigned int count(const bool on=true) const;
+        inline unsigned int count(const bool on=true) const noexcept;
 
         //- True if any bits in the other bitset intersect (are the same).
         //
@@ -262,7 +266,7 @@ public:
         //  Never auto-vivify entries.
         //
         //  \note Method name compatibility with std::bitset
-        bool test(label pos) const { return this->get(pos); }
+        bool test(label pos) const noexcept { return this->get(pos); }
 
         //- Test for \c true value at specified position.
         //- A no-op and returns \c false for out-of-range positions
@@ -270,31 +274,31 @@ public:
         //  Never auto-vivify entries.
         //
         //  \note Method name compatibility with HashSet
-        bool contains(label pos) const { return this->get(pos); }
+        bool contains(label pos) const noexcept { return this->get(pos); }
 
         //- Locate the first bit that is set.
         //  \return the location or -1 if there are no bits set.
         //
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline label find_first() const;
+        inline label find_first() const noexcept;
 
         //- Locate the first bit that is unset.
         //  \return the location or -1 if the set is empty or all bits are on.
         //
         //  \note Provided for symmetry with find_first()
-        inline label find_first_not() const;
+        inline label find_first_not() const noexcept;
 
         //- Locate the last bit set.
         //  \return the location or -1 if there are no bits set.
         //
         //  \note Provided for symmetry with find_first()
-        inline label find_last() const;
+        inline label find_last() const noexcept;
 
         //- Locate the next bit set, starting one beyond the specified position
         //  \return the location or -1 if there are no further bits set.
         //
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline label find_next(label pos) const;
+        inline label find_next(label pos) const noexcept;
 
         //- The indices of the \a on bits as a sorted labelList.
         //
@@ -457,8 +461,8 @@ public:
             void operator&() = delete;  // Refuse to provide its address
 
             //- Construct by taking reference of block from within
-            //- the list and the specified index.
-            inline reference(bitSet* parent, const label index);
+            //- the list and the specified position
+            inline reference(bitSet* parent, const label pos) noexcept;
 
         public:
 
@@ -468,17 +472,17 @@ public:
             //- Move construct
             reference(reference&&) noexcept = default;
 
-            //- Flip the bit at the position, no range-checking
-            inline void flip();
+            //- Flip the bit at current position
+            inline void flip() noexcept;
 
             //- Value assignment
-            inline void operator=(const reference& other);
+            inline void operator=(const reference& other) noexcept;
 
             //- Value assignment
-            inline void operator=(const unsigned int val);
+            inline void operator=(const unsigned int val) noexcept;
 
-            //- Conversion operator
-            inline operator unsigned int () const;
+            //- Conversion operator.
+            operator unsigned int () const noexcept { return this->get(); }
         };
 
 
@@ -496,13 +500,14 @@ public:
             label pos_;
 
             //- Default construct - an end iterator
-            inline const_iterator() noexcept;
+            inline constexpr const_iterator() noexcept;
 
-            //- Construct begin iterator
-            inline const_iterator(const bitSet* bitset);
+            //- Construct begin iterator. Uses find_first
+            inline const_iterator(const bitSet* parent) noexcept;
 
-            //- Construct iterator, starting at or beyond the given position
-            inline const_iterator(const bitSet* bitset, label pos);
+            //- Construct iterator, starting at or beyond the given position.
+            //- Uses find_next()
+            inline const_iterator(const bitSet* parent, label pos) noexcept;
 
         public:
 
@@ -510,7 +515,7 @@ public:
             inline label operator*() const noexcept;
 
             //- Move to the next \a on position
-            inline const_iterator& operator++();
+            inline const_iterator& operator++() noexcept;
 
             inline bool operator==(const const_iterator& iter) const noexcept;
             inline bool operator!=(const const_iterator& iter) const noexcept;
@@ -518,18 +523,18 @@ public:
 
 
         //- Iterator set to the position of the first \a on bit
-        inline const_iterator begin() const;
+        inline const_iterator begin() const noexcept;
 
         //- Iterator set to the position of the first \a on bit
-        inline const_iterator cbegin() const;
+        inline const_iterator cbegin() const noexcept;
 
         //- Iterator set to the position of the first \a on bit that occurs
         //- at or beyond the given position
-        inline const_iterator begin(label pos) const;
+        inline const_iterator begin(label pos) const noexcept;
 
         //- Iterator set to the position of the first \a on bit that occurs
         //- at or beyond the given position
-        inline const_iterator cbegin(label pos) const;
+        inline const_iterator cbegin(label pos) const noexcept;
 
         //- Iterator beyond the end of the bitSet
         inline const_iterator end() const noexcept;
@@ -542,11 +547,11 @@ public:
 
         //- Test value at specified position, same as test()
         //  Enables use as a predicate
-        inline bool operator()(const label pos) const;
+        inline bool operator()(const label pos) const noexcept;
 
         //- Identical to get() - get value at index.
         //  Never auto-vivify entries.
-        inline unsigned int operator[](const label i) const;
+        inline unsigned int operator[](const label i) const noexcept;
 
         //- Non-const access to value at index.
         //  Fatal for out-of-range indices

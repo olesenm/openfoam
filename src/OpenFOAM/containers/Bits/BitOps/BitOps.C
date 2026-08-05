@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,6 +50,11 @@ void Foam::BitOps::set(List<bool>& bools, const labelUList& locations)
     {
         bools.resize(len, false);
     }
+    else if (len <= 0)
+    {
+        // No locations or very bad input...
+        return;
+    }
 
     for (label i : locations)
     {
@@ -82,9 +88,12 @@ void Foam::BitOps::set(List<bool>& bools, const labelRange& range)
         bools.resize(slice.end_value(), false);
     }
 
-    for (const label i : slice)
+    for (label i : slice)
     {
-        bools.set(i);
+        if (i >= 0)
+        {
+            bools[i] = true;
+        }
     }
 }
 
@@ -108,7 +117,7 @@ void Foam::BitOps::set(bitSet& bitset, const labelRange& range)
 }
 
 
-void Foam::BitOps::unset(List<bool>& bools, const labelUList& locations)
+void Foam::BitOps::unset(UList<bool>& bools, const labelUList& locations)
 {
     for (const label i : locations)
     {
@@ -118,7 +127,7 @@ void Foam::BitOps::unset(List<bool>& bools, const labelUList& locations)
 
 
 // See bitSet::unset(labelRange) for original implementation
-void Foam::BitOps::unset(List<bool>& bools, const labelRange& range)
+void Foam::BitOps::unset(UList<bool>& bools, const labelRange& range)
 {
     for (const label i : range)
     {

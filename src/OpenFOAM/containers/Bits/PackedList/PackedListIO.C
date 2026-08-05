@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -108,7 +109,7 @@ Foam::Istream& Foam::PackedList<Width>::readList(Istream& is)
                 {
                     for (label i=0; i<len; ++i)
                     {
-                        list.set(i, list.readValue(is));
+                        list.setValue_unsafe(i, list.readValue(is));
 
                         is.fatalCheck
                         (

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,7 +43,7 @@ Foam::PackedList<Width>::PackedList
 
     for (label i = 0; i < len; ++i)
     {
-        set(i, list.get(addr[i]));
+        setValue_unsafe(i, list.get(addr[i]));
     }
 }
 
@@ -61,7 +62,7 @@ Foam::PackedList<Width>::PackedList
 
     for (label i = 0; i < len; ++i)
     {
-        set(i, list.get(addr[i]));
+        setValue_unsafe(i, list.get(addr[i]));
     }
 }
 
@@ -80,7 +81,7 @@ Foam::PackedList<Width>::PackedList
 
     for (label i = 0; i < len; ++i)
     {
-        set(i, list.get(pos));
+        setValue_unsafe(i, list.get(pos));
         ++pos;
     }
 }
@@ -89,7 +90,7 @@ Foam::PackedList<Width>::PackedList
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<unsigned Width>
-bool Foam::PackedList<Width>::uniform() const
+bool Foam::PackedList<Width>::uniform() const noexcept
 {
     // Trivial cases
     if (empty())
@@ -102,35 +103,38 @@ bool Foam::PackedList<Width>::uniform() const
     }
 
     // The value of the first element for testing
-    const unsigned int val = get(0);
-
-    bool identical = true;
+    const unsigned int val = this->get(0);
 
     if (!val)
     {
         // No bits set: just check there are no non-zero blocks
         // - like bitSet::none()
-        identical = (-1 == first_block());
+        return (-1 == first_block());
     }
     else if (val == PackedList<Width>::max_value)
     {
         // All bits set: just check there are no zero blocks
         // - like bitSet::all()
-        identical = (-1 == first_not_block());
+        return (-1 == first_not_block());
     }
     else
     {
+        bool identical = true;
+
         const label nblocks = num_blocks(size());
 
         if (nblocks > 1)
         {
+            // Check each complete block (nblocks-1)
+
             // Fill value for complete blocks
             const unsigned int blockval = repeated_value(val);
 
-            // Check each complete block (nblocks-1)
+            const auto* block_ptr = blocks_.cdata();
+
             for (label blocki = 0; identical && blocki < (nblocks-1); ++blocki)
             {
-                identical = (blocks_[blocki] == blockval);
+                identical = (block_ptr[blocki] == blockval);
             }
         }
 
@@ -144,14 +148,17 @@ bool Foam::PackedList<Width>::uniform() const
         {
             identical = (val == get(elemi));
         }
-    }
 
-    return identical;
+        return identical;
+    }
 }
 
 
 template<unsigned Width>
-bool Foam::PackedList<Width>::equal(const PackedList<Width>& other) const
+bool Foam::PackedList<Width>::equal
+(
+    const PackedList<Width>& other
+) const noexcept
 {
     if (size() != other.size())
     {
@@ -159,11 +166,13 @@ bool Foam::PackedList<Width>::equal(const PackedList<Width>& other) const
     }
 
     const label nblocks = num_blocks(size());
-    const auto& rhs = other.blocks_;
+
+    const auto* block_ptr = blocks_.cdata();
+    const auto* other_ptr = other.blocks_.cdata();
 
     for (label blocki = 0; blocki < nblocks; ++blocki)
     {
-        if (blocks_[blocki] != rhs[blocki])
+        if (block_ptr[blocki] != other_ptr[blocki])
         {
             return false;
         }

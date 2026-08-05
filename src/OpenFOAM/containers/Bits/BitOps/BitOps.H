@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -50,6 +51,7 @@ Description
 #include "HashSet.H"
 #include "Ostream.H"
 #include <limits>
+#include <type_traits>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -109,16 +111,20 @@ void set(bitSet& bitset, const labelRange& range);
 
 
 //- Unset the listed locations (assign 'false').
-//  No auto-vivify non-existent entries.
+//  No auto-vivify of non-existent entries.
 //
 //  For compatibility with bitSet::set(labelUList)
-void unset(List<bool>& bools, const labelUList& locations);
+void unset(UList<bool>& bools, const labelUList& locations);
 
 //- Unset the specified range 'on' in a boolList.
+//  No auto-vivify of non-existent entries.
+//
 //  For compatibility with bitSet::unset(labelRange)
-void unset(List<bool>& bools, const labelRange& range);
+void unset(UList<bool>& bools, const labelRange& range);
 
 //- Unset the specified range in a labelHashSet.
+//  No auto-vivify of non-existent entries.
+//
 //  For compatibility with bitSet::unset(labelRange)
 void unset(labelHashSet& hashset, const labelRange& range);
 
@@ -180,38 +186,44 @@ List<label> toc(const labelHashSet& hashset);
 List<label> sortedToc(const labelHashSet& hashset);
 
 
-//- Count arbitrary number of bits (of an integral type)
+//- Count number of bits of an unsigned integral type
 template<class UIntType>
-inline unsigned int bit_count(UIntType x)
+inline unsigned int bit_count(UIntType x) noexcept
 {
-    unsigned int n = 0u;
+    static_assert(std::is_unsigned_v<UIntType>, "Expecting unsigned type");
 
-    for (; x; ++n) { x &= (x-1); }
+    if constexpr (sizeof(UIntType) == sizeof(uint32_t))
+    {
+        // Count bits in a 32-bit value (Hamming weight method)
 
-    return n;
-}
+        x -= (x >> 1) & 0x55555555;
+        x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
 
+        return
+        (
+            (((x + (x >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24
+        );
+    }
+    else if constexpr (sizeof(UIntType) == sizeof(uint64_t))
+    {
+        // Count bits in a 64-bit value (Hamming weight method)
 
-//- Count bits in a 32-bit value (Hamming weight method)
-template<>
-inline unsigned int bit_count(uint32_t x)
-{
-    x -= (x >> 1) & 0x55555555;
-    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+        x -= (x >> 1) & 0x5555555555555555;
+        x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
 
-    return ((((x + (x >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24);
-}
+        return unsigned
+        (
+            (((x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F) * 0x0101010101010101) >> 56
+        );
+    }
+    else
+    {
+        // Manual bit counting
+        unsigned int n = 0u;
 
-
-//- Count bits in a 64-bit value (Hamming weight method)
-template<>
-inline unsigned int bit_count(uint64_t x)
-{
-    x -= (x >> 1) & 0x5555555555555555;
-    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-
-    return unsigned
-        ((((x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F) * 0x0101010101010101) >> 56);
+        for (; x; ++n) { x &= (x-1); }
+        return n;
+    }
 }
 
 
@@ -222,30 +234,46 @@ inline unsigned int bit_count(uint64_t x)
 //     (val ? ~0u : 0u)
 //  \endcode
 template<class UIntType, unsigned BitWidth>
-inline UIntType repeat_value(unsigned val)
+inline constexpr UIntType repeat_value(unsigned val) noexcept
 {
     static_assert
     (
         BitWidth && std::numeric_limits<UIntType>::digits >= BitWidth,
         "BitWidth too large for target output"
     );
+    static_assert(std::is_unsigned_v<UIntType>, "Expecting unsigned type");
 
-    // How many fit into the target
-    const unsigned nrepeat = (std::numeric_limits<UIntType>::digits / BitWidth);
-
-    // Max value for a single element
-    const unsigned mask = ((1u << BitWidth) - 1);
-
-    // The first occurrence
-    UIntType fillval = ((val >= mask) ? mask : val);
-
-    // Repeated
-    for (unsigned i = 1; i < nrepeat; ++i)
+    if constexpr (BitWidth <= 1)
     {
-        fillval |= (fillval << BitWidth);
+        // Width == single bit
+        return (val ? ~UIntType(0) : UIntType(0));
     }
+    else
+    {
+        if (!val)
+        {
+            // Fast path for zero value
+            return UIntType(0);
+        }
 
-    return fillval;
+        // Max value for a single element
+        constexpr UIntType mask = ((UIntType(1) << BitWidth) - UIntType(1));
+
+        // The first occurrence
+        UIntType fillval = ((val >= mask) ? mask : val);
+
+        // How many fit into the target
+        constexpr unsigned nrepeat
+            = (std::numeric_limits<UIntType>::digits / BitWidth);
+
+        // Repeated
+        for (unsigned i = 1; i < nrepeat; ++i)
+        {
+            fillval |= (fillval << BitWidth);
+        }
+
+        return fillval;
+    }
 }
 
 
