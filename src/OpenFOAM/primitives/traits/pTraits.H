@@ -93,46 +93,28 @@ public:
 
 //- The vector-space rank: default is 0.
 template<class T, class = void>
-struct pTraits_rank : std::integral_constant<Foam::direction, 0> {};
+inline constexpr Foam::direction pTraits_rank_v = 0;
 
-//- Rank of VectorSpace,
+//- The vector-space rank:
 //- using the pTraits \c rank static member.
 template<class T>
-struct pTraits_rank
+inline constexpr Foam::direction pTraits_rank_v
 <
     T,
     std::void_t<decltype(pTraits<std::remove_cv_t<T>>::rank)>
->
-:
-    std::integral_constant<Foam::direction, pTraits<std::remove_cv_t<T>>::rank>
-{};
+> = pTraits<std::remove_cv_t<T>>::rank;
 
-
-//- The underlying component data type: default is pass-through.
-template<class T, class = void>
-struct pTraits_cmptType { typedef T type; };
-
-//- The underlying component data type for vector-space (or complex).
-//  Enabled when pTraits<T>:zero has a defined type (ie, exists),
-//  such as for arithmetic primitives, vector-space etc. where the concept
-//  of a component type also makes sense.
-template<class T>
-struct pTraits_cmptType
-<
-    T,
-    std::void_t<decltype(pTraits<std::remove_cv_t<T>>::zero)>
->
-{
-    using type = typename pTraits<std::remove_cv_t<T>>::cmptType;
-};
-
-
-//- The vector-space number of components: default is 1.
+//- Number of data or vector-space components:
+//- default is 1.
 template<class T, class = void>
 struct pTraits_nComponents : std::integral_constant<Foam::direction, 1> {};
 
-//- Number of VectorSpace components,
+//- Number of data or vector-space components:
 //- using the pTraits \c nComponents static member.
+//
+//  Note (2026-08-06):
+//  slight inconsistency here. It tests the base type for nComponents
+//  but uses nComponents from pTraits (may need further review)
 template<class T>
 struct pTraits_nComponents
 <
@@ -147,21 +129,55 @@ struct pTraits_nComponents
     >
 {};
 
-
-//- Test for pTraits zero : default is false
-template<class T, class = void>
-struct pTraits_has_zero : std::false_type {};
-
-//- Test for pTraits zero
+//- Number of data or vector-space components
 template<class T>
-struct pTraits_has_zero
+inline constexpr Foam::direction pTraits_nComponents_v
+    = pTraits_nComponents<T>::value;
+
+//- The underlying component data type: default is pass-through.
+template<class T, class = void>
+struct pTraits_cmptType { typedef T type; };
+
+//- The underlying component data type for vector-space (or complex).
+//
+//  Enabled when pTraits<T>:zero has a defined type (ie, exists),
+//  such as for arithmetic primitives, vector-space etc. where the concept
+//  of a component type also makes sense.
+template<class T>
+struct pTraits_cmptType
 <
     T,
     std::void_t<decltype(pTraits<std::remove_cv_t<T>>::zero)>
 >
-:
-    std::true_type
-{};
+{
+    using type = typename pTraits<std::remove_cv_t<T>>::cmptType;
+};
+
+
+//- Test for pTraits zero : default is false
+template<class T, class = void>
+inline constexpr bool pTraits_has_zero = false;
+
+//- Test for pTraits zero
+template<class T>
+inline constexpr bool pTraits_has_zero
+<
+    T,
+    std::void_t<decltype(pTraits<std::remove_cv_t<T>>::zero)>
+> = true;
+
+
+//- Test for pTraits typeName : default is false
+template<class T, class = void>
+inline constexpr bool pTraits_has_typeName = false;
+
+//- Test for pTraits typeName
+template<class T>
+inline constexpr bool pTraits_has_typeName
+<
+    T,
+    std::void_t<decltype(pTraits<std::remove_cv_t<T>>::typeName)>
+> = true;
 
 
 /*---------------------------------------------------------------------------*\

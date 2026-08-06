@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -61,8 +62,9 @@ int main(int argc, char *argv[])
     static_assert(std::is_trivially_copyable_v<Foam::tensor>);
     static_assert(std::is_trivially_move_constructible_v<Foam::vector>);
 
-    static_assert(std::is_same_v<pTraits<complex>::cmptType, scalar>);
-    static_assert(pTraits_nComponents<complex>::value == 2);
+    static_assert(std::is_same_v<scalar, pTraits<complex>::cmptType>);
+    static_assert(pTraits_nComponents_v<complex> == 2);
+    static_assert(pTraits<complex>::nComponents == 2);
     static_assert(std::is_same_v<scalarProduct<complex, complex>::type, complex>);
 
     std::complex<scalar> c1(10, -3);

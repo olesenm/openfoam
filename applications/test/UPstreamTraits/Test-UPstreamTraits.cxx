@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2025-2026 OpenCFD Ltd.
+    Copyright (C) 2025-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -70,22 +71,6 @@ struct UPstream_alias_dataType<signed char> : std::true_type
     static constexpr auto datatype_id = UPstream::dataTypes::type_byte;
 };
 #endif
-
-
-//- Test for pTraits typeName member : default is false
-template<class T, class = void>
-struct check_has_typeName : std::false_type {};
-
-//- Test for pTraits zero
-template<class T>
-struct check_has_typeName
-<
-    T,
-    std::void_t<decltype(pTraits<std::remove_cv_t<T>>::typeName)>
->
-:
-    std::true_type
-{};
 
 } // End namespace Foam
 
@@ -184,7 +169,7 @@ void printTypeName()
     {
         Info<< "<double>";
     }
-    else if constexpr (check_has_typeName<T>::value)
+    else if constexpr (pTraits_has_typeName<T>)
     {
         Info<< pTraits<std::remove_cv_t<T>>::typeName;
     }

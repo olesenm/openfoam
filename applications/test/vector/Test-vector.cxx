@@ -139,7 +139,7 @@ void testTranscribe(Type& input)
      && std::is_floating_point_v<typename pTraits_cmptType<Type>::type>
     )
     {
-        constexpr auto nCmpts = pTraits_nComponents<Type>::value;
+        constexpr auto nCmpts = pTraits_nComponents_v<Type>;
         using cmpt = typename pTraits_cmptType<Type>::type;
 
         FixedList<cmpt, nCmpts+1> values;

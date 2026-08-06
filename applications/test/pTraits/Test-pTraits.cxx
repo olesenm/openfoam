@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
-    Copyright (C) 2023-2026 OpenCFD Ltd.
+    Copyright (C) 2023-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -47,22 +48,6 @@ using namespace Foam;
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 // Main program:
 
-//- Test if Type has typeName member
-template<class T, class = void>
-struct has_typeName : std::false_type {};
-
-//- Test if Type has typeName member
-template<class T>
-struct has_typeName
-<
-    T,
-    std::void_t<decltype(pTraits<std::remove_cv_t<T>>::typeName)>
->
-:
-    std::true_type
-{};
-
-
 template<class T>
 void printTypeName()
 {
@@ -75,7 +60,7 @@ void printTypeName()
     {
         Info<< "<double>";
     }
-    else if constexpr (has_typeName<T>::value)
+    else if constexpr (pTraits_has_typeName<T>)
     {
         Info<< pTraits<std::remove_cv_t<T>>::typeName;
     }
@@ -87,10 +72,10 @@ void printTypeName()
 
 
 template<class T, class = void>
-struct has_zero_one : std::false_type {};
+inline constexpr bool pTraits_has_zero_one = false;
 
 template<class T>
-struct has_zero_one
+inline constexpr bool pTraits_has_zero_one
 <
     T,
     std::void_t
@@ -98,13 +83,13 @@ struct has_zero_one
         decltype(pTraits<std::remove_cv_t<T>>::zero),
         decltype(pTraits<std::remove_cv_t<T>>::one)
     >
-> : std::true_type {};
+> = true;
 
 
 template<class T>
 void printMinMaxRange()
 {
-    if constexpr (has_zero_one<T>::value)
+    if constexpr (pTraits_has_zero_one<T>)
     {
         Info<< " zero=" << pTraits<std::remove_cv_t<T>>::zero
             << " one=" << pTraits<std::remove_cv_t<T>>::one;
@@ -122,8 +107,8 @@ void printTraits()
 
     Info<< " integral=" << std::is_integral_v<T>
         << " floating=" << std::is_floating_point_v<T>
-        << " rank=" << pTraits_rank<T>::value
-        << " nComponents=" << pTraits_nComponents<T>::value
+        << " rank=" << pTraits_rank_v<T>
+        << " nComponents=" << pTraits_nComponents_v<T>
         << " vector-space=" << Switch::name(is_vectorspace_v<T>)
         << " rotate=" << Switch::name(is_rotational_vectorspace_v<T>)
         << " is_label=" << Switch::name(is_contiguous_label<T>::value)
