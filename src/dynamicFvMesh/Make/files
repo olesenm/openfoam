@@ -4,13 +4,11 @@ staticFvMesh/staticFvMesh.C
 dynamicMotionSolverFvMesh/dynamicMotionSolverFvMesh.C
 dynamicMultiMotionSolverFvMesh/dynamicMultiMotionSolverFvMesh.C
 dynamicInkJetFvMesh/dynamicInkJetFvMesh.C
-dynamicRefineFvMesh/dynamicRefineFvMesh.C
+dynamicRefineFvMesh/dynamicRefineFvMesh.cxx
 dynamicMotionSolverListFvMesh/dynamicMotionSolverListFvMesh.C
 
 simplifiedDynamicFvMesh/simplifiedDynamicFvMeshes.C
 simplifiedDynamicFvMesh/simplifiedDynamicFvMesh.C
-
-
 
 dynamicMotionSolverFvMeshAMI/dynamicMotionSolverFvMeshAMI.C
 

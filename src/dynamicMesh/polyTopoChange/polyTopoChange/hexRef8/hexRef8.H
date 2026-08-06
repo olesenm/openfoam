@@ -36,8 +36,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef hexRef8_H
-#define hexRef8_H
+#ifndef Foam_hexRef8_H
+#define Foam_hexRef8_H
 
 #include "labelIOList.H"
 #include "HashSet.H"
@@ -177,12 +177,16 @@ class hexRef8
 
         //- Get index of minimum pointlevel.
         label findMinLevel(const labelList& f) const;
-        //- Get maximum pointlevel.
+
+        //- Get index of maximum pointlevel.
         label findMaxLevel(const labelList& f) const;
+
         //- Count number of vertices <= anchorLevel
         label countAnchors(const labelList&, const label) const;
+
         //- Debugging: dump cell as .obj file
         void dumpCell(const label celli) const;
+
         //- Find index of point with wantedLevel, starting from fp.
         label findLevel
         (
@@ -319,7 +323,7 @@ class hexRef8
         void checkWantedRefinementLevels
         (
             const labelUList& cellLevel,
-            const labelList&
+            const bitSet& cellsToRefine
         ) const;
 
 
@@ -351,6 +355,9 @@ class hexRef8
                 DynamicList<face>& quads
             ) const;
 
+public:
+
+    // Generated Methods
 
         //- No copy construct
         hexRef8(const hexRef8&) = delete;
@@ -358,8 +365,6 @@ class hexRef8
         //- No copy assignment
         void operator=(const hexRef8&) = delete;
 
-
-public:
 
     //- Runtime type information
     ClassName("hexRef8");
@@ -372,83 +377,139 @@ public:
         //  of refinement history. If false clears all history
         explicit hexRef8(const polyMesh& mesh, const bool readHistory=true);
 
-        //- Construct from mesh and un/refinement data and optional size of
-        //  starting cells
+        //- Construct from mesh, refinement data and refinement history
         hexRef8
         (
             const polyMesh& mesh,
-            const labelList& cellLevel,
-            const labelList& pointLevel,
+            const labelUList& cellLevel,
+            const labelUList& pointLevel,
             const refinementHistory& history,
             const scalar level0Edge = -GREAT
         );
 
-        //- Construct from mesh and refinement data and optional size of
-        //  starting cells
+        //- Construct from mesh and refinement data
         hexRef8
         (
             const polyMesh& mesh,
-            const labelList& cellLevel,
-            const labelList& pointLevel,
+            const labelUList& cellLevel,
+            const labelUList& pointLevel,
             const scalar level0Edge = -GREAT
         );
 
 
     // Member Functions
 
-        // Access
+    // Access
 
-            const polyMesh& mesh() const
-            {
-                return mesh_;
-            }
+        const polyMesh& mesh() const noexcept { return mesh_; }
 
-            const labelIOList& cellLevel() const
-            {
-                return cellLevel_;
-            }
+        const labelIOList& cellLevel() const noexcept { return cellLevel_; }
 
-            const labelIOList& pointLevel() const
-            {
-                return pointLevel_;
-            }
+        const labelIOList& pointLevel() const noexcept { return pointLevel_; }
 
-            const refinementHistory& history() const
-            {
-                return history_;
-            }
+        const refinementHistory& history() const noexcept { return history_; }
 
-            //- Typical edge length between unrefined points
-            scalar level0EdgeLength() const
-            {
-                return level0Edge_.value();
-            }
+        //- Typical edge length between unrefined points
+        scalar level0EdgeLength() const noexcept { return level0Edge_.value(); }
+
 
         // Refinement
 
             //- Gets level such that the face has four points <= level.
             label faceLevel(const label facei) const;
 
-            //- Given valid mesh and current cell level and proposed
-            //  cells to refine calculate any clashes (due to 2:1) and return
-            //  ok list of cells to refine.
+            //- Given valid mesh, cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
             //  Either adds cells to refine to set (maxSet = true) or
             //  removes cells to refine (maxSet = false)
-            labelList consistentRefinement
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement_impl
             (
                 const labelUList& cellLevel,
-                const labelList& cellsToRefine,
+                //! [in,out] the cells to refine (modified by the algorithm)
+                bitSet& refineCell,
                 const bool maxSet
             ) const;
 
-            //- Given valid mesh and current cell level and proposed
-            //  cells to refine calculate any clashes (due to 2:1) and return
-            //  ok list of cells to refine.
+            //- Given valid mesh, cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
             //  Either adds cells to refine to set (maxSet = true) or
             //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
             labelList consistentRefinement
             (
-                const labelList& cellsToRefine,
+                const labelUList& cellLevel,
+                const bitSet& cellsToRefine,
+                const bool maxSet
+            ) const;
+
+            //- For current cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
+            //  Either adds cells to refine to set (maxSet = true) or
+            //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement
+            (
+                const bitSet& cellsToRefine,
+                const bool maxSet
+            ) const
+            {
+                return consistentRefinement(cellLevel_, cellsToRefine, maxSet);
+            }
+
+            //- Given valid mesh, cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
+            //  Either adds cells to refine to set (maxSet = true) or
+            //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement
+            (
+                const labelUList& cellLevel,
+                const labelUList& cellsToRefine,
+                const bool maxSet
+            ) const;
+
+            //- For current cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
+            //  Either adds cells to refine to set (maxSet = true) or
+            //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement
+            (
+                const labelUList& cellsToRefine,
+                const bool maxSet
+            ) const
+            {
+                return consistentRefinement(cellLevel_, cellsToRefine, maxSet);
+            }
+
+            //- Given valid mesh, cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
+            //  Either adds cells to refine to set (maxSet = true) or
+            //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement
+            (
+                const labelUList& cellLevel,
+                const labelHashSet& cellsToRefine,
+                const bool maxSet
+            ) const;
+
+            //- For current cell level and proposed cells to refine,
+            //- calculate any clashes (due to 2:1).
+            //
+            //  Either adds cells to refine to set (maxSet = true) or
+            //  removes cells to refine (maxSet = false)
+            //  \return list of OK cells to refine.
+            labelList consistentRefinement
+            (
+                const labelHashSet& cellsToRefine,
                 const bool maxSet
             ) const
             {

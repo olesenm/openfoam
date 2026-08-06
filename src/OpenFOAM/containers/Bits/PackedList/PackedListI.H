@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,64 +32,102 @@ License
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
 template<unsigned Width>
-inline unsigned int Foam::PackedList<Width>::repeated_value(unsigned val)
-{
-    return BitOps::repeat_value<block_type,Width>(val);
-}
-
-
-template<unsigned Width>
 inline unsigned int Foam::PackedList<Width>::readValue(Istream& is)
 {
-    const unsigned int val = readLabel(is);
-
-    if (val > max_value)
+    if constexpr (Width <= 1)
     {
-        FatalIOErrorInFunction(is)
-            << "Out-of-range value " << val << " for PackedList<" << Width
-            << ">. Maximum permitted value is " << max_value << "."
-            << exit(FatalIOError);
+        return readBool(is);
     }
+    else
+    {
+        const unsigned int val = readLabel(is);
 
-    return val;
+        if (val > max_value)
+        {
+            FatalIOErrorInFunction(is)
+                << "Out-of-range value " << val << " for PackedList<" << Width
+                << ">. Maximum permitted value is " << max_value << "."
+                << exit(FatalIOError);
+        }
+
+        return val;
+    }
 }
 
 
 template<unsigned Width>
 inline void Foam::PackedList<Width>::setPair(Istream& is)
 {
-    is.readBegin("Tuple2<label,uint32>");
-
-    const label ind = readLabel(is);
-    const unsigned int val = readLabel(is);
-
-    is.readEnd("Tuple2<label,uint32>");
-
-    if (val > max_value)
+    if constexpr (Width <= 1)
     {
-        FatalIOErrorInFunction(is)
-            << "Out-of-range value " << val << " for PackedList<" << Width
-            << "> at index " << ind
-            << ". Maximum permitted value is " << max_value << "."
-            << exit(FatalIOError);
+        const label ind = readLabel(is);
+        set(ind, true);
     }
+    else
+    {
+        is.readBegin("Tuple2<label,uint32>");
 
-    set(ind, val);
+        const label ind = readLabel(is);
+        const unsigned int val = readLabel(is);
 
-    is.check(FUNCTION_NAME);
+        is.readEnd("Tuple2<label,uint32>");
+
+        if (val > max_value)
+        {
+            FatalIOErrorInFunction(is)
+                << "Out-of-range value " << val << " for PackedList<" << Width
+                << "> at index " << ind
+                << ". Maximum permitted value is " << max_value << "."
+                << exit(FatalIOError);
+        }
+
+        set(ind, val);
+
+        is.check(FUNCTION_NAME);
+    }
 }
 
 
 template<unsigned Width>
-inline void Foam::PackedList<Width>::clear_trailing_bits()
+inline bool Foam::PackedList<Width>::setValue_unsafe
+(
+    const label pos,
+    const unsigned int val
+) noexcept
+{
+    // Reference to the block content
+    auto& ref_ = blocks_.data()[pos / elem_per_block];
+
+    // The bit shift to access the given sub-portion
+    const unsigned shift = (Width * (pos % elem_per_block));
+
+    const unsigned int mask = (max_value << shift);
+    const unsigned int prev = ref_;
+
+    if (val >= max_value)
+    {
+        ref_ |= mask;  // Overflow is max_value, so fill entirely
+    }
+    else
+    {
+        ref_ &= ~mask;
+        ref_ |= mask & (val << shift);
+    }
+
+    return (prev != ref_);
+}
+
+
+template<unsigned Width>
+inline void Foam::PackedList<Width>::clear_trailing_bits() noexcept
 {
     // Mask off any partial rubbish in final block
-    const unsigned int blk = size() / elem_per_block;
-    const unsigned int off = size() % elem_per_block;
 
-    if (off)
+    if (const unsigned int off = size() % elem_per_block; off)
     {
-        blocks_[blk] &= mask_lower(off);
+        const unsigned int blk = size() / elem_per_block;
+
+        blocks_.data()[blk] &= mask_lower(off);
     }
 }
 
@@ -112,11 +151,9 @@ inline bool Foam::PackedList<Width>::trim(label minpos)
         // Truncate to the block begin
         size_ = blocki * elem_per_block;
 
-        unsigned int blockval = blocks_[blocki];
-
-        // Some bits were found in the block, increment size again
-        if (blockval)
+        if (unsigned int blockval = blocks_[blocki]; blockval)
         {
+            // Some bits were found in the block, increment size again
             for (; blockval; ++size_)
             {
                 blockval >>= Width;
@@ -139,24 +176,19 @@ inline bool Foam::PackedList<Width>::trim(label minpos)
 
 
 template<unsigned Width>
-inline void Foam::PackedList<Width>::copyAssign(const PackedList<Width>& rhs)
-{
-    // Self-assignment silently ignored
-    blocks_ = rhs.blocks_;
-    size_ = rhs.size_;
-}
-
-
-template<unsigned Width>
-inline Foam::label Foam::PackedList<Width>::first_block() const
+inline Foam::label Foam::PackedList<Width>::first_block() const noexcept
 {
     if (size())
     {
-        const label nblocks = num_blocks(size());
+        // Note: use cdata()[..] instead of blocks_[] to ensure noexcept
+        // even when UList is compiled in full debug
 
-        for (label blocki=0; blocki < nblocks; ++blocki)
+        const label nblocks = num_blocks(size());
+        const auto* block_ptr = blocks_.cdata();
+
+        for (label blocki = 0; blocki < nblocks; ++blocki)
         {
-            if (blocks_[blocki])
+            if (block_ptr[blocki])  // ie, blocks_[blocki] but noexcept
             {
                 return blocki;
             }
@@ -168,7 +200,7 @@ inline Foam::label Foam::PackedList<Width>::first_block() const
 
 
 template<unsigned Width>
-inline Foam::label Foam::PackedList<Width>::first_not_block() const
+inline Foam::label Foam::PackedList<Width>::first_not_block() const noexcept
 {
     if (!size())
     {
@@ -179,63 +211,38 @@ inline Foam::label Foam::PackedList<Width>::first_not_block() const
     // If any 1's now appear, there was a 0 bit before
 
     const label nblocks = num_blocks(size());
+    const auto* block_ptr = blocks_.cdata();
 
     // Extra bits in the final block?
-    const unsigned int off = size() % elem_per_block;
-
-    if (!off)
+    if (const unsigned int off = size() % elem_per_block; off)
     {
-        for (label blocki=0; blocki < nblocks; ++blocki)
+        for (label blocki = 0; blocki < nblocks-1; ++blocki)
         {
-            if (~(blocks_[blocki]))
-            {
-                return blocki;
-            }
-        }
-    }
-    else
-    {
-        for (label blocki=0; blocki < nblocks-1; ++blocki)
-        {
-            if (~(blocks_[blocki]))
+            if (~(block_ptr[blocki]))
             {
                 return blocki;
             }
         }
 
         // The final block needs masking
-        if (~(blocks_[nblocks-1]) & mask_lower(off))
+        if (~(block_ptr[nblocks-1]) & mask_lower(off))
         {
             return nblocks-1;
+        }
+    }
+    else
+    {
+        for (label blocki = 0; blocki < nblocks; ++blocki)
+        {
+            if (~(block_ptr[blocki]))
+            {
+                return blocki;
+            }
         }
     }
 
     return -1;
 }
-
-
-// * * * * * * * * * * * * * * * Specializations * * * * * * * * * * * * * * //
-
-namespace Foam
-{
-
-// constexpr noexcept
-template<> inline unsigned int PackedList<1>::repeated_value(unsigned val)
-{
-    return (val ? ~0u : 0u);
-}
-
-template<> inline unsigned int PackedList<1>::readValue(Istream& is)
-{
-    return readBool(is);
-}
-
-template<> inline void PackedList<1>::setPair(Istream& is)
-{
-    set(readLabel(is), true);
-}
-
-} // End namespace Foam
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -357,26 +364,29 @@ template<unsigned Width>
 inline Foam::PackedList<Width>::reference::reference
 (
     PackedList<Width>* parent,
-    const label index
-)
+    const label pos
+) noexcept
 :
-    ref_(parent->blocks_[index / elem_per_block]),
-    shift_(Width * (index % elem_per_block))
+    ref_(parent->blocks_.data()[pos / elem_per_block]),
+    shift_(Width * (pos % elem_per_block))
 {}
 
 
 template<unsigned Width>
-inline unsigned int Foam::PackedList<Width>::reference::get() const
+inline unsigned int Foam::PackedList<Width>::reference::get() const noexcept
 {
     return ((ref_ >> shift_) & max_value);
 }
 
 
 template<unsigned Width>
-inline bool Foam::PackedList<Width>::reference::set(const unsigned int val)
+inline void Foam::PackedList<Width>::reference::set
+(
+    const unsigned int val
+) noexcept
 {
     const unsigned int mask = (max_value << shift_);
-    const unsigned int prev = ref_;
+    // const unsigned int prev = ref_;
 
     if (val >= max_value)
     {
@@ -388,7 +398,7 @@ inline bool Foam::PackedList<Width>::reference::set(const unsigned int val)
         ref_ |= mask & (val << shift_);
     }
 
-    return (prev != ref_);
+    // return (prev != ref_);
 }
 
 
@@ -396,9 +406,9 @@ template<unsigned Width>
 inline void Foam::PackedList<Width>::reference::operator=
 (
     const reference& other
-)
+) noexcept
 {
-    // Accepts self-assignment
+    // Also safe for self-assignment
     this->set(other.get());
 }
 
@@ -407,16 +417,9 @@ template<unsigned Width>
 inline void Foam::PackedList<Width>::reference::operator=
 (
     const unsigned int val
-)
+) noexcept
 {
     this->set(val);
-}
-
-
-template<unsigned Width>
-inline Foam::PackedList<Width>::reference::operator unsigned int () const
-{
-    return this->get();
 }
 
 
@@ -486,16 +489,13 @@ inline void Foam::PackedList<Width>::resize
             }
 
             // Finish previous partial block, preserve existing value
+            if (const unsigned int off = oldSize % elem_per_block; off)
             {
                 const unsigned int blk = oldSize / elem_per_block;
-                const unsigned int off = oldSize % elem_per_block;
-                if (off)
-                {
-                    const unsigned int mask = mask_lower(off);
+                const unsigned int mask = mask_lower(off);
 
-                    blocks_[blk] &= mask;
-                    blocks_[blk] |= ~mask & blockval;
-                }
+                blocks_[blk] &= mask;
+                blocks_[blk] |= ~mask & blockval;
             }
 
             clear_trailing_bits();
@@ -581,6 +581,20 @@ inline void Foam::PackedList<Width>::reset()
 
 
 template<unsigned Width>
+inline void Foam::PackedList<Width>::reset(const label newSize)
+{
+    // Clear all storage bits
+    blocks_ = 0u;
+
+    if (newSize >= 0)
+    {
+        reserve(newSize);  // Any extended storage filled with 0u
+        size_ = newSize;   // ... can simply adjust addressed size
+    }
+}
+
+
+template<unsigned Width>
 inline void Foam::PackedList<Width>::clear()
 {
     reset();
@@ -644,13 +658,6 @@ inline std::streamsize Foam::PackedList<Width>::size_bytes() const noexcept
 
 
 template<unsigned Width>
-inline std::streamsize Foam::PackedList<Width>::byteSize() const noexcept
-{
-    return this->size_bytes();
-}
-
-
-template<unsigned Width>
 inline void Foam::PackedList<Width>::swap(PackedList<Width>& rhs)
 {
     if (this == &rhs)
@@ -678,14 +685,33 @@ inline void Foam::PackedList<Width>::transfer(PackedList<Width>& rhs)
 
 
 template<unsigned Width>
-inline unsigned int Foam::PackedList<Width>::get(const label i) const
+inline unsigned int Foam::PackedList<Width>::get(const label i) const noexcept
 {
     if (i < 0 || i >= size())
     {
         return 0u;          // Out-of-bounds: return 0 (false)
     }
+    else
+    {
+        // The corresponding block/offset
+        const label blocki = i / elem_per_block;
+        const unsigned int off = i % elem_per_block;
 
-    return reference(const_cast<PackedList<Width>*>(this), i).get();
+        if constexpr (Width <= 1)
+        {
+            return
+            (
+                ((blocks_.cdata()[blocki]) >> (off)) & max_value
+            );
+        }
+        else
+        {
+            return
+            (
+                ((blocks_.cdata()[blocki]) >> (Width * off)) & max_value
+            );
+        }
+    }
 }
 
 
@@ -699,25 +725,31 @@ inline bool Foam::PackedList<Width>::set
     if (i < 0)
     {
         #ifdef FULLDEBUG
-        WarningInFunction
-            << "Ignoring attempt to set a negative index " << i
-            << " range is [0," << size_ << ")"
-            << endl;
+        if (val)
+        {
+            WarningInFunction
+                << "Ignoring attempt to set a negative index " << i
+                << " range is [0," << size_ << ")"
+                << endl;
+        }
         #endif
 
         return false;       // Out-of-bounds: ignore
     }
     else if (i >= size())
     {
-        if (!val)           // Unset out-of-bounds: ignore
+        if (val)
         {
+            resize(i + 1);  // Lazy evaluation: adjust size for assign
+        }
+        else
+        {
+            // Ignore out-of-bounds for 'unset'
             return false;
         }
-
-        resize(i + 1);      // Lazy evaluation: adjust size for assign
     }
 
-    return reference(this, i).set(val);
+    return this->setValue_unsafe(i, val);
 }
 
 
@@ -726,10 +758,13 @@ inline bool Foam::PackedList<Width>::unset(const label i)
 {
     if (i < 0 || i >= size())
     {
-        return false;       // Unset out-of-bounds: ignore
+        // Ignore out-of-bounds for 'unset'
+        return false;
     }
-
-    return reference(this, i).set(0u);
+    else
+    {
+        return this->setValue_unsafe(i, 0u);
+    }
 }
 
 
@@ -740,7 +775,10 @@ inline void Foam::PackedList<Width>::push_back(const unsigned int val)
     reserve(idx + 1);
     ++size_;
 
-    reference(this, idx).set(val);
+    if (val)
+    {
+        (void) this->setValue_unsafe(idx, val);
+    }
 }
 
 
@@ -763,6 +801,7 @@ inline unsigned int Foam::PackedList<Width>::remove()
 {
     // Location of last element and simultaneously the new size
     const label idx = size()-1;
+    const unsigned int old = this->get(idx);
 
     if (idx < 0)
     {
@@ -770,15 +809,13 @@ inline unsigned int Foam::PackedList<Width>::remove()
             << "List is empty" << abort(FatalError);
     }
 
-    const unsigned int old = reference(this, idx).get();
     resize(idx);
-
     return old;
 }
 
 
 template<unsigned Width>
-inline void Foam::PackedList<Width>::fill(const unsigned int val)
+inline void Foam::PackedList<Width>::fill(const unsigned int val) noexcept
 {
     if (empty())
     {
@@ -792,7 +829,7 @@ inline void Foam::PackedList<Width>::fill(const unsigned int val)
 
     for (label blocki=0; blocki < nblocks; ++blocki)
     {
-        blocks_[blocki] = blockval;
+        blocks_.data()[blocki] = blockval;
     }
 
     if (val)
@@ -805,10 +842,11 @@ inline void Foam::PackedList<Width>::fill(const unsigned int val)
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
 template<unsigned Width>
-inline unsigned int Foam::PackedList<Width>::operator[](const label i) const
+inline unsigned int
+Foam::PackedList<Width>::operator[](const label i) const noexcept
 {
     // Silently ignores out-of-bounds
-    return get(i);
+    return this->get(i);
 }
 
 
@@ -826,7 +864,9 @@ Foam::PackedList<Width>::operator[](const label i)
 template<unsigned Width>
 inline void Foam::PackedList<Width>::operator=(const PackedList<Width>& rhs)
 {
-    copyAssign(rhs);
+    // Self-assignment silently ignored
+    blocks_ = rhs.blocks_;
+    size_ = rhs.size_;
 }
 
 
@@ -838,33 +878,29 @@ inline void Foam::PackedList<Width>::operator=(PackedList<Width>&& rhs)
 
 
 template<unsigned Width>
-inline void Foam::PackedList<Width>::operator=(const unsigned int val)
+inline void Foam::PackedList<Width>::operator=(const unsigned int val) noexcept
 {
     fill(val);
 }
 
 
-// * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //
-
 template<unsigned Width>
-inline bool Foam::operator==
+inline bool Foam::PackedList<Width>::operator==
 (
-    const PackedList<Width>& a,
-    const PackedList<Width>& b
-)
+    const PackedList<Width>& list
+) const noexcept
 {
-    return a.equal(b);
+    return this->equal(list);
 }
 
 
 template<unsigned Width>
-inline bool Foam::operator!=
+inline bool Foam::PackedList<Width>::operator!=
 (
-    const PackedList<Width>& a,
-    const PackedList<Width>& b
-)
+    const PackedList<Width>& list
+) const noexcept
 {
-    return !a.equal(b);
+    return !(this->equal(list));
 }
 
 

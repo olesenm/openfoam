@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -131,14 +132,14 @@ inline Foam::autoPtr<Foam::bitSet> Foam::bitSet::clone() const
 inline Foam::bitSet::reference::reference
 (
     bitSet* parent,
-    const label index
-)
+    const label pos
+) noexcept
 :
-    PackedList<1>::reference(parent, index)
+    PackedList<1>::reference(parent, pos)
 {}
 
 
-inline void Foam::bitSet::reference::flip()
+inline void Foam::bitSet::reference::flip() noexcept
 {
     const unsigned int mask = (max_value << shift_);
     ref_ ^= mask;
@@ -148,38 +149,35 @@ inline void Foam::bitSet::reference::flip()
 inline void Foam::bitSet::reference::operator=
 (
     const reference& other
-)
+) noexcept
 {
-    // Accepts self-assignment
-    set(other.get());
+    // Also safe for self-assignment
+    this->set(other.get());
 }
 
 
 inline void Foam::bitSet::reference::operator=
 (
     const unsigned int val
-)
+) noexcept
 {
-    set(val);
-}
-
-
-inline Foam::bitSet::reference::operator unsigned int () const
-{
-    return get();
+    this->set(val);
 }
 
 
 // * * * * * * * * * * * * * * * * Iterators * * * * * * * * * * * * * * * * //
 
-inline Foam::bitSet::const_iterator::const_iterator() noexcept
+inline constexpr Foam::bitSet::const_iterator::const_iterator() noexcept
 :
     set_(nullptr),
     pos_(-1)
 {}
 
 
-inline Foam::bitSet::const_iterator::const_iterator(const bitSet* parent)
+inline Foam::bitSet::const_iterator::const_iterator
+(
+    const bitSet* parent
+) noexcept
 :
     set_(parent),
     pos_(set_->find_first())
@@ -190,10 +188,10 @@ inline Foam::bitSet::const_iterator::const_iterator
 (
     const bitSet* parent,
     label pos
-)
+) noexcept
 :
     set_(parent),
-    pos_(set_->find_next(pos-1))
+    pos_(parent->find_next(pos-1))
 {}
 
 
@@ -203,7 +201,8 @@ inline Foam::label Foam::bitSet::const_iterator::operator*() const noexcept
 }
 
 
-inline Foam::bitSet::const_iterator& Foam::bitSet::const_iterator::operator++()
+inline Foam::bitSet::const_iterator&
+Foam::bitSet::const_iterator::operator++() noexcept
 {
     pos_ = set_->find_next(pos_);
     return *this;
@@ -228,47 +227,51 @@ inline bool Foam::bitSet::const_iterator::operator!=
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::begin() const
+inline Foam::bitSet::const_iterator
+Foam::bitSet::begin() const noexcept
 {
     return const_iterator(this);
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::cbegin() const
+inline Foam::bitSet::const_iterator
+Foam::bitSet::cbegin() const noexcept
 {
     return const_iterator(this);
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::begin(label pos) const
+inline Foam::bitSet::const_iterator
+Foam::bitSet::begin(label pos) const noexcept
 {
     return const_iterator(this, pos);
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::cbegin(label pos) const
+inline Foam::bitSet::const_iterator
+Foam::bitSet::cbegin(label pos) const noexcept
 {
     return const_iterator(this, pos);
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::end() const noexcept
+inline Foam::bitSet::const_iterator
+Foam::bitSet::end() const noexcept
 {
     return const_iterator();
 }
 
 
-inline Foam::bitSet::const_iterator Foam::bitSet::cend() const noexcept
+inline Foam::bitSet::const_iterator
+Foam::bitSet::cend() const noexcept
 {
     return const_iterator();
 }
 
 
-inline Foam::label Foam::bitSet::find_first() const
+inline Foam::label Foam::bitSet::find_first() const noexcept
 {
-    const label blocki = first_block();
-
-    if (blocki >= 0)
+    if (const label blocki = first_block(); blocki >= 0)
     {
         label pos = (blocki * elem_per_block);
 
@@ -276,7 +279,7 @@ inline Foam::label Foam::bitSet::find_first() const
 
         for
         (
-            unsigned int blockval = blocks_[blocki];
+            unsigned int blockval = blocks_.cdata()[blocki];
             blockval;
             blockval >>= 1u
         )
@@ -293,11 +296,9 @@ inline Foam::label Foam::bitSet::find_first() const
 }
 
 
-inline Foam::label Foam::bitSet::find_first_not() const
+inline Foam::label Foam::bitSet::find_first_not() const noexcept
 {
-    const label blocki = first_not_block();
-
-    if (blocki >= 0)
+    if (const label blocki = first_not_block(); blocki >= 0)
     {
         label pos = (blocki * elem_per_block);
 
@@ -308,7 +309,7 @@ inline Foam::label Foam::bitSet::find_first_not() const
 
         for
         (
-            unsigned int blockval = ~(blocks_[blocki]);
+            unsigned int blockval = ~(blocks_.cdata()[blocki]);
             blockval;
             blockval >>= 1u
         )
@@ -325,15 +326,13 @@ inline Foam::label Foam::bitSet::find_first_not() const
 }
 
 
-inline Foam::label Foam::bitSet::find_last() const
+inline Foam::label Foam::bitSet::find_last() const noexcept
 {
     // Process block-wise, detecting any '1' bits
 
     for (label blocki = num_blocks(size())-1; blocki >= 0; --blocki)
     {
-        unsigned int blockval = blocks_[blocki];
-
-        if (blockval)
+        if (unsigned int blockval = blocks_.cdata()[blocki]; blockval)
         {
             label pos = (blocki * elem_per_block) - 1;
 
@@ -351,7 +350,7 @@ inline Foam::label Foam::bitSet::find_last() const
 }
 
 
-inline Foam::label Foam::bitSet::find_next(label pos) const
+inline Foam::label Foam::bitSet::find_next(label pos) const noexcept
 {
     ++pos;
     if (pos < 0 || pos >= size())
@@ -365,7 +364,7 @@ inline Foam::label Foam::bitSet::find_next(label pos) const
 
     for
     (
-        unsigned int blockval = (blocks_[blocki] >> off);
+        unsigned int blockval = (blocks_.cdata()[blocki] >> off);
         blockval;
         blockval >>= 1u
     )
@@ -386,7 +385,7 @@ inline Foam::label Foam::bitSet::find_next(label pos) const
 
         for
         (
-            unsigned int blockval = blocks_[blocki];
+            unsigned int blockval = blocks_.cdata()[blocki];
             blockval;
             blockval >>= 1u
         )
@@ -405,26 +404,26 @@ inline Foam::label Foam::bitSet::find_next(label pos) const
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-inline bool Foam::bitSet::all() const
+inline bool Foam::bitSet::all() const noexcept
 {
     if (empty()) return true;  // SIC. boost convention
     return (-1 == first_not_block());
 }
 
 
-inline bool Foam::bitSet::any() const
+inline bool Foam::bitSet::any() const noexcept
 {
     return (-1 != first_block());
 }
 
 
-inline bool Foam::bitSet::none() const
+inline bool Foam::bitSet::none() const noexcept
 {
     return (-1 == first_block());
 }
 
 
-inline unsigned int Foam::bitSet::count(const bool on) const
+inline unsigned int Foam::bitSet::count(const bool on) const noexcept
 {
     unsigned int total = 0;
 
@@ -432,7 +431,7 @@ inline unsigned int Foam::bitSet::count(const bool on) const
 
     for (label blocki = 0; blocki < nblocks; ++blocki)
     {
-        total += BitOps::bit_count(blocks_[blocki]);
+        total += BitOps::bit_count(blocks_.cdata()[blocki]);
     }
 
     if (!on)
@@ -453,9 +452,7 @@ inline Foam::labelList Foam::bitSet::sortedToc() const
 
 inline void Foam::bitSet::resize_last()
 {
-    const label pos = find_last();
-
-    if (pos >= 0)
+    if (const label pos = find_last(); pos >= 0)
     {
         resize(pos+1);
     }
@@ -500,7 +497,7 @@ inline void Foam::bitSet::fill(const bool val)
 
 inline bool Foam::bitSet::test_set(const label i, const bool val)
 {
-    bool old = test(i);
+    bool old = this->test(i);
     PackedList<1>::set(i, val);
     return old;
 }
@@ -555,10 +552,11 @@ inline void Foam::bitSet::flip()
     if (size())
     {
         const label nblocks = num_blocks(size());
+        const auto* end_block = (blocks_.cdata() + nblocks);
 
-        for (label blocki=0; blocki < nblocks; ++blocki)
+        for (auto* blk = blocks_.data(); blk != end_block; ++blk)
         {
-            blocks_[blocki] = ~(blocks_[blocki]);
+            *blk = ~(*blk);
         }
         clear_trailing_bits();
     }
@@ -576,15 +574,15 @@ inline void Foam::bitSet::flip(const label i)
 
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
-inline bool Foam::bitSet::operator()(const label pos) const
+inline bool Foam::bitSet::operator()(const label pos) const noexcept
 {
-    return test(pos);
+    return this->test(pos);
 }
 
 
-inline unsigned int Foam::bitSet::operator[](const label i) const
+inline unsigned int Foam::bitSet::operator[](const label i) const noexcept
 {
-    return get(i);
+    return this->get(i);
 }
 
 

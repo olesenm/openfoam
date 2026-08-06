@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,7 +39,7 @@ Foam::GlobalIOList<Type>::GlobalIOList(const IOobject& io)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<GlobalIOList<Type>>();
 
-    readHeaderOk(IOstreamOption::BINARY, typeName);
+    (void) readHeaderOk(IOstreamOption::BINARY, typeName);
 }
 
 
@@ -50,7 +51,7 @@ Foam::GlobalIOList<Type>::GlobalIOList(const IOobject& io, Foam::zero)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<GlobalIOList<Type>>();
 
-    readHeaderOk(IOstreamOption::BINARY, typeName);
+    (void) readHeaderOk(IOstreamOption::BINARY, typeName);
 }
 
 
@@ -65,6 +66,46 @@ Foam::GlobalIOList<Type>::GlobalIOList(const IOobject& io, const label len)
     if (!readHeaderOk(IOstreamOption::BINARY, typeName))
     {
         List<Type>::resize(len);
+    }
+}
+
+
+template<class Type>
+Foam::GlobalIOList<Type>::GlobalIOList
+(
+    const IOobject& io,
+    const label len,
+    const Type& val
+)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<GlobalIOList<Type>>();
+
+    if (!readHeaderOk(IOstreamOption::BINARY, typeName))
+    {
+        List<Type>::resize(len, val);
+    }
+}
+
+
+template<class Type>
+Foam::GlobalIOList<Type>::GlobalIOList
+(
+    const IOobject& io,
+    const label len,
+    Foam::zero
+)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<GlobalIOList<Type>>();
+
+    if (!readHeaderOk(IOstreamOption::BINARY, typeName))
+    {
+        List<Type>::resize(len, Foam::zero{});
     }
 }
 
@@ -102,7 +143,7 @@ Foam::GlobalIOList<Type>::GlobalIOList
 
     List<Type>::transfer(content);
 
-    readHeaderOk(IOstreamOption::BINARY, typeName);
+    (void) readHeaderOk(IOstreamOption::BINARY, typeName);
 }
 
 

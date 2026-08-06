@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -92,7 +93,7 @@ Foam::IOField<Type>::IOField(const IOobject& io)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOField<Type>>();
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 
@@ -104,7 +105,7 @@ Foam::IOField<Type>::IOField(const IOobject& io, const bool readOnProc)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOField<Type>>();
 
-    readIOcontents(readOnProc);
+    (void) readIOcontents(readOnProc);
 }
 
 
@@ -116,7 +117,7 @@ Foam::IOField<Type>::IOField(const IOobject& io, Foam::zero)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOField<Type>>();
 
-    readIOcontents();
+    (void) readIOcontents();
 }
 
 
@@ -131,6 +132,41 @@ Foam::IOField<Type>::IOField(const IOobject& io, const label len)
     if (!readIOcontents())
     {
         Field<Type>::resize(len);
+    }
+}
+
+
+template<class Type>
+Foam::IOField<Type>::IOField
+(
+    const IOobject& io,
+    const label len,
+    const Type& val
+)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<IOField<Type>>();
+
+    if (!readIOcontents())
+    {
+        Field<Type>::resize(len, val);
+    }
+}
+
+
+template<class Type>
+Foam::IOField<Type>::IOField(const IOobject& io, const label len, Foam::zero)
+:
+    regIOobject(io)
+{
+    // Check for MUST_READ_IF_MODIFIED
+    warnNoRereading<IOField<Type>>();
+
+    if (!readIOcontents())
+    {
+        Field<Type>::resize(len, Foam::zero{});
     }
 }
 
@@ -158,6 +194,7 @@ Foam::IOField<Type>::IOField(const IOobject& io, Field<Type>&& content)
     // Check for MUST_READ_IF_MODIFIED
     warnNoRereading<IOField<Type>>();
 
+    // Transfer first to reclaim memory before continuing
     Field<Type>::transfer(content);
 
     readIOcontents();

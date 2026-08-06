@@ -31,7 +31,7 @@ Description
     IOField with global data (so optionally read from master)
 
 SourceFiles
-    GlobalIOField.C
+    GlobalIOField.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -72,8 +72,14 @@ public:
         //- Construct from IOobject. Will be zero size if not read.
         explicit GlobalIOField(const IOobject& io);
 
-        //- Construct from IOobject and field size (if not read)
+        //- Construct from IOobject. If not read, use given size.
         GlobalIOField(const IOobject& io, const label len);
+
+        //- Construct from IOobject. If not read, use given size/value.
+        GlobalIOField(const IOobject& io, const label len, const Type& val);
+
+        //- Construct from IOobject. If not read, use given size/zero-value.
+        GlobalIOField(const IOobject& io, const label len, Foam::zero);
 
         //- Construct from IOobject and copy of List/Field content
         GlobalIOField(const IOobject& io, const UList<Type>& content);
@@ -143,7 +149,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-#   include "GlobalIOField.C"
+#   include "GlobalIOField.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

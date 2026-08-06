@@ -1726,8 +1726,9 @@ Foam::label Foam::hexRef8::faceConsistentUnrefinement
     forAll(neiLevel, i)
     {
         label own = mesh_.faceOwner()[i+mesh_.nInternalFaces()];
+        label ownLevel = cellLevel_[own] - unrefineCell.get(own);
 
-        neiLevel[i] = cellLevel_[own] - unrefineCell.get(own);
+        neiLevel[i] = ownLevel;
     }
 
     // Swap to neighbour
@@ -1776,10 +1777,11 @@ Foam::label Foam::hexRef8::faceConsistentUnrefinement
 void Foam::hexRef8::checkWantedRefinementLevels
 (
     const labelUList& cellLevel,
-    const labelList& cellsToRefine
+    const bitSet& cellsToRefine
 ) const
 {
-    bitSet refineCell(mesh_.nCells(), cellsToRefine);
+    // Readonly
+    const auto& refineCell = cellsToRefine;
 
     for (label facei = 0; facei < mesh_.nInternalFaces(); facei++)
     {
@@ -2143,8 +2145,8 @@ Foam::hexRef8::hexRef8(const polyMesh& mesh, const bool readHistory)
 Foam::hexRef8::hexRef8
 (
     const polyMesh& mesh,
-    const labelList& cellLevel,
-    const labelList& pointLevel,
+    const labelUList& cellLevel,
+    const labelUList& pointLevel,
     const refinementHistory& history,
     const scalar level0Edge
 )
@@ -2252,8 +2254,8 @@ Foam::hexRef8::hexRef8
 Foam::hexRef8::hexRef8
 (
     const polyMesh& mesh,
-    const labelList& cellLevel,
-    const labelList& pointLevel,
+    const labelUList& cellLevel,
+    const labelUList& pointLevel,
     const scalar level0Edge
 )
 :
@@ -2351,10 +2353,10 @@ Foam::hexRef8::hexRef8
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::labelList Foam::hexRef8::consistentRefinement
+Foam::labelList Foam::hexRef8::consistentRefinement_impl
 (
     const labelUList& cellLevel,
-    const labelList& cellsToRefine,
+    bitSet& refineCell,
     const bool maxSet
 ) const
 {
@@ -2363,7 +2365,7 @@ Foam::labelList Foam::hexRef8::consistentRefinement
     // maxSet = false : unselect cells to refine
     // maxSet = true  : select cells to refine
 
-    bitSet refineCell(mesh_.nCells(), cellsToRefine);
+    refineCell.resize(mesh_.nCells());
 
     while (true)
     {
@@ -2379,8 +2381,7 @@ Foam::labelList Foam::hexRef8::consistentRefinement
         if (debug)
         {
             Pout<< "hexRef8::consistentRefinement : Changed " << nChanged
-                << " refinement levels due to 2:1 conflicts."
-                << endl;
+                << " refinement levels due to 2:1 conflicts." << endl;
         }
 
         if (nChanged == 0)
@@ -2389,15 +2390,53 @@ Foam::labelList Foam::hexRef8::consistentRefinement
         }
     }
 
-    // Convert back to labelList.
-    labelList newCellsToRefine(refineCell.toc());
-
     if (debug)
     {
-        checkWantedRefinementLevels(cellLevel, newCellsToRefine);
+        checkWantedRefinementLevels(cellLevel, refineCell);
     }
 
-    return newCellsToRefine;
+    // Return as labelList
+    return refineCell.sortedToc();
+}
+
+
+Foam::labelList Foam::hexRef8::consistentRefinement
+(
+    const labelUList& cellLevel,
+    const bitSet& cellsToRefine,
+    const bool maxSet
+) const
+{
+    bitSet refineCell(mesh_.nCells(), cellsToRefine);
+    return consistentRefinement_impl(cellLevel, refineCell, maxSet);
+}
+
+
+Foam::labelList Foam::hexRef8::consistentRefinement
+(
+    const labelUList& cellLevel,
+    const labelUList& cellsToRefine,
+    const bool maxSet
+) const
+{
+    bitSet refineCell(mesh_.nCells(), cellsToRefine);
+    return consistentRefinement_impl(cellLevel, refineCell, maxSet);
+}
+
+
+Foam::labelList Foam::hexRef8::consistentRefinement
+(
+    const labelUList& cellLevel,
+    const labelHashSet& cellsToRefine,
+    const bool maxSet
+) const
+{
+    bitSet refineCell(mesh_.nCells());
+    for (label celli : cellsToRefine)
+    {
+        refineCell.set(celli);
+    }
+    return consistentRefinement_impl(cellLevel, refineCell, maxSet);
 }
 
 
@@ -2625,7 +2664,7 @@ Foam::labelList Foam::hexRef8::consistentSlowRefinement
         }
 
         // Set seed faces
-        levelCalc.setFaceInfo(seedFaces.shrink(), seedFacesInfo.shrink());
+        levelCalc.setFaceInfo(seedFaces, seedFacesInfo);
         seedFaces.clear();
         seedFacesInfo.clear();
 
@@ -3216,8 +3255,9 @@ Foam::labelList Foam::hexRef8::consistentSlowRefinement2
         }
     }
 
-    seedFaces.shrink();
-    seedFacesInfo.shrink();
+    // The shrink_to_fit() is probably not necessary
+    seedFaces.shrink_to_fit();
+    seedFacesInfo.shrink_to_fit();
 
     // face-cell-face transport engine
     FaceCellWave<refinementDistanceData, int> levelCalc

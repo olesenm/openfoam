@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,7 +33,7 @@ Description
     Is a global object; i.e. can be read from undecomposed case.
 
 SourceFiles
-    IOMap.C
+    IOMap.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -151,7 +152,7 @@ struct is_globalIOobject<IOMap<T>> : std::true_type {};
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "IOMap.C"
+    #include "IOMap.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

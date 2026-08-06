@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -185,7 +186,7 @@ public:
 
         //- Masking for all bits below the element offset.
         //  Ill-defined when elementOffset is out of range.
-        static constexpr block_type mask_lower(unsigned elementOffset)
+        static constexpr block_type mask_lower(unsigned elementOffset) noexcept
         {
             return (~0u >> (bits_per_block - Width * elementOffset));
         }
@@ -219,32 +220,49 @@ protected:
     // Protected Member Functions
 
         //- A fill value for complete blocks
-        inline static unsigned int repeated_value(unsigned val);
+        static constexpr unsigned int repeated_value(unsigned val) noexcept
+        {
+            if constexpr (Width <= 1)
+            {
+                return (val ? ~0u : 0u);
+            }
+            else
+            {
+                return BitOps::repeat_value<block_type,Width>(val);
+            }
+        }
 
-        //- Read a list entry (allows for specialization)
+        //- Read a list entry
         inline static unsigned int readValue(Istream& is);
 
         //- Read an index/value pair and set accordingly.
         //  For bool specialization, read a single index value
         inline void setPair(Istream& is);
 
+        //- Set value at specified index.
+        //- Absolutely no range checking, auto-vivify etc.
+        //- The caller knows what they are doing!!
+        //  \return true if value changed.
+        inline bool setValue_unsafe
+        (
+            const label pos,
+            const unsigned int val
+        ) noexcept;
+
         //- Write as a dictionary entry
         void writeEntry(Ostream& os) const;
 
         //- Clear any partial rubbish in the last addressable block
         //  This \a rubbish may have arisen from block-wise operations etc.
-        inline void clear_trailing_bits();
-
-        //- Copy assignment
-        inline void copyAssign(const PackedList<Width>& rhs);
+        inline void clear_trailing_bits() noexcept;
 
         //- Find the first block with a '1' bit
         //  \return block number or -1 for an list or if all bits are OFF.
-        inline label first_block() const;
+        inline label first_block() const noexcept;
 
         //- Find the first block with a '0' bit
         //  \return block number or -1 for an list or if all bits are ON.
-        inline label first_not_block() const;
+        inline label first_not_block() const noexcept;
 
 
 public:
@@ -318,10 +336,10 @@ public:
         inline label capacity() const noexcept;
 
         //- True if all entries have identical values (and list is non-empty)
-        bool uniform() const;
+        bool uniform() const noexcept;
 
         //- Test for equality of sizes and the bits set
-        bool equal(const PackedList<Width>& other) const;
+        bool equal(const PackedList<Width>& other) const noexcept;
 
 
     // Access
@@ -330,7 +348,7 @@ public:
         //- A no-op and returns \c 0 for out-of-range positions
         //- (safely/silently ignores negative positions).
         //  Never auto-vivify entries.
-        inline unsigned int get(const label i) const;
+        inline unsigned int get(const label i) const noexcept;
 
         //- Set value at specified index, default value set is the max_value.
         //  Does auto-vivify for non-existent, non-zero entries.
@@ -367,7 +385,7 @@ public:
     // Edit
 
         //- Assign all entries to the given value.
-        inline void fill(const unsigned int val);
+        inline void fill(const unsigned int val) noexcept;
 
         //- Trim any trailing zero elements, optionally specifying a
         //- a minimum position, below which trimming will not occur.
@@ -378,6 +396,9 @@ public:
         //- Clear all bits but do not adjust the addressable size.
         //  \note Method name compatibility with boost::dynamic_bitset
         inline void reset();
+
+        //- Clear all bits and adjust the addressable size.
+        inline void reset(const label numElem);
 
         //- Alter the size of the underlying storage.
         //  The addressed size will be truncated if needed to fit, but will
@@ -454,9 +475,6 @@ public:
         //- including any padding.
         inline std::streamsize size_bytes() const noexcept;
 
-        //- Same as size_bytes()
-        inline std::streamsize byteSize() const noexcept;
-
 
     // IO
 
@@ -487,7 +505,7 @@ public:
 
         //- Identical to get() - get value at index.
         //  Never auto-vivify entries.
-        inline unsigned int operator[](const label i) const;
+        inline unsigned int operator[](const label i) const noexcept;
 
         //- Non-const access to value at index.
         //  Fatal for out-of-range indices
@@ -499,8 +517,14 @@ public:
         //- Move assignment.
         inline void operator=(PackedList<Width>&& list);
 
-        //- Assign all entries to the given value. fill()
-        inline void operator=(const unsigned int val);
+        //- Assign all entries to the given value. Same as fill()
+        inline void operator=(const unsigned int val) noexcept;
+
+        //- Test for equality of sizes and the bits set
+        inline bool operator==(const PackedList<Width>& list) const noexcept;
+
+        //- Test for inequality of sizes or the bits set
+        inline bool operator!=(const PackedList<Width>& list) const noexcept;
 
 
     // Access helpers
@@ -520,14 +544,14 @@ public:
             unsigned shift_;
 
             //- Construct by taking reference of block from within
-            //- the list and the specified index.
-            inline reference(PackedList* parent, const label index);
+            //- the list and the specified position.
+            inline reference(PackedList* parent, const label pos) noexcept;
 
             //- Get value as unsigned, no range-checking
-            inline unsigned int get() const;
+            inline unsigned int get() const noexcept;
 
-            //- Set value, returning true if changed, no range-checking
-            inline bool set(unsigned int val);
+            //- Set value, no range-checking
+            inline void set(unsigned int val) noexcept;
 
         public:
 
@@ -538,13 +562,13 @@ public:
             reference(reference&&) noexcept = default;
 
             //- Value assignment
-            inline void operator=(const reference& other);
+            inline void operator=(const reference& other) noexcept;
 
             //- Value assignment
-            inline void operator=(const unsigned int val);
+            inline void operator=(const unsigned int val) noexcept;
 
             //- Conversion operator.
-            inline operator unsigned int () const;
+            operator unsigned int () const noexcept { return this->get(); }
         };
 
 
@@ -601,6 +625,9 @@ public:
         //- Alias for resize()
         void setSize(const label n, unsigned int val = 0u) { resize(n, val); }
 
+        //- Same as size_bytes()
+        auto byteSize() const noexcept { return this->size_bytes(); }
+
         //- Append a value at the end of the list
         //FOAM_DEPRECATED_FOR(2022-10, "push_back()")
         PackedList<Width>& append(const unsigned int val)
@@ -627,15 +654,6 @@ Ostream& operator<<(Ostream& os, const PackedList<Width>& list)
 {
     return list.writeList(os, Foam::ListPolicy::short_length<void>::value);
 }
-
-
-//- Test for equality of sizes and the bits set
-template<unsigned Width>
-inline bool operator==(const PackedList<Width>& a, const PackedList<Width>& b);
-
-//- Test for inequality of sizes or the bits set
-template<unsigned Width>
-inline bool operator!=(const PackedList<Width>& a, const PackedList<Width>& b);
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
