@@ -1911,7 +1911,10 @@ bool Foam::polyMeshGeometry::checkFaceFlatness
                 ).mag();
             }
 
-            if (sumArea/mag(faceAreas[facei]) < minFlatness)
+            // Flatness is the magnitude of the summed area vector divided by
+            // the summed magnitudes: 1 for a flat face, decreasing as the face
+            // warps. Same measure as primitiveMeshTools::faceFlatness.
+            if (mag(faceAreas[facei])/(sumArea + ROOTVSMALL) < minFlatness)
             {
                 ++nWarped;
                 if (setPtr)
@@ -1929,14 +1932,13 @@ bool Foam::polyMeshGeometry::checkFaceFlatness
         if (nWarped> 0)
         {
             Info<< "There are " << nWarped
-                << " faces with area of individual triangles"
-                << " compared to overall area less than "
+                << " faces with flatness (1 = flat, 0 = butterfly) less than "
                 << minFlatness << nl << endl;
         }
         else
         {
-            Info<< "All faces are flat in that the area of individual triangles"
-                << " compared to overall area is less than "
+            Info<< "All faces are flat in that their flatness"
+                << " (1 = flat, 0 = butterfly) is at least "
                 << minFlatness << nl << endl;
         }
     }
@@ -1947,8 +1949,7 @@ bool Foam::polyMeshGeometry::checkFaceFlatness
         {
             WarningInFunction
                 << nWarped  << " non-flat faces "
-                << "(area of individual triangles"
-                << " compared to overall area"
+                << "(flatness (1 = flat, 0 = butterfly)"
                 << " < " << minFlatness << ") found.\n"
                 << endl;
         }
