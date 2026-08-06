@@ -86,7 +86,7 @@ meshQualityControls
     minFaceWeight   0.02;
     minVolRatio     0.01;
     minTriangleTwist -1;
-    minFlatness     0.5;
+    minFaceFlatness 0.5;
     maxNonOrtho     70;
     maxBoundarySkewness 20;
     maxInternalSkewness 4;
@@ -104,7 +104,7 @@ meshQualityControls
         minFaceWeight   1e-06;
         minVolRatio     0.01;
         minTriangleTwist -1;
-        minFlatness     0.5;
+        minFaceFlatness 0.5;
         maxNonOrtho     75;
         maxBoundarySkewness 20;
         maxInternalSkewness 8;

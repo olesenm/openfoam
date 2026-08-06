@@ -275,7 +275,7 @@ meshQualityControls
     maxConcave 80;
 
     //- Minimum projected area v.s. actual area. Set to -1 to disable.
-    minFlatness 0.5;
+    minFaceFlatness 0.5;
 
     //- Minimum pyramid volume. Is absolute volume of cell pyramid.
     //  Set to a sensible fraction of the smallest cell volume expected.
