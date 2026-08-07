@@ -80,8 +80,44 @@ class complex
         //- Real and imaginary parts
         scalar re, im;
 
-
 public:
+
+    // Traits
+
+        //- Component type
+        typedef scalar cmptType;
+
+        //- Magnitude type
+        typedef scalar magType;
+
+        //- Equivalent type of labels used for valid component indexing
+        typedef label labelType;
+
+
+    // Static Constants
+
+        //- Dimensionality of space
+        static constexpr direction dim = 3;
+
+        //- Rank of complex is 0
+        static constexpr direction rank = 0;
+
+        //- Number of components in complex is 2
+        static constexpr direction nComponents = 2;
+
+
+    // Static Data Members
+
+        static const char* const typeName;
+        static const char* const componentNames[];
+
+        static const complex zero;      //!< complex (0,0)
+        static const complex one;       //!< complex (1,0)
+        static const complex min;       //!< complex (-VGREAT,-VGREAT)
+        static const complex max;       //!< complex (VGREAT,VGREAT)
+        static const complex rootMin;   //!< complex (-ROOTVGREAT, -ROOTVGREAT)
+        static const complex rootMax;   //!< complex (ROOTVGREAT, ROOTVGREAT)
+
 
     // Generated Methods
 
@@ -112,10 +148,10 @@ public:
         //- Construct from real and imaginary parts
         inline constexpr complex(const scalar r, const scalar i) noexcept;
 
-        //- Implicit construct from std::complex
+        //- Implicit construct from std::complex (float)
         inline complex(const std::complex<float>& c);
 
-        //- Implicit construct from std::complex
+        //- Implicit construct from std::complex (double)
         inline complex(const std::complex<double>& c);
 
         //- Construct from Istream
@@ -220,87 +256,6 @@ public:
 
         //- Non-const access to imaginary part. Prefer imag() setter method
         scalar& Im() noexcept { return im; }
-};
-
-
-/*---------------------------------------------------------------------------*\
-                        Specialization pTraits<complex>
-\*---------------------------------------------------------------------------*/
-
-//- The underlying component data type for complex is scalar
-template<>
-struct pTraits_cmptType<complex> { typedef scalar type; };
-
-//- A complex has two scalar components
-template<>
-struct pTraits_nComponents<complex>
-:
-    std::integral_constant<Foam::direction, 2>
-{};
-
-
-//- Template specialisation for pTraits<complex>
-template<>
-class pTraits<complex>
-{
-    complex p_;
-
-public:
-
-    // Typedefs
-
-        //- Component type
-        typedef scalar cmptType;
-
-        //- Magnitude type
-        typedef scalar magType;
-
-        //- Equivalent type of labels used for valid component indexing
-        typedef label labelType;
-
-
-    // Member Constants
-
-        //- Dimensionality of space
-        static constexpr direction dim = 3;
-
-        //- Rank of complex is 0
-        static constexpr direction rank = 0;
-
-        //- Number of components in complex is 2
-        static constexpr direction nComponents = 2;
-
-
-    // Static Data Members
-
-        static const char* const typeName;
-        static const char* const componentNames[];
-
-        static const complex zero;      //!< complex (0,0)
-        static const complex one;       //!< complex (1,0)
-        static const complex min;       //!< complex (-VGREAT,-VGREAT)
-        static const complex max;       //!< complex (VGREAT,VGREAT)
-        static const complex rootMin;   //!< complex (-ROOTVGREAT, -ROOTVGREAT)
-        static const complex rootMax;   //!< complex (ROOTVGREAT, ROOTVGREAT)
-
-
-    // Constructors
-
-        //- Copy construct from primitive
-        explicit pTraits(const complex& val) noexcept : p_(val) {}
-
-
-        //- Read construct from Istream
-        explicit pTraits(Istream& is);
-
-
-    // Member Functions
-
-        //- Return the value
-        operator complex() const noexcept { return p_; }
-
-        //- Access the value
-        operator complex&() noexcept { return p_; }
 };
 
 

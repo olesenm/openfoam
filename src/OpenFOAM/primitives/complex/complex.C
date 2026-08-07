@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,33 +33,20 @@ License
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-const char* const Foam::pTraits<Foam::complex>::typeName = "complex";
-const char* const Foam::pTraits<Foam::complex>::componentNames[] = {"re", "im"};
+const char* const Foam::complex::typeName = "complex";
+const char* const Foam::complex::componentNames[] = {"re", "im"};
 
-const Foam::complex Foam::pTraits<Foam::complex>::zero(0, 0);
-const Foam::complex Foam::pTraits<Foam::complex>::one(1, 0);
+const Foam::complex Foam::complex::zero(0, 0);
+const Foam::complex Foam::complex::one(1, 0);
 
-const Foam::complex Foam::pTraits<Foam::complex>::min(-VGREAT, -VGREAT);
-const Foam::complex Foam::pTraits<Foam::complex>::max(VGREAT, VGREAT);
+const Foam::complex Foam::complex::min(-VGREAT, -VGREAT);
+const Foam::complex Foam::complex::max(VGREAT, VGREAT);
 
-const Foam::complex Foam::pTraits<Foam::complex>::rootMin
-(
-    -ROOTVGREAT, -ROOTVGREAT
-);
-
-const Foam::complex Foam::pTraits<Foam::complex>::rootMax
-(
-    ROOTVGREAT, ROOTVGREAT
-);
+const Foam::complex Foam::complex::rootMin(-ROOTVGREAT, -ROOTVGREAT);
+const Foam::complex Foam::complex::rootMax(ROOTVGREAT, ROOTVGREAT);
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-Foam::pTraits<Foam::complex>::pTraits(Istream& is)
-{
-    is >> p_;
-}
-
 
 Foam::complex::complex(Istream& is)
 {

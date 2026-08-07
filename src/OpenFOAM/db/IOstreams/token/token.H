@@ -332,7 +332,7 @@ public:
             {
                 typedef typename T::value_type valueType;
 
-                if constexpr (pTraits_has_zero<valueType>::value)
+                if constexpr (pTraits_has_zero<valueType>)
                 {
                     T::operator=(pTraits<valueType>::zero);
                 }
@@ -433,13 +433,13 @@ public:
             //- of the underlying data content
             virtual direction nComponents() const
             {
-                return pTraits_nComponents<typename T::value_type>();
+                return pTraits_nComponents_v<typename T::value_type>;
             }
 
             //- The vector-space rank associated with the data content
             virtual direction rank() const
             {
-                return pTraits_rank<typename T::value_type>();
+                return pTraits_rank_v<typename T::value_type>;
             }
 
             //- Pointer to the underlying data as byte data

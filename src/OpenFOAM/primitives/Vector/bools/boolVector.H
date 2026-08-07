@@ -181,22 +181,10 @@ public:
 //- A boolVector is contiguous (FixedList of bool)
 template<> struct is_contiguous<boolVector> : std::true_type {};
 
-
-/*---------------------------------------------------------------------------*\
-                      Specialization pTraits<boolVector>
-\*---------------------------------------------------------------------------*/
-
-//- A boolVector has bool data components.
+//- A boolVector has bool components, but without a "zero" member
+//- the regular pTraits_cmptType wrapper does not immediately work.
 template<>
-struct pTraits_cmptType<boolVector> { typedef bool type; };
-
-//- A boolVector has three data components
-template<>
-struct pTraits_nComponents<boolVector>
-:
-    std::integral_constant<Foam::direction, 3>
-{};
-
+struct pTraits_cmptType<boolVector> { typedef boolVector::cmptType type; };
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
