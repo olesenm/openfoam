@@ -3,28 +3,37 @@
 
 ifeq (,$(strip $(HDF5_INC_DIR)))
 ifneq (,$(strip $(HDF5_ARCH_PATH)))
+
   HDF5_INC_DIR = $(HDF5_ARCH_PATH)/include
-  HDF5_LIB_DIR = $(HDF5_ARCH_PATH)/lib \
-    $(HDF5_ARCH_PATH)/lib$(WM_COMPILER_LIB_ARCH)
+  ifneq (,$(wildcard $(HDF5_ARCH_PATH)/lib$(WM_COMPILER_LIB_ARCH)))
+  HDF5_LIB_DIR    := $(HDF5_ARCH_PATH)/lib$(WM_COMPILER_LIB_ARCH)
+  else
+  HDF5_LIB_DIR    := $(HDF5_ARCH_PATH)/lib
+  endif
+
 endif
 endif
 
 # ----------------------------------------------------------------------------
 
-HDF5_INC  =
-HDF5_LIBS =
+HDF5_INCLUDES  =
+HDF5_LIBRARIES =
 
-HDF5_INC  += \
-    $(foreach dir,$(HDF5_INC_DIR),-I$(dir))
+ifneq (,$(strip $(HDF5_INC_DIR)))
+HDF5_INCLUDES  := $(foreach dir,$(HDF5_INC_DIR),-I$(dir))
+endif
 
-HDF5_LIBS += \
-    $(foreach dir,$(HDF5_LIB_DIR),-L$(dir)) \
-    -lhdf5
+ifneq (,$(strip $(HDF5_LIB_DIR)))
+HDF5_LIBRARIES := $(foreach dir,$(HDF5_LIB_DIR),-L$(dir)) -lhdf5
+endif
 
 # DEBUG
 # -----
 
 ## $(info HDF5_INC_DIR: $(HDF5_INC_DIR))
 ## $(info HDF5_LIB_DIR: $(HDF5_LIB_DIR))
+
+## $(info HDF5_INCLUDE:   $(HDF5_INCLUDES))
+## $(info HDF5_LIBRARIES: $(HDF5_LIBRARIES))
 
 # ---------------------------------------------------------------------------
