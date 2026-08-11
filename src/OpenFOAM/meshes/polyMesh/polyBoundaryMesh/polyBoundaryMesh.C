@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -754,21 +755,38 @@ Foam::label Foam::polyBoundaryMesh::nFaces() const noexcept
 }
 
 
-Foam::labelRange Foam::polyBoundaryMesh::range() const noexcept
+Foam::labelRange
+Foam::polyBoundaryMesh::range() const noexcept
 {
     return labelRange(mesh_.nInternalFaces(), mesh_.nBoundaryFaces());
 }
 
 
-Foam::labelRange Foam::polyBoundaryMesh::range(const label patchi) const
+Foam::labelRange
+Foam::polyBoundaryMesh::range(label patchi) const noexcept
 {
-    if (patchi < 0)
+    if (const auto* pp = polyPatchList::get(patchi); pp)
     {
-        return labelRange(mesh_.nInternalFaces(), 0);
+        return pp->range();
     }
+    else
+    {
+        return labelRange();
+    }
+}
 
-    // Will fail if patchi >= size()
-    return (*this)[patchi].range();
+
+Foam::labelRange
+Foam::polyBoundaryMesh::offset_range(label patchi) const noexcept
+{
+    if (const auto* pp = polyPatchList::get(patchi); pp)
+    {
+        return pp->offset_range();
+    }
+    else
+    {
+        return labelRange();
+    }
 }
 
 
@@ -1208,7 +1226,13 @@ void Foam::polyBoundaryMesh::matchGroups
 
 bool Foam::polyBoundaryMesh::checkParallelSync(const bool report) const
 {
-    if (!Pstream::parRun())
+    const bool verbose = (debug || report);
+
+    // Use communicator associated with mesh
+    const auto comm = mesh_.comm();
+    const int uniqTag = (UPstream::msgType() + 1907);
+
+    if (!UPstream::is_parallel(comm))
     {
         return false;
     }
@@ -1218,116 +1242,126 @@ bool Foam::polyBoundaryMesh::checkParallelSync(const bool report) const
     bool hasError = false;
 
     // Collect non-proc patches and check proc patches are last.
-    wordList localNames(bm.size());
-    wordList localTypes(bm.size());
+    DynamicList<word> localNames(bm.size());
+    DynamicList<word> localTypes(bm.size());
 
     label nonProci = 0;
 
     forAll(bm, patchi)
     {
-        if (!isA<processorPolyPatch>(bm[patchi]))
+        const auto& p = bm[patchi];
+
+        if (!isA<processorPolyPatch>(p))
         {
             if (nonProci != patchi)
             {
                 // A processor patch in between normal patches!
                 hasError = true;
 
-                if (debug || report)
+                if (verbose)
                 {
                     Pout<< " ***Problem with boundary patch " << patchi
-                        << " name:" << bm[patchi].name()
-                        << " type:" <<  bm[patchi].type()
+                        << " name:" << p.name()
+                        << " type:" << p.type()
                         << " - seems to be preceeded by processor patches."
                         << " This is usually a problem." << endl;
                 }
             }
             else
             {
-                localNames[nonProci] = bm[patchi].name();
-                localTypes[nonProci] = bm[patchi].type();
+                localNames.push_back(p.name());
+                localTypes.push_back(p.type());
                 ++nonProci;
             }
         }
     }
-    localNames.resize(nonProci);
-    localTypes.resize(nonProci);
 
-    // Check and report error(s) on master
-    // - don't need indexing on master itself
+    // Check and report consistency error(s) on master
 
-    const globalIndex procAddr(globalIndex::gatherNonLocal{}, nonProci);
-
-    const wordList allNames(procAddr.gather(localNames));
-    const wordList allTypes(procAddr.gather(localTypes));
-
-    // Automatically restricted to master
-    for (const int proci : procAddr.subProcs())
+    if (UPstream::master(comm))
     {
-        const auto procNames(allNames.slice(procAddr.range(proci)));
-        const auto procTypes(allTypes.slice(procAddr.range(proci)));
-
-        if (procNames != localNames || procTypes != localTypes)
+        for (const int proci : UPstream::subProcs(comm))
         {
-            hasError = true;
+            IPstream is(proci, uniqTag, comm);
+            wordList procNames(is);
+            wordList procTypes(is);
 
-            if (debug || report)
+            if ((procNames != localNames) || (procTypes != localTypes))
             {
-                Info<< " ***Inconsistent patches across processors, "
-                       "processor0 has patch names:" << localNames
-                    << " patch types:" << localTypes
-                    << " processor" << proci
-                    << " has patch names:" << procNames
-                    << " patch types:" << procTypes
-                    << endl;
+                hasError = true;
+
+                if (verbose)
+                {
+                    Info<< " ***Inconsistent patches across processors, "
+                        "processor0 has patch names:" << localNames
+                        << " patch types:" << localTypes
+                        << " processor" << proci
+                        << " has patch names:" << procNames
+                        << " patch types:" << procTypes
+                        << endl;
+                }
             }
         }
     }
+    else if (UPstream::is_subrank(comm))
+    {
+        OPstream os(UPstream::masterNo(), uniqTag, comm);
+        os << localNames << localTypes;
+    }
 
     // Reduce (not broadcast) to respect local out-of-order errors (first loop)
-    return returnReduceOr(hasError);
+    return returnReduceOr(hasError, comm);
 }
 
 
 bool Foam::polyBoundaryMesh::checkDefinition(const bool report) const
 {
+    // Use communicator associated with mesh
+    const auto comm = mesh_.comm();
+
     label nextPatchStart = mesh().nInternalFaces();
     const polyBoundaryMesh& bm = *this;
 
-    bool hasError = false;
+    bool hasError0 = false;
+    bool hasError1 = false;
 
-    wordHashSet patchNames(2*this->size());
+    wordHashSet patchNames;
+    patchNames.reserve(bm.size());
 
     forAll(bm, patchi)
     {
-        if (bm[patchi].start() != nextPatchStart && !hasError)
+        const auto& p = bm[patchi];
+
+        if (p.start() != nextPatchStart && !hasError0)
         {
-            hasError = true;
+            hasError0 = true;
 
             Info<< " ****Problem with boundary patch " << patchi
-                << " named " << bm[patchi].name()
-                << " of type " <<  bm[patchi].type()
-                << ". The patch should start on face no " << nextPatchStart
-                << " and the patch specifies " << bm[patchi].start()
-                << "." << endl
+                << " name:" << p.name()
+                << " type:" << p.type()
+                << ". The patch should start at " << nextPatchStart
+                << " and the patch specifies " << p.start() << "." << nl
                 << "Possibly consecutive patches have this same problem."
                 << " Suppressing future warnings." << endl;
         }
 
-        if (!patchNames.insert(bm[patchi].name()) && !hasError)
+        if (!patchNames.insert(p.name()) && !hasError1)
         {
-            hasError = true;
+            hasError1 = true;
 
             Info<< " ****Duplicate boundary patch " << patchi
-                << " named " << bm[patchi].name()
-                << " of type " <<  bm[patchi].type()
-                << "." << endl
+                << " name:" << p.name()
+                << " type:" << p.type()
+                << "." << nl
                 << "Suppressing future warnings." << endl;
         }
 
-        nextPatchStart += bm[patchi].size();
+        nextPatchStart += p.size();
     }
 
-    Pstream::reduceOr(hasError);
+    bool hasError = (hasError0 || hasError1);
+
+    Pstream::reduceOr(hasError, comm);
 
     if (debug || report)
     {

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,17 +30,24 @@ License
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
 template<class T>
-inline void Foam::UPtrList<T>::setAddressableSize(const label n) noexcept
+inline void Foam::UPtrList<T>::setAddressableSize(label n) noexcept
 {
     ptrs_.setAddressableSize(n);
 }
 
 
 template<class T>
-inline Foam::label Foam::UPtrList<T>::find_next(label pos) const
+inline Foam::label Foam::UPtrList<T>::find_next(label pos) const noexcept
 {
     return ptrs_.find_next(pos);
 }
+
+
+template<class T>
+inline Foam::UPtrList<T>::UPtrList(Detail::PtrListDetail<T>&& ptrs) noexcept
+:
+    ptrs_(std::move(ptrs))
+{}
 
 
 // * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * * //
@@ -48,13 +56,6 @@ template<class T>
 inline Foam::UPtrList<T>::UPtrList(const label len)
 :
     ptrs_(len)
-{}
-
-
-template<class T>
-inline Foam::UPtrList<T>::UPtrList(Detail::PtrListDetail<T>&& ptrs) noexcept
-:
-    ptrs_(std::move(ptrs))
 {}
 
 
@@ -131,21 +132,21 @@ inline Foam::label Foam::UPtrList<T>::count_nonnull() const noexcept
 
 
 template<class T>
-inline const T* Foam::UPtrList<T>::test(const label i) const
+inline const T* Foam::UPtrList<T>::test(label i) const noexcept
 {
     return ptrs_.get(i);
 }
 
 
 template<class T>
-inline const T* Foam::UPtrList<T>::get(const label i) const
+inline const T* Foam::UPtrList<T>::get(label i) const noexcept
 {
     return ptrs_.get(i);
 }
 
 
 template<class T>
-inline T* Foam::UPtrList<T>::get(const label i)
+inline T* Foam::UPtrList<T>::get(label i) noexcept
 {
     return ptrs_.get(i);
 }
@@ -323,13 +324,14 @@ template<bool Const>
 inline Foam::UPtrList<T>::Iterator<Const>::Iterator
 (
     list_type* list
-)
+) noexcept
 :
     list_(list),
     pos_(-1)
 {
     if (list_)
     {
+        // ie, find_first non-null
         pos_ = list_->find_next(-1);
     }
 }
@@ -337,9 +339,9 @@ inline Foam::UPtrList<T>::Iterator<Const>::Iterator
 
 template<class T>
 template<bool Const>
-inline void Foam::UPtrList<T>::Iterator<Const>::increment()
+inline void Foam::UPtrList<T>::Iterator<Const>::increment() noexcept
 {
-    //TDB: extra safety?  if (iter.good())
+    if (this->good())
     {
         pos_ = list_->find_next(pos_);
     }
@@ -349,7 +351,7 @@ inline void Foam::UPtrList<T>::Iterator<Const>::increment()
 // * * * * * * * * * * * * * * * * STL iterator  * * * * * * * * * * * * * * //
 
 template<class T>
-inline T* Foam::UPtrList<T>::iterator::get() const
+inline T* Foam::UPtrList<T>::iterator::get() const noexcept
 {
     return this->good() ? this->list_->get(this->pos_) : nullptr;
 }
@@ -364,7 +366,7 @@ inline T& Foam::UPtrList<T>::iterator::val() const
 
 template<class T>
 inline typename Foam::UPtrList<T>::iterator&
-Foam::UPtrList<T>::iterator::operator++()
+Foam::UPtrList<T>::iterator::operator++() noexcept
 {
     this->increment();
     return *this;
@@ -373,7 +375,7 @@ Foam::UPtrList<T>::iterator::operator++()
 
 template<class T>
 inline typename Foam::UPtrList<T>::iterator
-Foam::UPtrList<T>::iterator::operator++(int)
+Foam::UPtrList<T>::iterator::operator++(int) noexcept
 {
     iterator iter(*this);
     this->increment();
@@ -384,7 +386,7 @@ Foam::UPtrList<T>::iterator::operator++(int)
 // * * * * * * * * * * * * * * * STL const_iterator  * * * * * * * * * * * * //
 
 template<class T>
-inline const T* Foam::UPtrList<T>::const_iterator::get() const
+inline const T* Foam::UPtrList<T>::const_iterator::get() const noexcept
 {
     return this->good() ? this->list_->get(this->pos_) : nullptr;
 }
@@ -399,7 +401,7 @@ inline const T& Foam::UPtrList<T>::const_iterator::val() const
 
 template<class T>
 inline typename Foam::UPtrList<T>::const_iterator&
-Foam::UPtrList<T>::const_iterator::operator++()
+Foam::UPtrList<T>::const_iterator::operator++() noexcept
 {
     this->increment();
     return *this;
@@ -408,7 +410,7 @@ Foam::UPtrList<T>::const_iterator::operator++()
 
 template<class T>
 inline typename Foam::UPtrList<T>::const_iterator
-Foam::UPtrList<T>::const_iterator::operator++(int)
+Foam::UPtrList<T>::const_iterator::operator++(int) noexcept
 {
     const_iterator iter(*this);
     this->increment();

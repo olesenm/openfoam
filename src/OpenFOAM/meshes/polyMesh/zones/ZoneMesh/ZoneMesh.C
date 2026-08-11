@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,8 @@ License
 #include "ZoneMesh.H"
 #include "entry.H"
 #include "DynamicList.H"
-#include "Pstream.H"
+#include "IPstream.H"
+#include "OPstream.H"
 #include "PtrListOps.H"
 #include "globalIndex.H"
 
@@ -430,8 +432,8 @@ Foam::label Foam::ZoneMesh<ZoneType, MeshType>::whichZones
 ) const
 {
     zones.clear();
-    const auto fnd = zoneMap().cfind(objectIndex);
-    if (fnd)
+
+    if (const auto fnd = zoneMap().cfind(objectIndex); fnd.good())
     {
         // Add main element
         zones.push_back(fnd.val());
@@ -1006,7 +1008,17 @@ bool Foam::ZoneMesh<ZoneType, MeshType>::checkParallelSync
     const bool report
 ) const
 {
-    if (!UPstream::parRun())
+    // CAUTION:
+    // assumes worldComm regardless of what the underlying mesh uses!
+    // but since ZoneMesh may live on fvMesh, faMesh or something else
+    // we don't really have a known communicator to use.
+
+    // Caller needs to temporarily overwrite worldComm !
+
+    const auto comm = UPstream::worldComm;
+    const int uniqTag = (UPstream::msgType() + 1907);
+
+    if (!UPstream::is_parallel(comm))
     {
         return false;
     }
@@ -1019,41 +1031,39 @@ bool Foam::ZoneMesh<ZoneType, MeshType>::checkParallelSync
     const wordList localTypes(this->types());
 
     // Check and report error(s) on master
-    // - don't need indexing on master itself
 
-    const globalIndex procAddr
-    (
-        globalIndex::gatherNonLocal{},
-        localNames.size()
-    );
-
-    const wordList allNames(procAddr.gather(localNames));
-    const wordList allTypes(procAddr.gather(localTypes));
-
-    // Automatically restricted to master
-    for (const int proci : procAddr.subProcs())
+    if (UPstream::master(comm))
     {
-        const auto procNames(allNames.slice(procAddr.range(proci)));
-        const auto procTypes(allTypes.slice(procAddr.range(proci)));
-
-        if (procNames != localNames || procTypes != localTypes)
+        for (int proci : UPstream::subProcs())
         {
-            hasError = true;
+            IPstream is(proci, uniqTag, comm);
+            wordList procNames(is);
+            wordList procTypes(is);
 
-            if (debug || report)
+            if ((procNames != localNames) || (procTypes != localTypes))
             {
-                Info<< " ***Inconsistent zones across processors, "
-                       "processor 0 has zone names:" << localNames
-                    << " zone types:" << localTypes
-                    << " processor " << proci
-                    << " has zone names:" << procNames
-                    << " zone types:" << procTypes
-                    << endl;
+                hasError = true;
+
+                if (debug || report)
+                {
+                    Info<< " ***Inconsistent zones across processors, "
+                        "processor0 has zone names:" << localNames
+                        << " zone types:" << localTypes
+                        << " processor" << proci
+                        << " has zone names:" << procNames
+                        << " zone types:" << procTypes
+                        << endl;
+                }
             }
         }
     }
+    else if (UPstream::is_subrank(comm))
+    {
+        OPstream os(UPstream::masterNo(), uniqTag, comm);
+        os << localNames << localTypes;
+    }
 
-    Pstream::broadcast(hasError);
+    Pstream::broadcast(hasError, comm);
 
     // Check local contents
     if (!hasError)

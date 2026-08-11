@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -601,6 +602,10 @@ void Foam::faceZone::updateMesh(const mapPolyMesh& mpm)
 
 bool Foam::faceZone::checkParallelSync(const bool report) const
 {
+    // CAUTION:
+    // syncTools::swapBoundaryFaceList currently
+    // assumes worldComm regardless of what the underlying mesh uses!
+
     const polyMesh& mesh = zoneMesh().mesh();
     const polyBoundaryMesh& bm = mesh.boundaryMesh();
 
@@ -611,11 +616,11 @@ bool Foam::faceZone::checkParallelSync(const bool report) const
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     {
-        const labelList& addr = *this;
-        const boolList& flips = flipMap();
+        const labelUList& addr = *this;
+        const boolUList& flips = flipMap();
 
-        boolList neiZoneFace(mesh.nBoundaryFaces(), false);
-        boolList neiZoneFlip(mesh.nBoundaryFaces(), false);
+        // 0 = unused, 1 = used(noflip); -1 = used(flip)
+        List<int8_t> neiZone(mesh.nBoundaryFaces(), int8_t(0));
 
         forAll(addr, i)
         {
@@ -624,27 +629,33 @@ bool Foam::faceZone::checkParallelSync(const bool report) const
             if (!mesh.isInternalFace(facei))
             {
                 const label bFacei = facei-mesh.nInternalFaces();
-                neiZoneFace[bFacei] = true;
-                neiZoneFlip[bFacei] = flips[i];
+
+                neiZone[bFacei] = flips[i] ? int8_t(-1) : int8_t(1);
             }
         }
-        boolList myZoneFace(neiZoneFace);
-        boolList myZoneFlip(neiZoneFlip);
-        syncTools::swapBoundaryFaceList(mesh, neiZoneFace);
-        syncTools::swapBoundaryFaceList(mesh, neiZoneFlip);
+
+        const List<int8_t> localZone(neiZone);
+        syncTools::swapBoundaryFaceList(mesh, neiZone);
 
         forAll(addr, i)
         {
             const label facei = addr[i];
-            const label patchi = bm.whichPatch(facei);
 
-            if (patchi != -1 && bm[patchi].coupled())
+            if (mesh.isInternalFace(facei))
+            {
+                // Nothing to check
+            }
+            else if
+            (
+                const label patchi = bm.whichPatch(facei);
+                (patchi >= 0 && bm[patchi].coupled())
+            )
             {
                 const label bFacei = facei-mesh.nInternalFaces();
 
-                // Check face in zone on both sides
-                if (myZoneFace[bFacei] != neiZoneFace[bFacei])
+                if ((localZone[bFacei] != 0) != (neiZone[bFacei] != 0))
                 {
+                    // Face used/not-used (ignoring flips) are inconsistent
                     hasError = true;
 
                     if (report)
@@ -662,9 +673,9 @@ bool Foam::faceZone::checkParallelSync(const bool report) const
                         break;
                     }
                 }
-                else if (myZoneFlip[bFacei] == neiZoneFlip[bFacei])
+                else if ((localZone[bFacei]*neiZone[bFacei]) > 0)
                 {
-                    // Flip state should be opposite.
+                    // Flip states are not opposite
                     hasError = true;
 
                     if (report)
@@ -686,6 +697,7 @@ bool Foam::faceZone::checkParallelSync(const bool report) const
         }
     }
 
+    // CAUTION: worldComm instead of mesh().comm()
     return returnReduceOr(hasError);
 }
 

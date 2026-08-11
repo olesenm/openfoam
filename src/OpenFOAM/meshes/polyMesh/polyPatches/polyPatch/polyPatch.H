@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -371,9 +372,15 @@ public:
         }
 
         //- Return start/size range of this patch
-        labelRange range() const
+        labelRange range() const noexcept
         {
-            return labelRange(start_, this->size());
+            return labelRange(start(), nFaces());
+        }
+
+        //- Return offset/size range of this patch
+        labelRange offset_range() const noexcept
+        {
+            return labelRange(offset(), nFaces());
         }
 
         //- Return boundaryMesh reference

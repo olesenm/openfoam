@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -115,10 +116,10 @@ protected:
     // Protected Member Functions
 
         //- Adjust addressable size
-        inline void setAddressableSize(const label n) noexcept;
+        inline void setAddressableSize(label n) noexcept;
 
         //- The next non-null entry after the specified position
-        inline label find_next(label pos) const;
+        inline label find_next(label pos) const noexcept;
 
 
     // Constructors
@@ -158,13 +159,13 @@ public:
         {
             const Compare& comp;
 
-            value_compare(const Compare& cmp)
+            explicit value_compare(const Compare& cmp) noexcept
             :
                 comp(cmp)
             {}
 
             //- Compare dereferenced pointers
-            bool operator()(const T* const a, const T* const b) const
+            bool operator()(const T* a, const T* b) const
             {
                 return (a && b) ? comp(*a, *b) : !b;
             }
@@ -176,16 +177,16 @@ public:
         {
             const UPtrList<T>& values;
 
-            less(const UPtrList<T>& list)
+            explicit less(const UPtrList<T>& list) noexcept
             :
                 values(list)
             {}
 
             //- Compare dereferenced pointer locations for normal sort.
-            bool operator()(const label ai, const label bi) const
+            bool operator()(label ai, label bi) const
             {
-                const T* const a = values.get(ai);
-                const T* const b = values.get(bi);
+                const auto* a = values.get(ai);
+                const auto* b = values.get(bi);
 
                 return (a && b) ? (*a < *b) : !b;
             }
@@ -197,16 +198,16 @@ public:
         {
             const UPtrList<T>& values;
 
-            greater(const UPtrList<T>& list)
+            explicit greater(const UPtrList<T>& list) noexcept
             :
                 values(list)
             {}
 
             //- Compare dereferenced pointer locations for reverse sort
-            bool operator()(const label ai, const label bi) const
+            bool operator()(label ai, label bi) const
             {
-                const T* const a = values.get(ai);
-                const T* const b = values.get(bi);
+                const auto* a = values.get(ai);
+                const auto* b = values.get(bi);
 
                 return (a && b) ? (*b < *a) : !a;
             }
@@ -275,22 +276,22 @@ public:
         //- Return const pointer to element (can be nullptr),
         //- or nullptr for out-of-range access (ie, \em with bounds checking).
         //  The return value can be tested as a bool.
-        inline const T* test(const label i) const;
+        inline const T* test(label i) const noexcept;
 
         //- Return const pointer to element (can be nullptr),
         //- or nullptr for out-of-range access (ie, \em with bounds checking).
         //  The return value can be tested as a bool.
-        inline const T* get(const label i) const;
+        inline const T* get(label i) const noexcept;
 
         //- Return pointer to element (can be nullptr),
         //- or nullptr for out-of-range access (ie, \em with bounds checking).
         //  The return value can be tested as a bool.
-        inline T* get(const label i);
+        inline T* get(label i) noexcept;
 
         //- Return const pointer to element (can be nullptr),
         //- or nullptr for out-of-range access (ie, \em with bounds checking).
         //  The return value can be tested as a bool.
-        const T* set(const label i) const { return this->get(i); }
+        const T* set(label i) const { return this->get(i); }
 
 
     // Edit
@@ -440,16 +441,17 @@ protected:
         // Protected Constructors
 
             //- Default construct. Also the same as the end iterator
+            //- (nullptr, -1)
             inline constexpr Iterator() noexcept;
 
             //- Construct begin iterator
-            inline explicit Iterator(list_type* list);
+            inline explicit Iterator(list_type* list) noexcept;
 
 
         // Protected Member Functions
 
             //- Increment to the next non-null position
-            inline void increment();
+            inline void increment() noexcept;
 
             //- Permit explicit cast to the other (const/non-const) iterator
             template<bool Any>
@@ -514,7 +516,7 @@ public:
         // Member Functions/Operators
 
             //- Pointer to the referenced object (failsafe)
-            inline pointer get() const;
+            inline pointer get() const noexcept;
 
             //- Reference to the object
             inline reference val() const;
@@ -529,8 +531,8 @@ public:
             reference operator()() const { return this->val(); }
 
             //- Move to the next non-nullptr entry
-            inline iterator& operator++();
-            inline iterator operator++(int);
+            inline iterator& operator++() noexcept;
+            inline iterator operator++(int) noexcept;
         };
 
 
@@ -575,7 +577,7 @@ public:
         // Member Functions/Operators
 
             //- Pointer to the referenced object (failsafe)
-            inline pointer get() const;
+            inline pointer get() const noexcept;
 
             //- Reference to the object
             inline reference val() const;
@@ -590,8 +592,8 @@ public:
             reference operator()() const { return this->val(); }
 
             //- Move to the next non-nullptr entry
-            inline const_iterator& operator++();
-            inline const_iterator operator++(int);
+            inline const_iterator& operator++() noexcept;
+            inline const_iterator operator++(int) noexcept;
         };
 
 

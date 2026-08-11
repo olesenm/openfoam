@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -90,10 +91,10 @@ public:
     // Member Functions
 
         //- Return const pointer to element or nullptr for out-of-range access.
-        inline const T* get(const label i) const;
+        inline const T* get(label i) const noexcept;
 
         //- Return pointer to element or nullptr for out-of-range access.
-        inline T* get(const label i);
+        inline T* get(label i) noexcept;
 
         //- The number of non-nullptr entries in the list
         label count_nonnull() const noexcept;
@@ -101,32 +102,32 @@ public:
         //- FatalError if any null exists in the list
         inline void checkNonNull() const;
 
-        //- Locate the first entry that is non-null.
-        //  \return the location or -1 if there are no bits set.
+        //- Locate the first non-null entry, at or beyond \p pos.
+        //  \return the location or -1 if there are no non-null entries.
         //
         //  \note Method name as per bitSet
-        label find_first() const;
+        label find_first(label pos = 0) const noexcept;
 
-        //- Locate the first entry that is null, -1 if there are none (or empty list)
+        //- Locate the first null entry, at or beyond \p pos.
         //  \return the location or -1 if the list is empty or all entries
         //  are non-null.
         //
         //  \note Method name as per bitSet, symmetry with find_first()
-        label find_first_not() const;
+        label find_first_not(label pos = 0) const noexcept;
 
         //- Locate the next non-null entry, starting one beyond the specified
         //- position
         //  \return the location or -1 if remaining entries are null.
         //
         //  \note Method name as per bitSet
-        label find_next(label pos) const;
+        label find_next(label pos) const noexcept;
 
         //- Locate the next null entry, starting one beyond the specified
         //- position
         //  \return the location or -1 if remaining entries are non-null.
         //
         //  \note Method name as per bitSet
-        label find_next_not(label pos) const;
+        label find_next_not(label pos) const noexcept;
 
         //- Delete allocated entries and reassign to nullptr.
         //- Does not affect the list size.

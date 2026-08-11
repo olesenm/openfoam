@@ -254,11 +254,15 @@ public:
         //  Spans [nInternalFaces, nFaces) of the underlying mesh
         labelRange range() const noexcept;
 
-        //- Return the range used for boundary faces on patchi.
-        //  Always returns an empty range for negative values of patchi,
+        //- Return the start/size range for \p patchi polyPatch.
+        //  Returns an empty range for out-of-range patchi,
         //  which allows safe use with findIndex or findPatchID.
-        labelRange range(const label patchi) const;
+        labelRange range(label patchi) const noexcept;
 
+        //- Return the offset/size range for \p patchi polyPatch.
+        //  Returns an empty range for out-of-range patchi,
+        //  which allows safe use with findIndex or findPatchID.
+        labelRange offset_range(label patchi) const noexcept;
 
         //- The (sorted) patch indices for all matches,
         //- optionally matching patch groups.

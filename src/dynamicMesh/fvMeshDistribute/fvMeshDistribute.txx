@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -359,6 +360,10 @@ void Foam::fvMeshDistribute::getFieldNames
     wordList& list = allFieldNames(GeoField::typeName);
     list = mesh.sortedNames<GeoField>();
 
+    // Use communicator associated with mesh
+    const auto comm = mesh.comm();
+    const int uniqTag = (UPstream::msgType() + 1907);
+
     if (!excludeType.empty())
     {
         const wordList& excludeList =
@@ -366,50 +371,68 @@ void Foam::fvMeshDistribute::getFieldNames
 
         if (!excludeList.empty())
         {
-            DynamicList<word> newList(list.size());
-            for (const auto& name : list)
+            label count = 0;
+            forAll(list, i)
             {
-                if (!excludeList.contains(name))
+                if (!excludeList.contains(list[i]))
                 {
-                    newList.push_back(name);
+                    if (count != i)
+                    {
+                        list[count] = std::move(list[i]);
+                    }
+                    ++count;
                 }
             }
-            if (newList.size() < list.size())
-            {
-                list = std::move(newList);
-            }
+            list.resize(count);
         }
     }
 
 
     // Check all procs have same names
-    if (syncPar && Pstream::parRun())
+    const auto& localNames = list;
+
+    if (!syncPar || !UPstream::is_parallel(comm))
     {
-        // Check and report error(s) on master
-        // - don't need indexing on master itself
+        // No checking or not parallel
+    }
+    else if (UPstream::master(comm))
+    {
+        bool hasError = false;
 
-        const globalIndex procAddr(globalIndex::gatherNonLocal{}, list.size());
-
-        const wordList allNames(procAddr.gather(list));
-
-        // Automatically restricted to master
-        for (const int proci : procAddr.subProcs())
+        for (int proci : UPstream::subProcs(comm))
         {
-            const auto procNames(allNames.slice(procAddr.range(proci)));
+            IPstream is(proci, uniqTag, comm);
+            wordList procNames(is);
 
-            if (procNames != list)
+            if (procNames != localNames)
             {
-                FatalErrorInFunction
-                    << "When checking for equal " << GeoField::typeName
-                    << " :" << nl
-                    << "processor0 has:" << list << nl
-                    << "processor" << proci << " has:" << procNames << nl
-                    << GeoField::typeName
-                    << " need to be synchronised on all processors."
-                    << exit(FatalError);
-                break;
+                if (!hasError)
+                {
+                    hasError = true;
+
+                    FatalErrorInFunction
+                        << "When checking for equal " << GeoField::typeName
+                        << " :" << nl
+                        << "processor0 has:" << localNames << nl;
+                }
+
+                FatalError
+                    << "processor" << proci << " has:" << procNames << nl;
             }
         }
+
+        if (hasError)
+        {
+            FatalError
+                << GeoField::typeName
+                << " need to be synchronised on all ranks." << endl
+                << exit(FatalError);
+        }
+    }
+    else if (UPstream::is_subrank(comm))
+    {
+        OPstream os(UPstream::masterNo(), uniqTag, comm);
+        os << localNames;
     }
 }
 

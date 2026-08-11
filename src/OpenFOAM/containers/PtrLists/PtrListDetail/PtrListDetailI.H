@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -85,16 +86,16 @@ inline Foam::Detail::PtrListDetail<T>::PtrListDetail
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class T>
-inline const T* Foam::Detail::PtrListDetail<T>::get(const label i) const
+inline const T* Foam::Detail::PtrListDetail<T>::get(label i) const noexcept
 {
-    return (i >= 0 && i < this->size()) ? (*this)[i] : nullptr;
+    return (i >= 0 && i < this->size()) ? this->cdata()[i] : nullptr;
 }
 
 
 template<class T>
-inline T* Foam::Detail::PtrListDetail<T>::get(const label i)
+inline T* Foam::Detail::PtrListDetail<T>::get(label i) noexcept
 {
-    return (i >= 0 && i < this->size()) ? (*this)[i] : nullptr;
+    return (i >= 0 && i < this->size()) ? this->data()[i] : nullptr;
 }
 
 

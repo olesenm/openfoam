@@ -47,52 +47,60 @@ Foam::label Foam::Detail::PtrListDetail<T>::count_nonnull() const noexcept
 
 
 template<class T>
-Foam::label Foam::Detail::PtrListDetail<T>::find_first() const
+Foam::label Foam::Detail::PtrListDetail<T>::find_first(label pos)
+const noexcept
 {
-    return this->find_next(-1);
+    const label len = this->size();
+    const auto ptrs = this->cdata();
+
+    if (pos < 0) pos = 0;
+
+    for (; pos < len; ++pos)
+    {
+        if (ptrs[pos])
+        {
+            return pos;
+        }
+    }
+
+    return -1;
 }
 
 
 template<class T>
-Foam::label Foam::Detail::PtrListDetail<T>::find_first_not() const
+Foam::label Foam::Detail::PtrListDetail<T>::find_first_not(label pos)
+const noexcept
 {
-    return this->find_next_not(-1);
+    const label len = this->size();
+    const auto ptrs = this->cdata();
+
+    if (pos < 0) pos = 0;
+
+    for (; pos < len; ++pos)
+    {
+        if (!ptrs[pos])
+        {
+            return pos;
+        }
+    }
+
+    return -1;
 }
 
 
 template<class T>
 Foam::label Foam::Detail::PtrListDetail<T>::find_next(label pos) const
+noexcept
 {
-    const label len = this->size();
-
-    // Start search after the given position (input of -1 is also valid)
-    for (++pos; pos < len; ++pos)
-    {
-        if ((*this)[pos])
-        {
-            return pos;
-        }
-    }
-
-    return -1;
+    return this->find_first(pos+1);
 }
 
 
 template<class T>
 Foam::label Foam::Detail::PtrListDetail<T>::find_next_not(label pos) const
+noexcept
 {
-    const label len = this->size();
-
-    // Start search after the given position (input of -1 is also valid)
-    for (++pos; pos < len; ++pos)
-    {
-        if (!(*this)[pos])
-        {
-            return pos;
-        }
-    }
-
-    return -1;
+    return this->find_first_not(pos+1);
 }
 
 
