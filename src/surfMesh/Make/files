@@ -73,6 +73,7 @@ $(writers)/ensight/ensightSurfaceWriter.cxx
 $(writers)/foam/foamSurfaceWriter.cxx
 $(writers)/nastran/nastranSurfaceWriter.cxx
 $(writers)/null/nullSurfaceWriter.cxx
+$(writers)/numpy/numpySurfaceWriter.cxx
 $(writers)/proxy/proxySurfaceWriter.cxx
 $(writers)/raw/rawSurfaceWriter.cxx
 $(writers)/starcd/starcdSurfaceWriter.cxx
