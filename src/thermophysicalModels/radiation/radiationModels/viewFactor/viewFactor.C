@@ -172,7 +172,13 @@ void Foam::radiation::viewFactor::initialise()
 
     if (!useDirect_)
     {
-        DynamicList<label> dfaceJ;
+        // Hash table mapping edge to Fmy-index for O(1) lookup
+        // when rebuilding mapRayToFmy_ in sorted edge order
+        HashTable<label, edge, Hash<edge>> edgeToFmyIdx;
+
+        // Reverse mapping: col of e.start() in FmyProc_()[e.end()]
+        // populated when rays_.insert() returns false (second direction)
+        HashTable<label, edge, Hash<edge>> edgeToFmyIdxReverse;
 
         // Per processor to owner (local)/neighbour (remote)
         List<DynamicList<label>> procOwner(Pstream::nProcs());
@@ -189,44 +195,70 @@ void Foam::radiation::viewFactor::initialise()
 
                 if (Pstream::myProcNo() == proci)
                 {
-                    edge e(iFace, faceJ);
-                    if (rays_.insert(e))
+                    // Canonical form guarantees e.start() < e.end(),
+                    // making the forward/reverse mapping unambiguous.
+                    edge e(min(iFace, faceJ), max(iFace, faceJ));
+                    // edgeToFmyIdx holds col in FmyProc_[e.start()];
+                    // edgeToFmyIdxReverse holds col in FmyProc_[e.end()].
+                    // HashTable::insert is a no-op if the key exists,
+                    // so only the first encounter for each direction is stored.
+                    rays_.insert(e);
+                    if (iFace == e.start())
                     {
-                        dfaceJ.append(j);
+                        edgeToFmyIdx.insert(e, j);
+                    }
+                    else
+                    {
+                        edgeToFmyIdxReverse.insert(e, j);
                     }
                 }
                 else
                 {
-                    label gFaceI =
-                        globalNumbering.toGlobal(Pstream::myProcNo(), iFace);
-
-                    label proci = globalNumbering.whichProcID(gFacej);
-
-                    label facei =
-                        globalNumbering.toLocal(Pstream::myProcNo(), gFaceI);
-
+                    // This block builds the cross-processor connectivity table
+                    // for the lduMatrix. It records each local -> remote 
+                    // visible pair as two parallel arrays
                     label remoteFacei = globalNumbering.toLocal(proci, gFacej);
-
-                    procOwner[proci].append(facei);
+                    procOwner[proci].append(iFace);
                     dynProcNeighbour[proci].append(remoteFacei);
                 }
             }
         }
 
-        mapRayToFmy_.transfer(dfaceJ);
+        const edgeList raysLst(rays_.sortedToc());
+
+        // Build mapRayToFmy_ in sorted edge order so that
+        // the index matches the traversal in calculate()
+        mapRayToFmy_.setSize(rays_.size(), -1);
+        mapRayToFmyReverse_.setSize(rays_.size(), -1);
+        {
+            forAll(raysLst, rayI)
+            {
+                const edge& e = raysLst[rayI];
+                if (edgeToFmyIdx.found(e))
+                {
+                    mapRayToFmy_[rayI] = edgeToFmyIdx[e];
+                }
+                if (edgeToFmyIdxReverse.found(e))
+                {
+                    mapRayToFmyReverse_[rayI] = edgeToFmyIdxReverse[e];
+                }
+                // else: asymmetric pair; reciprocity used in calculate()
+            }
+        }
 
         labelList upper(rays_.size(), -1);
         labelList lower(rays_.size(), -1);
 
-        const edgeList raysLst(rays_.sortedToc());
-        label rayI = 0;
-        for (const auto& e : raysLst)
         {
-            label faceI = e.start();
-            label faceJ = e.end();
-            upper[rayI] = max(faceI, faceJ);
-            lower[rayI] = min(faceI, faceJ);
-            rayI++;
+            label rayI = 0;
+            for (const auto& e : raysLst)
+            {
+                label faceI = e.start();
+                label faceJ = e.end();
+                upper[rayI] = max(faceI, faceJ);
+                lower[rayI] = min(faceI, faceJ);
+                rayI++;
+            }
         }
 
         labelListList procNeighbour(dynProcNeighbour.size());
@@ -446,6 +478,8 @@ void Foam::radiation::viewFactor::initialise()
         }
     }
 
+    coeffs_.readEntry("constantEmissivity", constEmissivity_);
+
     if (useDirect_)
     {
         List<labelListList> globalFaceFacesProc(Pstream::nProcs());
@@ -498,7 +532,6 @@ void Foam::radiation::viewFactor::initialise()
                 }
             }
 
-            coeffs_.readEntry("constantEmissivity", constEmissivity_);
             if (constEmissivity_)
             {
                 CLU_.reset
@@ -724,10 +757,12 @@ void Foam::radiation::viewFactor::calculate()
         scalarField compactCoarseE(map_->constructSize(), 0.0);
         scalarField compactCoarseHo(map_->constructSize(), 0.0);
 
-        // Fill local averaged(T), emissivity(E) and external heatFlux(Ho)
+        // Fill local averaged (T), emissivity (E), external heat flux (Ho),
+        // and coarse face area (needed for reciprocity fallback)
         DynamicList<scalar> localCoarseT4ave(nLocalCoarseFaces_);
         DynamicList<scalar> localCoarseEave(nLocalCoarseFaces_);
         DynamicList<scalar> localCoarseHoave(nLocalCoarseFaces_);
+        DynamicList<scalar> localCoarseAreas(nLocalCoarseFaces_);
 
         forAll(selectedPatches_, i)
         {
@@ -760,6 +795,7 @@ void Foam::radiation::viewFactor::calculate()
             scalarList T4ave(pp.size(), 0.0);
             scalarList Eave(pp.size(), 0.0);
             scalarList Hoiave(pp.size(), 0.0);
+            scalarList coarseAreas(pp.size(), 0.0);
 
             if (pp.size() > 0)
             {
@@ -779,6 +815,7 @@ void Foam::radiation::viewFactor::calculate()
                     );
 
                     const scalar area = sum(fineSf());
+                    coarseAreas[coarseI] = area;
 
                     // Temperature, emissivity and external flux area weighting
                     forAll(fineFaces, j)
@@ -794,7 +831,7 @@ void Foam::radiation::viewFactor::calculate()
             localCoarseT4ave.append(T4ave);
             localCoarseEave.append(Eave);
             localCoarseHoave.append(Hoiave);
-
+            localCoarseAreas.append(coarseAreas);
         }
 
         // Fill the local values to distribute
@@ -861,13 +898,29 @@ void Foam::radiation::viewFactor::calculate()
                     label facelJ = e.end();
                     label faceI = e.start();
 
-                    label faceJ = mapRayToFmy_[rayI];
+                    // Compute F_IJ (view factor from start to end).
+                    // Use stored value when available; fall back to
+                    // reciprocity from the reverse stored value.
+                    const scalar F_IJ =
+                        (mapRayToFmy_[rayI] >= 0)
+                        ? FmyProc_()[faceI][mapRayToFmy_[rayI]]
+                        : (localCoarseAreas[facelJ]/localCoarseAreas[faceI])
+                            *FmyProc_()[facelJ][mapRayToFmyReverse_[rayI]];
+
+                    // Compute F_JI (view factor from end to start).
+                    // Use stored value when available; fall back to
+                    // reciprocity from the forward stored value.
+                    const scalar F_JI =
+                        (mapRayToFmyReverse_[rayI] >= 0)
+                        ? FmyProc_()[facelJ][mapRayToFmyReverse_[rayI]]
+                        : (localCoarseAreas[faceI]/localCoarseAreas[facelJ])
+                            *F_IJ;
 
                     lower[rayI] =
-                        (1-1/localCoarseEave[faceI])*FmyProc_()[faceI][faceJ];
+                        (1-1/localCoarseEave[faceI])*F_JI;
 
                     upper[rayI] =
-                        (1-1/localCoarseEave[facelJ])*FmyProc_()[faceI][faceJ];
+                        (1-1/localCoarseEave[facelJ])*F_IJ;
 
                     rayI++;
                 }
