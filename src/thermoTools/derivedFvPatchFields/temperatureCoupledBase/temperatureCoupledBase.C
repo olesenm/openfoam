@@ -31,7 +31,6 @@ License
 #include "fluidThermo.H"
 #include "solidThermo.H"
 #include "turbulentFluidThermoModel.H"
-#include "multiphaseInterSystem.H"
 
 // * * * * * * * * * * * * * Static Member Data  * * * * * * * * * * * * * * //
 
@@ -306,10 +305,7 @@ Foam::tmp<Foam::scalarField> Foam::temperatureCoupledBase::kappa
 
             {
                 const auto* ptr =
-                    mesh.cfindObject<multiphaseInterSystem>
-                    (
-                        multiphaseInterSystem::phasePropertiesName
-                    );
+                    mesh.cfindObject<basicThermo>("phaseProperties");
 
                 if (ptr)
                 {

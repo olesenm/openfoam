@@ -33,7 +33,6 @@ License
 #include "fvcSnGrad.H"
 #include "wallPolyPatch.H"
 #include "turbulentFluidThermoModel.H"
-#include "multiphaseInterSystem.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -262,10 +261,7 @@ bool Foam::wallHeatFluxModels::wall::execute()
     else if
     (
         const auto* ptr
-      = mesh().cfindObject<multiphaseInterSystem>
-        (
-            multiphaseInterSystem::phasePropertiesName
-        );
+      = mesh().cfindObject<basicThermo>("phaseProperties");
         ptr
     )
     {
