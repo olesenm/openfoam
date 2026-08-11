@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -74,6 +75,10 @@ Foam::Ostream& Foam::surfaceWriters::nastranWriter::writeFaceValue
     const label elemId
 ) const
 {
+    // Emit separator char (FREE format) or nothing
+    const auto separator =
+        [&os, this]{ if (writeFormat_ == fieldFormat::FREE) os.write(','); };
+
     // Fixed short/long formats supporting PLOAD2 and PLOAD4:
 
     // PLOAD2:
@@ -91,13 +96,14 @@ Foam::Ostream& Foam::surfaceWriters::nastranWriter::writeFaceValue
     const label setId = 1;
 
     // Write keyword
-    writeKeyword(os, fileFormats::NASCore::loadFormatNames[format])
-        << separator_;
+    writeKeyword(os, fileFormats::NASCore::loadFormatNames[format]);
+    separator();
 
     // Write load set ID
     os.setf(std::ios_base::right);
 
-    writeValue(os, setId) << separator_;
+    writeValue(os, setId);
+    separator();
 
     switch (format)
     {
@@ -112,7 +118,7 @@ Foam::Ostream& Foam::surfaceWriters::nastranWriter::writeFaceValue
                 writeValue(os, value);
             }
 
-            os << separator_;
+            separator();
             writeValue(os, elemId);
             break;
         }
@@ -126,7 +132,7 @@ Foam::Ostream& Foam::surfaceWriters::nastranWriter::writeFaceValue
 
             for (direction d = 0; d < pTraits<Type>::nComponents; ++d)
             {
-                os  << separator_;
+                separator();
                 writeValue(os, component(value, d));
             }
             break;
@@ -234,7 +240,12 @@ Foam::fileName Foam::surfaceWriters::nastranWriter::writeTemplate
         DynamicList<face> decompFaces;
 
 
-        OFstream os(IOstreamOption::ATOMIC, outputFile);
+        OFstream os
+        (
+            IOstreamOption::ATOMIC,
+            outputFile,
+            { IOstreamOption::ASCII, compression_ }
+        );
         fileFormats::NASCore::setPrecision(os, writeFormat_);
 
         os  << "TITLE=OpenFOAM " << outputFile.name()
@@ -354,7 +365,7 @@ Foam::fileName Foam::surfaceWriters::nastranWriter::writeTemplate
                 ++valIter;
 
                 label nValues =
-                    max
+                    Foam::max
                     (
                         label(1),
                         (decompOffsets[facei+1] - decompOffsets[facei])

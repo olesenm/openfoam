@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -33,6 +34,7 @@ Description
     \table
         Property    | Description                       | Required | Default
         format      | short / long / free               | no  | free
+        compression | Use file compression (.gz)        | no  | false
     \endtable
 
     \section Output file locations
@@ -48,6 +50,10 @@ Description
         `-- setName1.{nas}
     \endverbatim
 
+Note
+    With file compression, any \c INCLUDE statements will still refer to
+    the non-compressed names.
+
 SourceFiles
     nastranCoordSetWriter.C
 
@@ -58,6 +64,7 @@ SourceFiles
 
 #include "coordSetWriter.H"
 #include "NASCore.H"
+#include "IOstreamOption.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -85,11 +92,13 @@ public:
 
 private:
 
+    // Private Data
+
         //- Field format (width and separator)
         fieldFormat writeFormat_;
 
-        //- Separator used for free format
-        word separator_;
+        //- Output stream compression (optional)
+        IOstreamOption::compressionType compression_;
 
 
     // Private Member Functions

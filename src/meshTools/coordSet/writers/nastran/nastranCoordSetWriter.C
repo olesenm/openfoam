@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -79,13 +80,8 @@ Foam::coordSetWriters::nastranWriter::nastranWriter()
 :
     coordSetWriter(),
     writeFormat_(fieldFormat::FREE),
-    separator_()
-{
-    if (writeFormat_ == fieldFormat::FREE)
-    {
-        separator_ = ",";
-    }
-}
+    compression_(IOstreamOption::UNCOMPRESSED)
+{}
 
 
 Foam::coordSetWriters::nastranWriter::nastranWriter(const dictionary& options)
@@ -100,13 +96,8 @@ Foam::coordSetWriters::nastranWriter::nastranWriter(const dictionary& options)
             fieldFormat::FREE
         )
     ),
-    separator_()
-{
-    if (writeFormat_ == fieldFormat::FREE)
-    {
-        separator_ = ",";
-    }
-}
+    compression_(IOstreamOption::compressionEnum("compression", options))
+{}
 
 
 Foam::coordSetWriters::nastranWriter::nastranWriter
@@ -173,8 +164,9 @@ void Foam::coordSetWriters::nastranWriter::writeGeometry
       : 0
     );
 
-    // Separator char (FREE format)
-    const char sep = (writeFormat_ == fieldFormat::FREE ? ',' : '\0');
+    // Emit separator char (FREE format) or nothing
+    const auto separator =
+        [&os, this]{ if (writeFormat_ == fieldFormat::FREE) os.write(','); };
 
     // Write points
     os  << '$' << nl
@@ -207,13 +199,13 @@ void Foam::coordSetWriters::nastranWriter::writeGeometry
             for (label edgei = 0; edgei < nEdges; ++edgei)
             {
                 writeKeyword(os, "PLOTEL");
-                if (sep) os << sep;
+                separator();
 
                 putValue(os, globalEdgei+1, width);  // Edge id
-                if (sep) os << sep;
+                separator();
 
                 putValue(os, globalPointi+1, width);
-                if (sep) os << sep;
+                separator();
 
                 putValue(os, globalPointi+2, width);
                 os << nl;
@@ -255,7 +247,12 @@ Foam::fileName Foam::coordSetWriters::nastranWriter::writeTemplate
             Foam::mkDir(outputFile.path());
         }
 
-        OFstream os(IOstreamOption::ATOMIC, outputFile);
+        OFstream os
+        (
+            IOstreamOption::ATOMIC,
+            outputFile,
+            { IOstreamOption::ASCII, compression_ }
+        );
         fileFormats::NASCore::setPrecision(os, writeFormat_);
 
         os  << "TITLE=OpenFOAM " << outputFile.stem()
@@ -298,7 +295,12 @@ Foam::fileName Foam::coordSetWriters::nastranWriter::writeTemplate
             Foam::mkDir(outputFile.path());
         }
 
-        OFstream os(IOstreamOption::ATOMIC, outputFile);
+        OFstream os
+        (
+            IOstreamOption::ATOMIC,
+            outputFile,
+            { IOstreamOption::ASCII, compression_ }
+        );
         fileFormats::NASCore::setPrecision(os, writeFormat_);
 
         os  << "TITLE=OpenFOAM " << outputFile.stem()

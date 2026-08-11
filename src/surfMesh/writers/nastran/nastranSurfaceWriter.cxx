@@ -88,6 +88,10 @@ void Foam::surfaceWriters::nastranWriter::writeFace
     const label propId
 ) const
 {
+    // Emit separator char (FREE format) or nothing
+    const auto separator =
+        [&os, this]{ if (writeFormat_ == fieldFormat::FREE) os.write(','); };
+
     // Only valid surface elements are CTRIA3 and CQUAD4
 
     // Fixed short/long formats:
@@ -102,11 +106,13 @@ void Foam::surfaceWriters::nastranWriter::writeFace
 
     // For CTRIA3 elements, cols 7 onwards are not used
 
-    writeKeyword(os, faceType)  << separator_;
+    writeKeyword(os, faceType);
+    separator();
 
     os.setf(std::ios_base::right);
 
-    writeValue(os, elemId)      << separator_;
+    writeValue(os, elemId);
+    separator();
     writeValue(os, propId);
 
     switch (writeFormat_)
@@ -142,7 +148,7 @@ void Foam::surfaceWriters::nastranWriter::writeFace
         {
             for (const label pointi : facePts)
             {
-                os  << separator_;
+                separator();
                 writeValue(os, pointi + 1);
             }
 
@@ -163,6 +169,10 @@ void Foam::surfaceWriters::nastranWriter::writeGeometry
     DynamicList<face>& decompFaces
 ) const
 {
+    // Emit separator char (FREE format) or nothing
+    const auto separator =
+        [&os, this]{ if (writeFormat_ == fieldFormat::FREE) os.write(','); };
+
     const pointField& points = surf.points();
     const faceList&    faces = surf.faces();
     const labelList&   zones = surf.zoneIds();
@@ -280,13 +290,14 @@ void Foam::surfaceWriters::nastranWriter::writeGeometry
 
     for (auto pid : pidsUsed)
     {
-        writeKeyword(os, "PSHELL")  << separator_;
+        writeKeyword(os, "PSHELL");
+        separator();
         writeValue(os, pid+1);  // 1-offset for PID
 
         for (label i = 0; i < 7; ++i)
         {
             // Dummy values
-            os  << separator_;
+            separator();
             writeValue(os, 1);
         }
         os  << nl;
@@ -295,15 +306,16 @@ void Foam::surfaceWriters::nastranWriter::writeGeometry
 
     // Use single material ID
 
-    const label MID = 1;
+    constexpr label MID = 1;
 
-    writeKeyword(os, "MAT1")  << separator_;
+    writeKeyword(os, "MAT1");
+    separator();
     writeValue(os, MID);
 
     for (label i = 0; i < 7; ++i)
     {
         // Dummy values
-        os  << separator_;
+        separator();
         writeValue(os, "");
     }
     os << nl;
@@ -316,8 +328,8 @@ Foam::surfaceWriters::nastranWriter::nastranWriter()
 :
     surfaceWriter(),
     writeFormat_(fieldFormat::FREE),
-    commonGeometry_(false),
-    separator_(",")  // FREE format
+    compression_(IOstreamOption::UNCOMPRESSED),
+    commonGeometry_(false)
 {}
 
 
@@ -336,13 +348,9 @@ Foam::surfaceWriters::nastranWriter::nastranWriter
             fieldFormat::FREE
         )
     ),
+    compression_(IOstreamOption::compressionEnum("compression", options)),
     commonGeometry_(options.getOrDefault("commonGeometry", false))
 {
-    if (writeFormat_ == fieldFormat::FREE)
-    {
-        separator_ = ",";
-    }
-
     // Explicit PLOAD2, PLOAD4 field specification
     options.readIfPresent("PLOAD2", pload2_);
     options.readIfPresent("PLOAD4", pload4_);
@@ -356,8 +364,7 @@ Foam::surfaceWriters::nastranWriter::nastranWriter
 
     for (const auto& [fld, fmtName] : fieldPairs)
     {
-        const loadFormat format =
-            fileFormats::NASCore::loadFormatNames[fmtName];
+        const auto format = fileFormats::NASCore::loadFormatNames[fmtName];
 
         if (format == loadFormat::PLOAD2)
         {
@@ -432,7 +439,12 @@ Foam::fileName Foam::surfaceWriters::nastranWriter::write()
             Foam::mkDir(outputFile.path());
         }
 
-        OFstream os(IOstreamOption::ATOMIC, outputFile);
+        OFstream os
+        (
+            IOstreamOption::ATOMIC,
+            outputFile,
+            { IOstreamOption::ASCII, compression_ }
+        );
         fileFormats::NASCore::setPrecision(os, writeFormat_);
 
         os  << "TITLE=OpenFOAM " << outputPath_.name() << " geometry" << nl
