@@ -44,6 +44,8 @@ gltf/foamGltfSceneWriter.C
 
 json/JSONformatter.C
 
+numpy/foamNumpyCore.cxx
+
 starcd/STARCDCore.C
 stl/STLCore.C
 stl/STLReader.C
