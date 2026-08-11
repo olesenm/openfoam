@@ -168,8 +168,11 @@ protected:
         //- Rays on local proc
         edgeHashSet rays_;
 
-        //- Map local-ray to j-column for F
+        //- Map local-ray index to j-column in FmyProc_ for the forward row
         List<label> mapRayToFmy_;
+
+        //- Map local-ray index to j-column in FmyProc_ for the reverse row
+        List<label> mapRayToFmyReverse_;
 
         //- Local view factors
         autoPtr<scalarListIOList> FmyProc_;

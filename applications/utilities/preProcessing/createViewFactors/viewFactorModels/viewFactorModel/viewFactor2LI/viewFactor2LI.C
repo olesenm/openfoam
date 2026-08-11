@@ -71,7 +71,7 @@ Foam::scalar Foam::VF::viewFactor2LI::calculateFij
                 r = alpha*si;
             }
 
-            Fij += (si & sj)*Foam::log(r & r);
+            Fij += (si & sj)*Foam::log(max(r & r, VSMALL));
         }
     }
 
@@ -108,6 +108,8 @@ Foam::scalarListList Foam::VF::viewFactor2LI::calculate
 
         const vector& Ai = compactSf[facei];
         const scalar magAi = mag(Ai);
+
+        if (magAi < SMALL) continue;
 
         forAll(visibleFaces, visibleFacei)
         {

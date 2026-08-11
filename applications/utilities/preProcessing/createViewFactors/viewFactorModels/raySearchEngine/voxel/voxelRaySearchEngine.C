@@ -97,23 +97,35 @@ Foam::labelList Foam::VF::voxel::setFaceVertexHits
 {
     labelList vertHits(mesh.points().size(), Zero);
 
-    if (mesh.nSolutionD() == 3)
-    {
-        const auto& pbm = mesh.boundaryMesh();
+    const auto& pbm = mesh.boundaryMesh();
 
-        // Create a new triangulation based on the surface agglomeration
-        for (const label patchI : patchIDs)
+    // Count how many selected-patch coarse faces each mesh point appears in.
+    // This hit count drives vertex retention in setCoarseTriangulation:
+    //   3D (nVertMin = 2): vertices in > 2 coarse faces are true geometric
+    //       corners; those in exactly 2 are collinear intermediate points on
+    //       straight shared edges and are stripped (edge simplification). The
+    //       boost pass below rescues outer-perimeter and processor-boundary
+    //       vertices that would otherwise fall below the threshold.
+    //   2D (nVertMin = 0): all vertices are retained -- see else-if below.
+    for (const label patchI : patchIDs)
+    {
+        const polyPatch& patch = pbm[patchI];
+        for (const face& f : patch)
         {
-            const polyPatch& patch = pbm[patchI];
-            for (const face& f : patch)
+            for (const label fpi : f)
             {
-                for (const label fpi : f)
-                {
-                    ++vertHits[fpi];
-                }
+                ++vertHits[fpi];
             }
         }
+    }
 
+    if (mesh.nSolutionD() == 3)
+    {
+        // Boost hit counts at geometrically important vertices so they
+        // survive the 3D edge-simplification threshold (nVertMin = 2):
+        //   - processor-patch points must be preserved across boundaries
+        //   - patch-perimeter points (where two patches meet) must not be
+        //     stripped, to keep the exact shape of each patch
         for (const auto& pp : pbm)
         {
             const labelList& meshPts = pp.meshPoints();
@@ -131,7 +143,6 @@ Foam::labelList Foam::VF::voxel::setFaceVertexHits
                 else
                 {
                     // Add boundary points
-
                     const auto& bndyPts = pp.boundaryPoints();
 
                     for (const label pi : bndyPts)
@@ -142,6 +153,33 @@ Foam::labelList Foam::VF::voxel::setFaceVertexHits
             }
         }
     }
+    else if (mesh.nSolutionD() == 2)
+    {
+        // 2D meshes are one cell thick; radiation patch faces are quads and
+        // agglomerated coarse faces can have collinear intermediate vertices
+        // just like 3D. However, the 3D boost pass cannot safely be applied
+        // here: in 2D, collinear intermediate vertices on patch boundaries
+        // also touch the empty patches, so boundaryPoints() boosts them
+        // equally with true corners -- making the two indistinguishable by
+        // hit count alone. Using nVertMin = 0 (keep all vertices) is
+        // therefore the safe conservative choice. It produces redundant
+        // triangles but guarantees correctness.
+
+        // TODO: A proper 2D simplification would require explicit
+        // collinearity testing in the projected 2D plane, which is not yet
+        // implemented.
+
+        Info<< "    2D case: skipping surface simplification, using full"
+            << " triangulation for view factor calculation (no effect on"
+            << " accuracy)" << endl;
+    }
+    else
+    {
+        FatalErrorInFunction
+            << "Unsupported mesh dimensionality: " << mesh.nSolutionD()
+            << ". setFaceVertexHits supports 2D and 3D meshes only."
+            << abort(FatalError);
+    }
 
     return vertHits;
 }
@@ -151,17 +189,16 @@ void Foam::VF::voxel::setCoarseTriangulation(const fvMesh& mesh)
 {
     Info<< "\nCreating triangulated surface" << endl;
 
-
     // Filter out fine mesh points along coarse mesh faces
-
 
     // Storage for surfaceMesh. Size estimate.
     DynamicList<labelledTri> triangles(mesh.nBoundaryFaces());
     DynamicList<label> globalFaces(mesh.nBoundaryFaces());
     labelList vertHits = setFaceVertexHits(mesh, patchIDs_);
 
-
-    // Only simplifying edges for 3D
+    // Edge simplification is 3D only. In 2D the hit-count heuristic cannot
+    // reliably distinguish collinear intermediate vertices from true corners
+    // (see setFaceVertexHits), so all vertices are retained (nVertMin = 0).
     const label nVertMin = mesh.nSolutionD() == 3 ? 2 : 0;
 
     label nInvalid = 0;
