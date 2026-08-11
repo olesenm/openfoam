@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2015-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -34,6 +35,7 @@ Description
     \table
         Property    | Description                           | Reqd | Default
         format      | Nastran format (short/long/free)      | no  | free
+        compression | Use file compression (.gz)            | no  | false
         scale       | Output geometry scaling               | no  | 1
         transform   | Output coordinate transform           | no  |
         fieldLevel  | Subtract field level before scaling   | no  | empty dict
@@ -51,6 +53,7 @@ Description
         nastran
         {
             format  free;     // format type
+            compression on;   // write .bdf.gz / .nas.gz
 
             scale   1000;     // [m] -> [mm]
             fieldScale
@@ -105,6 +108,8 @@ Description
 
 Note
     Output variable scaling does not apply to integer types such as Ids.
+    With file compression, any \c INCLUDE statements will still refer to
+    the non-compressed names.
 
 SourceFiles
     nastranSurfaceWriter.cxx
@@ -116,6 +121,7 @@ SourceFiles
 
 #include "surfaceWriter.H"
 #include "NASCore.H"
+#include "IOstreamOption.H"
 #include "wordRes.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -149,11 +155,11 @@ private:
         //- Field format (width and separator)
         fieldFormat writeFormat_;
 
+        //- Output stream compression (optional)
+        IOstreamOption::compressionType compression_;
+
         //- Use common geometry file
         bool commonGeometry_;
-
-        //- Separator (used for free format)
-        word separator_;
 
         //- Explicit selection for PLOAD2 output (deselects for PLOAD4)
         wordRes pload2_;

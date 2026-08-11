@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -64,8 +65,8 @@ public:
         static int debug;
 
 
-        //- File field formats
-        enum fieldFormat
+        //- NASTRAN file field formats
+        enum fieldFormat : char
         {
             SHORT,      //!< Short format (field width = 8)
             LONG,       //!< Long format (field width = 16)
@@ -76,7 +77,7 @@ public:
         static const Enum<fieldFormat> fieldFormatNames;
 
         //- Output load format
-        enum loadFormat
+        enum loadFormat : char
         {
             PLOAD2,     //!< Face load (eg, pressure)
             PLOAD4      //!< Vertex load
