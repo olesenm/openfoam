@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -143,6 +144,7 @@ class hierarchGeomDecomp
             const labelList& slice,         // slice of points to decompose
             const direction componentIndex, // index in decompOrder_
             const label prevMult,           // multiplication factor
+            const label procOffset,         // processor offset of this subtree
             labelList& finalDecomp          // overall decomposition
         ) const;
 
@@ -157,6 +159,7 @@ class hierarchGeomDecomp
             const labelList& slice,         // slice of points to decompose
             const direction componentIndex, // index in decompOrder_
             const label prevMult,           // multiplication factor
+            const label procOffset,         // processor offset of this subtree
             labelList& finalDecomp          // overall decomposition
         ) const;
 

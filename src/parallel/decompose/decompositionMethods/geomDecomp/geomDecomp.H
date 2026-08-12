@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -37,7 +38,12 @@ Description
         order     | order of operation                      | no  | xyz
         delta     | delta (jitter) for rotation matrix      | no  | 0.001
         rotation  | coordinate rotation                     | no  |
+        processorWeights | Relative target load per domain  | no  | uniform
     \endtable
+
+Note
+  - For \c processorWeights, only the ratios matter since \c processorWeights
+    is internally normalised; it only provides best-effort approximation.
 
 SourceFiles
     geomDecomp.C
@@ -96,6 +102,9 @@ protected:
         //- Coefficients for all derived methods
         const dictionary& coeffsDict_;
 
+        //- Relative target load per domain
+        scalarList procWeights_;
+
 
     // Protected Member Functions
 
@@ -104,6 +113,20 @@ protected:
 
         //- Check that mesh directions are compatible with decomposition
         void checkDecompositionDirections(const Vector<label>&) const;
+
+        //- Return the normalized processor-weight fraction over the current
+        //- processor subtree, not necessarily over all processors
+        scalarList binWeightFractions
+        (
+            const label procOffset,
+            const label stride,
+            const label nBins
+        ) const;
+
+        //- Return normalized processor-weight fractions for the bins along
+        //- one geometric axis
+        scalarList axisWeightFractions(const direction cmpt) const;
+
 
 public:
 

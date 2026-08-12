@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -89,7 +90,7 @@ namespace Foam
 
 static void assignToProcessorGroup
 (
-    labelList& processorGroup,
+    labelUList& processorGroup,
     const label nProcGroup
 )
 {
@@ -123,9 +124,9 @@ static void assignToProcessorGroup
 
 static void assignToProcessorGroup
 (
-    labelList& processorGroup,
+    labelUList& processorGroup,
     const label nProcGroup,
-    const labelList& indices,
+    const labelUList& indices,
     const scalarField& weights,
     const scalar summedWeights
 )
@@ -158,10 +159,71 @@ static void assignToProcessorGroup
         }
     }
     // Ensure last included.
-    while (ind < processorGroup.size())
+    processorGroup.slice(ind) = nProcGroupM1;
+}
+
+
+// As above, but split the band so that bin j receives the target fraction
+// fractions[j] of the cells by count. Used when processorWeights requests an
+// uneven banding.
+static void assignToProcessorGroup
+(
+    labelUList& processorGroup,
+    const label nProcGroup,
+    const scalarUList& fractions    // per-band target fractions (sum 1)
+)
+{
+    const label n = processorGroup.size();
+    const label nProcGroupM1 = nProcGroup - 1;  // last bin ID
+
+    label ind = 0;
+    scalar cumFrac = 0;
+
+    // Visit every bin except the last; the last bin receives the remainder
+    for (label j = 0; j < nProcGroupM1; ++j)
     {
-       processorGroup[ind++] = nProcGroupM1;
+        cumFrac += fractions[j];
+        const label limit = Foam::min(n, label(cumFrac*scalar(n) + 0.5));
+        while (ind < limit)
+        {
+            processorGroup[ind++] = j;
+        }
     }
+    processorGroup.slice(ind) = nProcGroupM1;
+}
+
+
+// As above (cell-weighted), but split so that bin j receives the target
+// fraction fractions[j] of the total cell weight.
+static void assignToProcessorGroup
+(
+    labelUList& processorGroup,
+    const label nProcGroup,
+    const labelUList& indices,
+    const scalarField& weights,
+    const scalar summedWeights,
+    const scalarUList& fractions    // per-band target fractions (sum 1)
+)
+{
+    const label n = processorGroup.size();
+    const label nProcGroupM1 = nProcGroup - 1;  // last bin ID
+
+    scalar sumWeights = 0;
+    scalar cumFrac = 0;
+    label ind = 0;
+
+    // Visit all bins except the last
+    for (label j = 0; j < nProcGroupM1; ++j)
+    {
+        cumFrac += fractions[j];
+        const scalar limit = cumFrac*summedWeights;
+        while (ind < n && sumWeights < limit)
+        {
+            sumWeights += weights[indices[ind]];
+            processorGroup[ind++] = j;
+        }
+    }
+    processorGroup.slice(ind) = nProcGroupM1;
 }
 
 } // End namespace Foam
@@ -194,7 +256,19 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     sorter.setComponent(vector::X);
     Foam::sort(pointIndices, sorter);
 
-    assignToProcessorGroup(processorGroups, n_.x());
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup(processorGroups, n_.x());
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.x(),
+            axisWeightFractions(vector::X)
+        );
+    }
 
     forAll(points, i)
     {
@@ -208,7 +282,19 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     sorter.setComponent(vector::Y);
     Foam::sort(pointIndices, sorter);
 
-    assignToProcessorGroup(processorGroups, n_.y());
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup(processorGroups, n_.y());
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.y(),
+            axisWeightFractions(vector::Y)
+        );
+    }
 
     forAll(points, i)
     {
@@ -222,7 +308,19 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     sorter.setComponent(vector::Z);
     Foam::sort(pointIndices, sorter);
 
-    assignToProcessorGroup(processorGroups, n_.z());
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup(processorGroups, n_.z());
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.z(),
+            axisWeightFractions(vector::Z)
+        );
+    }
 
     forAll(points, i)
     {
@@ -265,14 +363,29 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     Foam::sort(pointIndices, sorter);
 
     const scalar summedWeights = sum(weights);
-    assignToProcessorGroup
-    (
-        processorGroups,
-        n_.x(),
-        pointIndices,
-        weights,
-        summedWeights
-    );
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.x(),
+            pointIndices,
+            weights,
+            summedWeights
+        );
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.x(),
+            pointIndices,
+            weights,
+            summedWeights,
+            axisWeightFractions(vector::X)
+        );
+    }
 
     forAll(points, i)
     {
@@ -286,14 +399,29 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     sorter.setComponent(vector::Y);
     Foam::sort(pointIndices, sorter);
 
-    assignToProcessorGroup
-    (
-        processorGroups,
-        n_.y(),
-        pointIndices,
-        weights,
-        summedWeights
-    );
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.y(),
+            pointIndices,
+            weights,
+            summedWeights
+        );
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.y(),
+            pointIndices,
+            weights,
+            summedWeights,
+            axisWeightFractions(vector::Y)
+        );
+    }
 
     forAll(points, i)
     {
@@ -307,14 +435,29 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
     sorter.setComponent(vector::Z);
     Foam::sort(pointIndices, sorter);
 
-    assignToProcessorGroup
-    (
-        processorGroups,
-        n_.z(),
-        pointIndices,
-        weights,
-        summedWeights
-    );
+    if (procWeights_.empty())
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.z(),
+            pointIndices,
+            weights,
+            summedWeights
+        );
+    }
+    else
+    {
+        assignToProcessorGroup
+        (
+            processorGroups,
+            n_.z(),
+            pointIndices,
+            weights,
+            summedWeights,
+            axisWeightFractions(vector::Z)
+        );
+    }
 
     forAll(points, i)
     {
