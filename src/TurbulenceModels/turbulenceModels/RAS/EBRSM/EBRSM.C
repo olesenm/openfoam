@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -487,11 +488,11 @@ void EBRSM<BasicTurbulenceModel>::correct()
               ? fvm::laplacian(alpha*rho*D(sigmaEps_), epsilon_)
               : fvm::laplacian(alpha*rho*D(tau, sigmaEps_), epsilon_)
             )
-          + fvm::Sp(Cstability_/k_, epsilon_)
+          + fvm::Sp(alpha()*rho()*Cstability_/k_, epsilon_)
           ==
             alpha()*rho()*Ceps1Prime()*G()/tau()
           - fvm::Sp(alpha*rho*Ceps2_/tau, epsilon_)
-          + Cstability_*epsilon_()/k_()
+          + alpha()*rho()*Cstability_*epsilon_()/k_()
           + fvOptions(alpha, rho, epsilon_)
         );
 
