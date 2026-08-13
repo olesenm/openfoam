@@ -410,11 +410,16 @@ Foam::fvMeshSubset::fvMeshSubset(const fvMesh& baseMesh) noexcept
 {}
 
 
-Foam::fvMeshSubset::fvMeshSubset(const fvMesh& baseMesh, Foam::zero)
+Foam::fvMeshSubset::fvMeshSubset
+(
+    const fvMesh& baseMesh,
+    Foam::zero,
+    const bool syncPar
+)
 :
     fvMeshSubset(baseMesh)
 {
-    reset(Foam::zero{});
+    reset(Foam::zero{}, syncPar);
 }
 
 
@@ -520,7 +525,7 @@ void Foam::fvMeshSubset::reset
 }
 
 
-void Foam::fvMeshSubset::reset(Foam::zero)
+void Foam::fvMeshSubset::reset(Foam::zero, const bool syncPar)
 {
     // Was old pointMesh present?
     const auto* basePointMeshPtr =
@@ -548,8 +553,8 @@ void Foam::fvMeshSubset::reset(Foam::zero)
                 IOobject::NO_WRITE
             ),
             baseMesh_,                  // Get dictionaries from base mesh
-            Foam::zero{}                // zero-sized
-            // Uses syncPar (bounds) - should generally be OK
+            Foam::zero{},               // zero-sized
+            syncPar
         )
     );
     auto& newSubMesh = subMeshPtr_();

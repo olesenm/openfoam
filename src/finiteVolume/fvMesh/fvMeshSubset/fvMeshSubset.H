@@ -156,7 +156,12 @@ public:
         explicit fvMeshSubset(const fvMesh& baseMesh) noexcept;
 
         //- Construct a zero-sized subset mesh, non-processor patches only
-        fvMeshSubset(const fvMesh& baseMesh, Foam::zero);
+        fvMeshSubset
+        (
+            const fvMesh& baseMesh,
+            Foam::zero,
+            const bool syncPar = true
+        );
 
         //- Construct for a cell-subset of the given mesh
         //  See reset() for more details.
@@ -248,7 +253,7 @@ public:
         void reset();
 
         //- Reset to a zero-sized subset mesh, non-processor patches only
-        void reset(Foam::zero);
+        void reset(Foam::zero, const bool syncPar = true);
 
         //- Reset from components
         void reset
