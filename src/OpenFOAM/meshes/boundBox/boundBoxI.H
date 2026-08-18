@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,76 +31,48 @@ License
 
 // * * * * * * * * * * * * * Geometrical Information * * * * * * * * * * * * //
 
-namespace Foam
-{
-
 // Box corners as per hex cellmodel
 
-template<>
-inline Foam::point Foam::boundBox::hexCorner<0>() const
-{
-    // == octCorner<0>()
-    return min_;
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<1>() const
-{
-    // == octCorner<1>()
-    return point(max_.x(), min_.y(), min_.z());
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<2>() const
-{
-    // == octCorner<3>()
-    return point(max_.x(), max_.y(), min_.z());
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<3>() const
-{
-    // == octCorner<2>()
-    return point(min_.x(), max_.y(), min_.z());
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<4>() const
-{
-    // == octCorner<4>()
-    return point(min_.x(), min_.y(), max_.z());
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<5>() const
-{
-    // == octCorner<5>()
-    return point(max_.x(), min_.y(), max_.z());
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<6>() const
-{
-    // == octCorner<7>()
-    return max_;
-}
-
-template<>
-inline Foam::point Foam::boundBox::hexCorner<7>() const
-{
-    // == octCorner<6>()
-    return point(min_.x(), max_.y(), max_.z());
-}
-
-}  // End namespace Foam
-
-
-// Non-specialized version is compile-time disabled
-template<Foam::direction CornerNumber>
+template<Foam::direction I>
 inline Foam::point Foam::boundBox::hexCorner() const
 {
-    static_assert(CornerNumber < 8, "Corner index [0..7]");
-    return point();
+    /**/ if constexpr (0 == I)  // == octCorner<0>()
+    {
+        return min_;
+    }
+    else if constexpr (1 == I)  // == octCorner<1>()
+    {
+        return point(max_.x(), min_.y(), min_.z());
+    }
+    else if constexpr (2 == I)  // == octCorner<3>()
+    {
+        return point(max_.x(), max_.y(), min_.z());
+    }
+    else if constexpr (3 == I)  // == octCorner<2>()
+    {
+        return point(min_.x(), max_.y(), min_.z());
+    }
+    else if constexpr (4 == I)  // == octCorner<4>()
+    {
+        return point(min_.x(), min_.y(), max_.z());
+    }
+    else if constexpr (5 == I)  // == octCorner<5>()
+    {
+        return point(max_.x(), min_.y(), max_.z());
+    }
+    else if constexpr (6 == I)  // == octCorner<7>()
+    {
+        return max_;
+    }
+    else if constexpr (7 == I)  // == octCorner<6>()
+    {
+        return point(min_.x(), max_.y(), max_.z());
+    }
+    else
+    {
+        static_assert(I < 8, "Corner index [0..7]");
+        return point::zero;
+    }
 }
 
 
@@ -140,6 +113,13 @@ inline Foam::boundBox::boundBox(const Pair<point>& bb)
 {}
 
 
+inline Foam::boundBox::boundBox(const boundBox& a, const boundBox& b)
+:
+    min_(::Foam::min(a.min(), b.min())),
+    max_(::Foam::max(a.max(), b.max()))
+{}
+
+
 inline Foam::boundBox::boundBox(Istream& is)
 {
     operator>>(is, *this);
@@ -148,7 +128,7 @@ inline Foam::boundBox::boundBox(Istream& is)
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-inline bool Foam::boundBox::empty() const
+inline bool Foam::boundBox::empty() const noexcept
 {
     // Is empty/invalid if any component has (max < min), ie, !(min <= max)
     return
@@ -160,7 +140,7 @@ inline bool Foam::boundBox::empty() const
 }
 
 
-inline bool Foam::boundBox::good() const
+inline bool Foam::boundBox::good() const noexcept
 {
     return !empty();
 }

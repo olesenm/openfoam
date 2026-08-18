@@ -166,16 +166,16 @@ int Foam::cellShape::compare(const cellShape& a, const cellShape& b)
 }
 
 
-// * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
-bool Foam::operator==(const cellShape& a, const cellShape& b)
+bool Foam::cellShape::operator==(const cellShape& other) const
 {
-    return cellShape::compare(a, b) != 0;
+    return cellShape::compare(*this, other) != 0;
 }
 
-// bool Foam::operator!=(const cellShape& a, const cellShape& b)
+// bool Foam::cellShape::operator!=(const cellShape& other) const
 // {
-//     return cellShape::compare(a, b) == 0;
+//     return cellShape::compare(*this, other) == 0;
 // }
 
 

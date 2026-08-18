@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -131,7 +132,7 @@ Foam::List<Foam::labelledTri> Foam::triSurface::convertToTri
 
     forAll(triFaces, facei)
     {
-        const face& f = faces[facei];
+        const auto& f = faces[facei];
 
         if (f.size() != 3)
         {
@@ -141,7 +142,7 @@ Foam::List<Foam::labelledTri> Foam::triSurface::convertToTri
                 << abort(FatalError);
         }
 
-        labelledTri& tri = triFaces[facei];
+        auto& tri = triFaces[facei];
 
         tri[0] = f[0];
         tri[1] = f[1];
@@ -163,9 +164,9 @@ Foam::List<Foam::labelledTri> Foam::triSurface::convertToTri
 
     forAll(triFaces, facei)
     {
-        const triFace& f = faces[facei];
+        const auto& f = faces[facei];
 
-        labelledTri& tri = triFaces[facei];
+        auto& tri = triFaces[facei];
 
         tri[0] = f[0];
         tri[1] = f[1];
@@ -331,15 +332,15 @@ Foam::surfacePatchList
 Foam::triSurface::calcPatches(labelList& faceMap) const
 {
     // Determine the sorted order:
-    // use sortedOrder directly (the intermediate list is discarded anyhow)
-
-    labelList regions(size());
-    forAll(regions, facei)
-    {
-        regions[facei] = operator[](facei).region();
-    }
-    sortedOrder(regions, faceMap);
-    regions.clear();
+    Foam::sortedOrder
+    (
+        *this,
+        faceMap,
+        [this](label a, label b)
+        {
+            return ((*this)[a].region() < (*this)[b].region());
+        }
+    );
 
     // Extend regions
     label maxRegion = patches_.size()-1;    // for non-compacted regions
@@ -692,10 +693,7 @@ void Foam::triSurface::compactPoints(labelList& pointMap)
         }
     }
 
-    pointField newPoints
-    (
-        UIndirectList<point>(this->points(), compactPointMap)
-    );
+    pointField newPoints(this->points(), compactPointMap);
 
     this->swapPoints(newPoints);
 
@@ -723,12 +721,28 @@ Foam::triSurface::sortedZones(labelList& faceMap) const
 
 void Foam::triSurface::triFaceFaces(List<face>& plainFaces) const
 {
-    plainFaces.setSize(size());
+    plainFaces.resize_nocopy(size());
 
     forAll(*this, facei)
     {
-        plainFaces[facei] = this->operator[](facei);
+        plainFaces[facei] = (*this)[facei];
     }
+}
+
+
+Foam::labelList Foam::triSurface::regionIDs() const
+{
+    labelList regions(this->size());
+
+    std::transform
+    (
+        this->cbegin(),
+        this->cend(),
+        regions.begin(),
+        [](const auto& f) { return f.region(); }
+    );
+
+    return regions;
 }
 
 
@@ -848,7 +862,7 @@ Foam::triSurface Foam::triSurface::subsetMeshImpl
     const List<labelledTri>& locFaces = localFaces();
 
     // Subset of points (compact)
-    pointField newPoints(UIndirectList<point>(locPoints, pointMap));
+    pointField newPoints(locPoints, pointMap);
 
     // Inverse point mapping - same as ListOps invert() without checks
     labelList oldToNew(locPoints.size(), -1);
@@ -858,7 +872,7 @@ Foam::triSurface Foam::triSurface::subsetMeshImpl
     }
 
     // Subset of faces
-    List<labelledTri> newFaces(UIndirectList<labelledTri>(locFaces, faceMap));
+    List<labelledTri> newFaces(locFaces, faceMap);
 
     // Renumber face node labels
     for (auto& f : newFaces)

@@ -228,7 +228,7 @@ inline void Foam::IndirectListBase<T, Addr>::checkAddressing() const
     const label num_values = values_.size();
 
     label min_idx = num_values;
-    label max_idx = 0;
+    label max_idx = -1;
 
     const label len = addr_.size();
 

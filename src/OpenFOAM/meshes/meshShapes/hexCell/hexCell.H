@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -33,7 +34,7 @@ Description
     a hexahedral cell shape model and a hexCell
 
 SourceFiles
-    hexCell.C
+    hexCell.cxx
     hexCellI.H
 
 \*---------------------------------------------------------------------------*/
@@ -65,16 +66,22 @@ class hexCell
     // Static Data Members
 
         //- The model faces for HEX
-        static const label modelFaces_[6][4];
+        static const int modelFaces_[6][4];
 
         //- The model edges for HEX
-        static const label modelEdges_[12][2];
+        static const int modelEdges_[12][2];
 
 
     // Private Member Functions
 
+        //- Check that edge index is within valid range, otherwise Fatal
+        inline static void checkEdgeIndex(label edgei);
+
+        //- Check that face index is within valid range, otherwise Fatal
+        inline static void checkFaceIndex(label facei);
+
         //- Copy vertices for given face - no checks
-        inline void copyFace(Foam::face& f, const label facei) const;
+        inline void copyFace(labelList& f, const label facei) const;
 
 
 public:
@@ -121,22 +128,13 @@ public:
     // Member Functions
 
         //- Number of points for HEX
-        static constexpr label nPoints() noexcept
-        {
-            return 8;
-        }
+        static constexpr label nPoints() noexcept { return 8; }
 
         //- Number of edges for HEX
-        static constexpr label nEdges() noexcept
-        {
-            return 12;
-        }
+        static constexpr label nEdges() noexcept { return 12; }
 
         //- Number of faces for HEX
-        static constexpr label nFaces() noexcept
-        {
-            return 6;
-        }
+        static constexpr label nFaces() noexcept { return 6; }
 
         //- Return the model faces
         static const Foam::faceList& modelFaces();
@@ -170,7 +168,7 @@ public:
     // Operations
 
         //- Return HEX shape cell
-        cellShape shape(const bool doCollapse = false) const;
+        cellShape shape(bool doCollapse = false) const;
 };
 
 

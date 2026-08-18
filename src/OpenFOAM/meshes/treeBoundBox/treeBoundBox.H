@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -216,6 +217,9 @@ public:
         //- Construct from bound box min/max points
         inline explicit treeBoundBox(const Pair<point>& bb);
 
+        //- Construct with extent of two bounding boxes
+        inline treeBoundBox(const boundBox& a, const boundBox& b);
+
         //- Construct as the bounding box of the given pointField.
         //  Local processor domain only (no reduce as in boundBox)
         explicit treeBoundBox(const UList<point>& points);
@@ -240,7 +244,10 @@ public:
 
     // Member Functions
 
-        // Access
+        // Geometry
+
+            //- Fill in 8 corner points in octant ordering
+            void octCorners(UList<point>& output) const;
 
             //- Vertex coordinates. In octant coding.
             tmp<pointField> points() const;
@@ -248,7 +255,11 @@ public:
 
         // Octant handling
 
-            //- Corner point of given octant
+            //- Return corner point of given octant [0..7]
+            template<direction Octant>
+            inline point octCorner() const;
+
+            //- Return corner point of given octant [0..7]
             inline point corner(const direction octant) const;
 
             //- Sub-box of given octant. Midpoint calculated.

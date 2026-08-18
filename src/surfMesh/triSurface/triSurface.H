@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -411,6 +412,9 @@ public:
         {
             return static_cast<const List<labelledTri>&>(*this);
         }
+
+        //- The per-face region ID
+        labelList regionIDs() const;
 
         //- Return edge-face addressing sorted (for edges with more than
         //  2 faces) according to the angle around the edge.

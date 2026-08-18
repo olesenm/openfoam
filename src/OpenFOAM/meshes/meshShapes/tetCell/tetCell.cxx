@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,7 +36,7 @@ License
 // Ordering of faces needs to be the same for
 // a tetrahedron class, a tetrahedron cell shape model and a tetCell
 
-const Foam::label Foam::tetCell::modelFaces_[4][3] =
+const int Foam::tetCell::modelFaces_[4][3] =
 {
     {1, 2, 3},
     {0, 3, 2},
@@ -48,7 +49,7 @@ const Foam::label Foam::tetCell::modelFaces_[4][3] =
 // Ordering of edges needs to be the same for
 // a tetrahedron class, a tetrahedron cell shape model and a tetCell
 
-const Foam::label Foam::tetCell::modelEdges_[6][2] =
+const int Foam::tetCell::modelEdges_[6][2] =
 {
     {0, 1},
     {0, 2},
@@ -67,11 +68,12 @@ const Foam::faceList& Foam::tetCell::modelFaces()
 
     if (!ptr)
     {
-        ptr.reset(new Foam::faceList(tetCell::nFaces(), Foam::face(3)));
+        ptr.reset(new Foam::faceList(tetCell::nFaces()));
 
-        label facei = 0;
+        int facei = 0;
         for (auto& f : *ptr)
         {
+            f.resize(3);
             f[0] = modelFaces_[facei][0];
             f[1] = modelFaces_[facei][1];
             f[2] = modelFaces_[facei][2];
@@ -91,7 +93,7 @@ const Foam::edgeList& Foam::tetCell::modelEdges()
     {
         ptr.reset(new Foam::edgeList(tetCell::nEdges()));
 
-        label edgei = 0;
+        int edgei = 0;
         for (auto& e : *ptr)
         {
             e[0] = modelEdges_[edgei][0];
@@ -106,11 +108,12 @@ const Foam::edgeList& Foam::tetCell::modelEdges()
 
 /// Foam::faceList Foam::tetCell::faces() const
 /// {
-///     Foam::faceList theFaces(tetCell::nFaces(), Foam::face(3));
+///     Foam::faceList theFaces(tetCell::nFaces());
 ///
-///     label facei = 0;
+///     int facei = 0;
 ///     for (auto& f : theFaces)
 ///     {
+///         f.resize(3);
 ///         f[0] = (*this)[modelFaces_[facei][0]];
 ///         f[1] = (*this)[modelFaces_[facei][1]];
 ///         f[2] = (*this)[modelFaces_[facei][2]];
@@ -125,7 +128,7 @@ const Foam::edgeList& Foam::tetCell::modelEdges()
 /// {
 ///     Foam::edgeList theEdges(tetCell::nEdges());
 ///
-///     label edgei = 0;
+///     int edgei = 0;
 ///     for (auto& e : theEdges)
 ///     {
 ///         e[0] = (*this)[modelEdges_[edgei][0]];
@@ -141,20 +144,14 @@ const Foam::edgeList& Foam::tetCell::modelEdges()
 
 Foam::cellShape Foam::tetCell::shape() const
 {
-    static const cellModel* modelPtr(nullptr);
-
-    if (!modelPtr)
-    {
-        modelPtr = cellModel::ptr(cellModel::TET);
-    }
-
-    return cellShape(*modelPtr, *this);
+    return cellShape(*this);
 }
 
 
+// Identical to shape()
 Foam::cellShape Foam::tetCell::tetCellShape() const
 {
-    return this->shape();
+    return cellShape(*this);
 }
 
 

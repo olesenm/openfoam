@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -126,35 +127,57 @@ Foam::boundBox::boundBox
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
+void Foam::boundBox::hexCorners(UList<point>& output) const
+{
+    if (output.size() < boundBox::nPoints())
+    {
+        FatalErrorInFunction
+            << "Cannot copy 8 corner points into a list of size "
+            << output.size() << nl
+            << abort(FatalError);
+    }
+
+    output[0] = hexCorner<0>();
+    output[1] = hexCorner<1>();
+    output[2] = hexCorner<2>();
+    output[3] = hexCorner<3>();
+    output[4] = hexCorner<4>();
+    output[5] = hexCorner<5>();
+    output[6] = hexCorner<6>();
+    output[7] = hexCorner<7>();
+}
+
+
 Foam::tmp<Foam::pointField> Foam::boundBox::hexCorners() const
 {
-    auto tpts = tmp<pointField>::New(boundBox::nPoints());
-    auto& pts = tpts.ref();
+    auto tpoints = tmp<pointField>::New(boundBox::nPoints());
+    hexCorners(tpoints.ref());
+    return tpoints;
+}
 
-    pts[0] = hexCorner<0>();
-    pts[1] = hexCorner<1>();
-    pts[2] = hexCorner<2>();
-    pts[3] = hexCorner<3>();
-    pts[4] = hexCorner<4>();
-    pts[5] = hexCorner<5>();
-    pts[6] = hexCorner<6>();
-    pts[7] = hexCorner<7>();
 
-    return tpts;
+void Foam::boundBox::faceCentres(UList<point>& output) const
+{
+    if (output.size() < boundBox::nFaces())
+    {
+        FatalErrorInFunction
+            << "Cannot copy 6 faceCentre points into a list of size "
+            << output.size() << nl
+            << abort(FatalError);
+    }
+
+    for (direction facei = 0; facei < boundBox::nFaces(); ++facei)
+    {
+        output[facei] = faceCentre(facei);
+    }
 }
 
 
 Foam::tmp<Foam::pointField> Foam::boundBox::faceCentres() const
 {
-    auto tpts = tmp<pointField>::New(boundBox::nFaces());
-    auto& pts = tpts.ref();
-
-    for (direction facei = 0; facei < boundBox::nFaces(); ++facei)
-    {
-        pts[facei] = faceCentre(facei);
-    }
-
-    return tpts;
+    auto tpoints = tmp<pointField>::New(boundBox::nFaces());
+    faceCentres(tpoints.ref());
+    return tpoints;
 }
 
 

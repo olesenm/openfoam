@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,12 +30,9 @@ License
 #include "etcFiles.H"
 #include "IFstream.H"
 #include "HashSet.H"
+#include "PtrList.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
-
-Foam::PtrList<Foam::cellModel> Foam::cellModel::models_;
-
-Foam::List<const Foam::cellModel*> Foam::cellModel::modelPtrs_;
 
 const Foam::Enum<Foam::cellModel::modelType> Foam::cellModel::modelNames
 ({
@@ -49,14 +47,27 @@ const Foam::Enum<Foam::cellModel::modelType> Foam::cellModel::modelNames
 });
 
 
-// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
-void Foam::cellModel::constructModels()
+namespace
 {
+
+// List of predefined models
+Foam::PtrList<Foam::cellModel> models_;
+
+// Lookup of model pointers (in models_) by index
+Foam::List<const Foam::cellModel*> modelPtrs_;
+
+
+// Construct from central "etc/cellModels" file.
+void constructModels(bool verbose = false)
+{
+    using namespace Foam;
+
     if (models_.size())
     {
         FatalErrorInFunction
-            << "attempt to re-construct cellModeller when it already exists"
+            << "attempt to re-construct cellModels when it already exists"
             << exit(FatalError);
     }
 
@@ -65,16 +76,12 @@ void Foam::cellModel::constructModels()
     PtrList<cellModel> newPtrs(is);
     models_.swap(newPtrs);
 
-    ///Info<< "loading " << models_.size()
-    ///    << " cell models from etc/controlDict" << endl;
-
-
     // Build two lookups: by index, by name
     // Since there are relatively few models, use straight lookup for the index
     // and a linear (non-hashed) search for the name.
     // Lookup by name is less likely than lookup by enum anyhow.
 
-    label maxIndex = 0;
+    label maxIndex = -1;
     forAll(models_, i)
     {
         if (maxIndex < models_[i].index())
@@ -83,18 +90,36 @@ void Foam::cellModel::constructModels()
         }
     }
 
-    modelPtrs_.clear();
-    modelPtrs_.setSize(maxIndex+1, nullptr);
+    if (verbose)
+    {
+        InfoErr
+            << "loaded " << models_.size()
+            << " cell models from etc/controlDict"
+            << ", max index=" << maxIndex << endl;
+    }
 
-    wordHashSet used(2*maxIndex);
+    modelPtrs_.clear();
+    modelPtrs_.resize(maxIndex+1, nullptr);
+
+    wordHashSet used;
+    used.reserve(models_.size());
 
     forAll(models_, i)
     {
-        const label modelIndex = models_[i].index();
-        const word& modelName = models_[i].name();
-        const cellModel* ptr = &models_[i];
+        const cellModel* p = models_.get(i);
+        if (!p) continue;
 
-        if (used.insert(modelName))
+        const label modelIndex = p->index();
+        const word& modelName = p->name();
+
+        if (!used.insert(modelName))
+        {
+            FatalErrorInFunction
+                << "more than one model share the name "
+                << modelName
+                << exit(FatalError);
+        }
+        else
         {
             if (modelPtrs_[modelIndex])
             {
@@ -104,18 +129,15 @@ void Foam::cellModel::constructModels()
                     << exit(FatalError);
             }
 
-            modelPtrs_[modelIndex] = ptr;
-        }
-        else
-        {
-            FatalErrorInFunction
-                << "more than one model share the name "
-                << modelName
-                << exit(FatalError);
+            modelPtrs_[modelIndex] = p;
         }
     }
 }
 
+} // End anonymous namespace
+
+
+// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 const Foam::cellModel* Foam::cellModel::ptr(const modelType model)
 {
@@ -133,9 +155,11 @@ const Foam::cellModel* Foam::cellModel::ptr(const word& modelName)
     const label n = models_.size();
     for (label i = 0; i < n; ++i)
     {
-        if (models_[i].name() == modelName)
+        const cellModel* p = models_.get(i);
+
+        if (p && p->name() == modelName)
         {
-            return &(models_[i]);
+            return p;
         }
     }
 
@@ -150,7 +174,14 @@ const Foam::cellModel* Foam::cellModel::ptr(const label modelIndex)
         constructModels();
     }
 
-    return (modelIndex < modelPtrs_.size() ? modelPtrs_[modelIndex] : nullptr);
+    const cellModel* p(nullptr);
+
+    if (modelIndex >= 0 && modelIndex < modelPtrs_.size())
+    {
+        p = modelPtrs_[modelIndex];
+    }
+
+    return p;
 }
 
 
