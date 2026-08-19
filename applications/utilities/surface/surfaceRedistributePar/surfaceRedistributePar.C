@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,7 +50,8 @@ Note
 #include "distributedTriSurfaceMesh.H"
 #include "mapDistribute.H"
 #include "decompositionModel.H"
-#include <tuple>
+#include "foamVtkSurfaceWriter.H"
+#include "foamVtuWriter.H"
 
 using namespace Foam;
 
@@ -63,29 +65,35 @@ void writeProcStats
     const UList<List<treeBoundBox>>& meshBb
 )
 {
-    // listGatherValues with treeBoundBox makes gcc-15 unhappy
-    // (complains about non-trivial copy for memmove),
-    // so just collect as a std::tuple in a single MPI call
+    const auto communicator = UPstream::worldComm;
 
-    typedef std::tuple<label, label, point, point> surfTuple;
+    // Need to gather data separately since we don't have a corresponding
+    // is_contiguous data type...
 
-    List<surfTuple> surfaceInfo;
-    {
-        treeBoundBox bb(s.points());
+    typedef Pair<point> bb_type;
 
-        surfaceInfo = UPstream::listGatherValues<surfTuple>
+    List<bb_type> surfBoxes
+    (
+        UPstream::listGatherValues<bb_type>(s.box(), communicator)
+    );
+
+    List<labelPair> surfSizes
+    (
+        UPstream::listGatherValues<labelPair>
         (
-            surfTuple(s.points().size(), s.size(), bb.min(), bb.max())
-        );
-    }
+            labelPair(s.points().size(), s.size()),
+            communicator
+        )
+    );
 
-    if (UPstream::master())
+    if (UPstream::master(communicator))
     {
-        forAll(surfaceInfo, proci)
+        for (int proci : UPstream::allProcs(communicator))
         {
             Info<< "processor" << proci << nl;
 
-            const auto& [nPoints, nFaces, smin, smax] = surfaceInfo[proci];
+            const auto [nPoints, nFaces] = surfSizes[proci];
+            const auto& [smin, smax] = surfBoxes[proci];
             const auto& bbs = meshBb[proci];
 
             forAll(bbs, i)
@@ -109,6 +117,16 @@ void writeProcStats
 }
 
 
+// Extract and return the surface bounding boxes
+List<treeBoundBox> getSurfaceBoundingBoxes(const triSurface& s)
+{
+    const auto communicator = UPstream::worldComm;
+
+    treeBoundBox localBb(s.box());
+
+    return UPstream::listGatherValues(localBb, communicator);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -126,10 +144,17 @@ int main(int argc, char *argv[])
         "keepNonMapped",
         "Preserve surface outside of mesh bounds"
     );
+    argList::addDryRunOption
+    (
+        "Test without writing the decomposition."
+        " Writes surfaces and bounding boxes as VTK files."
+    );
+
+    argList::noFunctionObjects();  // Never use function objects
 
     #include "setRootCase.H"
     #include "createTime.H"
-    runTime.functionObjects().off();
+    runTime.functionObjects().off();  // Extra safety?
 
     const auto surfFileName = args.get<fileName>(1);
     const auto distTypeName = args.get<word>(2);
@@ -202,9 +227,8 @@ int main(int argc, char *argv[])
     {
         #include "createPolyMesh.H"
 
-        meshBb[Pstream::myProcNo()] = List<treeBoundBox>
+        meshBb[UPstream::myProcNo()].push_back
         (
-            1,
             treeBoundBox(mesh.points()).extend(rndGen, 1e-3)
         );
         Pstream::allGatherList(meshBb);
@@ -248,11 +272,11 @@ int main(int argc, char *argv[])
             triSurfaceMesh surf(io);
             Pstream::parRun(oldParRun);  // Restore parallel state
             s = surf;
-            bbs = List<treeBoundBox>(1, treeBoundBox(boundBox::greatBox));
+            bbs.push_back(treeBoundBox(boundBox::greatBox));
         }
         else
         {
-            bbs = List<treeBoundBox>(1, treeBoundBox::null());
+            bbs.push_back(treeBoundBox::null());
         }
 
         dictionary dict;
@@ -298,9 +322,106 @@ int main(int argc, char *argv[])
     Info<< "After redistribution:" << endl;
     writeProcStats(surfMesh, meshBb);
 
+    if (args.dryRun())
+    {
+        // Write surface
+        {
+            const auto& points = surfMesh.points();
+            const auto& faces  = surfMesh.surfFaces();
 
-    Info<< "Writing surface." << nl << endl;
-    surfMesh.objectRegistry::write();
+            word outputName(args.executable() + ".vtp");
+
+            Info<< "\ndry-run: writing " << outputName << nl;
+
+            vtk::surfaceWriter writer
+            (
+                points,
+                faces,
+                (runTime.globalPath()/outputName),
+                UPstream::parRun()
+            );
+
+            writer.writeGeometry();
+
+            writer.beginCellData(1 + (writer.parallel() ? 1 : 0));
+
+            writer.writeProcIDs();
+
+            labelList regionIDs(surfMesh.regionIDs());
+
+            writer.writeCellData("regionID", regionIDs);
+        }
+
+        // Write surface bounding boxes
+        {
+            List<treeBoundBox> surfBbs = getSurfaceBoundingBoxes(surfMesh);
+
+            pointField bbCorners
+            (
+                surfBbs.size()*treeBoundBox::nPoints(),
+                point::zero
+            );
+
+            List<cellShape> shapes
+            (
+                surfBbs.size(),
+                cellShape(cellModel::HEX, Foam::identity(8))
+            );
+
+            {
+                forAll(surfBbs, boxi)
+                {
+                    const auto& bb = surfBbs[boxi];
+                    auto& shape = shapes[boxi];
+
+                    const label beg = boxi*treeBoundBox::nPoints();
+                    const label len = treeBoundBox::nPoints();
+
+                    Foam::identity(static_cast<labelList&>(shape), beg);
+
+                    if (bb.good())
+                    {
+                        auto corners = bbCorners.slice(beg, len);
+                        bb.hexCorners(corners);
+                    }
+                }
+            }
+
+            word outputName(args.executable() + "_bbs.vtu");
+
+            Info<< "\ndry-run: writing " << outputName << nl;
+
+            if (UPstream::master())
+            {
+                vtk::vtuCells bbCells(shapes);
+
+                // ASCII format for easier inspection
+                vtk::vtuWriter writer
+                (
+                    bbCorners,
+                    bbCells,
+                    vtk::formatType::INLINE_ASCII,
+                    (runTime.globalPath()/outputName),
+                    false  // not parallel
+                );
+
+                writer.writeGeometry();
+
+                writer.beginCellData(1);
+
+                labelList procIDs(Foam::identity(shapes.size()));
+
+                writer.writeCellData("procID", procIDs);
+            }
+        }
+
+        Info<< nl;
+    }
+    else
+    {
+        Info<< "Writing surface." << nl << endl;
+        surfMesh.objectRegistry::write();
+    }
 
     Info<< "End\n" << endl;
 

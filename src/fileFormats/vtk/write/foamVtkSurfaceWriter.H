@@ -5,7 +5,7 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
@@ -34,6 +34,9 @@ Description
     The file output states are managed by the Foam::vtk::fileWriter class.
     FieldData (eg, TimeValue) must appear before any geometry pieces.
 
+    This writer uses a fat interface to support face/triFace/labelledTri
+    types but these must be used consistently in parallel.
+
 Note
     Parallel output is combined into a single Piece without point merging,
     which is similar to using multi-piece data sets, but allows more
@@ -51,8 +54,7 @@ SourceFiles
 
 #include "foamVtkPolyWriter.H"
 #include "instant.H"
-
-#include <functional>
+#include "refPtr.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -72,16 +74,38 @@ class surfaceWriter
     // Private Member Data
 
         //- Reference to the points
-        std::reference_wrapper<const pointField> points_;
+        refPtr<pointField> points_;
 
-        //- Reference to the faces
-        std::reference_wrapper<const faceList> faces_;
+        //- Reference to the (regular) faces
+        refPtr<List<face>> faces_;
+
+        //- Reference to the tri-faces
+        refPtr<List<triFace>> triFaces_;
+
+        //- Reference to the labelledTri-faces
+        refPtr<List<labelledTri>> labelledTris_;
 
         //- Time name/value
         instant instant_;
 
         //- Output as 1D vertex/point elements instead of faces
         bool vertexOutput_;
+
+
+    // Private Member Functions
+
+        //- Construct from components. Internal use only
+        template<class FaceType>
+        surfaceWriter
+        (
+            const vtk::outputOptions,
+            const pointField& pts,
+            const List<FaceType>& faces
+        );
+
+        //- Set poly, triFace or labelledTri face reference
+        template<class FaceType>
+        void setFaceReference(const List<FaceType>& faces);
 
 public:
 
@@ -96,36 +120,54 @@ public:
 
     // Constructors
 
-        //- Construct from components (default format INLINE_BASE64)
-        surfaceWriter
-        (
-            const pointField& pts,
-            const faceList& faces,
-            const vtk::outputOptions opts = vtk::formatType::INLINE_BASE64
-        );
+#undef  declare_constructors
+#define declare_constructors(FaceType)                                        \
+        /*! \brief Construct from components */                               \
+        surfaceWriter                                                         \
+        (                                                                     \
+            const pointField& points,                                         \
+            const List<FaceType>& faces,                                      \
+            /*! Output format (default: INLINE_BASE64) */                     \
+            const vtk::outputOptions opts = vtk::formatType::INLINE_BASE64    \
+        );                                                                    \
+                                                                              \
+        /*! \brief Construct (INLINE_BASE64) and open file for writing. */    \
+        surfaceWriter                                                         \
+        (                                                                     \
+            const pointField& points,                                         \
+            const List<FaceType>& faces,                                      \
+            /*! The file name (with or without an extension). */              \
+            const fileName& file,                                             \
+            bool parallel = UPstream::parRun()                                \
+        )                                                                     \
+        :                                                                     \
+            surfaceWriter(points, faces)                                      \
+        {                                                                     \
+            open(file, parallel);                                             \
+        }                                                                     \
+                                                                              \
+        /*! \brief Construct with given format and open file for writing. */  \
+        surfaceWriter                                                         \
+        (                                                                     \
+            const pointField& points,                                         \
+            const List<FaceType>& faces,                                      \
+            /*! Output format */                                              \
+            const vtk::outputOptions opts,                                    \
+            /*! The file name (with or without an extension). */              \
+            const fileName& file,                                             \
+            bool parallel = UPstream::parRun()                                \
+        )                                                                     \
+        :                                                                     \
+            surfaceWriter(points, faces, opts)                                \
+        {                                                                     \
+            open(file, parallel);                                             \
+        }
 
-        //- Construct from components (default format INLINE_BASE64),
-        //- and open the file for writing.
-        //  The file name is with/without an extension.
-        surfaceWriter
-        (
-            const pointField& pts,
-            const faceList& faces,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        );
+        declare_constructors(face);
+        declare_constructors(triFace);
+        declare_constructors(labelledTri);
 
-        //- Construct from components and open the file for writing.
-        //  The file name is with/without an extension.
-        surfaceWriter
-        (
-            const pointField& pts,
-            const faceList& faces,
-            const vtk::outputOptions opts,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        );
-
+        #undef declare_constructors
 
     //- Destructor
     virtual ~surfaceWriter() = default;
@@ -166,8 +208,16 @@ public:
         //- Write the currently set time as "TimeValue" FieldData
         void writeTimeValue();
 
-        //- Reset point/face references to begin a new piece
-        void piece(const pointField& points, const faceList& faces);
+#undef  declare_methods
+#define declare_methods(FaceType)                                             \
+        /*! \brief Reset point/face references to begin a new piece */        \
+        void piece(const pointField& points, const List<FaceType>& faces);
+
+        declare_methods(face);
+        declare_methods(triFace);
+        declare_methods(labelledTri);
+
+        #undef declare_methods
 };
 
 

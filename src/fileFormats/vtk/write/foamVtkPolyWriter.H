@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,6 +56,7 @@ SourceFiles
 #include "pointField.H"
 #include "edgeList.H"
 #include "faceList.H"
+#include "labelledTri.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -102,7 +104,8 @@ private:
         void beginPiece(const pointField& points, const UList<edge>& edges);
 
         //- Determine sizes and begin piece (CellData == polys)
-        void beginPiece(const pointField& points, const UList<face>& faces);
+        template<class FaceType>
+        void beginPiece_impl(const pointField&, const UList<FaceType>&);
 
         //- Determine sizes and begin piece (CellData == verts)
         void beginPiece(const pointField& points, const bool useVerts);
@@ -117,10 +120,28 @@ private:
         void writeLines(const UList<edge>& edges);
 
         //- Write faces, legacy format
-        void writePolys_legacy(const UList<face>& faces);
+        template<class FaceType>
+        void writePolys_legacy_impl(const UList<FaceType>& faces);
 
         //- Write faces
-        void writePolys(const UList<face>& faces);
+        template<class FaceType>
+        void writePolys_impl(const UList<FaceType>& faces);
+
+        //- Low-level write face/point topology.
+        //- Normally used by writeGeometry() in a derived class
+        //  Also writes the file header if not previously written.
+        //  \note Must be called prior to writing CellData or PointData
+        template<class FaceType>
+        bool writePolyGeometry_impl
+        (
+            const pointField& points,
+            const UList<FaceType>& faces
+        );
+
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         polyWriter(const polyWriter&) = delete;
@@ -128,8 +149,6 @@ private:
         //- No copy assignment
         void operator=(const polyWriter&) = delete;
 
-
-public:
 
     // Constructors
 
@@ -196,6 +215,26 @@ public:
         (
             const pointField& points,
             const UList<face>& faces
+        );
+
+        //- Low-level write face/point topology.
+        //- Normally used by writeGeometry() in a derived class
+        //  Also writes the file header if not previously written.
+        //  \note Must be called prior to writing CellData or PointData
+        bool writePolyGeometry
+        (
+            const pointField& points,
+            const UList<triFace>& faces
+        );
+
+        //- Low-level write face/point topology.
+        //- Normally used by writeGeometry() in a derived class
+        //  Also writes the file header if not previously written.
+        //  \note Must be called prior to writing CellData or PointData
+        bool writePolyGeometry
+        (
+            const pointField& points,
+            const UList<labelledTri>& faces
         );
 
         //- Low-level write vertex/point topology.

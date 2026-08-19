@@ -5,7 +5,7 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
@@ -28,50 +28,48 @@ License
 
 #include "foamVtkSurfaceWriter.H"
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
+template<class FaceType>
+void Foam::vtk::surfaceWriter::setFaceReference
+(
+    const List<FaceType>& faces
+)
+{
+    faces_.reset();
+    triFaces_.reset();
+    labelledTris_.reset();
+
+    if constexpr (std::is_same_v<Foam::face, FaceType>)
+    {
+        faces_.cref(faces);
+    }
+    else if constexpr (std::is_same_v<Foam::triFace, FaceType>)
+    {
+        triFaces_.cref(faces);
+    }
+    else if constexpr (std::is_same_v<Foam::labelledTri, FaceType>)
+    {
+        labelledTris_.cref(faces);
+    }
+}
+
+
+template<class FaceType>
 Foam::vtk::surfaceWriter::surfaceWriter
 (
+    const vtk::outputOptions opts,
     const pointField& points,
-    const faceList& faces,
-    const vtk::outputOptions opts
+    const List<FaceType>& faces
 )
 :
     vtk::polyWriter(opts),
 
-    points_(std::cref<pointField>(points)),
-    faces_(std::cref<faceList>(faces)),
+    points_(points),
     instant_(),
     vertexOutput_(false)
-{}
-
-
-Foam::vtk::surfaceWriter::surfaceWriter
-(
-    const pointField& points,
-    const faceList& faces,
-    const fileName& file,
-    bool parallel
-)
-:
-    surfaceWriter(points, faces)
 {
-    open(file, parallel);
-}
-
-
-Foam::vtk::surfaceWriter::surfaceWriter
-(
-    const pointField& points,
-    const faceList& faces,
-    const vtk::outputOptions opts,
-    const fileName& file,
-    bool parallel
-)
-:
-    surfaceWriter(points, faces, opts)
-{
-    open(file, parallel);
+    setFaceReference(faces);
 }
 
 
@@ -105,13 +103,30 @@ bool Foam::vtk::surfaceWriter::beginFile(std::string title)
 
 bool Foam::vtk::surfaceWriter::writeGeometry()
 {
+    if (!points_.good())
+    {
+        return false;
+    }
+
     if (vertexOutput_)
     {
-        return writeVertGeometry(points_.get());
+        return writeVertGeometry(points_.cref());
+    }
+    else if (const auto* faces_ptr = faces_.get())
+    {
+        return writePolyGeometry(points_.cref(), *faces_ptr);
+    }
+    else if (const auto* faces_ptr = triFaces_.get())
+    {
+        return writePolyGeometry(points_.cref(), *faces_ptr);
+    }
+    else if (const auto* faces_ptr = labelledTris_.get())
+    {
+        return writePolyGeometry(points_.cref(), *faces_ptr);
     }
     else
     {
-        return writePolyGeometry(points_.get(), faces_.get());
+        return false;
     }
 }
 
@@ -125,17 +140,38 @@ void Foam::vtk::surfaceWriter::writeTimeValue()
 }
 
 
-void Foam::vtk::surfaceWriter::piece
-(
-    const pointField& points,
-    const faceList& faces
-)
-{
-    endPiece();
+// * * * * * * * * * * * * * * * Concrete Types  * * * * * * * * * * * * * * //
 
-    points_ = std::cref<pointField>(points);
-    faces_ = std::cref<faceList>(faces);
+#undef  define_methods
+#define define_methods(FaceType)                                              \
+                                                                              \
+Foam::vtk::surfaceWriter::surfaceWriter                                       \
+(                                                                             \
+    const pointField& points,                                                 \
+    const List<FaceType>& faces,                                              \
+    const vtk::outputOptions opts                                             \
+)                                                                             \
+:                                                                             \
+    surfaceWriter(opts, points, faces)                                        \
+{}                                                                            \
+                                                                              \
+void Foam::vtk::surfaceWriter::piece                                          \
+(                                                                             \
+    const pointField& points,                                                 \
+    const List<FaceType>& faces                                               \
+)                                                                             \
+{                                                                             \
+    endPiece();                                                               \
+    points_.cref(points);                                                     \
+    setFaceReference(faces);                                                  \
 }
+
+
+define_methods(Foam::face);
+define_methods(Foam::triFace);
+define_methods(Foam::labelledTri);
+
+#undef define_methods
 
 
 // ************************************************************************* //
