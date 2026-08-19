@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2021-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -277,6 +278,8 @@ void readCells
     const cellModel& hex = cellModel::ref(cellModel::HEX);
     const cellModel& prism = cellModel::ref(cellModel::PRISM);
     const cellModel& tet = cellModel::ref(cellModel::TET);
+    const cellModel& pyr = cellModel::ref(cellModel::PYR);
+
 
     labelHashSet skippedElements;
 
@@ -376,6 +379,31 @@ void readCells
                 >> cVerts[3] >> cVerts[4] >> cVerts[5];
 
             cellVerts.append(cellShape(prism, cVerts, true));
+            cellMaterial.append(physProp);
+            addAndExtend(cellCorrespondence,celli,cellMaterial.size()-1);
+
+            if (cellVerts.last().size() != cVerts.size())
+            {
+                Info<< "Line:" << is.lineNumber()
+                    << " element:" << celli
+                    << " type:" << feID
+                    << " collapsed from " << cVerts << nl
+                    << " to:" << cellVerts.last()
+                    << endl;
+            }
+        }
+        else if (feID == 119 || feID == 312)
+        {
+            // Pyramid.
+            is.getLine(line);
+
+            labelList cVerts(5);
+            IStringStream lineStr(line);
+            lineStr
+                >> cVerts[0] >> cVerts[1] >> cVerts[2]
+                >> cVerts[3] >> cVerts[4];
+
+            cellVerts.append(cellShape(pyr, cVerts, true));
             cellMaterial.append(physProp);
             addAndExtend(cellCorrespondence,celli,cellMaterial.size()-1);
 
