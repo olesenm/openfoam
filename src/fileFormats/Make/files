@@ -71,9 +71,11 @@ vtk/format/foamVtkLegacyRawFormatter.cxx
 vtk/output/foamVtkOutput.cxx
 vtk/output/foamVtkOutputOptions.cxx
 
-vtk/part/foamVtkMeshMaps.cxx
-vtk/part/foamVtuCells.cxx
-vtk/part/foamVtuSizing.cxx
+vtk/mesh/foamVtkInternalMeshWriter.cxx
+vtk/mesh/foamVtkMeshMaps.cxx
+vtk/mesh/foamVtuCells.cxx
+vtk/mesh/foamVtuSizing.cxx
+vtk/mesh/foamVtuWriter.cxx
 
 vtk/read/vtkUnstructuredReader.cxx
 vtk/write/foamVtkLineWriter.cxx

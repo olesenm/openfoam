@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,18 +43,17 @@ Note
 
 See Also
     Foam::vtk::internalWriter
+    Foam::vtk::vtuWriter
 
 SourceFiles
     foamVtkInternalMeshWriter.cxx
-    foamVtkInternalMeshWriter.txx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef Foam_vtk_InternalMeshWriter_H
-#define Foam_vtk_InternalMeshWriter_H
+#ifndef Foam_vtk_internalMeshWriter_H
+#define Foam_vtk_internalMeshWriter_H
 
-#include "foamVtkFileWriter.H"
-#include "foamVtuCells.H"
+#include "foamVtuWriter.H"
 #include "polyMesh.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -69,7 +69,7 @@ namespace vtk
 
 class internalMeshWriter
 :
-    public vtk::fileWriter
+    public vtk::vtuWriter
 {
 protected:
 
@@ -78,51 +78,10 @@ protected:
         //- Reference to the OpenFOAM mesh (or subset)
         const polyMesh& mesh_;
 
-        //- The volume cells (internalMesh)
-        const vtk::vtuCells& vtuCells_;
-
-        //- Slab addressing for field points of the current Piece
-        OffsetRange<label> pointSlab_;
-
-        //- Slab addressing for field cells of the current Piece
-        OffsetRange<label> cellSlab_;
-
-
-    // Protected Member Functions
-
-        //- Total number of field points for the current Piece
-        label nTotalPoints() const noexcept { return pointSlab_.total(); }
-
-        //- Total number of field cells for the current Piece
-        label nTotalCells() const noexcept { return cellSlab_.total(); }
-
-
-private:
-
-    // Private Member Functions
-
-        //- Begin piece
-        void beginPiece();
-
-        //- Write mesh points
-        void writePoints();
-
-        //- Write cells (connectivity and type), legacy format
-        void writeCells_legacy();
-
-        //- Write cells connectivity
-        void writeCellsConnectivity();
-
-        //- Write cells face streams
-        void writeCellsFaces();
-
 public:
 
     //- Debug information
     static int debug;
-
-//- File extension for given output type
-//  constexpr static vtk::fileTag content = vtk::fileTag::UNSTRUCTURED_GRID;
 
     // Generated Methods
 
@@ -171,15 +130,8 @@ public:
 
     // Member Functions
 
-        //- File extension for current format type.
-        using vtk::fileWriter::ext;
-
-        //- File extension for given output type
-        inline static word ext(vtk::outputOptions opts)
-        {
-            return opts.ext(vtk::fileTag::UNSTRUCTURED_GRID);
-        }
-
+        //- File extension for current format type or given output
+        using vtk::vtuWriter::ext;
 
         //- Write file header (non-collective)
         //  \note Expected calling states: (OPENED)
@@ -189,66 +141,6 @@ public:
         //  Also writes the file header if not previously written.
         //  \note Must be called prior to writing CellData or PointData
         virtual bool writeGeometry();
-
-        //- Begin CellData output section for specified number of fields.
-        //  Must be called prior to writing any cell data fields.
-        //  \param nFields is for legacy format only.
-        //      When nFields=0, this a no-op for legacy format.
-        //  \note Expected calling states: (PIECE | POINT_DATA).
-        //
-        //  \return True if the state changed
-        virtual bool beginCellData(label nFields = 0);
-
-        //- Begin PointData for specified number of fields.
-        //  Must be called prior to writing any point data fields.
-        //  \param nFields is for legacy format only.
-        //      When nFields=0, this a no-op for legacy format.
-        //  \note Expected calling states: (PIECE | CELL_DATA).
-        //
-        //  \return True if the state changed
-        virtual bool beginPointData(label nFields = 0);
-
-
-        //- Write cell ids as CellData.
-        //  Must be called within the CELL_DATA state.
-        void writeCellIDs();
-
-        //- Write processor ids as CellData. This is no-op in serial.
-        //  Must be called within the CELL_DATA state.
-        bool writeProcIDs();
-
-        //- Write point ids as PointData.
-        //  Must be called within the POINT_DATA state.
-        void writePointIDs();
-
-
-    // Write Fields
-
-        //- Write a uniform field of Cell or Point values
-        template<class Type>
-        void writeUniform(const word& fieldName, const Type& val);
-
-        //- Write primitive field of CellData.
-        //- Uses cellMap (for decomposed poly cells).
-        template<class Type>
-        void writeCellData(const word& fieldName, const UList<Type>& field);
-
-        //- Write primitive field of PointData.
-        //- Uses pointMap (for merged data).
-        template<class Type>
-        void writePointData(const word& fieldName, const UList<Type>& field);
-
-        //- Write primitive field of PointData.
-        //- Uses pointMap (for merged data).
-        template<class Type>
-        void writePointData
-        (
-            const word& fieldName,
-            const UList<Type>& field,
-            //! Extra values corresponding to the decomposed cell centres.
-            //! Ignored if UList<Type>::null()
-            const UList<Type>& extra
-        );
 };
 
 
@@ -256,12 +148,6 @@ public:
 
 } // End namespace vtk
 } // End namespace Foam
-
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-#ifdef NoRepository
-    #include "foamVtkInternalMeshWriter.txx"
-#endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

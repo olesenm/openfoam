@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,18 +26,28 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "foamVtkInternalMeshWriter.H"
+#include "foamVtuWriter.H"
 #include "globalIndex.H"
-#include "Time.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-int Foam::vtk::internalMeshWriter::debug = 0;
+int Foam::vtk::vtuWriter::debug = 0;
 
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-void Foam::vtk::internalMeshWriter::beginPiece()
+void Foam::vtk::vtuWriter::setPointReference(const pointField& points)
+{
+    points_.reset();
+
+    if (!points.empty())
+    {
+        points_.cref(points);
+    }
+}
+
+
+void Foam::vtk::vtuWriter::beginPiece()
 {
     // Basic sizes
     pointSlab_ = vtuCells_.nFieldPoints();  // With addPointCellLabels
@@ -72,14 +83,22 @@ void Foam::vtk::internalMeshWriter::beginPiece()
 }
 
 
-void Foam::vtk::internalMeshWriter::writePoints()
+void Foam::vtk::vtuWriter::writePoints
+(
+    const UList<point>& points,
+    const UList<point>& cellCentres
+)
 {
     // Additional support points for decomposed polys
-    const UIndirectList<point> centres
+    const UIndirectList<point> decompCentres
     (
-        mesh_.cellCentres(),
+        cellCentres,
         vtuCells_.addPointCellLabels()
     );
+
+    #ifdef FULLDEBUG
+    decompCentres.checkAddressing();
+    #endif
 
     this->beginPoints(nTotalPoints());
 
@@ -87,31 +106,35 @@ void Foam::vtk::internalMeshWriter::writePoints()
     {
         if (returnReduceAnd(vtuCells_.merged()))
         {
-            const UIndirectList<point> points
+            const UIndirectList<point> mergedPoints
             (
-                mesh_.points(),
+                points,
                 vtuCells_.pointMap()
             );
 
-            vtk::writeListsParallel(format_.ref(), points, centres);
+            #ifdef FULLDEBUG
+            mergedPoints.checkAddressing();
+            #endif
+
+            vtk::writeListsParallel(format_.ref(), mergedPoints, decompCentres);
         }
         else
         {
             // No pointMap...
-            vtk::writeListsParallel(format_.ref(), mesh_.points(), centres);
+            vtk::writeListsParallel(format_.ref(), points, decompCentres);
         }
     }
     else
     {
         // No pointMap for non-parallel...
-        vtk::writeLists(format(), mesh_.points(), centres);
+        vtk::writeLists(format(), points, decompCentres);
     }
 
     this->endPoints();
 }
 
 
-void Foam::vtk::internalMeshWriter::writeCells_legacy()
+void Foam::vtk::vtuWriter::writeCells_legacy()
 {
     // The processor-local point offset (if not already merged)
     const label pointOffset = (vtuCells_.merged() ? 0 : pointSlab_.start());
@@ -176,7 +199,7 @@ void Foam::vtk::internalMeshWriter::writeCells_legacy()
 }
 
 
-void Foam::vtk::internalMeshWriter::writeCellsConnectivity()
+void Foam::vtk::vtuWriter::writeCellsConnectivity()
 {
     // The processor-local point offset (if not already merged)
     const label pointOffset = (vtuCells_.merged() ? 0 : pointSlab_.start());
@@ -305,7 +328,7 @@ void Foam::vtk::internalMeshWriter::writeCellsConnectivity()
 }
 
 
-void Foam::vtk::internalMeshWriter::writeCellsFaces()
+void Foam::vtk::vtuWriter::writeCellsFaces()
 {
     // The processor-local point offset (if not already merged)
     const label pointOffset = (vtuCells_.merged() ? 0 : pointSlab_.start());
@@ -411,17 +434,14 @@ void Foam::vtk::internalMeshWriter::writeCellsFaces()
 }
 
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-Foam::vtk::internalMeshWriter::internalMeshWriter
+Foam::vtk::vtuWriter::vtuWriter
 (
-    const polyMesh& mesh,
     const vtk::vtuCells& cells,
     const vtk::outputOptions opts
 )
 :
     vtk::fileWriter(vtk::fileTag::UNSTRUCTURED_GRID, opts),
-    mesh_(mesh),
+    points_(),
     vtuCells_(cells),
     pointSlab_(0),
     cellSlab_(0)
@@ -431,30 +451,45 @@ Foam::vtk::internalMeshWriter::internalMeshWriter
 }
 
 
-Foam::vtk::internalMeshWriter::internalMeshWriter
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+
+Foam::vtk::vtuWriter::vtuWriter
 (
-    const polyMesh& mesh,
+    const pointField& points,
+    const vtk::vtuCells& cells,
+    const vtk::outputOptions opts
+)
+:
+    vtk::vtuWriter(cells, opts)
+{
+    setPointReference(points);
+}
+
+
+Foam::vtk::vtuWriter::vtuWriter
+(
+    const pointField& points,
     const vtk::vtuCells& cells,
     const fileName& file,
     bool parallel
 )
 :
-    internalMeshWriter(mesh, cells)
+    vtk::vtuWriter(points, cells)
 {
     open(file, parallel);
 }
 
 
-Foam::vtk::internalMeshWriter::internalMeshWriter
+Foam::vtk::vtuWriter::vtuWriter
 (
-    const polyMesh& mesh,
+    const pointField& points,
     const vtk::vtuCells& cells,
     const vtk::outputOptions opts,
     const fileName& file,
     bool parallel
 )
 :
-    internalMeshWriter(mesh, cells, opts)
+    vtk::vtuWriter(points, cells, opts)
 {
     open(file, parallel);
 }
@@ -462,51 +497,17 @@ Foam::vtk::internalMeshWriter::internalMeshWriter
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-bool Foam::vtk::internalMeshWriter::beginFile(std::string title)
-{
-    const auto& runTime = mesh_.time();
-
-    if (title.size())
-    {
-        return vtk::fileWriter::beginFile(title);
-    }
-
-    // Provide default title
-
-    DebugInFunction
-        << "case=" << runTime.caseName()
-        << " region=" << mesh_.name()
-        << " time=" << runTime.timeName()
-        << " index=" << runTime.timeIndex() << endl;
-
-    if (legacy())
-    {
-        return vtk::fileWriter::beginFile
-        (
-            runTime.globalCaseName()
-        );
-    }
-
-    // XML (inline)
-
-    return vtk::fileWriter::beginFile
-    (
-        "case='" + runTime.globalCaseName()
-      + "' region='" + mesh_.name()
-      + "' time='" + runTime.timeName()
-      + "' index='" + Foam::name(runTime.timeIndex())
-      + "'"
-    );
-}
-
-
-bool Foam::vtk::internalMeshWriter::writeGeometry()
+bool Foam::vtk::vtuWriter::writeGeometry_impl
+(
+    const UList<point>& points,
+    const UList<point>& cellCentres
+)
 {
     enter_Piece();
 
     beginPiece();
 
-    writePoints();
+    writePoints(points, cellCentres);
 
     if (legacy())
     {
@@ -531,19 +532,32 @@ bool Foam::vtk::internalMeshWriter::writeGeometry()
 }
 
 
-bool Foam::vtk::internalMeshWriter::beginCellData(label nFields)
+bool Foam::vtk::vtuWriter::writeGeometry()
+{
+    if (points_.good())
+    {
+        return writeGeometry_impl(points_.cref(), UList<point>::null());
+    }
+    else
+    {
+        return writeGeometry_impl(UList<point>::null(), UList<point>::null());
+    }
+}
+
+
+bool Foam::vtk::vtuWriter::beginCellData(label nFields)
 {
     return enter_CellData(nTotalCells(), nFields);
 }
 
 
-bool Foam::vtk::internalMeshWriter::beginPointData(label nFields)
+bool Foam::vtk::vtuWriter::beginPointData(label nFields)
 {
     return enter_PointData(nTotalPoints(), nFields);
 }
 
 
-void Foam::vtk::internalMeshWriter::writeCellIDs()
+void Foam::vtk::vtuWriter::writeCellIDs()
 {
     if (isState(outputState::CELL_DATA))
     {
@@ -579,7 +593,7 @@ void Foam::vtk::internalMeshWriter::writeCellIDs()
 }
 
 
-bool Foam::vtk::internalMeshWriter::writeProcIDs()
+bool Foam::vtk::vtuWriter::writeProcIDs()
 {
     if (!parallel_)
     {
@@ -591,7 +605,7 @@ bool Foam::vtk::internalMeshWriter::writeProcIDs()
 }
 
 
-void Foam::vtk::internalMeshWriter::writePointIDs()
+void Foam::vtk::vtuWriter::writePointIDs()
 {
     if (isState(outputState::POINT_DATA))
     {
