@@ -32,7 +32,7 @@ Description
     cell containing a point (e.g. cell-cell mapping).
 
 SourceFiles
-    treeDataCell.C
+    treeDataCell.cxx
 
 \*---------------------------------------------------------------------------*/
 

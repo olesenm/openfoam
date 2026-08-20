@@ -36,7 +36,7 @@ Description
     Optionally works on subset of points.
 
 SourceFiles
-    treeDataPoint.C
+    treeDataPoint.cxx
 
 \*---------------------------------------------------------------------------*/
 

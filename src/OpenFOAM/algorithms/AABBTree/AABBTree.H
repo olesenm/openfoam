@@ -36,8 +36,8 @@ Description
     and the contents (addressing) is stored.
 
 SourceFiles
-    AABBTree.C
-    AABBTreeBase.C
+    AABBTree.cxx
+    AABBTree.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -225,7 +225,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "AABBTree.C"
+    #include "AABBTree.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

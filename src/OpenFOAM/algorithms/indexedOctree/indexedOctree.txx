@@ -1304,10 +1304,8 @@ void Foam::indexedOctree<Type>::traverseNode
             {
                 // Find any intersection
 
-                forAll(indices, elemI)
+                for (label shapeI : indices)
                 {
-                    label shapeI = indices[elemI];
-
                     point pt;
                     bool hit = fiOp(shapeI, start, end, pt);
 
@@ -1331,10 +1329,8 @@ void Foam::indexedOctree<Type>::traverseNode
 
                 point nearestPoint(end);
 
-                forAll(indices, elemI)
+                for (label shapeI : indices)
                 {
-                    label shapeI = indices[elemI];
-
                     point pt;
                     bool hit = fiOp(shapeI, start, nearestPoint, pt);
 
@@ -1926,19 +1922,13 @@ void Foam::indexedOctree<Type>::findNear
         {
             // Both are leaves. Check n^2.
 
-            const labelList& indices1 =
-                tree1.contents()[tree1.getContent(index1)];
-            const labelList& indices2 =
-                tree2.contents()[tree2.getContent(index2)];
+            const labelUList indices1 = tree1.getIndices(index1);
+            const labelUList indices2 = tree2.getIndices(index2);
 
-            forAll(indices1, i)
+            for (label shape1 : indices1)
             {
-                label shape1 = indices1[i];
-
-                forAll(indices2, j)
+                for (label shape2 : indices2)
                 {
-                    label shape2 = indices2[j];
-
                     if ((&tree1 != &tree2) || (shape1 != shape2))
                     {
                         if (okOrder)
@@ -2663,10 +2653,8 @@ Foam::label Foam::indexedOctree<Type>::findInside(const point& sample) const
     {
         const labelList& indices = contents_[getContent(contentIndex)];
 
-        forAll(indices, elemI)
+        for (label shapeI : indices)
         {
-            label shapeI = indices[elemI];
-
             if (shapes_.contains(shapeI, sample))
             {
                 return shapeI;
@@ -2859,9 +2847,9 @@ void Foam::indexedOctree<Type>::print
             if (printContents)
             {
                 os << " contents:";
-                forAll(indices, j)
+                for (label i: indices)
                 {
-                    os  << ' ' << indices[j];
+                    os  << ' ' << i;
                 }
             }
             os  << endl;
