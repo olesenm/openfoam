@@ -838,6 +838,8 @@ $(interpolationWeights)/splineInterpolationWeights/splineInterpolationWeights.C
 
 algorithms/AABBTree/AABBTree.cxx
 
+algorithms/boundBoxTree/boundBoxTree.cxx
+
 algorithms/indexedOctree/indexedOctree.cxx
 algorithms/dynamicIndexedOctree/dynamicIndexedOctree.cxx
 algorithms/dynamicIndexedOctree/dynamicTreeDataPoint.cxx
