@@ -300,7 +300,8 @@ Foam::Ostream& Foam::OSstream::writeRaw
 
 void Foam::OSstream::indent()
 {
-    for (unsigned short i = 0; i < indentLevel_*indentSize_; ++i)
+    int n = (indentLevel()*indentSize());
+    while (n-- > 0)
     {
         os_ << ' ';
     }

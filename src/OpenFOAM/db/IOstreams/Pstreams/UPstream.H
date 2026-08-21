@@ -1401,6 +1401,12 @@ public:
             return myProcNo_[communicator] == masterNo();
         }
 
+        //- True if process corresponds to the master rank in the communicator
+        static bool is_master(label communicator = worldComm)
+        {
+            return UPstream::master(communicator);
+        }
+
         //- True if process corresponds to \b any rank (master or sub-rank)
         //- in the given communicator
         static bool is_rank(label communicator = worldComm)

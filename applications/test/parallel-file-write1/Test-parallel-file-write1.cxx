@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     }
 
     // Content buffer
-    OCharStream os(IOstream::BINARY);
+    OCharStream os(IOstreamOption::BINARY);
 
     {
         const auto v = charset.view();

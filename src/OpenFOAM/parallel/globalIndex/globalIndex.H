@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -156,6 +157,15 @@ public:
         static const globalIndex& null() noexcept
         {
             return NullObjectRef<globalIndex>();
+        }
+
+
+    // Properties
+
+        //- Default communication type for gather/scatter
+        static constexpr UPstream::commsTypes defaultCommsType() noexcept
+        {
+            return UPstream::commsTypes::nonBlocking;
         }
 
 
@@ -709,7 +719,7 @@ public:
             const ProcIDsContainer& procIDs,
             const Type& localValue,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         );
 
         //- Collect data in processor order on master (== procIDs[0]).
@@ -724,7 +734,7 @@ public:
             //! [out] result (master only). Must be adequately sized!
             UList<Type>& allFld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         );
 
         //- Collect indirect data in processor order on master
@@ -739,7 +749,7 @@ public:
             //! [out] result (master only). Must be adequately sized!
             UList<Type>& allFld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         );
 
         //- Inplace collect in processor order on master (== procIDs[0]).
@@ -751,7 +761,7 @@ public:
             const ProcIDsContainer& procIDs,
             List<Type>& fld,            //!< [in,out]
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         );
 
         //- Collect data in processor order on master (== procIDs[0]).
@@ -765,7 +775,7 @@ public:
             //! [out] resized to have results on master, empty elsewhere.
             List<Type>& allFld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         ) const;
 
         //- Inplace collect in processor order on master (== procIDs[0]).
@@ -777,7 +787,7 @@ public:
             const ProcIDsContainer& procIDs,
             List<Type>& fld,            //!< [in,out]
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         ) const
         {
             gatherInplace(offsets_, comm, procIDs, fld, tag, commsType);
@@ -797,7 +807,7 @@ public:
             //! [out] resized to have results on master, empty elsewhere.
             List<Type>& allData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -812,7 +822,7 @@ public:
             //! [out] resized to have results on master, empty elsewhere.
             List<Type>& allData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -827,7 +837,7 @@ public:
         (
             const UList<Type>& sendData,  //!< [in] all ranks
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -841,7 +851,7 @@ public:
         (
             const IndirectListBase<Type, Addr>& sendData, //!< [in] all ranks
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -854,7 +864,7 @@ public:
         (
             List<Type>& fld,  //!< [in,out]
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -872,7 +882,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         ) const;
 
@@ -891,7 +901,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         ) const;
 
@@ -911,7 +921,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         ) const;
 
@@ -931,7 +941,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         );
 
@@ -948,7 +958,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         );
 
@@ -966,7 +976,7 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
 
             // For fallback routines:
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const int tag = UPstream::msgType()
         );
 
@@ -980,7 +990,7 @@ public:
             //! [out] output on master, zero-sized on non-master
             List<Type>& allData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         );
 
@@ -994,7 +1004,7 @@ public:
             //! [out] output on master, zero-sized on non-master
             List<Type>& allData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         );
 
@@ -1009,7 +1019,7 @@ public:
         (
             const UList<Type>& sendData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         );
 
@@ -1024,7 +1034,7 @@ public:
         (
             const IndirectListBase<Type, Addr>& sendData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         );
 
@@ -1039,7 +1049,7 @@ public:
             //! [in,out]
             List<Type>& fld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         );
 
@@ -1058,7 +1068,7 @@ public:
             const UList<Type>& allFld,
             UList<Type>& fld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         );
 
         //- Distribute data in processor order.
@@ -1073,7 +1083,7 @@ public:
             const UList<Type>& allFld,
             UList<Type>& fld,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking
+            UPstream::commsTypes commsType = defaultCommsType()
         ) const
         {
             scatter(offsets_, comm, procIDs, allFld, fld, tag, commsType);
@@ -1089,7 +1099,7 @@ public:
             const UList<Type>& allData,
             UList<Type>& localData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 
@@ -1103,7 +1113,7 @@ public:
         (
             const UList<Type>& allData,
             const int tag = UPstream::msgType(),
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             const label comm = UPstream::worldComm  //!< communicator
         ) const;
 

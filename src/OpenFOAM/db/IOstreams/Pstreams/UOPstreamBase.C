@@ -76,10 +76,85 @@ inline void Foam::UOPstreamBase::prepareBuffer
     }
 
     // Align for the next output position
-    const label pos = byteAlign(sendBuf_.size(), align);
+    const auto pos = byteAlign(sendBuf_.size(), align);
 
-    // Extend buffer (as required)
-    sendBuf_.reserve(Foam::max(label(1024), label(pos + count)));
+    const int64_t newLen = int64_t(pos) + int64_t(count);
+
+    // The max buffer length:
+    // - limited by OpenFOAM label size, or by MPI <int> limit (prior to MPI-4)
+
+    constexpr label minLen = 1024;
+
+    constexpr int64_t maxLen =
+    (
+        (sizeof(UList<char>::max_size()) < sizeof(int64_t))
+      ? int64_t(UList<char>::max_size())            // OpenFOAM (label)
+      : int64_t(std::numeric_limits<int>::max())    // MPI (int)
+    );
+
+    if (FOAM_UNLIKELY(newLen > maxLen))
+    {
+        FatalErrorInFunction
+            << "Buffer requirement exceeds <int32> range by "
+            << (newLen - maxLen) << " values.\n";
+
+        if constexpr (sizeof(UList<char>::max_size()) < sizeof(int64_t))
+        {
+            // Requested amount exceeds OpenFOAM (int32) label limit
+            FatalError
+                << "Using an <int64> build will not likely solve the problem"
+                   " since MPI itself still has <int> limits\n";
+        }
+        else
+        {
+            // Requested amount exceeds MPI (int) limit.
+            // Need to wait for MPI-4 (big sizes)
+            FatalError
+                << "This is still an MPI limit (as of AUG-2026)\n";
+        }
+        FatalError<< Foam::abort(FatalError);
+    }
+
+
+    // The int32 versions need to be careful when resizing a buffer of bytes:
+    //
+    // Currently DynamicList::reserve() uses doubling without additional
+    // guards. Use a slower (1.5) growth when the buffer becomes larger.
+
+    if constexpr (sizeof(UList<char>::max_size()) < sizeof(int64_t))
+    {
+        // OpenFOAM <label> limit:
+        constexpr int64_t threshold = int64_t(0.4*maxLen);
+
+        const int64_t oldCapacity(sendBuf_.capacity());
+        if ((newLen > oldCapacity) && (oldCapacity > threshold))
+        {
+            // Slower (3/2 = 1.5x) growth to avoid doubling overflow,
+            // clamped to UList::max_size().
+            // No min-size clamping needed for this code path.
+
+            int64_t newCapacity =
+            (
+                Foam::ListPolicy::reserve_size<0,3,2>(newLen, oldCapacity)
+            );
+            newCapacity = std::min(newCapacity, maxLen);
+
+            // Impose this capacity directly
+            sendBuf_.reserve_exact(label(newCapacity));
+        }
+        else
+        {
+            // Extend buffer (as required)
+            sendBuf_.reserve(Foam::max(minLen, label(newLen)));
+        }
+    }
+    else
+    {
+        // MPI <int> limit:
+
+        // Extend buffer (as required)
+        sendBuf_.reserve(Foam::max(minLen, label(newLen)));
+    }
 
     // Move to the aligned output position. Fill any gap with nul char.
     sendBuf_.resize(pos, '\0');
@@ -156,6 +231,8 @@ void Foam::UOPstreamBase::writeToBuffer_at
 
     // The end position after the write
     const int64_t end_pos = pos + static_cast<int64_t>(count);
+
+    // Need additional size check, as per prepareBuffer? (issue #3152)
 
     // Extend buffer if needed to accommodate the write at pos
     if (sendBuf_.size() < end_pos)

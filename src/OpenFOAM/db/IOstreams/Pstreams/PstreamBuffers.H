@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2021-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -258,13 +259,22 @@ public:
         static int algorithm;
 
 
+    // Properties
+
+        //- Default communication type for gather/scatter
+        static constexpr UPstream::commsTypes defaultCommsType() noexcept
+        {
+            return UPstream::commsTypes::nonBlocking;
+        }
+
+
     // Constructors
 
         //- Construct given communication type (default: nonBlocking), message
         //- tag, communicator (default: worldComm), IO format (default: binary)
         explicit PstreamBuffers
         (
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             int tag = UPstream::msgType(),
             int communicator = UPstream::worldComm,
             IOstreamOption::streamFormat fmt = IOstreamOption::BINARY
@@ -275,7 +285,7 @@ public:
         explicit PstreamBuffers
         (
             int communicator,
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             int tag = UPstream::msgType(),
             IOstreamOption::streamFormat fmt = IOstreamOption::BINARY
         )
@@ -289,7 +299,7 @@ public:
         (
             int communicator,
             int tag,
-            UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking,
+            UPstream::commsTypes commsType = defaultCommsType(),
             IOstreamOption::streamFormat fmt = IOstreamOption::BINARY
         )
         :
