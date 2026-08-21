@@ -7,6 +7,7 @@ multiLevelDecomp/multiLevelDecomp.C
 metisLikeDecomp/metisLikeDecomp.C
 structuredDecomp/structuredDecomp.C
 randomDecomp/randomDecomp.C
+treeDecomp/treeDecomp.cxx
 noDecomp/noDecomp.C
 
 
