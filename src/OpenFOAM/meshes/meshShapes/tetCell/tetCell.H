@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,7 +36,7 @@ Description
     a tetrahedron cell shape model and a tetCell
 
 SourceFiles
-    tetCell.C
+    tetCell.cxx
     tetCellI.H
 
 \*---------------------------------------------------------------------------*/
@@ -69,10 +70,19 @@ class tetCell
     // Static Data Members
 
         //- The model faces for TET
-        static const label modelFaces_[4][3];
+        static const int modelFaces_[4][3];
 
         //- The model edges for TET
-        static const label modelEdges_[6][2];
+        static const int modelEdges_[6][2];
+
+
+    // Private Member Functions
+
+        //- Check that edge index is within valid range, otherwise Fatal
+        inline static void checkEdgeIndex(label edgei);
+
+        //- Check that face index is within valid range, otherwise Fatal
+        inline static void checkFaceIndex(label facei);
 
 
 public:
@@ -92,13 +102,7 @@ public:
         inline tetCell();
 
         //- Construct from four point labels
-        inline tetCell
-        (
-            const label p0,
-            const label p1,
-            const label p2,
-            const label p3
-        );
+        inline tetCell(label p0, label p1, label p2, label p3);
 
         //- Construct from an initializer list of four point labels
         inline explicit tetCell(std::initializer_list<label> list);
@@ -128,22 +132,13 @@ public:
     // Member Functions
 
         //- Number of points for TET
-        static constexpr label nPoints() noexcept
-        {
-            return 4;
-        }
+        static constexpr label nPoints() noexcept { return 4; }
 
         //- Number of edges for TET
-        static constexpr label nEdges() noexcept
-        {
-            return 6;
-        }
+        static constexpr label nEdges() noexcept { return 6; }
 
         //- Number of faces for TET
-        static constexpr label nFaces() noexcept
-        {
-            return 4;
-        }
+        static constexpr label nFaces() noexcept { return 4; }
 
         //- Return the model faces
         static const Foam::faceList& modelFaces();

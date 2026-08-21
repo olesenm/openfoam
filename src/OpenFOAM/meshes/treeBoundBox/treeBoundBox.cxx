@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -91,17 +92,32 @@ Foam::treeBoundBox::treeBoundBox
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::tmp<Foam::pointField> Foam::treeBoundBox::points() const
+void Foam::treeBoundBox::octCorners(UList<point>& output) const
 {
-    auto tpts = tmp<pointField>::New(8);
-    auto& pts = tpts.ref();
-
-    forAll(pts, octant)
+    if (output.size() < boundBox::nPoints())
     {
-        pts[octant] = corner(octant);
+        FatalErrorInFunction
+            << "Cannot copy 8 corner points into a list of size "
+            << output.size() << nl
+            << abort(FatalError);
     }
 
-    return tpts;
+    output[0] = octCorner<0>();
+    output[1] = octCorner<1>();
+    output[2] = octCorner<2>();
+    output[3] = octCorner<3>();
+    output[4] = octCorner<4>();
+    output[5] = octCorner<5>();
+    output[6] = octCorner<6>();
+    output[7] = octCorner<7>();
+}
+
+
+Foam::tmp<Foam::pointField> Foam::treeBoundBox::points() const
+{
+    auto tpoints = tmp<pointField>::New(boundBox::nPoints());
+    octCorners(tpoints.ref());
+    return tpoints;
 }
 
 

@@ -31,7 +31,8 @@ Description
     Non-pointer based hierarchical recursive searching
 
 SourceFiles
-    indexedOctree.C
+    indexedOctree.cxx
+    indexedOctree.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -323,6 +324,16 @@ class indexedOctree
             volumeType getVolumeType(const label nodeI, const point&) const;
 
 
+        // Access
+
+            //- List of all contents
+            //- (referenced by those nodes that are contents)
+            const List<labelList>& contents() const noexcept
+            {
+                return contents_;
+            }
+
+
         // Query
 
             //- Find nearest point to line.
@@ -549,13 +560,6 @@ public:
         //- List of all nodes
         const List<node>& nodes() const noexcept { return nodes_; }
 
-        //- List of all contents
-        //- (referenced by those nodes that are contents)
-        const List<labelList>& contents() const noexcept
-        {
-            return contents_;
-        }
-
         //- Per node, per octant whether is fully inside/outside/mixed.
         PackedList<2>& nodeTypes() const noexcept
         {
@@ -574,6 +578,23 @@ public:
 
         //- Return the number of leaf nodes
         label nLeafs() const;
+
+
+    // Basic Queries
+
+        //- Return the shape indices held by the content addressed by
+        //- the given leaf entry (e.g. as stored in
+        //- nodes()[i].subNodes_[octant], or as returned by findNode()).
+        //  Returns an empty list if the entry does not address content
+        //  (e.g. it is an empty leaf or another node).
+        const labelUList getIndices(const labelBits index) const
+        {
+            if (isContent(index))
+            {
+                return contents_[getContent(index)];
+            }
+            return labelUList();
+        }
 
 
         // Queries
@@ -780,7 +801,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "indexedOctree.C"
+    #include "indexedOctree.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

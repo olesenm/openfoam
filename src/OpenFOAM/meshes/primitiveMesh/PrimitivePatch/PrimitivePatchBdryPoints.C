@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,7 +44,7 @@ Foam::PrimitivePatch<FaceList, PointField>::calcBdryPoints() const
             << abort(FatalError);
     }
 
-    labelHashSet bp(0);
+    labelHashSet bp;
 
     if (hasEdges())
     {
@@ -81,7 +82,8 @@ Foam::PrimitivePatch<FaceList, PointField>::calcBdryPoints() const
         }
 
         // ie, EdgeMap<label> to keep counts
-        HashTable<label, edge, Hash<edge>> knownEdges(2*edgeCount);
+        HashTable<label, edge, Hash<edge>> knownEdges;
+        knownEdges.reserve(edgeCount);
 
         for (const auto& f : locFcs)
         {
@@ -139,8 +141,8 @@ Foam::PrimitivePatch<FaceList, PointField>::box() const
         // Less looping if meshPoints() are already available
         for (const label pointi : meshPoints())
         {
-            bb.first()  = min(bb.first(),  points_[pointi]);
-            bb.second() = max(bb.second(), points_[pointi]);
+            bb.first()  = Foam::min(bb.first(),  points_[pointi]);
+            bb.second() = Foam::max(bb.second(), points_[pointi]);
         }
     }
     else
@@ -150,10 +152,30 @@ Foam::PrimitivePatch<FaceList, PointField>::box() const
         {
             for (const label pointi : f)
             {
-                bb.first()  = min(bb.first(),  points_[pointi]);
-                bb.second() = max(bb.second(), points_[pointi]);
+                bb.first()  = Foam::min(bb.first(),  points_[pointi]);
+                bb.second() = Foam::max(bb.second(), points_[pointi]);
             }
         }
+    }
+
+    return bb;
+}
+
+
+template<class FaceList, class PointField>
+Foam::Pair<typename Foam::PrimitivePatch<FaceList, PointField>::point_type>
+Foam::PrimitivePatch<FaceList, PointField>::box(const label facei) const
+{
+    Pair<point_type> bb
+    (
+        point_type::uniform(ROOTVGREAT),
+        point_type::uniform(-ROOTVGREAT)
+    );
+
+    for (const label pointi : (*this)[facei])
+    {
+        bb.first()  = Foam::min(bb.first(),  points_[pointi]);
+        bb.second() = Foam::max(bb.second(), points_[pointi]);
     }
 
     return bb;
@@ -168,9 +190,9 @@ Foam::PrimitivePatch<FaceList, PointField>::sphere(const label facei) const
 
     const point_type& fc = this->faceCentres()[facei];
 
-    for (const label fp : this->operator[](facei))
+    for (const label pointi : (*this)[facei])
     {
-        const scalar sqrDist = magSqr(fc - points_[fp]);
+        const scalar sqrDist = Foam::magSqr(fc - points_[pointi]);
         if (radiusSqr < sqrDist)
         {
             radiusSqr = sqrDist;

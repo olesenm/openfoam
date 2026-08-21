@@ -72,8 +72,8 @@ class patchWriter
 {
     // Private Member Data
 
-        //- Use internal field value instead of patch value
-        bool useNearCellValue_;
+        //- Use patch internal field values instead of patch value
+        bool useNearCellValue_ = false;
 
 public:
 
@@ -88,50 +88,8 @@ public:
 
     // Constructors
 
-        //- Construct from components (default format INLINE_BASE64)
-        patchWriter
-        (
-            const polyMesh& mesh,
-            const labelUList& patchIDs,
-            const vtk::outputOptions opts = vtk::formatType::INLINE_BASE64,
-            //! Use patch internal instead of patch face values
-            const bool useNearCellValue = false
-        )
-        :
-            vtk::patchMeshWriter(mesh, patchIDs, opts),
-            useNearCellValue_(useNearCellValue)
-        {}
-
-        //- Construct from components (default format INLINE_BASE64),
-        //- and open the file for writing.
-        //  The file name is with/without an extension.
-        patchWriter
-        (
-            const polyMesh& mesh,
-            const labelUList& patchIDs,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        )
-        :
-            vtk::patchMeshWriter(mesh, patchIDs, file, parallel),
-            useNearCellValue_(false)
-        {}
-
-        //- Construct from components (default format INLINE_BASE64),
-        //- and open the file for writing.
-        //  The file name is with/without an extension.
-        patchWriter
-        (
-            const polyMesh& mesh,
-            const labelUList& patchIDs,
-            const vtk::outputOptions opts,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        )
-        :
-            vtk::patchMeshWriter(mesh, patchIDs, opts, file, parallel),
-            useNearCellValue_(false)
-        {}
+        //- Inherit all vtk::patchMeshWriter constructors
+        using vtk::patchMeshWriter::patchMeshWriter;
 
 
     //- Destructor
@@ -207,9 +165,10 @@ public:
             bool parallel = UPstream::parRun()
         )
         :
-            vtk::patchMeshWriter(mesh, patchIDs, opts, file, parallel),
-            useNearCellValue_(useNearCellValue)
-        {}
+            patchWriter(mesh, patchIDs, opts, file, parallel)
+        {
+            useCellValue(useNearCellValue);
+        }
 };
 
 

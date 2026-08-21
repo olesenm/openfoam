@@ -40,9 +40,9 @@ Description
 
 SourceFiles
     cellModelI.H
-    cellModel.C
-    cellModels.C
-    cellModelIO.C
+    cellModel.cxx
+    cellModels.cxx
+    cellModelIO.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -54,7 +54,6 @@ SourceFiles
 #include "faceList.H"
 #include "InfoProxy.H"
 #include "autoPtr.H"
-#include "PtrList.H"
 #include "Enum.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -68,7 +67,6 @@ Ostream& operator<<(Ostream& os, const cellModel& cm);
 
 template<>
 Ostream& operator<<(Ostream&, const InfoProxy<cellModel>&);
-
 
 /*---------------------------------------------------------------------------*\
                           Class cellModel Declaration
@@ -121,15 +119,6 @@ public:
 
 private:
 
-    // Private Static Data
-
-        //- PtrList of predefined models
-        static PtrList<cellModel> models_;
-
-        //- Lookup of model pointers (in models_) by index
-        static List<const cellModel*> modelPtrs_;
-
-
     // Private Data
 
         //- (Unique) model name
@@ -146,12 +135,6 @@ private:
 
         //- Edges of the model
         edgeList edges_;
-
-
-    // Private Member Functions
-
-        //- Construct from central "etc/cellModels" file.
-        static void constructModels();
 
 
 public:

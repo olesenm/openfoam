@@ -28,18 +28,10 @@ License
 #ifndef Foam_cellShapeList_H
 #define Foam_cellShapeList_H
 
+// cellShapeList typedef merged into cellShape.H (AUG-2026)
+
 #include "cellShape.H"
 #include "List.H"
-
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-namespace Foam
-{
-    //! List of cellShape
-    typedef List<cellShape> cellShapeList;
-}
-
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #endif
 

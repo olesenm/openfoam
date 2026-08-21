@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,30 +32,44 @@ License
 
 // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
-namespace Foam
+namespace
 {
 
-// The connectivity count for a list of edges
-static inline label countConnectivity(const UList<edge>& edges)
+// The connectivity count for a list of faces (or edges)
+template<class ElemType>
+static Foam::label countConnectivity(const Foam::UList<ElemType>& elements)
 {
-    return 2 * edges.size();  // An edge always has two ends
-}
+    using namespace Foam;
 
-
-// The connectivity count for a list of faces
-static label countConnectivity(const UList<face>& faces)
-{
-    label nConnectivity = 0;
-
-    for (const auto& f : faces)
+    if constexpr (std::is_same_v<Foam::edge, ElemType>)
     {
-        nConnectivity += f.size();
+        // Edges have exactly two ends each
+        return 2 * elements.size();
     }
+    else if constexpr
+    (
+        std::is_same_v<Foam::triFace, ElemType>
+     || std::is_same_v<Foam::labelledTri, ElemType>
+    )
+    {
+        // Triangles have exactly three points each
+        return 3 * elements.size();
+    }
+    else
+    {
+        // General element type
+        label nConnectivity = 0;
 
-    return nConnectivity;
+        for (const auto& f : elements)
+        {
+            nConnectivity += f.size();
+        }
+
+        return nConnectivity;
+    }
 }
 
-} // End namespace Foam
+} // End anonymous namespace
 
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
@@ -96,10 +111,11 @@ void Foam::vtk::polyWriter::beginPiece
 }
 
 
-void Foam::vtk::polyWriter::beginPiece
+template<class FaceType>
+void Foam::vtk::polyWriter::beginPiece_impl
 (
     const pointField& points,
-    const UList<face>& faces
+    const UList<FaceType>& faces
 )
 {
     // Basic sizes
@@ -246,7 +262,7 @@ void Foam::vtk::polyWriter::writeLines_legacy
 
         const label off = pointOffset;
 
-        for (const edge& e : edges)
+        for (const auto& e : edges)
         {
             *iter = e.size();   // The size prefix (always 2 for an edge)
             ++iter;
@@ -322,7 +338,7 @@ void Foam::vtk::polyWriter::writeLines
 
             const label off = pointOffset;
 
-            for (const edge& e : edges)
+            for (const auto& e : edges)
             {
                 // Edge vertex labels
                 *iter = off + e.first();
@@ -377,7 +393,7 @@ void Foam::vtk::polyWriter::writeLines
 
         auto iter = vertOffsets.begin();
 
-        for (const edge& e : edges)
+        for (const auto& e : edges)
         {
             off += e.size();   // End offset
             *iter = off;
@@ -405,9 +421,10 @@ void Foam::vtk::polyWriter::writeLines
 }
 
 
-void Foam::vtk::polyWriter::writePolys_legacy
+template<class FaceType>
+void Foam::vtk::polyWriter::writePolys_legacy_impl
 (
-    const UList<face>& faces
+    const UList<FaceType>& faces
 )
 {
     // The processor-local point offset
@@ -446,7 +463,7 @@ void Foam::vtk::polyWriter::writePolys_legacy
 
         const label off = pointOffset;
 
-        for (const face& f : faces)
+        for (const auto& f : faces)
         {
             *iter = f.size();       // The size prefix
             ++iter;
@@ -476,9 +493,10 @@ void Foam::vtk::polyWriter::writePolys_legacy
 }
 
 
-void Foam::vtk::polyWriter::writePolys
+template<class FaceType>
+void Foam::vtk::polyWriter::writePolys_impl
 (
-    const UList<face>& faces
+    const UList<FaceType>& faces
 )
 {
     // The processor-local point offset
@@ -522,7 +540,7 @@ void Foam::vtk::polyWriter::writePolys
 
             label off = pointOffset;
 
-            for (const face& f : faces)
+            for (const auto& f : faces)
             {
                 for (const label id : f)
                 {
@@ -576,7 +594,7 @@ void Foam::vtk::polyWriter::writePolys
 
         auto iter = vertOffsets.begin();
 
-        for (const face& f : faces)
+        for (const auto& f : faces)
         {
             off += f.size();  // End offset
             *iter = off;
@@ -755,28 +773,59 @@ bool Foam::vtk::polyWriter::writeLineGeometry
 }
 
 
+template<class FaceType>
+bool Foam::vtk::polyWriter::writePolyGeometry_impl
+(
+    const pointField& points,
+    const UList<FaceType>& faces
+)
+{
+    enter_Piece();
+
+    beginPiece_impl(points, faces);
+
+    writePoints(points);
+
+    if (legacy())
+    {
+        writePolys_legacy_impl(faces);
+    }
+    else
+    {
+        writePolys_impl(faces);
+    }
+
+    return true;
+}
+
+
 bool Foam::vtk::polyWriter::writePolyGeometry
 (
     const pointField& points,
     const UList<face>& faces
 )
 {
-    enter_Piece();
+    return writePolyGeometry_impl(points, faces);
+}
 
-    beginPiece(points, faces);
 
-    writePoints(points);
+bool Foam::vtk::polyWriter::writePolyGeometry
+(
+    const pointField& points,
+    const UList<triFace>& faces
+)
+{
+    return writePolyGeometry_impl(points, faces);
+}
 
-    if (legacy())
-    {
-        writePolys_legacy(faces);
-    }
-    else
-    {
-        writePolys(faces);
-    }
 
-    return true;
+bool Foam::vtk::polyWriter::writePolyGeometry
+(
+    const pointField& points,
+    const UList<labelledTri>& faces
+)
+{
+    return writePolyGeometry_impl(points, faces);
 }
 
 

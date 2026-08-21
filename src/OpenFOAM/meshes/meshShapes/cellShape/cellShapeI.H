@@ -28,7 +28,6 @@ License
 
 #include "Istream.H"
 #include "cell.H"
-#include "cellModel.H"
 #include "IndirectList.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -38,6 +37,23 @@ inline constexpr Foam::cellShape::cellShape() noexcept
     labelList(),
     m(nullptr)
 {}
+
+
+inline Foam::cellShape::cellShape
+(
+    const cellModel& model,
+    labelList&& labels,
+    const bool doCollapse
+)
+:
+    labelList(std::move(labels)),
+    m(&model)
+{
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
 
 
 inline Foam::cellShape::cellShape
@@ -77,13 +93,13 @@ inline Foam::cellShape::cellShape
 
 inline Foam::cellShape::cellShape
 (
-    const cellModel& model,
+    const cellModel::modelType model,
     labelList&& labels,
     const bool doCollapse
 )
 :
     labelList(std::move(labels)),
-    m(&model)
+    m(cellModel::ptr(model))
 {
     if (doCollapse)
     {
@@ -109,14 +125,15 @@ inline Foam::cellShape::cellShape
 }
 
 
+template<unsigned N>
 inline Foam::cellShape::cellShape
 (
     const cellModel::modelType model,
-    labelList&& labels,
+    const FixedList<label, N>& labels,
     const bool doCollapse
 )
 :
-    labelList(std::move(labels)),
+    labelList(labels),
     m(cellModel::ptr(model))
 {
     if (doCollapse)
@@ -149,12 +166,6 @@ inline Foam::cellShape::cellShape(Istream& is)
 }
 
 
-inline Foam::autoPtr<Foam::cellShape> Foam::cellShape::clone() const
-{
-    return autoPtr<cellShape>::New(*this);
-}
-
-
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 inline const Foam::cellModel& Foam::cellShape::model() const
@@ -169,15 +180,15 @@ inline Foam::label Foam::cellShape::nPoints() const noexcept
 }
 
 
-inline Foam::label Foam::cellShape::nEdges() const
+inline Foam::label Foam::cellShape::nEdges() const noexcept
 {
-    return m->nEdges();
+    return (m ? m->nEdges() : 0);
 }
 
 
-inline Foam::label Foam::cellShape::nFaces() const
+inline Foam::label Foam::cellShape::nFaces() const noexcept
 {
-    return m->nFaces();
+    return (m ? m->nFaces() : 0);
 }
 
 
@@ -192,7 +203,7 @@ inline Foam::pointField Foam::cellShape::points
 
 inline Foam::labelList Foam::cellShape::meshFaces
 (
-    const faceList& allFaces,
+    const UList<Foam::face>& allFaces,
     const cell& cFaces
 ) const
 {
@@ -223,8 +234,8 @@ inline Foam::labelList Foam::cellShape::meshFaces
 
 inline Foam::labelList Foam::cellShape::meshEdges
 (
-    const edgeList& allEdges,
-    const labelList& cEdges
+    const UList<Foam::edge>& allEdges,
+    const labelUList& cEdges
 ) const
 {
     // Edges in model order
@@ -365,6 +376,23 @@ inline Foam::label Foam::cellShape::max() const
 inline void Foam::cellShape::reset
 (
     const cellModel& model,
+    labelList&& labels,
+    const bool doCollapse
+)
+{
+    static_cast<labelList&>(*this) = std::move(labels);
+    m = &model;
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+inline void Foam::cellShape::reset
+(
+    const cellModel& model,
     const labelUList& labels,
     const bool doCollapse
 )
@@ -389,6 +417,58 @@ inline void Foam::cellShape::reset
 {
     static_cast<labelList&>(*this) = labels;
     m = &model;
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+inline void Foam::cellShape::reset
+(
+    const cellModel::modelType model,
+    labelList&& labels,
+    bool doCollapse
+)
+{
+    static_cast<labelList&>(*this) = std::move(labels);
+    m = cellModel::ptr(model);
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+inline void Foam::cellShape::reset
+(
+    const cellModel::modelType model,
+    const labelUList& labels,
+    bool doCollapse
+)
+{
+    static_cast<labelList&>(*this) = labels;
+    m = cellModel::ptr(model);
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+template<unsigned N>
+inline void Foam::cellShape::reset
+(
+    const cellModel::modelType model,
+    const FixedList<label, N>& labels,
+    bool doCollapse
+)
+{
+    static_cast<labelList&>(*this) = labels;
+    m = cellModel::ptr(model);
 
     if (doCollapse)
     {

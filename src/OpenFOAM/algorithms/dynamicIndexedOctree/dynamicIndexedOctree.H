@@ -32,7 +32,8 @@ Description
     Storage is dynamic, so elements can be deleted.
 
 SourceFiles
-    dynamicIndexedOctree.C
+    dynamicIndexedOctree.cxx
+    dynamicIndexedOctree.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -155,6 +156,16 @@ class dynamicIndexedOctree
 
             //- Search cached volume type.
             volumeType getVolumeType(const label nodeI, const point&) const;
+
+
+        // Access
+
+            //- List of all contents
+            //- (referenced by those nodes that are contents)
+            const DynamicList<DynamicList<label>>& contents() const noexcept
+            {
+                return contents_;
+            }
 
 
         // Query
@@ -354,13 +365,6 @@ public:
         //- List of all nodes
         const List<node>& nodes() const noexcept { return nodes_; }
 
-        //- List of all contents
-        //- (referenced by those nodes that are contents)
-        const DynamicList<DynamicList<label>>& contents() const noexcept
-        {
-            return contents_;
-        }
-
         //- Per node, per octant whether is fully inside/outside/mixed.
         PackedList<2>& nodeTypes() const noexcept
         {
@@ -375,6 +379,23 @@ public:
                 return treeBoundBox::null();
             }
             return nodes_[0].bb_;
+        }
+
+
+    // Basic Queries
+
+        //- Return the shape indices held by the content addressed by
+        //- the given leaf entry (e.g. as stored in
+        //- nodes()[i].subNodes_[octant], or as returned by findNode()).
+        //  Returns an empty list if the entry does not address content
+        //  (e.g. it is an empty leaf or another node).
+        const labelUList getIndices(const labelBits index) const
+        {
+            if (isContent(index))
+            {
+                return contents_[getContent(index)];
+            }
+            return labelUList();
         }
 
 
@@ -566,7 +587,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "dynamicIndexedOctree.C"
+    #include "dynamicIndexedOctree.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

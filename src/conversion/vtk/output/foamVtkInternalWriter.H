@@ -87,44 +87,8 @@ public:
 
     // Constructors
 
-        //- Construct from components (default format INLINE_BASE64),
-        internalWriter
-        (
-            const polyMesh& mesh,
-            const vtk::vtuCells& cells,
-            const vtk::outputOptions opts = vtk::formatType::INLINE_BASE64
-        )
-        :
-            vtk::internalMeshWriter(mesh, cells, opts)
-        {}
-
-
-        //- Construct from components (default format INLINE_BASE64),
-        //  The file name is with/without an extension.
-        internalWriter
-        (
-            const polyMesh& mesh,
-            const vtk::vtuCells& cells,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        )
-        :
-            vtk::internalMeshWriter(mesh, cells, file, parallel)
-        {}
-
-        //- Construct from components (default format INLINE_BASE64),
-        //  The file name is with/without an extension.
-        internalWriter
-        (
-            const polyMesh& mesh,
-            const vtk::vtuCells& cells,
-            const vtk::outputOptions opts,
-            const fileName& file,
-            bool parallel = UPstream::parRun()
-        )
-        :
-            vtk::internalMeshWriter(mesh, cells, opts, file, parallel)
-        {}
+        //- Forward all constructors to vtk::internalMeshWriter
+        using vtk::internalMeshWriter::internalMeshWriter;
 
 
     //- Destructor

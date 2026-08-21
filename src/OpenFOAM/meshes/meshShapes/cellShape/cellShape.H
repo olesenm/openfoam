@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,9 +36,9 @@ Description
 
 SourceFiles
     cellShapeI.H
-    cellShape.C
-    cellShapeIO.C
-    cellShapeEqual.C
+    cellShape.cxx
+    cellShapeIO.cxx
+    cellShapeEqual.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -58,13 +59,17 @@ namespace Foam
 // Forward Declarations
 class cell;
 class cellShape;
-bool operator==(const cellShape& a, const cellShape& b);
+class hexCell;
+class tetCell;
+
 Istream& operator>>(Istream& is, cellShape& s);
 Ostream& operator<<(Ostream& os, const cellShape& s);
 
 template<>
 Ostream& operator<<(Ostream& os, const InfoProxy<cellShape>& ip);
 
+// Common list types
+typedef List<cellShape> cellShapeList;  //!< List of cellShape
 
 /*---------------------------------------------------------------------------*\
                           Class cellShape Declaration
@@ -87,6 +92,14 @@ public:
         //- Default construct. Empty shape, no cell model.
         inline constexpr cellShape() noexcept;
 
+        //- Move construct from components
+        inline cellShape
+        (
+            const cellModel& model,
+            labelList&& labels,
+            const bool doCollapse = false
+        );
+
         //- Copy construct from components
         inline cellShape
         (
@@ -104,10 +117,10 @@ public:
             const bool doCollapse = false
         );
 
-        //- Move construct from components
+        //- Move construct from components, lookup cellModel by type
         inline cellShape
         (
-            const cellModel& model,
+            const cellModel::modelType model,
             labelList&& labels,
             const bool doCollapse = false
         );
@@ -120,11 +133,12 @@ public:
             const bool doCollapse = false
         );
 
-        //- Move construct from components, lookup cellModel by type
+        //- Copy construct from components, lookup cellModel by type
+        template<unsigned N>
         inline cellShape
         (
             const cellModel::modelType model,
-            labelList&& labels,
+            const FixedList<label, N>& labels,
             const bool doCollapse = false
         );
 
@@ -136,11 +150,20 @@ public:
             const bool doCollapse = false
         );
 
+        //- Copy construct from hex cell labels
+        explicit cellShape(const hexCell& labels, bool doCollapse = false);
+
+        //- Copy construct from tet cell labels
+        explicit cellShape(const tetCell& labels, bool doCollapse = false);
+
         //- Construct from Istream
         inline explicit cellShape(Istream& is);
 
         //- Clone
-        inline autoPtr<cellShape> clone() const;
+        autoPtr<cellShape> clone() const
+        {
+            return autoPtr<cellShape>::New(*this);
+        }
 
 
     // Member Functions
@@ -152,10 +175,10 @@ public:
         inline label nPoints() const noexcept;
 
         //- Number of edges
-        inline label nEdges() const;
+        inline label nEdges() const noexcept;
 
         //- Number of faces
-        inline label nFaces() const;
+        inline label nFaces() const noexcept;
 
         //- The points corresponding to this shape
         inline pointField points(const UList<point>& meshPoints) const;
@@ -163,15 +186,15 @@ public:
         //- Mesh face labels of this cell (in order of model)
         inline labelList meshFaces
         (
-            const faceList& allFaces,
+            const UList<Foam::face>& allFaces,
             const cell& cFaces
         ) const;
 
         //- Mesh edge labels of this cell (in order of model)
         inline labelList meshEdges
         (
-            const edgeList& allEdges,
-            const labelList& cEdges
+            const UList<Foam::edge>& allEdges,
+            const labelUList& cEdges
         ) const;
 
         //- The face for the specified model face
@@ -203,22 +226,61 @@ public:
         //- or -1 if the shape is empty.
         inline label max() const;
 
-        //- Reset from components
+        //- Reset from components, moving label contents
+        inline void reset
+        (
+            const cellModel& model,
+            labelList&& labels,
+            bool doCollapse = false
+        );
+
+        //- Reset from components, copying label contents
         inline void reset
         (
             const cellModel& model,
             const labelUList& labels,
-            const bool doCollapse = false
+            bool doCollapse = false
         );
 
-        //- Reset from components
+        //- Reset from components, copying label contents
         template<unsigned N>
         inline void reset
         (
             const cellModel& model,
             const FixedList<label, N>& labels,
-            const bool doCollapse = false
+            bool doCollapse = false
         );
+
+        //- Reset from components, moving label contents
+        inline void reset
+        (
+            cellModel::modelType model,
+            labelList&& labels,
+            bool doCollapse = false
+        );
+
+        //- Reset from components, copying label contents
+        inline void reset
+        (
+            const cellModel::modelType model,
+            const labelUList& labels,
+            bool doCollapse = false
+        );
+
+        //- Reset from components, copying label contents
+        template<unsigned N>
+        inline void reset
+        (
+            const cellModel::modelType model,
+            const FixedList<label, N>& labels,
+            bool doCollapse = false
+        );
+
+        //- Reset from hex cell labels
+        void reset(const hexCell& labels, bool doCollapse = false);
+
+        //- Reset from tet cell labels
+        void reset(const tetCell& labels, bool doCollapse = false);
 
         //- Collapse shape to correct one after removing duplicate vertices
         void collapse();
@@ -243,10 +305,8 @@ public:
         //- Increment (offset) vertices by given amount
         inline void operator+=(const label vertexOffset);
 
-
-    // Friend Operators
-
-        friend bool operator==(const cellShape& a, const cellShape& b);
+        //- Compare for identical values (ignoring order)
+        bool operator==(const cellShape& other) const;
 
 
     // IOstream Operators

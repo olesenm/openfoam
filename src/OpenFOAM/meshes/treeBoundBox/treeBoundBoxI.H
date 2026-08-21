@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,6 +56,12 @@ inline Foam::treeBoundBox::treeBoundBox(const Pair<point>& bb)
 {}
 
 
+inline Foam::treeBoundBox::treeBoundBox(const boundBox& a, const boundBox& b)
+:
+    boundBox(a, b)
+{}
+
+
 inline Foam::treeBoundBox::treeBoundBox(Istream& is)
 :
     boundBox(is)
@@ -62,6 +69,19 @@ inline Foam::treeBoundBox::treeBoundBox(Istream& is)
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<Foam::direction Octant>
+inline Foam::point Foam::treeBoundBox::octCorner() const
+{
+    static_assert(Octant < 8, "Corner index [0..7]");
+    return point
+    (
+        (Octant & RIGHTHALF) ? max().x() : min().x(),
+        (Octant & TOPHALF)   ? max().y() : min().y(),
+        (Octant & FRONTHALF) ? max().z() : min().z()
+    );
+}
+
 
 inline Foam::point Foam::treeBoundBox::corner(const direction octant) const
 {

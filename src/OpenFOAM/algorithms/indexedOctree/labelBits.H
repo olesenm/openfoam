@@ -36,7 +36,7 @@ Description
 #ifndef Foam_labelBits_H
 #define Foam_labelBits_H
 
-#include "label.H"
+#include "labelFwd.H"
 #include "direction.H"
 #include "error.H"
 
@@ -59,6 +59,14 @@ class labelBits
         //- Integer value and (octant) direction
         label data_;
 
+        // Functions are mostly non-throwing, except in full debug mode.
+        #ifdef FULLDEBUG
+        static constexpr bool nonThrowing = false;
+        #else
+        static constexpr bool nonThrowing = true;
+        #endif
+
+
 public:
 
     // Static Functions
@@ -66,13 +74,10 @@ public:
         #ifdef FULLDEBUG
 
         //- Pack integer value and bits (octant) into a label
-        inline static label pack
-        (
-            const label val,
-            const direction bits
-        )
+        static label pack(label val, direction bits)
         {
-            if (bits > 7 || (((val<<3)>>3) != val))
+            // Check that integer value and bits can pack into a label
+            if ((7 < bits) || (((val<<3)>>3) != val))
             {
                 FatalErrorInFunction
                     << "Direction " << bits << " outside range 0..7"
@@ -86,11 +91,7 @@ public:
         #else
 
         //- Pack integer value and bits (octant) into a label
-        static constexpr label pack
-        (
-            const label val,
-            const direction bits
-        ) noexcept
+        static constexpr label pack(label val, direction bits) noexcept
         {
             return (val<<3) | bits;
         }
@@ -103,11 +104,11 @@ public:
         //- Default construct as zero initialized
         constexpr labelBits() noexcept
         :
-             data_(0)
+            data_(0)
         {}
 
         //- Construct from components
-        labelBits(const label val, const direction bits)
+        labelBits(label val, direction bits) noexcept(nonThrowing)
         :
              data_(pack(val, bits))
         {}
@@ -131,13 +132,13 @@ public:
         direction bits() const noexcept { return (data_ & 7); }
 
         //- Set the integer value
-        void setVal(const label val)
+        void setVal(label val) noexcept(nonThrowing)
         {
             data_ = pack(val, bits());
         }
 
         //- Set the octant direction
-        void setBits(const direction bits)
+        void setBits(direction bits) noexcept(nonThrowing)
         {
             data_ = pack(val(), bits);
         }
@@ -145,29 +146,30 @@ public:
 
     // Member Operators
 
-        inline friend
-        bool operator==(const labelBits& a, const labelBits& b)
+        bool operator<(const labelBits& other) const noexcept
         {
-            return a.data_ == b.data_;
+            return (data_ < other.data_);
         }
 
-        inline friend
-        bool operator!=(const labelBits& a, const labelBits& b)
+        bool operator==(const labelBits& other) const noexcept
         {
-            return !(a == b);
+            return (data_ == other.data_);
+        }
+
+        bool operator!=(const labelBits& other) const noexcept
+        {
+            return (data_ != other.data_);
         }
 
 
     // IOstream Operators
 
-        inline friend
-        Istream& operator>>(Istream& is, labelBits& rhs)
+        friend Istream& operator>>(Istream& is, labelBits& rhs)
         {
             return is >> rhs.data_;
         }
 
-        inline friend
-        Ostream& operator<<(Ostream& os, const labelBits& rhs)
+        friend Ostream& operator<<(Ostream& os, const labelBits& rhs)
         {
             return os << rhs.data_;
         }

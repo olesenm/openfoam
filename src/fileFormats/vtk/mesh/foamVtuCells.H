@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2014-2026 OpenCFD Ltd.
+    Copyright (C) 2014-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -156,19 +157,19 @@ public:
             const bool decompose = false
         );
 
+        //- Construct with output options,
+        //- optionally with polyhedral decomposition.
+        explicit vtuCells
+        (
+            const vtk::outputOptions opts,
+            const bool decompose = false
+        );
+
         //- Construct from components, create output information immediately
         explicit vtuCells
         (
             const polyMesh& mesh,
             const enum contentType output = contentType::XML,
-            const bool decompose = false
-        );
-
-        //- Construct from components.
-        //  Optionally with polyhedral decomposition.
-        explicit vtuCells
-        (
-            const vtk::outputOptions opts,
             const bool decompose = false
         );
 
@@ -178,6 +179,26 @@ public:
             const polyMesh& mesh,
             const vtk::outputOptions opts,
             const bool decompose = false
+        );
+
+        //- [ADVANCED USAGE]
+        //- Construct from primitive shapes,
+        //- create output information immediately.
+        //  No polyhedral decomposition.
+        explicit vtuCells
+        (
+            const UList<cellShape>& shapes,
+            const enum contentType output = contentType::XML
+        );
+
+        //- [ADVANCED USAGE]
+        //- Construct from primitive shapes,
+        //- create output information immediately.
+        //  No polyhedral decomposition.
+        explicit vtuCells
+        (
+            const UList<cellShape>& shapes,
+            const vtk::outputOptions opts
         );
 
 

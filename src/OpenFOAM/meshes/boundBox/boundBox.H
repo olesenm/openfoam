@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -180,6 +181,9 @@ public:
         //- Construct from bound box min/max points
         inline explicit boundBox(const Pair<point>& bb);
 
+        //- Construct with extent of two bounding boxes, no reduction
+        inline boundBox(const boundBox& a, const boundBox& b);
+
         //- Construct as the bounding box of the given points
         //  Does parallel communication (doReduce = true)
         explicit boundBox(const UList<point>& points, bool doReduce = true);
@@ -218,10 +222,10 @@ public:
         // Access
 
             //- Bounding box is inverted, contains no points.
-            inline bool empty() const;
+            inline bool empty() const noexcept;
 
             //- Bounding box is non-inverted.
-            inline bool good() const;
+            inline bool good() const noexcept;
 
             //- Bounding box is non-inverted - same as good().
             bool valid() const { return good(); }
@@ -278,14 +282,21 @@ public:
             inline int nDim() const;
 
             //- Return corner point [0..7] corresponding to a 'hex' cell
-            template<direction CornerNumber>
+            template<direction I>
             inline point hexCorner() const;
+
+            //- Fill in 8 corner points in an order corresponding
+            //- to a 'hex' cell
+            void hexCorners(UList<point>& output) const;
 
             //- Corner points in an order corresponding to a 'hex' cell
             tmp<pointField> hexCorners() const;
 
             //- Corner points in an order corresponding to a 'hex' cell
             tmp<pointField> points() const { return hexCorners(); }
+
+            //- Fill in 6 face midpoints
+            void faceCentres(UList<point>& output) const;
 
             //- Face midpoints
             tmp<pointField> faceCentres() const;

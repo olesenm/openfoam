@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,13 +26,13 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "foamVtkInternalMeshWriter.H"
+#include "foamVtuWriter.H"
 #include "foamVtkOutput.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 template<class Type>
-void Foam::vtk::internalMeshWriter::writeUniform
+void Foam::vtk::vtuWriter::writeUniform
 (
     const word& fieldName,
     const Type& val
@@ -69,7 +70,7 @@ void Foam::vtk::internalMeshWriter::writeUniform
 
 
 template<class Type>
-void Foam::vtk::internalMeshWriter::writeCellData
+void Foam::vtk::vtuWriter::writeCellData
 (
     const word& fieldName,
     const UList<Type>& field
@@ -113,7 +114,7 @@ void Foam::vtk::internalMeshWriter::writeCellData
 
 
 template<class Type>
-void Foam::vtk::internalMeshWriter::writePointData
+void Foam::vtk::vtuWriter::writePointData
 (
     const word& fieldName,
     const UList<Type>& field
@@ -158,7 +159,7 @@ void Foam::vtk::internalMeshWriter::writePointData
 
 
 template<class Type>
-void Foam::vtk::internalMeshWriter::writePointData
+void Foam::vtk::vtuWriter::writePointData
 (
     const word& fieldName,
     const UList<Type>& field,

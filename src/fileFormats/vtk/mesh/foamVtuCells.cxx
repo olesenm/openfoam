@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -147,6 +148,30 @@ Foam::vtk::vtuCells::vtuCells
     vtuCells(opts, decompose)
 {
     reset(mesh);
+}
+
+
+Foam::vtk::vtuCells::vtuCells
+(
+    const UList<cellShape>& shapes,
+    const contentType output
+)
+:
+    vtuCells(output, false)  // decompose = false
+{
+    resetShapes(shapes);
+}
+
+
+Foam::vtk::vtuCells::vtuCells
+(
+    const UList<cellShape>& shapes,
+    const vtk::outputOptions opts
+)
+:
+    vtuCells(opts, false)  // decompose = false
+{
+    resetShapes(shapes);
 }
 
 

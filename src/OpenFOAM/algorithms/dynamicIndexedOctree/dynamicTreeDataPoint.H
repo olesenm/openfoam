@@ -36,7 +36,7 @@ Description
     Optionally works on subset of points.
 
 SourceFiles
-    dynamicTreeDataPoint.C
+    dynamicTreeDataPoint.cxx
 
 \*---------------------------------------------------------------------------*/
 

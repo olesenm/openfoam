@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -34,7 +35,7 @@ License
 // Ordering of faces needs to be the same for
 // a hexahedral cell shape model and a hexCell
 
-const Foam::label Foam::hexCell::modelFaces_[6][4] =
+const int Foam::hexCell::modelFaces_[6][4] =
 {
     {0, 4, 7, 3},  // x-min
     {1, 2, 6, 5},  // x-max
@@ -49,7 +50,7 @@ const Foam::label Foam::hexCell::modelFaces_[6][4] =
 // Ordering of edges needs to be the same for
 // a hexahedral cell shape model and a hexCell
 
-const Foam::label Foam::hexCell::modelEdges_[12][2] =
+const int Foam::hexCell::modelEdges_[12][2] =
 {
     {0, 1},  // x-direction
     {3, 2},
@@ -74,11 +75,12 @@ const Foam::faceList& Foam::hexCell::modelFaces()
 
     if (!ptr)
     {
-        ptr.reset(new Foam::faceList(hexCell::nFaces(), Foam::face(4)));
+        ptr.reset(new Foam::faceList(hexCell::nFaces()));
 
-        label facei = 0;
+        int facei = 0;
         for (auto& f : *ptr)
         {
+            f.resize(4);
             f[0] = modelFaces_[facei][0];
             f[1] = modelFaces_[facei][1];
             f[2] = modelFaces_[facei][2];
@@ -99,7 +101,7 @@ const Foam::edgeList& Foam::hexCell::modelEdges()
     {
         ptr.reset(new Foam::edgeList(hexCell::nEdges()));
 
-        label edgei = 0;
+        int edgei = 0;
         for (auto& e : *ptr)
         {
             e[0] = modelEdges_[edgei][0];
@@ -116,11 +118,12 @@ const Foam::edgeList& Foam::hexCell::modelEdges()
 
 Foam::faceList Foam::hexCell::faces() const
 {
-    Foam::faceList theFaces(hexCell::nFaces(), Foam::face(4));
+    Foam::faceList theFaces(hexCell::nFaces());
 
-    label facei = 0;
+    int facei = 0;
     for (auto& f : theFaces)
     {
+        f.resize(4);
         copyFace(f, facei);
         ++facei;
     }
@@ -133,7 +136,7 @@ Foam::edgeList Foam::hexCell::edges() const
 {
     Foam::edgeList theEdges(hexCell::nEdges());
 
-    label edgei = 0;
+    int edgei = 0;
     for (auto& e : theEdges)
     {
         e[0] = (*this)[modelEdges_[edgei][0]];
@@ -145,16 +148,9 @@ Foam::edgeList Foam::hexCell::edges() const
 }
 
 
-Foam::cellShape Foam::hexCell::shape(const bool doCollapse) const
+Foam::cellShape Foam::hexCell::shape(bool doCollapse) const
 {
-    static const cellModel* modelPtr(nullptr);
-
-    if (!modelPtr)
-    {
-        modelPtr = cellModel::ptr(cellModel::HEX);
-    }
-
-    return cellShape(*modelPtr, *this, doCollapse);
+    return cellShape(*this, doCollapse);
 }
 
 

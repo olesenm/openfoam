@@ -346,7 +346,6 @@ meshStructure/meshStructure.C
 coupling/externalFileCoupler.C
 
 vtk = output/vtk
-$(vtk)/mesh/foamVtkInternalMeshWriter.cxx
 $(vtk)/patch/foamVtkPatchMeshWriter.cxx
 $(vtk)/topoSet/foamVtkWriteTopoSet.cxx
 $(vtk)/topoSet/foamVtkWriteFaceSet.cxx

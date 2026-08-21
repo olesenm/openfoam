@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,6 +27,32 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+
+inline void Foam::tetCell::checkEdgeIndex(label edgei)
+{
+    if (edgei < 0 || edgei >= tetCell::nEdges())
+    {
+        FatalErrorInFunction
+            << "Edge index (" << edgei
+            << ") out of range 0.." << (tetCell::nEdges()-1) << nl
+            << abort(FatalError);
+    }
+}
+
+
+inline void Foam::tetCell::checkFaceIndex(label facei)
+{
+    if (facei < 0 || facei >= tetCell::nFaces())
+    {
+        FatalErrorInFunction
+            << "Face index (" << facei
+            << ") out of range 0.." << (tetCell::nFaces()-1) << nl
+            << abort(FatalError);
+    }
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 inline Foam::tetCell::tetCell()
@@ -34,18 +61,12 @@ inline Foam::tetCell::tetCell()
 {}
 
 
-inline Foam::tetCell::tetCell
-(
-    const label p0,
-    const label p1,
-    const label p2,
-    const label p3
-)
+inline Foam::tetCell::tetCell(label p0, label p1, label p2, label p3)
 {
-    operator[](0) = p0;
-    operator[](1) = p1;
-    operator[](2) = p2;
-    operator[](3) = p3;
+    get<0>() = p0;
+    get<1>() = p1;
+    get<2>() = p2;
+    get<3>() = p3;
 }
 
 
@@ -93,12 +114,7 @@ inline Foam::tetCell::tetCell(Istream& is)
 inline Foam::triFace Foam::tetCell::face(const label facei) const
 {
     #ifdef FULLDEBUG
-    if (facei < 0 || facei >= tetCell::nFaces())
-    {
-        FatalErrorInFunction
-            << "Face index (" << facei << ") out of range 0..3\n"
-            << abort(FatalError);
-    }
+    checkFaceIndex(facei);
     #endif
 
     return Foam::triFace
@@ -114,15 +130,10 @@ inline Foam::label Foam::tetCell::edgeFace(const label edgei) const
 {
     // Warning. Ordering of faces needs to be the same for a tetrahedron
     // class, a tetrahedron cell shape model and a tetCell
-    static const label edgeFaces[6] = {2, 3, 1, 0, 0, 1};
+    static const int edgeFaces[6] = {2, 3, 1, 0, 0, 1};
 
     #ifdef FULLDEBUG
-    if (edgei < 0 || edgei >= tetCell::nEdges())
-    {
-        FatalErrorInFunction
-            << "Edge index (" << edgei << ") out of range 0..5\n"
-            << abort(FatalError);
-    }
+    checkEdgeIndex(edgei);
     #endif
 
     return edgeFaces[edgei];
@@ -137,7 +148,7 @@ inline Foam::label Foam::tetCell::edgeAdjacentFace
 {
     // Warning. Ordering of faces needs to be the same for a tetrahedron
     // class, a tetrahedron cell shape model and a tetCell
-    static const label adjacentFace[6][4] =
+    static const int adjacentFace[6][4] =
     {
         {-1, -1, 3, 2},
         {-1, 3, -1, 1},
@@ -148,19 +159,8 @@ inline Foam::label Foam::tetCell::edgeAdjacentFace
     };
 
     #ifdef FULLDEBUG
-    if (facei < 0 || facei >= tetCell::nFaces())
-    {
-        FatalErrorInFunction
-            << "Face index (" << facei << ") out of range 0..3\n"
-            << abort(FatalError);
-    }
-
-    if (edgei < 0 || edgei >= tetCell::nEdges())
-    {
-        FatalErrorInFunction
-            << "Edge index (" << edgei << ") out of range 0..5\n"
-            << abort(FatalError);
-    }
+    checkFaceIndex(facei);
+    checkEdgeIndex(edgei);
     #endif
 
     return adjacentFace[edgei][facei];
@@ -170,14 +170,10 @@ inline Foam::label Foam::tetCell::edgeAdjacentFace
 inline Foam::edge Foam::tetCell::edge(const label edgei) const
 {
     #ifdef FULLDEBUG
-    if (edgei < 0 || edgei >= tetCell::nEdges())
-    {
-        FatalErrorInFunction
-            << "Edge index (" << edgei << ") out of range 0..5\n"
-            << abort(FatalError);
-    }
+    checkEdgeIndex(edgei);
     #endif
 
+    // Forward edge
     return Foam::edge
     (
         (*this)[modelEdges_[edgei][0]],
@@ -188,8 +184,16 @@ inline Foam::edge Foam::tetCell::edge(const label edgei) const
 
 inline Foam::edge Foam::tetCell::reverseEdge(const label edgei) const
 {
-    // Reverse edge. Using a copy is cheaper than inplace flip
-    return this->edge(edgei).reverseEdge();
+    #ifdef FULLDEBUG
+    checkEdgeIndex(edgei);
+    #endif
+
+    // Reverse edge
+    return Foam::edge
+    (
+        (*this)[modelEdges_[edgei][1]],
+        (*this)[modelEdges_[edgei][0]]
+    );
 }
 
 

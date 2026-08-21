@@ -2078,7 +2078,6 @@ Foam::volumeType Foam::distributedTriSurfaceMesh::markMixed
 ) const
 {
     const auto& nod = tree.nodes()[nodei];
-    //const auto& contents = tree.contents();
 
     //Pout<< indent
     //    << "Entering node:" << nodei
@@ -2117,12 +2116,11 @@ Foam::volumeType Foam::distributedTriSurfaceMesh::markMixed
                 // Content inside so we cannot pre-determine whether
                 // whole node box is inside or outside
 
-                //const label contenti =
-                //    indexedOctree<treeDataTriSurface>::getContent(index);
+                //const auto indices = tree.getIndices(index);
                 //Pout<< indent
                 //    << "Testing content octant:" << octant
-                //    << " with contenti:" << contenti << " subBb:" << subBb
-                //    << " holding shapes:" << flatOutput(contents[contenti])
+                //    << " subBb:" << subBb
+                //    << " holding shapes:" << flatOutput(indices)
                 //    << endl;
 
                 // Store octant type

@@ -553,19 +553,19 @@ $(cell)/cell.C
 $(cell)/oppositeCellFace.C
 $(cell)/cellIOList.C
 
-$(meshShapes)/hexCell/hexCell.C
-$(meshShapes)/tetCell/tetCell.C
+$(meshShapes)/hexCell/hexCell.cxx
+$(meshShapes)/tetCell/tetCell.cxx
 
 cellModel = $(meshShapes)/cellModel
-$(cellModel)/cellModel.C
-$(cellModel)/cellModels.C
-$(cellModel)/cellModelIO.C
+$(cellModel)/cellModel.cxx
+$(cellModel)/cellModels.cxx
+$(cellModel)/cellModelIO.cxx
 
 cellShape = $(meshShapes)/cellShape
-$(cellShape)/cellShape.C
-$(cellShape)/cellShapeEqual.C
-$(cellShape)/cellShapeIO.C
-$(cellShape)/cellShapeIOList.C
+$(cellShape)/cellShape.cxx
+$(cellShape)/cellShapeEqual.cxx
+$(cellShape)/cellShapeIO.cxx
+$(cellShape)/cellShapeIOList.cxx
 
 meshes/Identifiers/patch/patchIdentifier.C
 meshes/Identifiers/patch/coupleGroupIdentifier.C
@@ -829,15 +829,15 @@ $(interpolationWeights)/linearInterpolationWeights/linearInterpolationWeights.C
 $(interpolationWeights)/splineInterpolationWeights/splineInterpolationWeights.C
 
 
-algorithms/AABBTree/AABBTreeBase.C
+algorithms/AABBTree/AABBTree.cxx
 
-algorithms/indexedOctree/indexedOctreeBase.C
-algorithms/indexedOctree/treeDataCell.C
-algorithms/indexedOctree/treeDataEdge.C
-algorithms/indexedOctree/treeDataPoint.C
+algorithms/indexedOctree/indexedOctree.cxx
+algorithms/indexedOctree/treeDataCell.cxx
+algorithms/indexedOctree/treeDataEdge.cxx
+algorithms/indexedOctree/treeDataPoint.cxx
 
-algorithms/dynamicIndexedOctree/dynamicIndexedOctreeBase.C
-algorithms/dynamicIndexedOctree/dynamicTreeDataPoint.C
+algorithms/dynamicIndexedOctree/dynamicIndexedOctree.cxx
+algorithms/dynamicIndexedOctree/dynamicTreeDataPoint.cxx
 
 parallel/commSchedule/commSchedule.C
 parallel/globalIndex/globalIndex.cxx

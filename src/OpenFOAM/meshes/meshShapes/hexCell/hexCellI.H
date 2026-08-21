@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,9 +26,35 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+
+inline void Foam::hexCell::checkEdgeIndex(label edgei)
+{
+    if (edgei < 0 || edgei >= hexCell::nEdges())
+    {
+        FatalErrorInFunction
+            << "Edge index (" << edgei
+            << ") out of range 0.." << (hexCell::nEdges()-1) << nl
+            << abort(FatalError);
+    }
+}
+
+
+inline void Foam::hexCell::checkFaceIndex(label facei)
+{
+    if (facei < 0 || facei >= hexCell::nFaces())
+    {
+        FatalErrorInFunction
+            << "Face index (" << facei
+            << ") out of range 0.." << (hexCell::nFaces()-1) << nl
+            << abort(FatalError);
+    }
+}
+
+
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-inline void Foam::hexCell::copyFace(Foam::face& f, const label facei) const
+inline void Foam::hexCell::copyFace(labelList& f, const label facei) const
 {
     f[0] = (*this)[modelFaces_[facei][0]];
     f[1] = (*this)[modelFaces_[facei][1]];
@@ -88,12 +115,7 @@ inline Foam::hexCell::hexCell(Istream& is)
 inline Foam::face Foam::hexCell::face(const label facei) const
 {
     #ifdef FULLDEBUG
-    if (facei < 0 || facei >= hexCell::nFaces())
-    {
-        FatalErrorInFunction
-            << "Face index (" << facei << ") out of range 0..5\n"
-            << abort(FatalError);
-    }
+    checkFaceIndex(facei);
     #endif
 
     Foam::face f(4);
@@ -106,14 +128,10 @@ inline Foam::face Foam::hexCell::face(const label facei) const
 inline Foam::edge Foam::hexCell::edge(const label edgei) const
 {
     #ifdef FULLDEBUG
-    if (edgei < 0 || edgei >= hexCell::nEdges())
-    {
-        FatalErrorInFunction
-            << "Edge index (" << edgei << ") out of range 0..11\n"
-            << abort(FatalError);
-    }
+    checkEdgeIndex(edgei);
     #endif
 
+    // Forward edge
     return Foam::edge
     (
         (*this)[modelEdges_[edgei][0]],
@@ -124,8 +142,16 @@ inline Foam::edge Foam::hexCell::edge(const label edgei) const
 
 inline Foam::edge Foam::hexCell::reverseEdge(const label edgei) const
 {
-    // Reverse edge. Using a copy is cheaper than inplace flip
-    return this->edge(edgei).reverseEdge();
+    #ifdef FULLDEBUG
+    checkEdgeIndex(edgei);
+    #endif
+
+    // Reverse edge
+    return Foam::edge
+    (
+        (*this)[modelEdges_[edgei][1]],
+        (*this)[modelEdges_[edgei][0]]
+    );
 }
 
 

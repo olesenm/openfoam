@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2017 OpenCFD Ltd.
+    Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,26 +26,67 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef Foam_faceIndList_H
-#define Foam_faceIndList_H
+#include "cellShape.H"
+#include "hexCell.H"
+#include "tetCell.H"
+#include "degenerateMatcher.H"
 
-// Include all normal list typedefs as well
-#include "faceList.H"
-#include "IndirectList.H"
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-namespace Foam
+Foam::cellShape::cellShape(const hexCell& labels, bool doCollapse)
+:
+    labelList(labels),
+    m(cellModel::ptr(cellModel::HEX))
 {
-    //! IndirectList of face.
-    typedef IndirectList<face>  faceIndList;
-
-    //! UIndirectList of face.
-    typedef UIndirectList<face> faceUIndList;
+    if (doCollapse)
+    {
+        collapse();
+    }
 }
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-#endif
+Foam::cellShape::cellShape(const tetCell& labels, bool doCollapse)
+:
+    labelList(labels),
+    m(cellModel::ptr(cellModel::TET))
+{
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::cellShape::reset(const hexCell& labels, bool doCollapse)
+{
+    static_cast<labelList&>(*this) = labels;
+    m = cellModel::ptr(cellModel::HEX);
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+void Foam::cellShape::reset(const tetCell& labels, bool doCollapse)
+{
+    static_cast<labelList&>(*this) = labels;
+    m = cellModel::ptr(cellModel::TET);
+
+    if (doCollapse)
+    {
+        collapse();
+    }
+}
+
+
+void Foam::cellShape::collapse()
+{
+    operator=(degenerateMatcher::match(*this));
+}
+
 
 // ************************************************************************* //
