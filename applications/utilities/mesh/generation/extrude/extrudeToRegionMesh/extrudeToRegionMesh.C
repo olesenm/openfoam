@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1872,12 +1873,31 @@ int main(int argc, char *argv[])
     const labelListList& edgeFaces = extrudePatch.edgeFaces();
 
 
-    Info<< "extrudePatch :"
-        << " faces:" << extrudePatch.size()
-        << " points:" << extrudePatch.nPoints()
-        << " edges:" << extrudePatch.nEdges()
-        << nl
-        << endl;
+    {
+        // Report global quantities
+        label dims[3] =
+        {
+            extrudePatch.size(),
+            extrudePatch.nPoints(),
+            extrudePatch.nEdges()
+        };
+
+        Foam::reduce
+        (
+            dims,
+            3,
+            sumOp<label>(),
+            UPstream::msgType(),
+            UPstream::worldComm
+        );
+
+        Info<< "extrudePatch :"
+            << " faces:" << dims[0]
+            << " points:" << dims[1]
+            << " edges:" << dims[2]
+            << nl
+            << endl;
+    }
 
 
     // Determine per-extrude-edge info
@@ -2304,42 +2324,99 @@ int main(int argc, char *argv[])
     }
 
     // Calculate region normals by reducing local region normals
-    pointField localRegionNormals(localToGlobalRegion.size());
+    pointField localRegionNormals(localToGlobalRegion.size(), Foam::zero{});
     {
-        pointField localSum(localToGlobalRegion.size(), Zero);
-
         forAll(pointLocalRegions, facei)
         {
-            const face& pRegions = pointLocalRegions[facei];
-            forAll(pRegions, fp)
+            const auto& faceNormal = extrudePatch.faceNormals()[facei];
+
+            for (label localRegioni : pointLocalRegions[facei])
             {
-                label localRegionI = pRegions[fp];
-                localSum[localRegionI] += extrudePatch.faceNormals()[facei];
+                localRegionNormals[localRegioni] += faceNormal;
             }
         }
 
-        Map<point> globalSum(2*localToGlobalRegion.size());
-
-        forAll(localSum, localRegionI)
+        // Older code (v2606 and earlier) used a simpler logic
+        // with a mapCombineReduce() for all points, but that gives
+        // serialization problems (buffer overrun) with very large cases.
+        //
+        // Instead use a two-step logic to restrict the global summation
+        // to the actually shared. Also uses direct MPI operations
+        if (UPstream::parRun())
         {
-            label globalRegionI = localToGlobalRegion[localRegionI];
-            globalSum.insert(globalRegionI, localSum[localRegionI]);
-        }
+            // Determine duplicate points (globally consistent size)
+            label count = 0;
+            if (!localToGlobalRegion.empty())
+            {
+                count = Foam::max(localToGlobalRegion);
+                ++count;  // From index to size
+            }
+            Foam::reduce(count, maxOp<label>());  // ie, worldComm
 
-        // Reduce
-        Pstream::mapCombineReduce(globalSum, plusEqOp<point>());
+            // Mark the points used
+            DynamicList<label> shared(count, Foam::zero{});
+            UIndirectList<label>(shared, localToGlobalRegion) = 1;
 
-        forAll(localToGlobalRegion, localRegionI)
-        {
-            label globalRegionI = localToGlobalRegion[localRegionI];
-            localRegionNormals[localRegionI] = globalSum[globalRegionI];
+            Foam::reduce
+            (
+                shared.data(),
+                shared.size(),
+                sumOp<label>(),
+                UPstream::msgType(),
+                UPstream::worldComm
+            );
+
+            // Compact the shared point indices (ie, used more than once)
+            // into a map from local to global region. Uses -1 for shared
+            // indices that are not locally mapped to ensure that the
+            // compacted size remains globally consistent.
+
+            count = 0;
+            forAll(shared, globalRegioni)
+            {
+                if (shared[globalRegioni] >= 2)
+                {
+                    shared[count] = localToGlobalRegion.find(globalRegioni);
+                    ++count;
+                }
+            }
+            shared.resize(count);
+
+            // Global summation for the shared points
+            pointField globalSum(shared.size(), Foam::zero{});
+
+            forAll(shared, i)
+            {
+                if (label localRegioni = shared[i]; localRegioni >= 0)
+                {
+                    globalSum[i] = localRegionNormals[localRegioni];
+                }
+            }
+
+            Foam::reduce
+            (
+                globalSum.data(),
+                globalSum.size(),
+                sumOp<point>(),
+                UPstream::msgType(),
+                UPstream::worldComm
+            );
+
+            // Update (overwrite) normals to account for shared points
+            forAll(shared, i)
+            {
+                if (label localRegioni = shared[i]; localRegioni >= 0)
+                {
+                    localRegionNormals[localRegioni] = globalSum[i];
+                }
+            }
         }
-        localRegionNormals /= mag(localRegionNormals);
+        localRegionNormals.normalise();
     }
 
 
     // For debugging: dump hedgehog plot of normals
-    if (false)
+    if constexpr (false)
     {
         OFstream str(runTime.path()/"localRegionNormals.obj");
         label vertI = 0;
@@ -2576,84 +2653,46 @@ int main(int argc, char *argv[])
     // Write addressing from region mesh back to originating patch
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    labelIOList cellToPatchFaceAddressing
-    (
-        IOobject
-        (
-            "cellToPatchFaceAddressing",
-            regionMesh.facesInstance(),
-            polyMesh::meshSubDir,
-            regionMesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            IOobject::NO_REGISTER
-        ),
-        extruder.cellToFaceMap()
-    );
-    cellToPatchFaceAddressing.note() = "cell to patch face addressing";
-
-    labelIOList faceToPatchFaceAddressing
-    (
-        IOobject
-        (
-            "faceToPatchFaceAddressing",
-            regionMesh.facesInstance(),
-            polyMesh::meshSubDir,
-            regionMesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            IOobject::NO_REGISTER
-        ),
-        extruder.faceToFaceMap()
-    );
-    faceToPatchFaceAddressing.note() =
-        "front/back face + turning index to patch face addressing";
-
-    labelIOList faceToPatchEdgeAddressing
-    (
-        IOobject
-        (
-            "faceToPatchEdgeAddressing",
-            regionMesh.facesInstance(),
-            polyMesh::meshSubDir,
-            regionMesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            IOobject::NO_REGISTER
-        ),
-        extruder.faceToEdgeMap()
-    );
-    faceToPatchEdgeAddressing.note() =
-        "side face to patch edge addressing";
-
-    labelIOList pointToPatchPointAddressing
-    (
-        IOobject
-        (
-            "pointToPatchPointAddressing",
-            regionMesh.facesInstance(),
-            polyMesh::meshSubDir,
-            regionMesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE,
-            IOobject::NO_REGISTER
-        ),
-        extruder.pointToPointMap()
-    );
-    pointToPatchPointAddressing.note() =
-        "point to patch point addressing";
-
-
     Info<< "Writing mesh " << regionMesh.name()
         << " to " << regionMesh.facesInstance() << nl
         << endl;
 
-    bool ok =
-        regionMesh.write()
-     && cellToPatchFaceAddressing.write()
-     && faceToPatchFaceAddressing.write()
-     && faceToPatchEdgeAddressing.write()
-     && pointToPatchPointAddressing.write();
+    bool ok = regionMesh.write();
+
+    // Write addressing without copying
+    if (ok) do
+    {
+        IOobject io
+        (
+            "any-name",
+            regionMesh.facesInstance(),
+            polyMesh::meshSubDir,
+            regionMesh,
+            IOobjectOption::NO_READ,
+            IOobjectOption::NO_WRITE,
+            IOobjectOption::NO_REGISTER
+        );
+
+        io.resetHeader("cellToPatchFaceAddressing");
+        io.note() = "cell to patch face addressing";
+        ok = labelIOList::writeContents(io, extruder.cellToFaceMap());
+        if (!ok) break;
+
+        io.resetHeader("faceToPatchFaceAddressing");
+        io.note() = "front/back face + turning index to patch face addressing";
+        ok = labelIOList::writeContents(io, extruder.faceToFaceMap());
+        if (!ok) break;
+
+        io.resetHeader("faceToPatchEdgeAddressing");
+        io.note() = "side face to patch edge addressing";
+        ok = labelIOList::writeContents(io, extruder.faceToEdgeMap());
+        if (!ok) break;
+
+        io.resetHeader("pointToPatchPointAddressing");
+        io.note() = "point to patch point addressing";
+        ok = labelIOList::writeContents(io, extruder.pointToPointMap());
+        if (!ok) break;
+    } while (false);
 
     if (!ok)
     {

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -230,38 +231,96 @@ void Foam::extrudePatchMesh::extrudeMesh(const polyPatchList& regionPatches)
         }
 
         // Calculate region normals by reducing local region normals
-        pointField localRegionNormals(localToGlobalRegion.size());
+        pointField localRegionNormals(localToGlobalRegion.size(), Foam::zero{});
         {
             pointField localSum(localToGlobalRegion.size(), Zero);
 
             forAll(pointLocalRegions, facei)
             {
-                const face& pRegions = pointLocalRegions[facei];
-                forAll(pRegions, fp)
+                const auto& faceNormal = extrudedPatch_.faceNormals()[facei];
+
+                for (label localRegioni : pointLocalRegions[facei])
                 {
-                    label localRegionI = pRegions[fp];
-                    localSum[localRegionI] +=
-                        extrudedPatch_.faceNormals()[facei];
+                    localRegionNormals[localRegioni] += faceNormal;
                 }
             }
 
-            Map<point> globalSum(2*localToGlobalRegion.size());
-
-            forAll(localSum, localRegionI)
+            // Older code (v2606 and earlier) used a simpler logic
+            // with a mapCombineReduce() for all points, but that gives
+            // serialization problems (buffer overrun) with very large cases.
+            //
+            // Instead use a two-step logic to restrict the global summation
+            // to the actually shared. Also uses direct MPI operations
+            if (UPstream::parRun())
             {
-                label globalRegionI = localToGlobalRegion[localRegionI];
-                globalSum.insert(globalRegionI, localSum[localRegionI]);
-            }
+                // Determine duplicate points (globally consistent size)
+                label count = 0;
+                if (!localToGlobalRegion.empty())
+                {
+                    count = Foam::max(localToGlobalRegion);
+                    ++count;  // From index to size
+                }
+                Foam::reduce(count, maxOp<label>());  // ie, worldComm
 
-            // Reduce
-            Pstream::mapCombineReduce(globalSum, plusEqOp<point>());
+                // Mark the points used
+                DynamicList<label> shared(count, Foam::zero{});
+                UIndirectList<label>(shared, localToGlobalRegion) = 1;
 
-            forAll(localToGlobalRegion, localRegionI)
-            {
-                label globalRegionI = localToGlobalRegion[localRegionI];
-                localRegionNormals[localRegionI] = globalSum[globalRegionI];
+                Foam::reduce
+                (
+                    shared.data(),
+                    shared.size(),
+                    sumOp<label>(),
+                    UPstream::msgType(),
+                    UPstream::worldComm
+                );
+
+                // Compact the shared point indices (ie, used more than once)
+                // into a map from local to global region. Uses -1 for shared
+                // indices that are not locally mapped to ensure that the
+                // compacted size remains globally consistent.
+
+                count = 0;
+                forAll(shared, globalRegioni)
+                {
+                    if (shared[globalRegioni] >= 2)
+                    {
+                        shared[count] = localToGlobalRegion.find(globalRegioni);
+                        ++count;
+                    }
+                }
+                shared.resize(count);
+
+                // Global summation for the shared points
+                pointField globalSum(shared.size(), Foam::zero{});
+
+                forAll(shared, i)
+                {
+                    if (label localRegioni = shared[i]; localRegioni >= 0)
+                    {
+                        globalSum[i] = localRegionNormals[localRegioni];
+                    }
+                }
+
+                Foam::reduce
+                (
+                    globalSum.data(),
+                    globalSum.size(),
+                    sumOp<point>(),
+                    UPstream::msgType(),
+                    UPstream::worldComm
+                );
+
+                // Update (overwrite) normals to account for shared points
+                forAll(shared, i)
+                {
+                    if (label localRegioni = shared[i]; localRegioni >= 0)
+                    {
+                        localRegionNormals[localRegioni] = globalSum[i];
+                    }
+                }
             }
-            localRegionNormals /= mag(localRegionNormals);
+            localRegionNormals.normalise();
         }
 
 
