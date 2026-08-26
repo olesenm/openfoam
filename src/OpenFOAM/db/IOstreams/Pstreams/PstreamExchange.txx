@@ -890,7 +890,7 @@ void Foam::Pstream::exchangeSizes
     (
         sendSizes,
         recvSizes,
-        (tag + 314159),  // some unique tag?
+        (tag + 1867),  // some unique tag?
         comm
     );
 }
@@ -939,7 +939,7 @@ void Foam::Pstream::exchangeSizes
         (
             sendSizes,
             recvSizes,
-            (UPstream::msgType() + 314159),  // some unique tag?
+            (UPstream::msgType() + 1867),  // some unique tag?
             comm
         );
         return;

@@ -68,25 +68,27 @@ bool Foam::UPstream::mpi_send
 
     // Could check if nonBlocking and request are consistently specified...
 
-
-    // TODO: some corrective action, at least when not nonBlocking
-    #if 0
-    if (count > std::streamsize(INT_MAX))
+    if (FOAM_UNLIKELY(count < 0 || count > std::streamsize(INT_MAX)))
     {
-        Perr<< "[mpi_send] : to rank " << toProcNo
-            << " type:" << int(dataTypeId)
-            << " exceeds INT_MAX values"
-            << Foam::endl;
-
-        error::printStack(Perr);
+        // Cannot recover from this
+        FatalErrorInFunction
+            << "[mpi_send] : to rank " << toProcNo
+            << " type:" << PstreamGlobals::dataType_name(datatype)
+            <<
+            (
+                (count < 0)
+              ? " is negative (likely an integer overflow)"
+              : " exceeds INT_MAX bytes"
+            )
+            << Foam::abort(FatalError);
+        return false;
     }
-    #endif
 
     if (FOAM_UNLIKELY(PstreamGlobals::warnCommunicator(communicator)))
     {
         Perr<< "[mpi_send] : starting send to:" << toProcNo
             << " type:" << int(dataTypeId)
-            << " count:" << label(count)
+            << " count:" << int64_t(count)
             << " tag:" << tag << " comm:" << communicator
             << " commType:" << UPstream::commsTypeNames[commsType]
             << " warnComm:" << UPstream::warnComm
@@ -97,7 +99,7 @@ bool Foam::UPstream::mpi_send
     {
         Perr<< "[mpi_send] : starting send to:" << toProcNo
             << " type:" << int(dataTypeId)
-            << " count:" << label(count)
+            << " count:" << int64_t(count)
             << " tag:" << tag << " comm:" << communicator
             << " commType:" << UPstream::commsTypeNames[commsType]
             << Foam::endl;
@@ -128,7 +130,7 @@ bool Foam::UPstream::mpi_send
         {
             Perr<< "[mpi_send] : finished buffered send to:"
                 << toProcNo
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << Foam::endl;
         }
     }
@@ -167,7 +169,7 @@ bool Foam::UPstream::mpi_send
             Perr<< "[mpi_send] : finished send to:"
                 << toProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << Foam::endl;
         }
     }
@@ -207,7 +209,7 @@ bool Foam::UPstream::mpi_send
             Perr<< "[mpi_send] : started non-blocking send to:"
                 << toProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << " request:" <<
                 (req ? label(-1) : PstreamGlobals::outstandingRequests_.size())
                 << Foam::endl;

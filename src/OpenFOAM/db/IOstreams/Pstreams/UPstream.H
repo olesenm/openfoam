@@ -885,6 +885,9 @@ public:
             return old;
         }
 
+        //- The current communicator debugging setting
+        static label commWarn() noexcept { return warnComm; }
+
         //- Alter communicator debugging setting.
         //- Warns for use of any communicator differing from specified.
         //- Negative values disable.

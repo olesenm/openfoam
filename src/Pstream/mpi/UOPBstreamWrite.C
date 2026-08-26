@@ -47,7 +47,7 @@ bool Foam::UOPBstream::bufferIPCsend()
     {
         FatalErrorInFunction
             << "Broadcast failure sending buffer size:"
-            << label(count) << " comm:" << comm_ << nl
+            << count << " comm:" << comm_ << nl
             << Foam::abort(FatalError);
         return false;
     }

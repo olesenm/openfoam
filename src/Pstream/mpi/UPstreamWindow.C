@@ -582,7 +582,7 @@ bool Foam::UPstream::Window::put_data
     {
         FatalError("MPI_Accumulate()")
             << "Invalid opcode:" << int(opCodeId)
-            << " type:" << int(dataTypeId) << " count:" << label(count) << nl
+            << " type:" << int(dataTypeId) << " count:" << int64_t(count) << nl
             << Foam::abort(FatalError);
         return false;
     }

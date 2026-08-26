@@ -190,7 +190,7 @@ void Foam::PstreamBuffers::finalExchange
                 (
                     sendSizes,
                     recvSizes,
-                    (tag_ + 314159),  // some unique tag?
+                    (tag_ + 1867),  // some unique tag?
                     comm_
                 );
                 break;

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -84,7 +85,9 @@ Note
     on all processors to keep the addressing calculation simple.
 
 SourceFiles
-    mappedPatchBase.C
+    mappedPatchBase.cxx
+    mappedPatchBase.txx
+    mappedPatchBaseI.H
 
 \*---------------------------------------------------------------------------*/
 
@@ -685,6 +688,23 @@ public:
 };
 
 
+// * * * * * * * * * * * * * * * * * Traits * * * * * * * * * * * * * * * * //
+
+//- Contiguous data for mappedPatchBase::nearInfo
+template<>
+struct is_contiguous<mappedPatchBase::nearInfo>
+:
+    is_contiguous<pointIndexHit>
+{};
+
+//- Contiguous data for mappedPatchBase::nearInfoWorld
+template<>
+struct is_contiguous<mappedPatchBase::nearInfoWorld>
+:
+    is_contiguous<mappedPatchBase::nearInfo>
+{};
+
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace Foam
@@ -696,7 +716,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "mappedPatchBaseTemplates.C"
+    #include "mappedPatchBase.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

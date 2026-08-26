@@ -229,7 +229,7 @@ Foam::List<T> Foam::IOList<T>::readContents(const IOobject& io)
 
 
 template<class T>
-void Foam::IOList<T>::writeContents
+bool Foam::IOList<T>::writeContents
 (
     const IOobject& io,
     const UList<T>& content
@@ -241,7 +241,7 @@ void Foam::IOList<T>::writeContents
         content
     );
 
-    writer.write();
+    return writer.write();
 }
 
 

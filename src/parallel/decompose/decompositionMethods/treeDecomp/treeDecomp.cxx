@@ -574,7 +574,7 @@ Foam::labelList Foam::treeDecomp::treeDecompose
 {
     // May want to handle different communicators in the future...
     const int communicator = UPstream::worldComm;
-    const int uniqueTag = (UPstream::msgType() + 20260821);
+    const int messageTag = (UPstream::msgType() + 1812);
     const auto commsType = globalIndex::defaultCommsType();
 
 
@@ -620,7 +620,7 @@ Foam::labelList Foam::treeDecomp::treeDecompose
                 globalNumbers.gather
                 (
                     rotatedPoints,
-                    uniqueTag, commsType, communicator
+                    messageTag, commsType, communicator
                 )
             );
 
@@ -634,7 +634,7 @@ Foam::labelList Foam::treeDecomp::treeDecompose
             finalDecomp = globalNumbers.scatter
             (
                 allDecomp,
-                uniqueTag, commsType, communicator
+                messageTag, commsType, communicator
             );
         }
     }

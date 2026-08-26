@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2017 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -543,8 +544,13 @@ void Foam::globalIndex::gather
             UPstream::master(interNodeComm) ? allData : tmpNodeData
         );
 
+        const auto oldWarnComm = UPstream::warnComm;
+        const bool usesWarnComm = (comm == oldWarnComm);
+
         // Stage 1 : Gather data within the node
         {
+            if (usesWarnComm) UPstream::commWarn(localNodeComm);
+
             globalIndex::gather
             (
                 localNodeOffsets,  // (master only)
@@ -560,6 +566,8 @@ void Foam::globalIndex::gather
         // Stage 2 : Gather data between nodes
         if (UPstream::is_rank(interNodeComm))
         {
+            if (usesWarnComm) UPstream::commWarn(interNodeComm);
+
             globalIndex::gather
             (
                 interNodeOffsets,  // (master only)
@@ -571,6 +579,8 @@ void Foam::globalIndex::gather
                 commsType
             );
         }
+
+        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
     }
 }
 

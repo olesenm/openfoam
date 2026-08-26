@@ -92,7 +92,7 @@ public:
 
         //- Write contents. The IOobject is never registered.
         //  Uses IOmapDistributePolyMeshRef internally.
-        static void writeContents
+        static bool writeContents
         (
             const IOobject& io,
             const mapDistributePolyMesh& map

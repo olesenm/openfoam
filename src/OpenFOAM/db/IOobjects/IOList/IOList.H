@@ -113,7 +113,7 @@ public:
 
         //- Write contents. The IOobject is never registered.
         //  Uses IOListRef internally.
-        static void writeContents(const IOobject& io, const UList<T>& content);
+        static bool writeContents(const IOobject& io, const UList<T>& content);
 
 
     //- Destructor

@@ -126,7 +126,7 @@ Foam::IOmapDistributePolyMeshRef::IOmapDistributePolyMeshRef
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
-void Foam::IOmapDistributePolyMesh::writeContents
+bool Foam::IOmapDistributePolyMesh::writeContents
 (
     const IOobject& io,
     const mapDistributePolyMesh& map
@@ -138,7 +138,7 @@ void Foam::IOmapDistributePolyMesh::writeContents
         map
     );
 
-    writer.write();
+    return writer.write();
 }
 
 

@@ -52,11 +52,18 @@ bool Foam::UPstream::mpi_broadcast
     //Needed?  PstreamGlobals::checkCommunicator(communicator, 0);
 
     // Without MPI_Bcast_c()
-    if (FOAM_UNLIKELY(count > std::streamsize(INT_MAX)))
+    if (FOAM_UNLIKELY(count < 0 || count > std::streamsize(INT_MAX)))
     {
+        // Cannot recover from this
         FatalErrorInFunction
-            << "Broadcast size " << label(count)
-            << " exceeds INT_MAX bytes" << Foam::endl
+            << "Broadcast size"
+            << " type:" << PstreamGlobals::dataType_name(datatype)
+            <<
+            (
+                (count < 0)
+              ? " is negative (likely an integer overflow)"
+              : " exceeds INT_MAX bytes"
+            )
             << Foam::abort(FatalError);
         return false;
     }
@@ -72,7 +79,7 @@ bool Foam::UPstream::mpi_broadcast
     {
         Perr<< "[mpi_broadcast] :"
             << " type:" << int(dataTypeId)
-            << " count:" << label(count)
+            << " count:" << int64_t(count)
             << " comm:" << communicator
             << " root:" << root
             << " topo:" << withTopo << Foam::endl;
@@ -108,7 +115,7 @@ bool Foam::UPstream::mpi_broadcast
                 {
                     Perr<< "[mpi_broadcast] :"
                         << " type:" << int(dataTypeId)
-                        << " count:" << label(count)
+                        << " count:" << int64_t(count)
                         << " comm:" << subComm
                         << " substage" << Foam::endl;
                 }

@@ -44,8 +44,8 @@ void Foam::mappedPatchBase::distribute(List<Type>& lst) const
             }
             else
             {
-                const label oldWarnComm = UPstream::commWarn(myComm);
-                const label oldWorldComm = UPstream::commWorld(myComm);
+                const auto oldWarnComm = UPstream::commWarn(myComm);
+                const auto oldWorldComm = UPstream::commWorld(myComm);
 
                 // lst is my local data. Now the mapping in the AMI is
                 // from my side to other side. Each processor contains either
@@ -94,10 +94,11 @@ void Foam::mappedPatchBase::distribute(List<Type>& lst) const
         default:
         {
             const auto& m = map();
-            const label oldWarnComm = UPstream::commWarn(m.comm());
+            const auto oldWarnComm = UPstream::commWarn(m.comm());
 
             m.distribute(lst);
 
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
         }
     }
@@ -119,16 +120,17 @@ void Foam::mappedPatchBase::distribute
         {
             const auto& interp = AMI();
 
-            label oldWarnComm(-1);
-            label oldWorldComm(-1);
+            const auto oldWarnComm = UPstream::warnComm;
+            const auto oldWorldComm = UPstream::worldComm;
             if (!sameWorld())
             {
-                oldWarnComm = UPstream::commWarn(myComm);
-                oldWorldComm = UPstream::commWorld(myComm);
+                UPstream::commWarn(myComm);
+                UPstream::commWorld(myComm);
             }
 
             lst = interp.interpolateToSource(Field<Type>(std::move(lst)), cop);
 
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
             UPstream::commWorld(oldWorldComm);
             break;
@@ -139,10 +141,10 @@ void Foam::mappedPatchBase::distribute
             (void)patch_.boundaryMesh().mesh().tetBasePtIs();
             const auto& m = map();
 
-            label oldWarnComm(-1);
+            const auto oldWarnComm = UPstream::warnComm;
             if (!sameWorld())
             {
-                oldWarnComm = UPstream::commWarn(myComm);
+                UPstream::commWarn(myComm);
             }
 
             mapDistributeBase::distribute
@@ -161,6 +163,8 @@ void Foam::mappedPatchBase::distribute
                 UPstream::msgType(),
                 myComm
             );
+
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
         }
     }
@@ -178,16 +182,17 @@ void Foam::mappedPatchBase::reverseDistribute(List<Type>& lst) const
         {
             const auto& interp = AMI();
 
-            label oldWarnComm(-1);
-            label oldWorldComm(-1);
+            const auto oldWarnComm = UPstream::warnComm;
+            const auto oldWorldComm = UPstream::worldComm;
             if (!sameWorld())
             {
-                oldWarnComm = UPstream::commWarn(myComm);
-                oldWorldComm = UPstream::commWorld(myComm);
+                UPstream::commWarn(myComm);
+                UPstream::commWorld(myComm);
             }
 
             lst = interp.interpolateToTarget(Field<Type>(std::move(lst)));
 
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
             UPstream::commWorld(oldWorldComm);
             break;
@@ -198,8 +203,10 @@ void Foam::mappedPatchBase::reverseDistribute(List<Type>& lst) const
             (void)patch_.boundaryMesh().mesh().tetBasePtIs();
             const auto& m = map();
 
-            const label oldWarnComm = UPstream::commWarn(m.comm());
+            const auto oldWarnComm = UPstream::commWarn(m.comm());
             m.reverseDistribute(sampleSize(), lst);
+
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
             break;
         }
@@ -222,16 +229,17 @@ void Foam::mappedPatchBase::reverseDistribute
         {
             const auto& interp = AMI();
 
-            label oldWarnComm(-1);
-            label oldWorldComm(-1);
+            const auto oldWarnComm = UPstream::warnComm;
+            const auto oldWorldComm = UPstream::worldComm;
             if (!sameWorld())
             {
-                oldWarnComm = UPstream::commWarn(myComm);
-                oldWorldComm = UPstream::commWorld(myComm);
+                UPstream::commWarn(myComm);
+                UPstream::commWorld(myComm);
             }
 
             lst = interp.interpolateToTarget(Field<Type>(std::move(lst)), cop);
 
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
             UPstream::commWorld(oldWorldComm);
             break;
@@ -242,10 +250,10 @@ void Foam::mappedPatchBase::reverseDistribute
             const auto& m = map();
             const label cSize = sampleSize();
 
-            label oldWarnComm(-1);
+            const auto oldWarnComm = UPstream::warnComm;
             if (!sameWorld())
             {
-                oldWarnComm = UPstream::commWarn(myComm);
+                UPstream::commWarn(myComm);
             }
 
             mapDistributeBase::distribute
@@ -265,6 +273,7 @@ void Foam::mappedPatchBase::reverseDistribute
                 myComm
             );
 
+            // Restore communicator settings
             UPstream::commWarn(oldWarnComm);
             break;
         }

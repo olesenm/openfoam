@@ -181,6 +181,9 @@ bool gather_topo_algorithm
 
         using control = std::pair<int, bool>;
 
+        const auto oldWarnComm = UPstream::warnComm;
+        const bool usesWarnComm = (communicator == oldWarnComm);
+
         for
         (
             auto [subComm, linear] :
@@ -192,6 +195,8 @@ bool gather_topo_algorithm
             }
         )
         {
+            if (usesWarnComm) UPstream::commWarn(subComm);
+
             if (UPstream::is_parallel(subComm))
             {
                 PstreamDetail::gather_algorithm<T, BinaryOp, InplaceMode>
@@ -204,6 +209,8 @@ bool gather_topo_algorithm
                 );
             }
         }
+
+        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
     }
 
     return withTopo;
@@ -449,6 +456,9 @@ bool listGather_topo_algorithm
 
         using control = std::pair<int, bool>;
 
+        const auto oldWarnComm = UPstream::warnComm;
+        const bool usesWarnComm = (communicator == oldWarnComm);
+
         for
         (
             auto [subComm, linear] :
@@ -460,6 +470,8 @@ bool listGather_topo_algorithm
             }
         )
         {
+            if (usesWarnComm) UPstream::commWarn(subComm);
+
             if (UPstream::is_parallel(subComm))
             {
                 PstreamDetail::listGather_algorithm<T, BinaryOp, InplaceMode>
@@ -472,6 +484,8 @@ bool listGather_topo_algorithm
                 );
             }
         }
+
+        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
     }
 
     return withTopo;
@@ -738,6 +752,9 @@ bool mapGather_topo_algorithm
 
         using control = std::pair<int, bool>;
 
+        const auto oldWarnComm = UPstream::warnComm;
+        const bool usesWarnComm = (communicator == oldWarnComm);
+
         for
         (
             auto [subComm, linear] :
@@ -749,6 +766,8 @@ bool mapGather_topo_algorithm
             }
         )
         {
+            if (usesWarnComm) UPstream::commWarn(subComm);
+
             if (UPstream::is_parallel(subComm))
             {
                 PstreamDetail::mapGather_algorithm
@@ -762,6 +781,8 @@ bool mapGather_topo_algorithm
                 );
             }
         }
+
+        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
     }
 
     return withTopo;

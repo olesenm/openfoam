@@ -286,6 +286,9 @@ bool gatherList_topo_algorithm
         // The per-node sub-section of values
         auto nodeValues = values.slice(nodeProcs.start(), nodeProcs.size());
 
+        const auto oldWarnComm = UPstream::warnComm;
+        const bool usesWarnComm = (communicator == oldWarnComm);
+
         // Stage 1: gather values within a node
         // - linear for local-node (assume communication is fast)
 
@@ -296,6 +299,8 @@ bool gatherList_topo_algorithm
         )
         {
             constexpr bool linear(true);
+
+            if (usesWarnComm) UPstream::commWarn(subComm);
 
             PstreamDetail::gatherList_algorithm<T>
             (
@@ -317,6 +322,8 @@ bool gatherList_topo_algorithm
             UPstream::is_parallel(subComm)
         )
         {
+            if (usesWarnComm) UPstream::commWarn(subComm);
+
             if (UPstream::master(subComm))
             {
                 for (auto proci : UPstream::subProcs(subComm))
@@ -370,6 +377,8 @@ bool gatherList_topo_algorithm
                 }
             }
         }
+
+        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
     }
 
     return withTopo;

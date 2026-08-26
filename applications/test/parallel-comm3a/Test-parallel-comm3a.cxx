@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    const int tag = (UPstream::msgType() + 314159);
+    const int tag = (UPstream::msgType() + 1867);
     // const label comm = UPstream::worldComm;
 
     Random rnd(20*UPstream::myProcNo());

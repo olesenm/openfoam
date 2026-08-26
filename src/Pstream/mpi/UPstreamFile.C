@@ -54,14 +54,34 @@ namespace
 
 inline bool checkCount(std::streamsize count, const char* what)
 {
-    #ifndef Foam_UPstream_largeCountFile
-    if (FOAM_UNLIKELY(count > std::streamsize(INT_MAX)))
+    #ifdef Foam_UPstream_largeCountFile
+    if (FOAM_UNLIKELY(count < 0))
     {
+        // Cannot recover from this
         using namespace Foam;
+
         FatalErrorInFunction
-            << "Write size " << label(count)
-            << " exceeds INT_MAX bytes for '" << what << "'\n"
-            << Foam::abort(Foam::FatalError);
+            << "Write size"
+               " is negative (likely an integer overflow)"
+            << " for '" << what << "'\n'"
+            << Foam::abort(FatalError);
+        return false;
+    }
+    #else
+    if (FOAM_UNLIKELY(count < 0 || count > std::streamsize(INT_MAX)))
+    {
+        // Cannot recover from this
+        using namespace Foam;
+
+        FatalErrorInFunction
+            << "Write size"
+            <<
+            (
+                (count < 0)
+              ? " is negative (likely an integer overflow)"
+              : " exceeds INT_MAX bytes"
+            ) << " for '" << what << "'\n'"
+            << Foam::abort(FatalError);
         return false;
     }
     #endif

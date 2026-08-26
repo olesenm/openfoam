@@ -57,26 +57,27 @@ std::streamsize Foam::UPstream::mpi_receive
 
     // Could check if nonBlocking and request are consistently specified...
 
-
-    // TODO: some corrective action, at least when not nonBlocking
-    #if 0
-    // No warnings here, just on the sender side.
-    if (count > std::streamsize(INT_MAX))
+    if (FOAM_UNLIKELY(count < 0 || count > std::streamsize(INT_MAX)))
     {
-        Perr<< "[mpi_recv] from rank " << fromProcNo
-            << " exceeds INT_MAX values of "
-            << PstreamGlobals::dataType_name(datatype)
-            << Foam::endl;
-
-        error::printStack(Perr);
+        // Cannot recover from this
+        FatalErrorInFunction
+            << "[mpi_recv] from rank " << fromProcNo
+            << " type:" << PstreamGlobals::dataType_name(datatype)
+            <<
+            (
+                (count < 0)
+              ? " is negative (likely an integer overflow)"
+              : " exceeds INT_MAX values"
+            )
+            << Foam::abort(FatalError);
+        return 0;
     }
-    #endif
 
     if (FOAM_UNLIKELY(PstreamGlobals::warnCommunicator(communicator)))
     {
         Perr<< "[mpi_recv] : starting recv from:" << fromProcNo
             << " type:" << int(dataTypeId)
-            << " count:" << label(count)
+            << " count:" << int64_t(count)
             << " tag:" << tag << " comm:" << communicator
             << " commsType:" << UPstream::commsTypeNames[commsType]
             << " warnComm:" << UPstream::warnComm
@@ -87,7 +88,7 @@ std::streamsize Foam::UPstream::mpi_receive
     {
         Perr<< "[mpi_recv] : starting recv from:" << fromProcNo
             << " type:" << int(dataTypeId)
-            << " count:" << label(count)
+            << " count:" << int64_t(count)
             << " tag:" << tag << " comm:" << communicator
             << " commsType:" << UPstream::commsTypeNames[commsType]
             << Foam::endl;
@@ -128,7 +129,7 @@ std::streamsize Foam::UPstream::mpi_receive
                 << "[mpi_recv] : cannot receive message from:"
                 << fromProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << Foam::abort(FatalError);
             return 0;
         }
@@ -137,7 +138,7 @@ std::streamsize Foam::UPstream::mpi_receive
             Perr<< "[mpi_recv] : finished recv from:"
                 << fromProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << Foam::endl;
         }
 
@@ -173,9 +174,9 @@ std::streamsize Foam::UPstream::mpi_receive
             FatalErrorInFunction
                 << "[mpi_recv] : receive from:" << fromProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count)
+                << " count:" << int64_t(count)
                 << " buffer is too small for incoming message ("
-                << label(num_recv) << ')'
+                << int64_t(num_recv) << ')'
                 << Foam::abort(FatalError);
         }
 
@@ -204,7 +205,7 @@ std::streamsize Foam::UPstream::mpi_receive
                 << "[mpi_recv] : cannot start non-blocking receive from:"
                 << fromProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count)
+                << " count:" << int64_t(count)
                 << Foam::abort(FatalError);
 
             return 0;
@@ -219,7 +220,7 @@ std::streamsize Foam::UPstream::mpi_receive
             Perr<< "[mpi_recv] : started non-blocking recv from:"
                 << fromProcNo
                 << " type:" << int(dataTypeId)
-                << " count:" << label(count) << " tag:" << tag
+                << " count:" << int64_t(count) << " tag:" << tag
                 << " request:" <<
                 (req ? label(-1) : PstreamGlobals::outstandingRequests_.size())
                 << Foam::endl;
@@ -318,7 +319,7 @@ void Foam::UIPstream::bufferIPCrecv()
         if (FOAM_UNLIKELY(UPstream::debug))
         {
             Perr<< "UIPstream::bufferIPCrecv : probed size:"
-                << label(num_recv) << Foam::endl;
+                << int64_t(num_recv) << Foam::endl;
         }
 
         recvBuf_.resize(label(num_recv));
