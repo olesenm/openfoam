@@ -145,17 +145,48 @@ public:
         static const Enum<offsetMode> offsetModeNames_;
 
 
-    //- Helper class for finding nearest
+    //- Compact reduction key for finding the nearest distance
+    //- as a MINLOC-style reduction.
+    //
+    //  Data content will frequently correspond to
+    //  (sqr(distance), (rank, world)) with rank = -1 for "not-found".
+    //  However, this tuple can be repurposed for (distance, (rank, index)) etc.
+    typedef Tuple2<scalar, Tuple2<label, label>> nearKey;
+
+    //- Reduction/combine operator for nearKey and/or nearInfo
+    class nearestSameWorldEqOp
+    {
+    public:
+
+        //- Min distance (MINLOC) for ranks with same world.
+        void operator()(nearKey& x, const nearKey& y) const noexcept
+        {
+            if
+            (
+                (x.second().second() == y.second().second())    // same world
+             && (y.first() < x.first())                         // minFirst
+            )
+            {
+                x = y;
+            }
+        }
+    };
+
+    //- A pointIndexHit reduction information for finding the nearest
+    //- hit distance.
     //  Nearest:
-    //  - point+local index
+    //  - pointIndexHit == (point+local index)
     //  - sqr(distance)
-    //  - processor
+    //  - rank
     typedef Tuple2<pointIndexHit, Tuple2<scalar, label>> nearInfo;
 
+    //- Reduction/combine operator for nearKey and/or nearInfo
     class nearestEqOp
     {
     public:
 
+        //- Min distance (MINLOC) operation that propagates through
+        //- 'good' pointIndexHit entries
         void operator()(nearInfo& x, const nearInfo& y) const
         {
             if (y.first().hit())
@@ -166,58 +197,8 @@ public:
                 }
                 else if (y.second().first() < x.second().first())
                 {
+                    // both hit and y is closer
                     x = y;
-                }
-            }
-        }
-    };
-
-    class maxProcEqOp
-    {
-    public:
-
-        void operator()(nearInfo& x, const nearInfo& y) const
-        {
-            if (y.first().hit())
-            {
-                if (!x.first().hit())
-                {
-                    x = y;
-                }
-                else if (y.second().second() > x.second().second())
-                {
-                    x = y;
-                }
-            }
-        }
-    };
-
-
-    //- nearest + world
-    //  Used to only look at entries from same world
-    typedef Tuple2<nearInfo, label> nearInfoWorld;
-
-    class nearestWorldEqOp
-    {
-    public:
-
-        void operator()(nearInfoWorld& x, const nearInfoWorld& y) const
-        {
-            // Is there a hit and is it sampling the same world
-            const nearInfo& xi = x.first();
-            const nearInfo& yi = y.first();
-            if (yi.first().hit())
-            {
-                if (x.second() == y.second())
-                {
-                    if (!xi.first().hit())
-                    {
-                        x = y;
-                    }
-                    else if (yi.second().first() < xi.second().first())
-                    {
-                        x = y;
-                    }
                 }
             }
         }
@@ -365,16 +346,25 @@ protected:
             pointField& patchFc
         ) const;
 
-        //- Find (local) cells/faces containing samples
-        void findLocalSamples
+        //- Find (local) cells/faces containing samples.
+        //  \return a list of selection keys (distance, rank, world)
+        List<nearKey> findLocalSamples
         (
             const sampleMode mode,
             const label sampleWorld,        // my world as index
             const word& sampleRegion,
             const word& samplePatch,
+            //! The sample point references
             const pointField& samplePoints,
 
-            List<nearInfoWorld>& nearest
+            //! [out] Indices within the locally sampled entity (-1 = invalid)
+            labelList& sampleIndices,
+            //! [out] Locations within the locally sampled entity
+            //! (invalid = point::max)
+            pointField& sampleLocations,
+            //! optional: the samplePoints to include, with a zero-size set
+            //! corresponding to no subsetting.
+            const bitSet& sampleSubset = bitSet::null()
         ) const;
 
         //- Find (global) cells/faces containing samples
@@ -384,8 +374,8 @@ protected:
             const label myWorldIndex,   // my world (in index form)
 
             const pointField&,
-            const labelList& wantedWorlds,
-            const labelList& origProcs, // per sample the originating proc
+            const labelUList& wantedWorlds,
+            const labelUList& origProcs, // per sample the originating proc
 
             labelList& sampleProcs,     // processor containing sample
             labelList& sampleIndices,   // local index of cell/face
@@ -690,18 +680,14 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits * * * * * * * * * * * * * * * * //
 
-//- Contiguous data for mappedPatchBase::nearInfo
+//- Contiguous data for mappedPatchBase::nearKey (scalar and two ints)
+template<> struct is_contiguous<mappedPatchBase::nearKey> : std::true_type {};
+
+//- Contiguous data for mappedPatchBase::nearInfo (pointIndexHit, scalar, label)
 template<>
 struct is_contiguous<mappedPatchBase::nearInfo>
 :
     is_contiguous<pointIndexHit>
-{};
-
-//- Contiguous data for mappedPatchBase::nearInfoWorld
-template<>
-struct is_contiguous<mappedPatchBase::nearInfoWorld>
-:
-    is_contiguous<mappedPatchBase::nearInfo>
 {};
 
 
