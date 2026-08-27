@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -799,8 +800,8 @@ void Foam::Pstream::exchangeSizes
             (
                 UPstream::commsTypes::nonBlocking,
                 proci,
-                reinterpret_cast<char*>(&recvSizes[proci]),
-                sizeof(label),
+                &(recvSizes[proci]),
+                1,
                 tag,
                 comm
             );
@@ -815,8 +816,8 @@ void Foam::Pstream::exchangeSizes
             (
                 UPstream::commsTypes::nonBlocking,
                 proci,
-                reinterpret_cast<char*>(&sendSizes[proci]),
-                sizeof(label),
+                &(sendSizes[proci]),
+                1,
                 tag,
                 comm
             );

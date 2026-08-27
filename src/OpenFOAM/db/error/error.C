@@ -154,8 +154,11 @@ Foam::prefixOSstream& Foam::error::Pout_mem_hwm
     // Can thus use mpiReduce instead of mpiAllReduce.
 
     {
+        // We are using an "unexpected" communicator - avoid stack trace
+        auto oldWarnComm = UPstream::commWarn(-1);
         // The sum of all ranks on the node:
         UPstream::mpiReduce_sum(&value, 1, UPstream::commLocalNode());
+        UPstream::commWarn(oldWarnComm);
     }
 
     if (UPstream::master(UPstream::commLocalNode()))
