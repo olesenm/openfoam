@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,8 +32,39 @@ License
 // * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * * //
 
 template<class Form, class Type>
+inline void Foam::Matrix<Form, Type>::checkElementCount
+(
+    const label m,
+    const label n
+)
+{
+    // The sized constructors reject a negative dimension through
+    // checkSize(), which resize_nocopy() and readMatrix() do not reach
+    if (m < 0 || n < 0)
+    {
+        FatalErrorInFunction
+            << "Incorrect size (" << m << ", " << n << ')' << nl
+            << abort(FatalError);
+    }
+
+    // size() forms the element count as m*n in label arithmetic, so a
+    // product past labelMax can size the allocation from a wrapped length
+    if (m > 0 && n > labelMax/m)
+    {
+        FatalErrorInFunction
+            << "Overflow : matrix (" << m << ", " << n
+            << ") element count exceeds labelMax (" << labelMax << ')' << nl
+            << "Please recompile with larger datatype for label." << nl
+            << abort(FatalError);
+    }
+}
+
+
+template<class Form, class Type>
 inline void Foam::Matrix<Form, Type>::doAlloc()
 {
+    checkElementCount(mRows_, nCols_);
+
     const label len = size();
 
     if (len > 0)

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -90,6 +91,9 @@ class Matrix
 
 
     // Private Member Functions
+
+        //- Check the (m, n) dimensions and their element count
+        static inline void checkElementCount(const label m, const label n);
 
         //- Allocate storage for the contents
         inline void doAlloc();
