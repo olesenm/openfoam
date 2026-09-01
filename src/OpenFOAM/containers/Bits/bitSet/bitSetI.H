@@ -60,6 +60,12 @@ inline Foam::bitSet::bitSet(bitSet&& bitset)
 {}
 
 
+inline Foam::bitSet::bitSet(PackedList<1>&& list) noexcept
+:
+    PackedList<1>(std::move(list))
+{}
+
+
 inline Foam::bitSet::bitSet(const UList<bool>& bools)
 :
     bitSet()
@@ -423,6 +429,12 @@ inline bool Foam::bitSet::none() const noexcept
 }
 
 
+inline bool Foam::bitSet::empty_or_test(label i) const noexcept
+{
+    return (empty() || test(i));
+}
+
+
 inline unsigned int Foam::bitSet::count(const bool on) const noexcept
 {
     unsigned int total = 0;
@@ -444,9 +456,9 @@ inline unsigned int Foam::bitSet::count(const bool on) const noexcept
 }
 
 
-inline Foam::labelList Foam::bitSet::sortedToc() const
+inline Foam::labelList Foam::bitSet::sortedToc(const label offset) const
 {
-    return toc();
+    return toc(offset);
 }
 
 
@@ -543,7 +555,8 @@ inline Foam::label Foam::bitSet::unset
 
 inline Foam::bitSet& Foam::bitSet::unset(const bitSet& other)
 {
-    return minusEq(other);
+    minusEq(other);
+    return *this;
 }
 
 
@@ -616,39 +629,43 @@ inline Foam::bitSet& Foam::bitSet::operator=(const bool val)
 }
 
 
+inline Foam::bitSet Foam::bitSet::operator~() const
+{
+    bitSet result(*this);
+    result.flip();
+    return result;
+}
+
+
 inline Foam::bitSet& Foam::bitSet::operator&=(const bitSet& other)
 {
-    return andEq(other);
+    andEq(other);
+    return *this;
 }
 
 
 inline Foam::bitSet& Foam::bitSet::operator|=(const bitSet& other)
 {
-    return orEq(other);
+    orEq(other);
+    return *this;
 }
 
 
 inline Foam::bitSet& Foam::bitSet::operator^=(const bitSet& other)
 {
-    return xorEq(other);
+    xorEq(other);
+    return *this;
 }
 
 
 inline Foam::bitSet& Foam::bitSet::operator-=(const bitSet& other)
 {
-    return minusEq(other);
+    minusEq(other);
+    return *this;
 }
 
 
 // * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //
-
-inline Foam::bitSet Foam::operator~(const bitSet& bitset)
-{
-    bitSet result(bitset);
-    result.flip();
-    return result;
-}
-
 
 inline Foam::bitSet Foam::operator&(const bitSet& a, const bitSet& b)
 {

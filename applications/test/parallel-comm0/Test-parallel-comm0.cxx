@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
         Pstream::combineReduce
         (
             worldVal,
-            minFirstEqOp<label>(),
+            minFirstEqOp{},
             UPstream::msgType(),
             UPstream::commWorld()
         );
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
         Pstream::combineReduce
         (
             worldVal,
-            minFirstEqOp<label>(),
+            minFirstEqOp{},
             UPstream::msgType(),
             UPstream::commSelf()
         );

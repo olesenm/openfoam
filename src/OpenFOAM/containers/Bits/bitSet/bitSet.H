@@ -5,7 +5,7 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2018-2026 OpenCFD Ltd.
+    Copyright (C) 2018-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
@@ -78,7 +78,7 @@ protected:
         //  A and B can have different sizes.
         //  Never changes the original set size.
         //  Non-overlapping parts are considered \em off.
-        bitSet& minusEq(const bitSet& other);
+        void minusEq(const bitSet& other);
 
         //- The set logical AND
         //  \code
@@ -88,7 +88,7 @@ protected:
         //  A and B can have different sizes.
         //  Never changes the original set size.
         //  Non-overlapping parts are considered \em off.
-        bitSet& andEq(const bitSet& other);
+        void andEq(const bitSet& other);
 
         //- The set logical OR
         //  \code
@@ -97,7 +97,7 @@ protected:
         //  A and B can have different sizes
         //
         //  The size grows to accommodate new \em on bits.
-        bitSet& orEq(const bitSet& other);
+        void orEq(const bitSet& other);
 
         //- The set logical XOR
         //  \code
@@ -106,7 +106,13 @@ protected:
         //  A and B can have different sizes.
         //
         //  The size grows to accommodate new \em on bits.
-        bitSet& xorEq(const bitSet& other);
+        void xorEq(const bitSet& other);
+
+
+    // Constructors
+
+        //- Move construct from the base PackedList<1>
+        inline explicit bitSet(PackedList<1>&& list) noexcept;
 
 
 public:
@@ -192,7 +198,7 @@ public:
         //- subsequently add specified locations as 1,
         //- auto-vivify entries if needed.
         template<class Addr>
-        bitSet
+        inline bitSet
         (
             const label n,
             const IndirectListBase<label, Addr>& locations
@@ -276,6 +282,14 @@ public:
         //  \note Method name compatibility with HashSet
         bool contains(label pos) const noexcept { return this->get(pos); }
 
+        //- True if the bitset is unused (empty) or if the given position
+        //- is \em on.
+        //
+        //  The combined test can be convenient when a bitSet is being used
+        //  as an optional filter mechanism with an empty (zero-size)
+        //  implying no filtering.
+        inline bool empty_or_test(label i) const noexcept;
+
         //- Locate the first bit that is set.
         //  \return the location or -1 if there are no bits set.
         //
@@ -301,15 +315,16 @@ public:
         inline label find_next(label pos) const noexcept;
 
         //- The indices of the \a on bits as a sorted labelList.
+        //  \param offset apply an optional offset to the values
         //
         //  \note Method name compatibility with HashSet
-        labelList toc() const;
+        labelList toc(const label offset = 0) const;
 
-        //- The indices of the \a on bits as a sorted labelList.
-        //  This is identical to toc(), which is always sorted.
+        //- Identical to toc(), which is always sorted.
+        //  \param offset apply an optional offset to the values
         //
         //  \note Method name compatibility with HashSet
-        inline labelList sortedToc() const;
+        inline labelList sortedToc(const label offset = 0) const;
 
         //- Return the bitset values as a boolList.
         //  When the output is a bool, this is more efficient than unpack()
@@ -347,7 +362,7 @@ public:
         //  Does auto-vivify for non-existent, non-zero entries.
         //
         //  \note Method name compatibility with std::bitset
-        bool test_set(const label i, const bool val = true);
+        inline bool test_set(const label i, const bool val = true);
 
 
     // Unsetting single or multiple values
@@ -566,6 +581,9 @@ public:
         //- Assign all entries to the given value. fill()
         inline bitSet& operator=(const bool val);
 
+        //- Bitset complement, returns a copy with all its bits flipped
+        inline bitSet operator~() const;
+
         //- Bitwise-AND all the bits in other with the bits in this bitset.
         //  The operands may have dissimilar sizes,
         //  never changes the original set size.
@@ -712,10 +730,6 @@ Ostream& operator<<(Ostream& os, const bitSet& bitset);
 
 //- Output bitset information
 Ostream& operator<<(Ostream& os, const InfoProxy<bitSet>& iproxy);
-
-
-//- Bitset complement, returns a copy of the bitset with all its bits flipped
-inline bitSet operator~(const bitSet& bitset);
 
 //- Bitwise-AND of two bitsets.
 //  See bitSet::operator&= for more details.

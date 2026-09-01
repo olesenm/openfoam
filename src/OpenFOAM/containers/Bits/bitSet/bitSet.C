@@ -44,7 +44,7 @@ namespace Foam
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
-Foam::bitSet& Foam::bitSet::minusEq(const bitSet& other)
+void Foam::bitSet::minusEq(const bitSet& other)
 {
     if (&other == this)
     {
@@ -56,12 +56,12 @@ Foam::bitSet& Foam::bitSet::minusEq(const bitSet& other)
         }
 
         reset();
-        return *this;
+        return;
     }
     else if (none() || other.none())
     {
         // no-op: nothing can change
-        return *this;
+        return;
     }
 
 
@@ -88,12 +88,10 @@ Foam::bitSet& Foam::bitSet::minusEq(const bitSet& other)
             blocks_[blocki] &= ~rhs[blocki];
         }
     }
-
-    return *this;
 }
 
 
-Foam::bitSet& Foam::bitSet::andEq(const bitSet& other)
+void Foam::bitSet::andEq(const bitSet& other)
 {
     if (FOAM_UNLIKELY(&other == this))
     {
@@ -105,18 +103,18 @@ Foam::bitSet& Foam::bitSet::andEq(const bitSet& other)
                 << "Perform &= on self: ignore" << nl;
         }
 
-        return *this;
+        return;
     }
     else if (none())
     {
         // no-op: nothing is set - no intersection possible
-        return *this;
+        return;
     }
     else if (other.none())
     {
         // no-op: other has nothing set - no intersection possible
         reset();
-        return *this;
+        return;
     }
 
 
@@ -151,12 +149,10 @@ Foam::bitSet& Foam::bitSet::andEq(const bitSet& other)
             blocks_[blocki] &= rhs[blocki];
         }
     }
-
-    return *this;
 }
 
 
-Foam::bitSet& Foam::bitSet::orEq(const bitSet& other)
+void Foam::bitSet::orEq(const bitSet& other)
 {
     if (&other == this)
     {
@@ -168,12 +164,12 @@ Foam::bitSet& Foam::bitSet::orEq(const bitSet& other)
                 << "Perform |= on self: ignore" << nl;
         }
 
-        return *this;
+        return;
     }
     else if (other.none())
     {
         // no-op: nothing can change
-        return *this;
+        return;
     }
 
 
@@ -206,12 +202,10 @@ Foam::bitSet& Foam::bitSet::orEq(const bitSet& other)
             blocks_[blocki] |= rhs[blocki];
         }
     }
-
-    return *this;
 }
 
 
-Foam::bitSet& Foam::bitSet::xorEq(const bitSet& other)
+void Foam::bitSet::xorEq(const bitSet& other)
 {
     if (&other == this)
     {
@@ -224,12 +218,12 @@ Foam::bitSet& Foam::bitSet::xorEq(const bitSet& other)
         }
 
         reset();
-        return *this;
+        return;
     }
     else if (other.none())
     {
         // no-op: nothing can change
-        return *this;
+        return;
     }
 
 
@@ -262,8 +256,6 @@ Foam::bitSet& Foam::bitSet::xorEq(const bitSet& other)
             blocks_[blocki] ^= rhs[blocki];
         }
     }
-
-    return *this;
 }
 
 
@@ -343,8 +335,7 @@ Foam::bitSet::bitSet(const labelRange& range)
 
 void Foam::bitSet::assign(const UList<bool>& bools)
 {
-    fill(false);
-    resize(bools.size());
+    resize_fill(bools.size(), 0u);
 
     unsigned bitIdx = 0u;
     auto* packed = blocks_.data();
@@ -540,7 +531,7 @@ void Foam::bitSet::unset(const labelRange& range)
 }
 
 
-Foam::labelList Foam::bitSet::toc() const
+Foam::labelList Foam::bitSet::toc(const label offset) const
 {
     // Number of used (set) entries
     const label total = any() ? count() : 0;
@@ -566,7 +557,7 @@ Foam::labelList Foam::bitSet::toc() const
             {
                 if (blockval & 1u)
                 {
-                    output[nItem] = pos;
+                    output[nItem] = (pos + offset);
                     ++nItem;
                 }
                 blockval >>= 1u;

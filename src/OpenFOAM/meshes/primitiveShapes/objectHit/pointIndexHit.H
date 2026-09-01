@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -139,6 +140,12 @@ public:
         }
 
 
+    // Properties
+
+        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
+        static constexpr label bad_index() noexcept { return labelMin; }
+
+
     // Member Functions
 
     // Access
@@ -147,6 +154,12 @@ public:
         bool hit() const noexcept
         {
             return hit_;
+        }
+
+        //- Considered \em "bad" if the index() is equal to bad_index()
+        bool bad() const noexcept
+        {
+            return index_ == bad_index();
         }
 
         //- Return the hit index
@@ -202,6 +215,15 @@ public:
 
     // Edit
 
+        //- Reset to default construct state
+        //- (zero point, with no hit and index = -1)
+        void reset()
+        {
+            hit_ = false;
+            point_ = Zero;
+            index_ = -1;
+        }
+
         //- Set the hit status \em on
         void setHit() noexcept
         {
@@ -221,9 +243,15 @@ public:
         }
 
         //- Set the index
-        void setIndex(const label index) noexcept
+        void setIndex(label index) noexcept
         {
             index_ = index;
+        }
+
+        //- Set the index as \em "bad"
+        void setBad() noexcept
+        {
+            index_ = bad_index();
         }
 
         //- Set the point as \em hit without changing the hit-index
@@ -234,7 +262,7 @@ public:
         }
 
         //- Set the point as \em hit and set the hit-index
-        void hitPoint(const point_type& p, const label index)
+        void hitPoint(const point_type& p, label index)
         {
             point_ = p;
             hit_ = true;

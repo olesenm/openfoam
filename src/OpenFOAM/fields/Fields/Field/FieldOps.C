@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -171,7 +172,7 @@ Foam::Tuple2<T1,T2> Foam::FieldOps::findMinData
         result.second() = data[i];
     }
 
-    Pstream::combineReduce(result, minFirstEqOp<T1>());
+    Pstream::combineReduce(result, minFirstEqOp{});
     return result;
 }
 
@@ -192,7 +193,7 @@ Foam::Tuple2<T1,T2> Foam::FieldOps::findMaxData
         result.second() = data[i];
     }
 
-    Pstream::combineReduce(result, maxFirstEqOp<T1>());
+    Pstream::combineReduce(result, maxFirstEqOp{});
     return result;
 }
 

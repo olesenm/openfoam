@@ -246,7 +246,7 @@ void Foam::distanceSurface::filterKeepNearestRegions
     Pstream::listGather(nCutsPerRegion, sumOp<label>());
 
     // Get nearest
-    Pstream::listCombineGather(nearest, minFirstEqOp<scalar>());
+    Pstream::listCombineGather(nearest, minFirstEqOp{});
 
 
     // Define which regions to keep

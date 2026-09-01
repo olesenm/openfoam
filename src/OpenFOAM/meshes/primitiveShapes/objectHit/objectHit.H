@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -75,7 +76,7 @@ public:
         {}
 
         //- Construct from components
-        objectHit(const bool success, const label index) noexcept
+        constexpr objectHit(bool success, label index) noexcept
         :
             hit_(success),
             index_(index)
@@ -89,27 +90,27 @@ public:
         {}
 
 
+    // Properties
+
+        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
+        static constexpr label bad_index() noexcept { return labelMin; }
+
+
     // Member Functions
 
     // Access
 
         //- Is there a hit?
-        bool hit() const noexcept
-        {
-            return hit_;
-        }
+        bool hit() const noexcept { return hit_; }
+
+        //- Considered \em "bad" if the index is equal to bad_index()
+        bool bad() const noexcept { return index_ == bad_index(); }
 
         //- Return the hit object index
-        label index() const noexcept
-        {
-            return index_;
-        }
+        label index() const noexcept { return index_; }
 
         //- Identical to index()
-        label hitObject() const noexcept
-        {
-            return index_;
-        }
+        label hitObject() const noexcept { return index_; }
 
 
     // Edit
@@ -133,10 +134,16 @@ public:
             hit_ = false;
         }
 
-        //- Set the hit object index
-        void setIndex(const label index) noexcept
+        //- Set the index
+        void setIndex(label index) noexcept
         {
             index_ = index;
+        }
+
+        //- Set the index as \em "bad"
+        void setBad() noexcept
+        {
+            index_ = bad_index();
         }
 
 

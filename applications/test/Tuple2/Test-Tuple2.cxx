@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
-    Copyright (C) 2019-2026 OpenCFD Ltd.
+    Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,38 +40,73 @@ Description
 #include "scalar.H"
 #include "List.H"
 #include "ListOps.H"
-#include "ops.H"
 #include "Pstream.H"
+#include "nearestFaceAMI.H"
+
 #include <functional>
+#include <tuple>
 
 using namespace Foam;
 
-// Test for special comparison operation using compareOp
-// Normal sort on label, reverse sort on scalar
+// Test for special comparison operation (using std::tie)
+// Normal sort on first member, reverse sort on second member
 struct special1
 {
-    typedef Tuple2<label, scalar> type;
-
-    bool operator()(const type& a, const type& b) const
+    template<class T1, class T2>
+    bool operator()(const Tuple2<T1,T2>& a, const Tuple2<T1,T2>& b) const
     {
-        const label val = compareOp<label>()(a.first(), b.first());
-        return (val == 0) ? (b.second() < a.second()) : (val < 0);
+        return
+        (
+            std::tie(a.first(), b.second())
+          < std::tie(b.first(), a.second())
+        );
     }
 };
 
 
-// Test for special comparison operation using compareOp
-// Normal sort on scalar, reverse sort on label
+// Test for special comparison operation (using std::tie)
+// Reverse sort on first member, normal sort on second member
 struct special2
 {
-    typedef Tuple2<label, scalar> type;
-
-    bool operator()(const type& a, const type& b) const
+    template<class T1, class T2>
+    bool operator()(const Tuple2<T1,T2>& a, const Tuple2<T1,T2>& b) const
     {
-        const scalar val = compareOp<scalar>()(a.second(), b.second());
-        return (val == 0) ? (b.first() < a.first()) : (val < 0);
+        return
+        (
+            std::tie(b.first(), a.second())
+          < std::tie(a.first(), b.second())
+        );
     }
 };
+
+
+// Lexicographically sort with flipped first/second members.
+template<class Compare = std::less<>>
+struct compare_second
+{
+    template<class T1, class T2>
+    bool operator()(const Tuple2<T1,T2>& a, const Tuple2<T1,T2>& b) const
+    {
+        return Compare{}
+        (
+            std::tie(a.second(), a.first()),
+            std::tie(b.second(), b.first())
+        );
+    }
+};
+
+
+// Print content and info
+template<class T1, class T2>
+void printTuple2Info()
+{
+    using tuple_type = Tuple2<T1,T2>;
+
+    Info<< error::demangle<tuple_type>()
+        << " first:" << error::demangle<T1>()
+        << " second:" << error::demangle<T2>()
+        << " contiguous:" << Switch(is_contiguous_v<tuple_type>) << nl;
+}
 
 
 // Print content and info
@@ -100,59 +136,51 @@ void printTuple2(const Pair<word>& t)
 }
 
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-// Main program:
-
-int main(int argc, char *argv[])
+template<class IndexedScalar>
+void testIndexedTuple()
 {
-    argList::noCheckProcessorDirectories();
+    Info<< "Default constructed Tuple: " << IndexedScalar() << nl;
 
-    #include "setRootCase.H"
+    IndexedScalar t2(3.2, 1);
 
-    typedef Tuple2<label, scalar> indexedScalar;
-
-    Info<< "Default constructed Tuple: " << indexedScalar() << nl;
-    Info<< "Default constructed Pair: "  << Pair<scalar>() << nl;
-
-    indexedScalar t2(1, 3.2);
-
-    Info<< "Foam::Tuple2: " << t2;
+    Info<< error::demangle<IndexedScalar>()
+        << ": " << t2;
 
     // Simple structured binding usage
     {
         auto& [f, s] = t2;
-        f *= 10; s /= 2;
-        Info<< " * [10, 0.5]";
+        f /= 2; s *= 10;
+        Info<< " * [0.5, 10]";
     }
     Info<< " -> " << t2 << nl;
 
     // As list. Generated so that we have duplicate indices
-    List<indexedScalar> list1(3*4);
+    List<IndexedScalar> list1(3*4);
     for (label i = 0; i < 4; ++i)
     {
         const label j = (i+1);
         const label idx = ((i % 2) ? -1 : 1) * (j);
 
-        list1[i]   = indexedScalar(idx, (j*j));
-        list1[i+4] = indexedScalar(idx, 2*j);    // duplicate index
-        list1[i+8] = indexedScalar(idx+12, 2*j); // duplicate value
+        list1[i]   = IndexedScalar(idx, (j*j));
+        list1[i+4] = IndexedScalar(idx, 2*j);    // duplicate index
+        list1[i+8] = IndexedScalar(idx+12, 2*j); // duplicate value
     }
 
     Info<< "Unsorted tuples:" << nl << list1 << nl;
 
-    // Test minFirst, maxFirst functors
+    // Test min/max functors
     {
-        indexedScalar minIndexed(labelMax, Zero);
-        indexedScalar maxIndexed(labelMin, Zero);
+        IndexedScalar minIndexed(GREAT, 0);
+        IndexedScalar maxIndexed(-GREAT, 0);
 
         for (const auto& item : list1)
         {
-            minFirstEqOp<label>()(minIndexed, item);
-            maxFirstEqOp<label>()(maxIndexed, item);
+            minFirstEqOp{}(minIndexed, item);
+            maxFirstEqOp{}(maxIndexed, item);
         }
 
-        Pstream::combineReduce(minIndexed, minFirstEqOp<label>());
-        Pstream::combineReduce(maxIndexed, maxFirstEqOp<label>());
+        Pstream::combineReduce(minIndexed, minFirstEqOp{});
+        Pstream::combineReduce(maxIndexed, maxFirstEqOp{});
 
         Info<< "Min indexed: " << minIndexed << nl
             << "Max indexed: " << maxIndexed << nl;
@@ -160,39 +188,52 @@ int main(int argc, char *argv[])
 
     // Test minFirst, maxFirst functors
     {
-        indexedScalar minIndexed(labelMax, Zero);
-        indexedScalar maxIndexed(labelMin, Zero);
+        IndexedScalar minIndexed(GREAT, 0);
+        IndexedScalar maxIndexed(-GREAT, 0);
 
         for (const auto& item : list1)
         {
-            minIndexed = minFirstOp<label>()(minIndexed, item);
-            maxIndexed = maxFirstOp<label>()(maxIndexed, item);
+            minIndexed = minFirstOp{}(minIndexed, item);
+            maxIndexed = maxFirstOp{}(maxIndexed, item);
         }
 
-        Pstream::combineReduce(minIndexed, minFirstEqOp<label>());
-        Pstream::combineReduce(maxIndexed, maxFirstEqOp<label>());
+        Pstream::combineReduce(minIndexed, minFirstEqOp{});
+        Pstream::combineReduce(maxIndexed, maxFirstEqOp{});
 
         Info<< "Min indexed: " << minIndexed << nl
             << "Max indexed: " << maxIndexed << nl;
     }
 
-
-    Foam::sort(list1, std::less<indexedScalar>());
+    Foam::sort(list1, std::less<>());
 
     Info<< "sorted tuples:" << nl << list1 << nl;
 
-    Foam::sort(list1, std::greater<indexedScalar>());
+    Foam::sort(list1, std::greater<>());
 
     Info<< "reverse sorted tuples:" << nl << list1 << nl;
 
-    Foam::sort(list1, special1());
+    Foam::sort(list1, special1{});
 
-    Info<< "special sorted tuples - sort on index, reverse on value:"
+    Info<< "special sorted tuples - "
+        << "sort on value, reverse on index:"
         << nl << list1 << nl;
 
-    Foam::sort(list1, special2());
+    Foam::sort(list1, special2{});
 
-    Info<< "special sorted tuples - sort on value, reverse on index:"
+    Info<< "special sorted tuples - "
+        << "reverse sort on value, normal on index:"
+        << nl << list1 << nl;
+
+    Foam::sort(list1, compare_second<std::less<>>{});
+
+    Info<< "special sorted tuples - "
+        << "sorted (index value) instead of (value index):"
+        << nl << list1 << nl;
+
+    Foam::sort(list1, compare_second<std::greater<>>{});
+
+    Info<< "special sorted tuples - "
+        << "reverse sorted (index value) instead of (value index):"
         << nl << list1 << nl;
 
 
@@ -249,7 +290,39 @@ int main(int argc, char *argv[])
 
         Info<< "Unsorted pairs:" << nl << list2 << nl;
     }
+}
 
+
+void test_nearestFace()
+{
+    using tuple_type = nearestFaceAMI::nearestAndDist;
+
+    Info<< "Default constructed nearestAndDist: " << tuple_type() << nl;
+
+    Info<< "nearestAndDist contiguous:"
+        << Switch(is_contiguous_v<tuple_type>) << nl;
+}
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Main program:
+
+int main(int argc, char *argv[])
+{
+    argList::noCheckProcessorDirectories();
+    argList::noBanner();
+
+    #include "setRootCase.H"
+
+    test_nearestFace();
+
+    Info<< "Default constructed Pair: "  << Pair<scalar>() << nl;
+
+    {
+        typedef Tuple2<scalar, label> Type;
+        Info<< "Tuple2<scalar, label>" << nl;
+        testIndexedTuple<Type>();
+    }
 
     {
         word word1("hello");

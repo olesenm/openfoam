@@ -461,15 +461,68 @@ inline void Foam::PackedList<Width>::resize_nocopy
 
 
 template<unsigned Width>
+inline void Foam::PackedList<Width>::resize_fill
+(
+    const label numElem,
+    unsigned int val
+)
+{
+    if (numElem < 0)
+    {
+        // Bad input - clamp to zero silently or with warning
+        #ifdef FULLDEBUG
+        WarningInFunction
+            << "clamping negative value for resize as 0" << endl;
+        #endif
+
+        blocks_ = 0u;  // Clear storage bits
+        size_ = 0;
+        return;
+    }
+
+    const label oldLen = num_blocks(size());
+    const label newLen = num_blocks(numElem);
+
+    // Extend and resize
+    reserve(numElem);
+    size_ = numElem;
+
+    // If addressing space shrinks:
+    // - clear old blocks so they remain with zero bits.
+
+    for (label blocki = newLen; blocki < oldLen; ++blocki)
+    {
+        blocks_[blocki] = 0u;
+    }
+
+    // Fill addressable range
+    fill(val);
+}
+
+
+template<unsigned Width>
 inline void Foam::PackedList<Width>::resize
 (
     const label newSize,
-    const unsigned int val
+    unsigned int val
 )
 {
-    reserve(newSize);
+    if (newSize < 0)
+    {
+        // Bad input - clamp to zero silently or with warning
+        #ifdef FULLDEBUG
+        WarningInFunction
+            << "clamping negative value for resize as 0" << endl;
+        #endif
+
+        blocks_ = 0u;  // Clear storage bits
+        size_ = 0;
+        return;
+    }
 
     const label oldSize = size();
+
+    reserve(newSize);
     size_ = newSize;
 
     if (oldSize < newSize)
@@ -577,20 +630,6 @@ template<unsigned Width>
 inline void Foam::PackedList<Width>::reset()
 {
     blocks_ = 0u;
-}
-
-
-template<unsigned Width>
-inline void Foam::PackedList<Width>::reset(const label newSize)
-{
-    // Clear all storage bits
-    blocks_ = 0u;
-
-    if (newSize >= 0)
-    {
-        reserve(newSize);  // Any extended storage filled with 0u
-        size_ = newSize;   // ... can simply adjust addressed size
-    }
 }
 
 
@@ -793,24 +832,6 @@ inline void Foam::PackedList<Width>::pop_back(label n)
     {
         resize(size() - n);
     }
-}
-
-
-template<unsigned Width>
-inline unsigned int Foam::PackedList<Width>::remove()
-{
-    // Location of last element and simultaneously the new size
-    const label idx = size()-1;
-    const unsigned int old = this->get(idx);
-
-    if (idx < 0)
-    {
-        FatalErrorInFunction
-            << "List is empty" << abort(FatalError);
-    }
-
-    resize(idx);
-    return old;
 }
 
 

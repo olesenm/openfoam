@@ -397,9 +397,6 @@ public:
         //  \note Method name compatibility with boost::dynamic_bitset
         inline void reset();
 
-        //- Clear all bits and adjust the addressable size.
-        inline void reset(const label numElem);
-
         //- Alter the size of the underlying storage.
         //  The addressed size will be truncated if needed to fit, but will
         //  remain otherwise untouched.
@@ -407,10 +404,13 @@ public:
 
         //- Reset addressable list size, does not shrink the allocated size.
         //  Optionally specify a value for new elements.
-        inline void resize(const label numElem, const unsigned int val = 0u);
+        inline void resize(const label numElem, unsigned int val = 0u);
 
         //- Currently identical to resize. Subject to future change (Oct-2021)
         inline void resize_nocopy(const label numElem);
+
+        //- Adjust addressable size and set val for \em all elements
+        inline void resize_fill(const label numElem, unsigned int val = 0u);
 
         //- Reserve allocation space for at least this size
         //- (uses a size doubling strategy).
@@ -431,9 +431,6 @@ public:
 
         //- Shrink the allocated space to what is actually used.
         inline void shrink_to_fit();
-
-        //- Alias for shrink_to_fit()
-        void shrink() { this->shrink_to_fit(); }
 
         //- Swap contents with argument
         inline void swap(PackedList<Width>& rhs);
@@ -499,9 +496,6 @@ public:
 
         //- Reduce size by 1 or more elements. Can be called on an empty list.
         inline void pop_back(label n = 1);
-
-        //- Remove and return the last element
-        inline unsigned int remove();
 
         //- Identical to get() - get value at index.
         //  Never auto-vivify entries.
@@ -635,6 +629,21 @@ public:
             this->push_back(val);
             return *this;
         }
+
+        //- Deprecated(2026-09) prefer resize_fill()
+        //  \deprecated(2026-09) prefer resize_fill()
+        void reset(label numElem) { resize_fill(numElem, 0u); }
+
+        //- Remove and return the last element. Returns 0 if the list is empty.
+        unsigned int remove()
+        {
+            auto val = this->get(size()-1);
+            pop_back();
+            return val;
+        }
+
+        //- Alias for shrink_to_fit()
+        void shrink() { this->shrink_to_fit(); }
 };
 
 

@@ -205,22 +205,22 @@ inline Tuple2<T2, T1> reverse(const Tuple2<T1,T2>& t)
 
 //- Compare tuple-like containers
 //  \return reference to the container with the smaller value of first
-template<class T1>
 struct minFirstOp
 {
-    const Pair<T1>& operator()(const Pair<T1>& a, const Pair<T1>& b) const
+    template<class T>
+    const Pair<T>& operator()(const Pair<T>& a, const Pair<T>& b) const
     {
         return (b.first() < a.first()) ? b : a;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     const Tuple2<T1,T2>&
     operator()(const Tuple2<T1,T2>& a, const Tuple2<T1,T2>& b) const
     {
         return (b.first() < a.first()) ? b : a;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     const std::pair<T1,T2>&
     operator()(const std::pair<T1,T2>& a, const std::pair<T1,T2>& b) const
     {
@@ -230,21 +230,21 @@ struct minFirstOp
 
 
 //- Assign tuple-like container to use the one with the smaller value of first
-template<class T1>
 struct minFirstEqOp
 {
-    void operator()(Pair<T1>& x, const Pair<T1>& y) const
+    template<class T>
+    void operator()(Pair<T>& x, const Pair<T>& y) const
     {
         if (y.first() < x.first()) x = y;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     void operator()(Tuple2<T1,T2>& x, const Tuple2<T1,T2>& y) const
     {
         if (y.first() < x.first()) x = y;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     void operator()(std::pair<T1,T2>& x, const std::pair<T1,T2>& y) const
     {
         if (y.first < x.first) x = y;
@@ -254,22 +254,22 @@ struct minFirstEqOp
 
 //- Compare tuple-like containers
 //  \return reference to the container with the larger value of first
-template<class T1>
 struct maxFirstOp
 {
-    const Pair<T1>& operator()(const Pair<T1>& a, const Pair<T1>& b) const
+    template<class T>
+    const Pair<T>& operator()(const Pair<T>& a, const Pair<T>& b) const
     {
         return (a.first() < b.first()) ? b : a;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     const Tuple2<T1,T2>&
     operator()(const Tuple2<T1,T2>& a, const Tuple2<T1,T2>& b) const
     {
         return (a.first() < b.first()) ? b : a;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     const std::pair<T1,T2>&
     operator()(const std::pair<T1,T2>& a, const std::pair<T1,T2>& b) const
     {
@@ -279,21 +279,21 @@ struct maxFirstOp
 
 
 //- Assign tuple-like container to use the one with the larger value of first
-template<class T1>
 struct maxFirstEqOp
 {
-    void operator()(Pair<T1>& x, const Pair<T1>& y) const
+    template<class T>
+    void operator()(Pair<T>& x, const Pair<T>& y) const
     {
         if (x.first() < y.first()) x = y;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     void operator()(Tuple2<T1,T2>& x, const Tuple2<T1,T2>& y) const
     {
         if (x.first() < y.first()) x = y;
     }
 
-    template<class T2>
+    template<class T1, class T2>
     void operator()(std::pair<T1,T2>& x, const std::pair<T1,T2>& y) const
     {
         if (x.first < y.first) x = y;

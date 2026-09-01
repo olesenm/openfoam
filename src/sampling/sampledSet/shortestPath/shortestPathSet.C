@@ -492,11 +492,11 @@ bool Foam::shortestPathSet::genSingleLeakPath
         int dummyTrackData;
         targetFound = allCellInfo[outsideCelli].valid(dummyTrackData);
     }
-    
+
     // Global check: reduce across all processors to see if ANY processor found the target
     // This is necessary because outsideCelli might be on a different processor than insideCelli
     bool globalTargetFound = returnReduceOr(targetFound);
-    
+
     if (iter == 0 && !globalTargetFound)
     {
         WarningInFunction
@@ -529,14 +529,14 @@ bool Foam::shortestPathSet::genSingleLeakPath
     label frontCellI = outsideCelli;
     point origin(outsidePoint);
     bool findMinDistance = true;
-    
+
     // If outsideCelli is -1, find the nearest cell to outsidePoint with valid distance
     // This is critical for high processor counts where outsideCelli is on a different processor
     // CRITICAL: This reduction must be called by ALL processors, even if frontCellI != -1
     scalar minDist = GREAT;
     label minCellI = -1;
     int dummyTrackData = 0;
-    
+
     if (frontCellI == -1)
     {
         // Search all local cells for the one closest to outsidePoint with valid distance
@@ -553,14 +553,12 @@ bool Foam::shortestPathSet::genSingleLeakPath
             }
         }
     }
-    
+
     // Find global minimum across all processors using Tuple2 to track processor
     // This MUST be called by ALL processors to avoid deadlock
-    typedef Tuple2<scalar, label> DistProc;
-    DistProc localMin(minDist, Pstream::myProcNo());
-    DistProc globalMin = localMin;
-    Pstream::combineReduce(globalMin, minFirstEqOp<scalar>());
-    
+    Tuple2<scalar, label> globalMin(minDist, Pstream::myProcNo());
+    Pstream::combineReduce(globalMin, minFirstEqOp{});
+
     // Only use if we found a reasonably close cell (within mesh bounds scale)
     // and if we're on the processor that has the minimum
     if (frontCellI == -1)
@@ -992,7 +990,7 @@ void Foam::shortestPathSet::genSamples
     // Find outside cell globally - handle processor boundaries
     // Force calculation of base points (needs to be synchronised)
     (void)mesh.tetBasePtIs();
-    
+
     const globalIndex& globalCells = mesh.globalData().globalMeshCellAddr();
     label localOutsideCelli = mesh.findCell(outsidePoint);
     label globalOutsideCelli = -1;
@@ -1001,7 +999,7 @@ void Foam::shortestPathSet::genSamples
         globalOutsideCelli = globalCells.toGlobal(localOutsideCelli);
     }
     reduce(globalOutsideCelli, maxOp<label>());
-    
+
     // If not found, try perturbation (points on processor boundaries)
     if (globalOutsideCelli == -1)
     {
@@ -1013,7 +1011,7 @@ void Foam::shortestPathSet::genSamples
         }
         reduce(globalOutsideCelli, maxOp<label>());
     }
-    
+
     // Convert back to local cell index on the processor that has it
     label outsideCelli = -1;
     label outsideProcI = -1;
@@ -1025,11 +1023,11 @@ void Foam::shortestPathSet::genSamples
             outsideCelli = globalCells.toLocal(outsideProcI, globalOutsideCelli);
         }
     }
-    
+
     // Debug output
     if (debug)
     {
-        Pout<< "Outside point " << outsidePoint 
+        Pout<< "Outside point " << outsidePoint
             << " -> global cell " << globalOutsideCelli
             << " on proc " << outsideProcI
             << ", local cell on proc " << Pstream::myProcNo() << ": " << outsideCelli << endl;
@@ -1304,7 +1302,7 @@ void Foam::shortestPathSet::genSamples
 
     // Force calculation of base points (needs to be synchronised)
     (void)mesh.tetBasePtIs();
-    
+
     const globalIndex& globalCells = mesh.globalData().globalMeshCellAddr();
 
     for (auto insidePoint : insidePoints_)
@@ -1317,7 +1315,7 @@ void Foam::shortestPathSet::genSamples
             globalInsideCelli = globalCells.toGlobal(localInsideCelli);
         }
         reduce(globalInsideCelli, maxOp<label>());
-        
+
         // If not found, try perturbation (points on processor boundaries)
         if (globalInsideCelli == -1)
         {
@@ -1329,7 +1327,7 @@ void Foam::shortestPathSet::genSamples
             }
             reduce(globalInsideCelli, maxOp<label>());
         }
-        
+
         // Convert back to local cell index on the processor that has it
         // CRITICAL: We need to know which processor has the cell for calculateDistance
         // Even if insideCelli == -1 on this processor, calculateDistance must still be called
@@ -1344,11 +1342,11 @@ void Foam::shortestPathSet::genSamples
                 insideCelli = globalCells.toLocal(insideProcI, globalInsideCelli);
             }
         }
-        
+
         // Debug output
         if (debug)
         {
-            Pout<< "Inside point " << insidePoint 
+            Pout<< "Inside point " << insidePoint
                 << " -> global cell " << globalInsideCelli
                 << " on proc " << insideProcI
                 << ", local cell on proc " << Pstream::myProcNo() << ": " << insideCelli << endl;
