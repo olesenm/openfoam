@@ -111,14 +111,14 @@ public:
     // Constructors
 
         //- Construct from dictionary
-        faceAreaWeightAMI2D
+        explicit faceAreaWeightAMI2D
         (
             const dictionary& dict,
             const bool reverseTarget = false
         );
 
         //- Construct from components
-        faceAreaWeightAMI2D
+        explicit faceAreaWeightAMI2D
         (
             const bool requireMatch,
             const bool reverseTarget = false,

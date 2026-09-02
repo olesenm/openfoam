@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2017 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -115,7 +116,7 @@ Foam::autoPtr<Foam::mapDistribute> Foam::meshToMesh::calcProcMap
 ) const
 {
     // Uses linear construct order
-    const
+    constexpr
         mapDistributeBase::layoutTypes constructLayout =
         mapDistributeBase::layoutTypes::linear;
 
@@ -151,21 +152,39 @@ Foam::autoPtr<Foam::mapDistribute> Foam::meshToMesh::calcProcMap
         {
             Info<< "meshToMesh: Using AABBTree method" << endl;
 
+            const auto myProci = UPstream::myProcNo();
+            const auto numProc = UPstream::nProcs();
+
             // get decomposition of cells on src mesh
-            List<treeBoundBoxList> procBb(Pstream::nProcs());
+            List<treeBoundBoxList> procBb(numProc);
 
             if (src.nCells() > 0)
             {
-                procBb[Pstream::myProcNo()] = AABBTree<labelList>
-                (
-                    src.cellPoints(),
-                    src.points(),
-                    false
-                ).boundBoxes();
-            }
-            else
-            {
-                procBb[Pstream::myProcNo()] = treeBoundBoxList();
+                auto& bbs = procBb[myProci];
+
+                // geometric, not median split
+                constexpr bool medianSplit = false;
+
+                if (src.hasCellCentres())
+                {
+                    // Already has cellCentres(), can reuse them
+                    bbs = AABBTreeBase
+                    (
+                        src.cellPoints(),
+                        src.cellCentres(),
+                        src.points(),
+                        medianSplit
+                    ).release_boxes();
+                }
+                else
+                {
+                    bbs = AABBTreeBase
+                    (
+                        src.cellPoints(),
+                        src.points(),
+                        medianSplit
+                    ).release_boxes();
+                }
             }
 
             Pstream::allGatherList(procBb);
@@ -184,21 +203,21 @@ Foam::autoPtr<Foam::mapDistribute> Foam::meshToMesh::calcProcMap
 
 
             // Determine which cells of tgt mesh overlaps src mesh per proc
-            labelListList sendMap(Pstream::nProcs());
+            labelListList sendMap(numProc);
 
             {
                 // per processor indices into all segments to send
-                List<DynamicList<label>> dynSendMap(Pstream::nProcs());
-                label iniSize = floor(tgt.nCells()/Pstream::nProcs());
+                List<DynamicList<label>> dynSendMap(numProc);
+                const label iniSize = floor(tgt.nCells()/numProc);
 
                 forAll(dynSendMap, proci)
                 {
-                    dynSendMap[proci].setCapacity(iniSize);
+                    dynSendMap[proci].reserve(iniSize);
                 }
 
                 // work array - whether src processor bb overlaps the tgt cell
                 // bounds
-                boolList procBbOverlaps(Pstream::nProcs());
+                boolList procBbOverlaps(numProc);
 
                 for (label celli = 0; celli < tgt.nCells(); ++celli)
                 {
@@ -217,18 +236,6 @@ Foam::autoPtr<Foam::mapDistribute> Foam::meshToMesh::calcProcMap
                     }
                 }
 
-                if (debug)
-                {
-                    Pout<< "Of my " << tgt.nCells()
-                        << " target cells I need to send to:" << nl
-                        << "\tproc\tcells" << endl;
-                    forAll(dynSendMap, proci)
-                    {
-                        Pout<< '\t' << proci << '\t'
-                            << dynSendMap[proci].size() << endl;
-                    }
-                }
-
                 // Convert DynamicList -> List
                 forAll(sendMap, proci)
                 {
@@ -236,6 +243,17 @@ Foam::autoPtr<Foam::mapDistribute> Foam::meshToMesh::calcProcMap
                 }
             }
 
+            if (debug)
+            {
+                Pout<< "Of my " << tgt.nCells()
+                    << " target cells I need to send to:" << nl
+                    << "\tproc\tcells" << endl;
+                forAll(sendMap, proci)
+                {
+                    Pout<< '\t' << proci << '\t'
+                        << sendMap[proci].size() << endl;
+                }
+            }
 
             return autoPtr<mapDistribute>::New
             (

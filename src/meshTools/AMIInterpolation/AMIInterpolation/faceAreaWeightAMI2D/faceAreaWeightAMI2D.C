@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2020,2022,2024 OpenCFD Ltd.
+    Copyright (C) 2020-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -212,18 +213,15 @@ Foam::labelList Foam::faceAreaWeightAMI2D::overlappingTgtFaces
 {
     labelHashSet faceIds(16);
 
-    const auto& treeBb = tree.boundBoxes();
-    const auto& treeAddr = tree.addressing();
+    const label nLeafs = tree.nLeafs();
 
-    forAll(treeBb, boxi)
+    for (label leafi = 0; leafi < nLeafs; ++leafi)
     {
-        const auto& tbb = treeBb[boxi];
+        const auto& tbb = tree.leafBoxes()[leafi];
 
         if (srcFaceBb.overlaps(tbb))
         {
-            const auto& boxAddr = treeAddr[boxi];
-
-            for (const auto& tgtFacei : boxAddr)
+            for (const auto tgtFacei : tree.indices(leafi))
             {
                 if (srcFaceBb.overlaps(tgtFaceBbs[tgtFacei]))
                 {
@@ -328,23 +326,24 @@ bool Foam::faceAreaWeightAMI2D::calculate
     if (validSize)
     {
         // Create the tgt tree
-        const bool equalBinSize = true;
-        const label maxLevel = 10;
-        const label minBinSize = 4;
-        AABBTree<face> tree
+        constexpr bool medianSplit = true;
+        constexpr int maxLevel = 10;
+        constexpr int minBinSize = 4;
+
+        const AABBTree<face> tree
         (
             tgt,
+            tgt.faceCentres(),
             tgt.points(),
-            equalBinSize,
+            medianSplit,
             maxLevel,
             minBinSize
         );
 
-        const auto& tgtPoints = tgt.points();
         List<boundBox> tgtFaceBbs(tgt.size());
         forAll(tgt, facei)
         {
-            tgtFaceBbs[facei] = boundBox(tgtPoints, tgt[facei], false);
+            tgtFaceBbs[facei] = boundBox(tgt.box(facei));
         }
 
         DynamicList<label> nonOverlapFaces;
