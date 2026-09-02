@@ -4938,14 +4938,20 @@ void Foam::distributedTriSurfaceMesh::findLineAll
 
         if (iter == 1000)
         {
-            Pout<< "distributedTriSurfaceMesh::findLineAll :"
-                << " Exiting loop due to excessive number of"
-                << " intersections along ray"
-                << " start:" << UIndirectList<point>(start, pointMap)
-                << " end:" << UIndirectList<point>(end, pointMap)
-                << " e0:" << UIndirectList<point>(e0, pointMap)
-                << " e1:" << UIndirectList<point>(e1, pointMap)
-                << endl;
+            // pointMap holds indices into start/end. e0/e1 are already
+            // compacted to match pointMap's size, so they are dumped
+            // directly. (e1 is omitted: it is end[pointMap] by
+            // construction.)
+            if (!e0.empty())
+            {
+                Pout<< "distributedTriSurfaceMesh::findLineAll :"
+                    << " Exiting loop due to excessive number of"
+                    << " intersections along " << e0.size() << " rays"
+                    << " start:" << UIndirectList<point>(start, pointMap)
+                    << " end:" << UIndirectList<point>(end, pointMap)
+                    << " stuckAt:" << e0
+                    << endl;
+            }
             break;
         }
     }
