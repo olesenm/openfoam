@@ -138,7 +138,7 @@ castellatedMeshControls
     // The trigger value is used for two checks:
     // a: if on any processor the number of new added cells <= maxCellUnbalance
     //    the balancing is skipped
-    // b: if on any processor the value 
+    // b: if on any processor the value
     //    (new cell count of proc - idealCellCount) <= maxCellUnbalance
     //    the balancing is skipped
     // Set to -1 to deactivate
@@ -834,6 +834,10 @@ addLayersControls
         // after nRelaxedIter it uses the values in
         // meshQualityControls::relaxed.
         nRelaxedIter 20;
+
+        // Overall number of outer layer of iterations. Default is 1 -> all
+        // layers are added in one pass.
+        //nOuterIter 3;
 
         // Additional reporting: if there are just a few faces where there
         // are mesh errors (after adding the layers) print their face centres.
