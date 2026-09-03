@@ -6,7 +6,6 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2019 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -24,59 +23,42 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+Class
+    Foam::treeDataTriSurface
+
+Description
+    Encapsulates data for (indexedOc)tree searches on a triSurface.
+
+SourceFiles
+    treeDataTriSurface.cxx
+
 \*---------------------------------------------------------------------------*/
 
-#include "treeDataTriSurface.H"
-#include "triSurfaceTools.H"
+#ifndef Foam_treeDataTriSurface_H
+#define Foam_treeDataTriSurface_H
+
+#include "treeDataPrimitivePatch.H"
+#include "triSurface.H"
+#include "indexedOctree.H"  // Convenience for downstream includes
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-template<>
-Foam::volumeType Foam::treeDataPrimitivePatch<Foam::triSurface>::getVolumeType
-(
-    const indexedOctree<treeDataPrimitivePatch<triSurface>>& oc,
-    const point& sample
-) const
+namespace Foam
 {
-    // Find nearest face to sample
-    const pointIndexHit info = oc.findNearest(sample, sqr(GREAT));
+    typedef treeDataPrimitivePatch<triSurface> treeDataTriSurface;
 
-    if (info.index() == -1)
-    {
-        FatalErrorInFunction
-            << "Could not find " << sample << " in octree."
-            << abort(FatalError);
-    }
-
-    // Get actual intersection point on face
-    const label facei = info.index();
-
-    const triSurfaceTools::sideType t = triSurfaceTools::surfaceSide
+    //- Template specialisation of getVolumeType for treeDataTriSurface
+    template<>
+    volumeType treeDataPrimitivePatch<triSurface>::getVolumeType
     (
-        patch_,
-        sample,
-        facei
-    );
-
-    if (t == triSurfaceTools::UNKNOWN)
-    {
-        return volumeType::UNKNOWN;
-    }
-    else if (t == triSurfaceTools::INSIDE)
-    {
-        return volumeType::INSIDE;
-    }
-    else if (t == triSurfaceTools::OUTSIDE)
-    {
-        return volumeType::OUTSIDE;
-    }
-    else
-    {
-        FatalErrorInFunction
-            << "problem" << abort(FatalError);
-        return volumeType::UNKNOWN;
-    }
+        const indexedOctree<treeDataPrimitivePatch<triSurface>>&,
+        const point& sample
+    ) const;
 }
 
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+#endif
 
 // ************************************************************************* //

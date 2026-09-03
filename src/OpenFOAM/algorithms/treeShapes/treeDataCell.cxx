@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -60,7 +61,7 @@ static treeBoundBoxList boxesImpl
             elemIds.cbegin(),
             elemIds.cend(),
             bbs.begin(),
-            [&](label celli)
+            [&mesh](label celli)
             {
                 return treeBoundBox(mesh.points(), mesh.cellPoints(celli));
             }
@@ -73,7 +74,7 @@ static treeBoundBoxList boxesImpl
             elemIds.cbegin(),
             elemIds.cend(),
             bbs.begin(),
-            [&](label celli)
+            [&mesh](label celli)
             {
                 return treeBoundBox(mesh.cells()[celli].box(mesh));
             }
@@ -138,9 +139,16 @@ Foam::treeDataCell::bounds
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
 inline Foam::treeBoundBox
-Foam::treeDataCell::getBounds(const label index) const
+Foam::treeDataCell::getBounds(label index) const
 {
-    return treeBoundBox(mesh_.cellBb(objectIndex(index)));
+    if (label celli = mappedIndex(index); celli >= 0)
+    {
+        return treeBoundBox(mesh_.cellBb(celli));
+    }
+    else
+    {
+        return treeBoundBox();
+    }
 }
 
 
@@ -150,7 +158,7 @@ void Foam::treeDataCell::update()
     {
         if (useSubset_)
         {
-            bbs_ = treeDataCell::boxes(mesh_, cellLabels_);
+            bbs_ = treeDataCell::boxes(mesh_, subset_);
         }
         else
         {
@@ -170,7 +178,6 @@ Foam::treeDataCell::treeDataCell
 )
 :
     mesh_(mesh),
-    cellLabels_(),
     useSubset_(false),
     cacheBb_(cacheBb),
     decompMode_(decompMode)
@@ -188,7 +195,7 @@ Foam::treeDataCell::treeDataCell
 )
 :
     mesh_(mesh),
-    cellLabels_(cellLabels),
+    subset_(cellLabels),
     useSubset_(true),
     cacheBb_(cacheBb),
     decompMode_(decompMode)
@@ -206,7 +213,7 @@ Foam::treeDataCell::treeDataCell
 )
 :
     mesh_(mesh),
-    cellLabels_(std::move(cellLabels)),
+    subset_(std::move(cellLabels)),
     useSubset_(true),
     cacheBb_(cacheBb),
     decompMode_(decompMode)
@@ -228,7 +235,7 @@ Foam::treeDataCell::bounds(const labelUList& indices) const
         {
             for (const label index : indices)
             {
-                const label celli = cellLabels_[index];
+                const label celli = subset_[index];
 
                 bb.add(mesh_.points(), mesh_.cellPoints(celli));
             }
@@ -237,7 +244,7 @@ Foam::treeDataCell::bounds(const labelUList& indices) const
         {
             for (const label index : indices)
             {
-                const label celli = cellLabels_[index];
+                const label celli = subset_[index];
 
                 bb.add(mesh_.cells()[celli].box(mesh_));
             }
@@ -252,9 +259,14 @@ Foam::treeDataCell::bounds(const labelUList& indices) const
 
 Foam::tmp<Foam::pointField> Foam::treeDataCell::centres() const
 {
+    // TBD:
+    // if (!mesh_.hasCellCentres())
+    // {
+    // }
+
     if (useSubset_)
     {
-        return tmp<pointField>::New(mesh_.cellCentres(), cellLabels_);
+        return tmp<pointField>::New(mesh_.cellCentres(), subset_);
     }
 
     return mesh_.cellCentres();
@@ -282,29 +294,18 @@ bool Foam::treeDataCell::contains
     const point& sample
 ) const
 {
-    return mesh_.pointInCell(sample, objectIndex(index), decompMode_);
+    if (label celli = mappedIndex(index); celli >= 0)
+    {
+        return mesh_.pointInCell(sample, celli, decompMode_);
+    }
+    else
+    {
+        return false;
+    }
 }
 
 
 // * * * * * * * * * * * * * * * * Searching * * * * * * * * * * * * * * * * //
-
-Foam::treeDataCell::findNearestOp::findNearestOp
-(
-    const indexedOctree<treeDataCell>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-Foam::treeDataCell::findIntersectOp::findIntersectOp
-(
-    const indexedOctree<treeDataCell>& tree
-)
-:
-    tree_(tree)
-{}
-
 
 void Foam::treeDataCell::findNearest
 (

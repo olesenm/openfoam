@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,14 +31,15 @@ Description
     Encapsulation of data needed to search on PrimitivePatches
 
 SourceFiles
-    treeDataPrimitivePatch.C
+    treeDataPrimitivePatch.cxx
+    treeDataPrimitivePatch.txx
 
 \*---------------------------------------------------------------------------*/
 
 #ifndef Foam_treeDataPrimitivePatch_H
 #define Foam_treeDataPrimitivePatch_H
 
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -48,12 +50,26 @@ namespace Foam
 // Forward Declarations
 template<class Type> class indexedOctree;
 
-
 /*---------------------------------------------------------------------------*\
-                 Class treeDataPrimitivePatchName Declaration
+                 Class treeDataPrimitivePatchBase Declaration
 \*---------------------------------------------------------------------------*/
 
-TemplateName(treeDataPrimitivePatch);
+//- Template invariant parts for treeDataPrimitivePatch
+class treeDataPrimitivePatchBase
+{
+public:
+
+    // Static Data Members
+
+        //- Debugging (name: treeDataPrimitivePatch)
+        static int debug;
+
+
+    // Constructors
+
+        //- Default construct
+        treeDataPrimitivePatchBase() noexcept = default;
+};
 
 
 /*---------------------------------------------------------------------------*\
@@ -63,27 +79,35 @@ TemplateName(treeDataPrimitivePatch);
 template<class PatchType>
 class treeDataPrimitivePatch
 :
-    public treeDataPrimitivePatchName
+    public treeDataPrimitivePatchBase
 {
     // Private Data
 
         //- Underlying geometry
         const PatchType& patch_;
 
-        //- Whether to precalculate and store face bounding box
-        const bool cacheBb_;
+        //- Face bounding boxes (valid only if cacheBb_)
+        treeBoundBoxList bbs_;
 
         //- Tolerance to use for intersection tests
         const scalar planarTol_;
 
-        //- Face bounding boxes (valid only if cacheBb_)
-        treeBoundBoxList bbs_;
+        //- Whether to precalculate and store face bounding box
+        const bool cacheBb_;
 
 
     // Private Member Functions
 
+        //- The object index corresponding to the shape index,
+        //- returns -1 for an invalid range
+        label mappedIndex(label i) const noexcept
+        {
+            // NB: no subset
+            return ((i >= 0 && i < size()) ? i : -1);
+        }
+
         //- Get face bounding box
-        inline treeBoundBox getBounds(const label patchFacei) const;
+        inline treeBoundBox getBounds(label index) const;
 
         //- Initialise all member data
         void update();
@@ -91,14 +115,20 @@ class treeDataPrimitivePatch
 
 public:
 
-
+    //- Functor for findNearest in indexedOctree
     class findNearestOp
     {
         const indexedOctree<treeDataPrimitivePatch>& tree_;
 
     public:
 
-        findNearestOp(const indexedOctree<treeDataPrimitivePatch>& tree);
+        findNearestOp
+        (
+            const indexedOctree<treeDataPrimitivePatch>& tree
+        ) noexcept
+        :
+            tree_(tree)
+        {}
 
         void operator()
         (
@@ -125,13 +155,20 @@ public:
     };
 
 
+    //- Functor for findIntersect in indexedOctree
     class findIntersectOp
     {
         const indexedOctree<treeDataPrimitivePatch>& tree_;
 
     public:
 
-        findIntersectOp(const indexedOctree<treeDataPrimitivePatch>& tree);
+        findIntersectOp
+        (
+            const indexedOctree<treeDataPrimitivePatch>& tree
+        ) noexcept
+        :
+            tree_(tree)
+        {}
 
         //- Calculate intersection of any face with ray.
         //  Sets result accordingly. Used to find first intersection.
@@ -145,19 +182,25 @@ public:
     };
 
 
+    //- Functor
     class findAllIntersectOp
     {
         const indexedOctree<treeDataPrimitivePatch>& tree_;
 
-        DynamicList<label>& shapeMask_;
+        //- Indices to exclude
+        DynamicList<label>& excludeIndices_;
 
     public:
 
         findAllIntersectOp
         (
             const indexedOctree<treeDataPrimitivePatch>& tree,
-            DynamicList<label>& shapeMask
-        );
+            DynamicList<label>& excludeIndices
+        ) noexcept
+        :
+            tree_(tree),
+            excludeIndices_(excludeIndices)
+        {}
 
         //- Calculate intersection of unique face with ray.
         //  Sets result accordingly. Used to find all faces.
@@ -171,10 +214,10 @@ public:
     };
 
 
+    //- Functor
     class findSelfIntersectOp
     {
         const indexedOctree<treeDataPrimitivePatch>& tree_;
-
         const label edgeID_;
 
     public:
@@ -183,7 +226,11 @@ public:
         (
             const indexedOctree<treeDataPrimitivePatch>& tree,
             const label edgeID
-        );
+        ) noexcept
+        :
+            tree_(tree),
+            edgeID_(edgeID)
+        {}
 
         //- Calculate intersection of face with edge of patch.
         //  Excludes faces that use edgeID. Used to find self intersection.
@@ -197,10 +244,12 @@ public:
     };
 
 
+    // Constructors
 
-    // Constructors (cachable versions)
+        //- Move construct
+        treeDataPrimitivePatch(treeDataPrimitivePatch&&) = default;
 
-        //- Construct from patch.
+        //- Construct from patch (cachable version)
         treeDataPrimitivePatch
         (
             const bool cacheBb,
@@ -208,10 +257,7 @@ public:
             const scalar planarTol
         );
 
-
-    // Constructors (non-caching)
-
-        //- Construct from patch.
+        //- Construct from patch (non-caching)
         treeDataPrimitivePatch(const PatchType& patch, const scalar planarTol)
         :
             treeDataPrimitivePatch(false, patch, planarTol)
@@ -227,7 +273,7 @@ public:
     // Member Functions
 
         //- Object dimension == 2 (face element)
-        int nDim() const noexcept { return 2; }
+        static constexpr int nDim() noexcept { return 2; }
 
         //- Return bounding box for the specified face indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -238,8 +284,11 @@ public:
         //- The underlying patch
         const PatchType& patch() const noexcept { return patch_; }
 
-        //TDB //- The subset of face ids to use
-        ///const labelList& faceLabels() const noexcept { labelList::null(); }
+        //- The subset of face ids to use (none)
+        const labelUList& indices() const noexcept
+        {
+            return labelUList::null();
+        }
 
         //- Use a subset of the patch
         bool useSubset() const noexcept { return false; }
@@ -252,10 +301,6 @@ public:
 
         //- Map from shape index to original (non-subset) face label
         label objectIndex(const label index) const noexcept { return index; }
-
-        //TBD //- Face at specified shape index
-        ///const typename PatchType::face_type&
-        ///operator[](label index) const { return patch_[index]; }
 
         //- Representative point (face centre) at shape index
         const point& centre(const label index) const
@@ -327,7 +372,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "treeDataPrimitivePatch.C"
+    #include "treeDataPrimitivePatch.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

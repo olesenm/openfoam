@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -61,9 +62,16 @@ Foam::treeDataPrimitivePatch<PatchType>::boxes(const PatchType& pp)
 
 template<class PatchType>
 inline Foam::treeBoundBox
-Foam::treeDataPrimitivePatch<PatchType>::getBounds(const label patchFacei) const
+Foam::treeDataPrimitivePatch<PatchType>::getBounds(label index) const
 {
-    return treeBoundBox(patch_.points(), patch_[patchFacei]);
+    if (label facei = mappedIndex(index); facei >= 0)
+    {
+        return treeBoundBox(patch_.box(facei));
+    }
+    else
+    {
+        return treeBoundBox();
+    }
 }
 
 
@@ -88,56 +96,11 @@ Foam::treeDataPrimitivePatch<PatchType>::treeDataPrimitivePatch
 )
 :
     patch_(patch),
-    cacheBb_(cacheBb),
-    planarTol_(planarTol)
+    planarTol_(planarTol),
+    cacheBb_(cacheBb)
 {
     update();
 }
-
-
-template<class PatchType>
-Foam::treeDataPrimitivePatch<PatchType>::findNearestOp::findNearestOp
-(
-    const indexedOctree<treeDataPrimitivePatch<PatchType>>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-template<class PatchType>
-Foam::treeDataPrimitivePatch<PatchType>::findIntersectOp::findIntersectOp
-(
-    const indexedOctree<treeDataPrimitivePatch<PatchType>>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-template<class PatchType>
-Foam::treeDataPrimitivePatch<PatchType>::findAllIntersectOp::findAllIntersectOp
-(
-    const indexedOctree<treeDataPrimitivePatch<PatchType>>& tree,
-    DynamicList<label>& shapeMask
-)
-:
-    tree_(tree),
-    shapeMask_(shapeMask)
-{}
-
-
-template<class PatchType>
-Foam::treeDataPrimitivePatch<PatchType>::
-findSelfIntersectOp::findSelfIntersectOp
-(
-    const indexedOctree<treeDataPrimitivePatch<PatchType>>& tree,
-    const label edgeID
-)
-:
-    tree_(tree),
-    edgeID_(edgeID)
-{}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -181,15 +144,15 @@ Foam::volumeType Foam::treeDataPrimitivePatch<PatchType>::getVolumeType
     // Find nearest face to sample
     pointIndexHit info = oc.findNearest(sample, sqr(GREAT));
 
-    if (info.index() == -1)
+    // Get actual intersection point on face
+    const label facei = info.index();
+
+    if (facei < 0)
     {
         FatalErrorInFunction
             << "Could not find " << sample << " in octree."
             << abort(FatalError);
     }
-
-    // Get actual intersection point on face
-    label facei = info.index();
 
     if (debug & 2)
     {
@@ -240,12 +203,13 @@ Foam::volumeType Foam::treeDataPrimitivePatch<PatchType>::getVolumeType
 
     const scalar typDimSqr = mag(area) + VSMALL;
 
-
     forAll(f, fp)
     {
-        const scalar relDistSqr = (magSqr(points[f[fp]] - curPt)/typDimSqr);
-
-        if (relDistSqr < planarTol_)
+        if
+        (
+            scalar relDistSqr = curPt.distSqr(points[f[fp]])/typDimSqr;
+            (relDistSqr < planarTol_)
+        )
         {
             // Face intersection point equals face vertex fp
 
@@ -262,9 +226,11 @@ Foam::volumeType Foam::treeDataPrimitivePatch<PatchType>::getVolumeType
 
     const point fc(f.centre(points));
 
-    const scalar relDistSqr = (magSqr(fc - curPt)/typDimSqr);
-
-    if (relDistSqr < planarTol_)
+    if
+    (
+        scalar relDistSqr = curPt.distSqr(fc)/typDimSqr;
+        (relDistSqr < planarTol_)
+    )
     {
         // Face intersection point equals face centre. Normal at face centre
         // is already average of face normals
@@ -292,9 +258,11 @@ Foam::volumeType Foam::treeDataPrimitivePatch<PatchType>::getVolumeType
         pointHit edgeHit =
             patch_.meshEdge(edgei).line(points).nearestDist(sample);
 
-        const scalar relDistSqr = (edgeHit.point().distSqr(curPt)/typDimSqr);
-
-        if (relDistSqr < planarTol_)
+        if
+        (
+            scalar relDistSqr = curPt.distSqr(edgeHit.point())/typDimSqr;
+            (relDistSqr < planarTol_)
+        )
         {
             // Face intersection point lies on edge e
 
@@ -333,9 +301,11 @@ Foam::volumeType Foam::treeDataPrimitivePatch<PatchType>::getVolumeType
     {
         pointHit edgeHit = linePointRef(points[f[fp]], fc).nearestDist(sample);
 
-        const scalar relDistSqr = (edgeHit.point().distSqr(curPt)/typDimSqr);
-
-        if (relDistSqr < planarTol_)
+        if
+        (
+            scalar relDistSqr = curPt.distSqr(edgeHit.point())/typDimSqr;
+            (relDistSqr < planarTol_)
+        )
         {
             // Face intersection point lies on edge between two face triangles
 
@@ -575,7 +545,7 @@ bool Foam::treeDataPrimitivePatch<PatchType>::findAllIntersectOp::operator()
     point& intersectionPoint
 ) const
 {
-    if (shapeMask_.found(index))
+    if (excludeIndices_.contains(index))
     {
         return false;
     }

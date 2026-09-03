@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,7 +41,7 @@ SourceFiles
 #define Foam_treeDataCell_H
 
 #include "polyMesh.H"
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -63,9 +64,12 @@ class treeDataCell
         const polyMesh& mesh_;
 
         //- Subset of cells to work on
-        const labelList cellLabels_;
+        labelList subset_;
 
-        //- Use subset of cells (cellLabels)
+        //- Cell bounding boxes (valid only if cacheBb_)
+        treeBoundBoxList bbs_;
+
+        //- Use subset of cells (subset_ active)
         const bool useSubset_;
 
         //- Whether to precalculate and store cell bounding box
@@ -74,11 +78,20 @@ class treeDataCell
         //- How to decide if point is inside cell
         const polyMesh::cellDecomposition decompMode_;
 
-        //- Cell bounding boxes (valid only if cacheBb_)
-        treeBoundBoxList bbs_;
-
 
     // Private Member Functions
+
+        //- The object index corresponding to the shape index,
+        //- returns -1 for an invalid range
+        label mappedIndex(label i) const noexcept
+        {
+            return
+            (
+                (i >= 0 && i < size())
+              ? (useSubset_ ? subset_.cdata()[i] : i)
+              : -1
+            );
+        }
 
         //- Get cell bounding box at specified index
         inline treeBoundBox getBounds(const label index) const;
@@ -88,14 +101,17 @@ class treeDataCell
 
 public:
 
-
+    //- Functor for findNearest (indexedOctree)
     class findNearestOp
     {
         const indexedOctree<treeDataCell>& tree_;
 
     public:
 
-        findNearestOp(const indexedOctree<treeDataCell>& tree);
+        findNearestOp(const indexedOctree<treeDataCell>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         void operator()
         (
@@ -120,13 +136,17 @@ public:
     };
 
 
+    //- Functor for findIntersect (indexedOctree)
     class findIntersectOp
     {
         const indexedOctree<treeDataCell>& tree_;
 
     public:
 
-        findIntersectOp(const indexedOctree<treeDataCell>& tree);
+        findIntersectOp(const indexedOctree<treeDataCell>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         bool operator()
         (
@@ -140,6 +160,12 @@ public:
 
     // Declare name of the class
     ClassNameNoDebug("treeDataCell");
+
+
+    // Generated Methods
+
+        //- Move construct
+        treeDataCell(treeDataCell&&) = default;
 
 
     // Constructors (cachable versions)
@@ -232,7 +258,7 @@ public:
     // Member Functions
 
         //- Object dimension == 3 (volume element)
-        int nDim() const noexcept { return 3; }
+        static constexpr int nDim() noexcept { return 3; }
 
         //- Return bounding box for the specified cell indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -249,8 +275,8 @@ public:
             return decompMode_;
         }
 
-        //- The subset of cell ids to use
-        const labelList& cellLabels() const noexcept { return cellLabels_; }
+        //- The subset of cell ids being used
+        const labelUList& objectIds() const noexcept { return subset_; }
 
         //- Use a subset of cells
         bool useSubset() const noexcept { return useSubset_; }
@@ -258,24 +284,20 @@ public:
         //- Is the effective cell selection empty?
         bool empty() const noexcept
         {
-            return useSubset_ ? cellLabels_.empty() : !mesh_.nCells();
+            return useSubset_ ? subset_.empty() : !mesh_.nCells();
         }
 
         //- The size of the cell selection
         label size() const noexcept
         {
-            return useSubset_ ? cellLabels_.size() : mesh_.nCells();
+            return useSubset_ ? subset_.size() : mesh_.nCells();
         }
 
         //- Map from shape index to original (non-subset) cell label
         label objectIndex(const label index) const
         {
-            return useSubset_ && index >= 0 ? cellLabels_[index] : index;
+            return useSubset_ && index >= 0 ? subset_[index] : index;
         }
-
-        //TBD //- Cell at specified shape index
-        ///const cell& operator[](const label index) const
-        ///{ return mesh_.cells()[objectIndex(index)]; }
 
         //- Representative point (cell centre) at shape index
         const point& centre(const label index) const

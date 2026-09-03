@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ Description
     Encapsulation of data for searching on faces.
 
 SourceFiles
-    treeDataFace.C
+    treeDataFace.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -39,11 +40,11 @@ SourceFiles
 #define Foam_treeDataFace_H
 
 #include "face.H"
-#include "indexedOctree.H"
-#include "treeBoundBoxList.H"
 #include "bitSet.H"
 #include "primitiveMesh.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
+#include "indexedOctree.H"  // Convenience for downstream includes
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -62,7 +63,7 @@ class treeDataFace
     // Static Data
 
         //- Tolerance on linear dimensions
-        static scalar tolSqr;
+        static constexpr scalar tolSqr = Foam::sqr(1e-6);
 
 
     // Private Data
@@ -71,28 +72,43 @@ class treeDataFace
         const primitiveMesh& mesh_;
 
         //- Subset of faces to work on
-        const labelList faceLabels_;
+        labelList subset_;
 
-        //- Inverse of faceLabels. For every mesh whether face is in faceLabels.
-        bitSet isTreeFace_;
+        //- Faster (cached lookup) of subset_ values
+        bitSet isSubset_;
 
-        //- Use subset of faces (faceLabels)
+        //- Face bounding boxes (valid only if cacheBb_)
+        treeBoundBoxList bbs_;
+
+        //- Face start offset for isSubset_ (optional)
+        const label faceOffset_;
+
+        //- Use subset of faces (subset_ active)
         const bool useSubset_;
 
         //- Whether to precalculate and store face bounding box
         const bool cacheBb_;
 
-        //- Face bounding boxes (valid only if cacheBb_)
-        treeBoundBoxList bbs_;
-
 
     // Private Member Functions
 
+        //- The object index corresponding to the shape index,
+        //- returns -1 for an invalid range
+        label mappedIndex(label i) const noexcept
+        {
+            return
+            (
+                (i >= 0 && i < size())
+              ? (useSubset_ ? subset_.cdata()[i] : i)
+              : -1
+            );
+        }
+
         //- True if specified mesh facei is being used
-        inline bool usesFace(const label facei) const;
+        inline bool usesFace(label facei) const;
 
         //- Get face bounding box at specified index
-        inline treeBoundBox getBounds(const label index) const;
+        inline treeBoundBox getBounds(label index) const;
 
         //- Initialise all member data
         void update();
@@ -106,7 +122,10 @@ public:
 
     public:
 
-        findNearestOp(const indexedOctree<treeDataFace>& tree);
+        findNearestOp(const indexedOctree<treeDataFace>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         void operator()
         (
@@ -137,7 +156,10 @@ public:
 
     public:
 
-        findIntersectOp(const indexedOctree<treeDataFace>& tree);
+        findIntersectOp(const indexedOctree<treeDataFace>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         //- Calculate intersection of triangle with ray.
         //  Sets result accordingly
@@ -153,6 +175,12 @@ public:
 
     // Declare name of the class and its debug switch
     ClassName("treeDataFace");
+
+
+    // Generated Methods
+
+        //- Move construct
+        treeDataFace(treeDataFace&&) = default;
 
 
     // Constructors (cachable versions)
@@ -191,6 +219,26 @@ public:
             labelList&& faceLabels
         );
 
+        //- Construct from mesh, using specified faces
+        treeDataFace
+        (
+            const bool cacheBb,
+            const primitiveMesh& mesh,
+            const bitSet& faceSelection,
+            //! optional: face start offset for \p faceSelection
+            label faceOffset = 0
+        );
+
+        //- Construct from mesh, using specified faces
+        treeDataFace
+        (
+            const bool cacheBb,
+            const primitiveMesh& mesh,
+            bitSet&& faceSelection,
+            //! optional: face start offset for \p faceSelection
+            label faceOffset = 0
+        );
+
 
     // Constructors (non-caching)
 
@@ -222,6 +270,30 @@ public:
         treeDataFace(const primitiveMesh& mesh, labelList&& faceLabels)
         :
             treeDataFace(false, mesh, std::move(faceLabels))
+        {}
+
+        //- Construct from mesh, using specified faces
+        treeDataFace
+        (
+            const primitiveMesh& mesh,
+            const bitSet& faceSelection,
+            //! optional: face start offset for \p faceSelection
+            label faceOffset = 0
+        )
+        :
+            treeDataFace(false, mesh, faceSelection, faceOffset)
+        {}
+
+        //- Construct from mesh, using specified faces
+        treeDataFace
+        (
+            const primitiveMesh& mesh,
+            bitSet&& faceSelection,
+            //! optional: face start offset for \p faceSelection
+            label faceOffset = 0
+        )
+        :
+            treeDataFace(false, mesh, std::move(faceSelection), faceOffset)
         {}
 
 
@@ -261,11 +333,18 @@ public:
             const labelUList& faceIds
         );
 
+        //- Return bounding box of specified mesh faces
+        static treeBoundBox bounds
+        (
+            const primitiveMesh& mesh,
+            const bitSet& faceSelection
+        );
+
 
     // Member Functions
 
         //- Object dimension == 2 (face element)
-        int nDim() const noexcept { return 2; }
+        static constexpr int nDim() noexcept { return 2; }
 
         //- Return bounding box for the specified face indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -276,8 +355,8 @@ public:
         //- Reference to the supporting mesh
         const primitiveMesh& mesh() const noexcept { return mesh_; }
 
-        //- The subset of face ids to use
-        const labelList& faceLabels() const noexcept { return faceLabels_; }
+        //- The subset of face ids being used
+        const labelUList& objectIds() const noexcept { return subset_; }
 
         //- Use a subset of faces
         bool useSubset() const noexcept { return useSubset_; }
@@ -285,19 +364,19 @@ public:
         //- Is the effective face selection empty?
         bool empty() const noexcept
         {
-            return useSubset_ ? faceLabels_.empty() : !mesh_.nFaces();
+            return useSubset_ ? subset_.empty() : !mesh_.nFaces();
         }
 
         //- The size of the face selection
         label size() const noexcept
         {
-            return useSubset_ ? faceLabels_.size() : mesh_.nFaces();
+            return useSubset_ ? subset_.size() : mesh_.nFaces();
         }
 
         //- Map from shape index to original (non-subset) face label
         label objectIndex(const label index) const
         {
-            return useSubset_ && index >= 0 ? faceLabels_[index] : index;
+            return useSubset_ && index >= 0 ? subset_[index] : index;
         }
 
         //- Face at specified shape index

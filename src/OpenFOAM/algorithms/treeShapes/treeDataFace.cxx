@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "treeDataFace.H"
+#include "indexedOctree.H"
 #include "polyMesh.H"
 #include "triangle.H"
 
@@ -35,8 +37,6 @@ License
 namespace Foam
 {
     defineTypeNameAndDebug(treeDataFace, 0);
-
-    scalar treeDataFace::tolSqr = sqr(1e-6);
 }
 
 
@@ -60,7 +60,7 @@ static treeBoundBoxList boxesImpl
         elemIds.cbegin(),
         elemIds.cend(),
         bbs.begin(),
-        [&](label facei)
+        [&mesh](label facei)
         {
             return treeBoundBox(mesh.points(), mesh.faces()[facei]);
         }
@@ -145,20 +145,37 @@ Foam::treeDataFace::bounds
 }
 
 
+Foam::treeBoundBox
+Foam::treeDataFace::bounds
+(
+    const primitiveMesh& mesh,
+    const bitSet& faceSelection
+)
+{
+    return boundsImpl(mesh, faceSelection);
+}
+
+
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
 inline bool
-Foam::treeDataFace::usesFace(const label facei) const
+Foam::treeDataFace::usesFace(label facei) const
 {
-    return (!useSubset_ || isTreeFace_.test(facei));
+    return (!useSubset_ || isSubset_.test(facei - faceOffset_));
 }
 
 
 inline Foam::treeBoundBox
-Foam::treeDataFace::getBounds(const label index) const
+Foam::treeDataFace::getBounds(label index) const
 {
-    const label facei = objectIndex(index);
-    return treeBoundBox(mesh_.points(), mesh_.faces()[facei]);
+    if (label facei = mappedIndex(index); facei >= 0)
+    {
+        return treeBoundBox(mesh_.points(), mesh_.faces()[facei]);
+    }
+    else
+    {
+        return treeBoundBox();
+    }
 }
 
 
@@ -168,7 +185,7 @@ void Foam::treeDataFace::update()
     {
         if (useSubset_)
         {
-            bbs_ = treeDataFace::boxes(mesh_, faceLabels_);
+            bbs_ = treeDataFace::boxes(mesh_, subset_);
         }
         else
         {
@@ -187,8 +204,7 @@ Foam::treeDataFace::treeDataFace
 )
 :
     mesh_(mesh),
-    faceLabels_(),
-    isTreeFace_(),
+    faceOffset_(0),
     useSubset_(false),
     cacheBb_(cacheBb)
 {
@@ -204,8 +220,9 @@ Foam::treeDataFace::treeDataFace
 )
 :
     mesh_(mesh),
-    faceLabels_(identity(range)),
-    isTreeFace_(range),
+    subset_(Foam::identity(range)),
+    isSubset_(range.size()),
+    faceOffset_(range.start()),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
@@ -219,7 +236,12 @@ Foam::treeDataFace::treeDataFace
     const polyPatch& patch
 )
 :
-    treeDataFace(cacheBb, patch.boundaryMesh().mesh(), patch.range())
+    treeDataFace
+    (
+        cacheBb,
+        patch.boundaryMesh().mesh(),
+        patch.range()
+    )
 {}
 
 
@@ -231,8 +253,9 @@ Foam::treeDataFace::treeDataFace
 )
 :
     mesh_(mesh),
-    faceLabels_(faceLabels),
-    isTreeFace_(mesh_.nFaces(), faceLabels_),
+    subset_(faceLabels),
+    isSubset_(subset_),
+    faceOffset_(0),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
@@ -248,11 +271,52 @@ Foam::treeDataFace::treeDataFace
 )
 :
     mesh_(mesh),
-    faceLabels_(std::move(faceLabels)),
-    isTreeFace_(mesh_.nFaces(), faceLabels_),
+    subset_(std::move(faceLabels)),
+    isSubset_(subset_),
+    faceOffset_(0),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
+    update();
+}
+
+
+Foam::treeDataFace::treeDataFace
+(
+    const bool cacheBb,
+    const primitiveMesh& mesh,
+    const bitSet& faceSelection,
+    label faceOffset
+)
+:
+    mesh_(mesh),
+    subset_(),
+    isSubset_(faceSelection),
+    faceOffset_(faceOffset),
+    useSubset_(true),
+    cacheBb_(cacheBb)
+{
+    subset_ = isSubset_.sortedToc(faceOffset_);
+    update();
+}
+
+
+Foam::treeDataFace::treeDataFace
+(
+    const bool cacheBb,
+    const primitiveMesh& mesh,
+    bitSet&& faceSelection,
+    label faceOffset
+)
+:
+    mesh_(mesh),
+    subset_(),
+    isSubset_(std::move(faceSelection)),
+    faceOffset_(faceOffset),
+    useSubset_(true),
+    cacheBb_(cacheBb)
+{
+    subset_ = isSubset_.sortedToc(faceOffset_);
     update();
 }
 
@@ -268,7 +332,7 @@ Foam::treeDataFace::bounds(const labelUList& indices) const
 
         for (const label index : indices)
         {
-            const label facei = faceLabels_[index];
+            const label facei = subset_[index];
 
             bb.add(mesh_.points(), mesh_.faces()[facei]);
         }
@@ -284,7 +348,7 @@ Foam::tmp<Foam::pointField> Foam::treeDataFace::centres() const
 {
     if (useSubset_)
     {
-        return tmp<pointField>::New(mesh_.faceCentres(), faceLabels_);
+        return tmp<pointField>::New(mesh_.faceCentres(), subset_);
     }
 
     return mesh_.faceCentres();
@@ -311,18 +375,15 @@ Foam::volumeType Foam::treeDataFace::getVolumeType
     // Find nearest face to sample
     pointIndexHit info = oc.findNearest(sample, sqr(GREAT));
 
-    const label index = info.index();
+    // Get actual intersection point on face
+    const label facei = mappedIndex(info.index());
 
-    if (index == -1)
+    if (facei < 0)
     {
         FatalErrorInFunction
             << "Could not find " << sample << " in octree."
             << abort(FatalError);
     }
-
-
-    // Get actual intersection point on face
-    const label facei = objectIndex(index);
 
     if (debug & 2)
     {
@@ -372,7 +433,7 @@ Foam::volumeType Foam::treeDataFace::getVolumeType
 
     for (const label fp : f)
     {
-        const scalar relDistSqr = (magSqr(points[fp] - curPt)/typDimSqr);
+        const scalar relDistSqr = (curPt.distSqr(points[fp])/typDimSqr);
 
         if (relDistSqr < tolSqr)
         {
@@ -393,10 +454,11 @@ Foam::volumeType Foam::treeDataFace::getVolumeType
 
             if (debug & 2)
             {
-                    Pout<< " -> face point hit :" << points[fp]
-                        << " point normal:" << pointNormal
-                        << " distance:" << relDistSqr << endl;
+                Pout<< " -> face point hit :" << points[fp]
+                    << " point normal:" << pointNormal
+                    << " distance:" << relDistSqr << endl;
             }
+
             return indexedOctree<treeDataFace>::getSide
             (
                 pointNormal,
@@ -405,7 +467,7 @@ Foam::volumeType Foam::treeDataFace::getVolumeType
         }
     }
 
-    const scalar relDistSqr = (magSqr(fc - curPt)/typDimSqr);
+    const scalar relDistSqr = (curPt.distSqr(fc)/typDimSqr);
 
     if (relDistSqr < tolSqr)
     {
@@ -537,6 +599,10 @@ bool Foam::treeDataFace::overlaps
     const treeBoundBox& searchBox
 ) const
 {
+    const label facei = mappedIndex(index);
+
+    if (facei < 0) return false;
+
     // 1. Quick rejection: bb does not intersect face bb at all
     if
     (
@@ -551,7 +617,6 @@ bool Foam::treeDataFace::overlaps
     const pointField& points = mesh_.points();
 
     // 2. Check if one or more face points inside
-    const label facei = objectIndex(index);
 
     const face& f = mesh_.faces()[facei];
 
@@ -597,6 +662,10 @@ bool Foam::treeDataFace::overlaps
     const scalar radiusSqr
 ) const
 {
+    const label facei = mappedIndex(index);
+
+    if (facei < 0) return false;
+
     // 1. Quick rejection: sphere does not intersect face bb at all
     if
     (
@@ -607,8 +676,6 @@ bool Foam::treeDataFace::overlaps
     {
         return false;
     }
-
-    const label facei = objectIndex(index);
 
     const face& f = mesh().faces()[facei];
 
@@ -624,24 +691,6 @@ bool Foam::treeDataFace::overlaps
 
 
 // * * * * * * * * * * * * * * * * Searching * * * * * * * * * * * * * * * * //
-
-Foam::treeDataFace::findNearestOp::findNearestOp
-(
-    const indexedOctree<treeDataFace>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-Foam::treeDataFace::findIntersectOp::findIntersectOp
-(
-    const indexedOctree<treeDataFace>& tree
-)
-:
-    tree_(tree)
-{}
-
 
 void Foam::treeDataFace::findNearest
 (

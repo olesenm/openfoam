@@ -202,18 +202,19 @@ class findNearestOpSubset
 {
     const indexedOctree<treeDataEdge>& tree_;
 
-    DynamicList<label>& shapeMask_;
+    //- Indices to exclude
+    DynamicList<label>& excludeIndices_;
 
 public:
 
     findNearestOpSubset
     (
         const indexedOctree<treeDataEdge>& tree,
-        DynamicList<label>& shapeMask
-    )
+        DynamicList<label>& excludeIndices
+    ) noexcept
     :
         tree_(tree),
-        shapeMask_(shapeMask)
+        excludeIndices_(excludeIndices)
     {}
 
     void operator()
@@ -232,7 +233,7 @@ public:
         {
             const label edgeIndex = shape.objectIndex(index);
 
-            if (shapeMask_.found(edgeIndex))
+            if (excludeIndices_.contains(edgeIndex))
             {
                 continue;
             }

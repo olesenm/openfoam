@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,7 +40,7 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::treeDataPoint::treeDataPoint(const pointField& points)
+Foam::treeDataPoint::treeDataPoint(const pointField& points) noexcept
 :
     points_(points),
     useSubset_(false)
@@ -50,26 +51,32 @@ Foam::treeDataPoint::treeDataPoint
 (
     const pointField& points,
     const labelUList& pointLabels,
-    const bool useSubsetPoints
+    const bool withSubset
 )
 :
     points_(points),
-    pointLabels_(pointLabels),
-    useSubset_(useSubsetPoints)
-{}
+    subset_(pointLabels),
+    useSubset_(withSubset)
+{
+    // Override: subset is not actually used
+    if (!withSubset) subset_.clear();
+}
 
 
 Foam::treeDataPoint::treeDataPoint
 (
     const pointField& points,
     labelList&& pointLabels,
-    const bool useSubsetPoints
+    const bool withSubset
 )
 :
     points_(points),
-    pointLabels_(std::move(pointLabels)),
-    useSubset_(useSubsetPoints)
-{}
+    subset_(std::move(pointLabels)),
+    useSubset_(withSubset)
+{
+    // Override: subset is not actually used
+    if (!withSubset) subset_.clear();
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -81,7 +88,7 @@ Foam::treeBoundBox Foam::treeDataPoint::bounds(const labelUList& indices) const
         treeBoundBox bb;
         for (const label index : indices)
         {
-            bb.add(points_[pointLabels_[index]]);
+            bb.add(points_[subset_[index]]);
         }
         return bb;
     }
@@ -94,7 +101,7 @@ Foam::tmp<Foam::pointField> Foam::treeDataPoint::centres() const
 {
     if (useSubset_)
     {
-        return tmp<pointField>::New(points_, pointLabels_);
+        return tmp<pointField>::New(points_, subset_);
     }
 
     return points_;
@@ -133,22 +140,6 @@ bool Foam::treeDataPoint::overlaps
 
 
 // * * * * * * * * * * * * * * * * Searching * * * * * * * * * * * * * * * * //
-
-Foam::treeDataPoint::findNearestOp::findNearestOp
-(
-    const indexedOctree<treeDataPoint>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-Foam::treeDataPoint::findIntersectOp::findIntersectOp
-(
-    const indexedOctree<treeDataPoint>& tree
-)
-{}
-
 
 void Foam::treeDataPoint::findNearest
 (
