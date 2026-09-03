@@ -721,6 +721,10 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::snappySnapDriver::addBufferLayers
         meshMod
     );
 
+    // Hack to remove meshPhi - mapped incorrectly. TBD.
+    mesh.moving(false);
+    mesh.clearOut();
+
     // Apply the stored topo changes to the current mesh.
     autoPtr<mapPolyMesh> mapPtr = meshMod.changeMesh(mesh, false);
     mapPolyMesh& map = *mapPtr;
@@ -1914,9 +1918,12 @@ void Foam::snappySnapDriver::doSnapBufferLayers
             const labelListList& addedPoints = addLayer.addedPoints();
             forAll(addedPoints, oldPatchPointi)
             {
-                const label newPointi = addedPoints[oldPatchPointi].last();
-                const label newPatchPointi = ppPtr().meshPointMap()[newPointi];
-                ppMap[newPatchPointi] = oldPatchPointi;
+                if (addedPoints[oldPatchPointi].size())
+                {
+                    const label newPointi = addedPoints[oldPatchPointi].last();
+                    const label newPatchPointi = ppPtr().meshPointMap()[newPointi];
+                    ppMap[newPatchPointi] = oldPatchPointi;
+                }
             }
         }
 
