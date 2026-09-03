@@ -33,7 +33,6 @@ License
 namespace Foam
 {
     defineTypeNameAndDebug(pairGAMGAgglomeration, 0);
-    bool pairGAMGAgglomeration::forward_(true);
 }
 
 
