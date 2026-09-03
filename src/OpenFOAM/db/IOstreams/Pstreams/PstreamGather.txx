@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -79,6 +80,9 @@ void gather_algorithm
 
 
         // Receive from my downstairs neighbours
+        //
+        // use element or component type (or byte-wise) for contiguous data
+
         for (const auto proci : below)
         {
             T received;
@@ -89,8 +93,8 @@ void gather_algorithm
                 (
                     UPstream::commsTypes::scheduled,
                     proci,
-                    reinterpret_cast<char*>(&received),
-                    sizeof(T),
+                    &received,
+                    std::streamsize(1),  //< count
                     tag,
                     communicator
                 );
@@ -139,8 +143,8 @@ void gather_algorithm
                 (
                     UPstream::commsTypes::scheduled,
                     above,
-                    reinterpret_cast<const char*>(&value),
-                    sizeof(T),
+                    &value,
+                    std::streamsize(1),  //< count
                     tag,
                     communicator
                 );
@@ -428,69 +432,6 @@ void listGather_algorithm
     }
 }
 
-
-// Implementation: gather (reduce) list element data onto master
-// using a topo algorithm.
-// Return: True if topo algorithm was applied
-template<class T, class BinaryOp, bool InplaceMode>
-bool listGather_topo_algorithm
-(
-    UList<T>& values,
-    BinaryOp bop,
-    const int tag,
-    const int communicator
-)
-{
-    const bool withTopo =
-    (
-        UPstream::is_parallel(communicator) && !values.empty()
-     && UPstream::usingTopoControl(UPstream::topoControls::combine)
-     && UPstream::usingNodeComms(communicator)
-    );
-
-    if (withTopo)
-    {
-        // Topological reduce
-        // - linear for local-node (assume communication is fast)
-        // - tree for inter-node (no assumption about speed)
-
-        using control = std::pair<int, bool>;
-
-        const auto oldWarnComm = UPstream::warnComm;
-        const bool usesWarnComm = (communicator == oldWarnComm);
-
-        for
-        (
-            auto [subComm, linear] :
-            {
-                // 1: within node
-                control{ UPstream::commLocalNode(), true },
-                // 2: between nodes
-                control{ UPstream::commInterNode(), false }
-            }
-        )
-        {
-            if (usesWarnComm) UPstream::commWarn(subComm);
-
-            if (UPstream::is_parallel(subComm))
-            {
-                PstreamDetail::listGather_algorithm<T, BinaryOp, InplaceMode>
-                (
-                    UPstream::whichCommunication(subComm, linear),
-                    values,
-                    bop,
-                    tag,
-                    subComm
-                );
-            }
-        }
-
-        UPstream::commWarn(oldWarnComm);  // Restore warning communicator
-    }
-
-    return withTopo;
-}
-
 } // End namespace PstreamDetail
 } // End namespace Foam
 
@@ -533,28 +474,33 @@ void Foam::Pstream::listGather
             communicator
         );
     }
-    else if
-    (
-        !PstreamDetail::listGather_topo_algorithm<T, BinaryOp, InplaceMode>
-        (
-            values,
-            bop,
-            tag,
-            communicator
-        )
-    )
+    else
     {
+        // Multiple values - same length on all ranks
+        const label listLen = values.size();
+
+        // Chunk length (== listLen if no chunking is required)
+        const label chunkLen = PstreamDetail::listMaxChunkSize(values);
+
         // Communication order
         const auto& commOrder = UPstream::whichCommunication(communicator);
 
-        PstreamDetail::listGather_algorithm<T, BinaryOp, InplaceMode>
-        (
-            commOrder,
-            values,
-            bop,
-            tag,
-            communicator
-        );
+        // Operate on chunks, single pass when no chunking is needed
+        for (label start = 0; start < listLen; start += chunkLen)
+        {
+            const auto len = Foam::min(chunkLen, listLen - start);
+
+            auto slice = values.slice(start, len);
+
+            PstreamDetail::listGather_algorithm<T, BinaryOp, InplaceMode>
+            (
+                commOrder,
+                slice,
+                bop,
+                tag,
+                communicator
+            );
+        }
     }
 }
 
@@ -591,9 +537,9 @@ void Foam::Pstream::listReduce
     }
     else
     {
-        // Multiple values
+        // Multiple values - same length on all ranks
         Pstream::listGather<T, BinaryOp, InplaceMode>(values, bop, tag, comm);
-        Pstream::broadcast(values, comm);
+        PstreamDetail::UList_chunked_broadcast(values, comm);
     }
 }
 

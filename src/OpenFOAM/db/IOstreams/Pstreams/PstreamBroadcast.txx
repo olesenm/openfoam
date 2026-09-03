@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,110 @@ License
 #include "IPstream.H"
 #include "OPstream.H"
 
+// * * * * * * * * * * * * * * * * * Details * * * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+namespace PstreamDetail
+{
+
+// The max number of elements that can be sent (contiguous or serialized)
+// without exceeding MPI <int> buffer limits.
+// Never larger than the list itself, so the result can be used directly
+// as a chunk length (no chunking needed if result == values.size()).
+template<class T>
+label listMaxChunkSize(const UList<T>& values)
+{
+    // The MPI (int) message-size limit with a small safety margin
+    constexpr auto maxBufferSize = label(INT_MAX - 63);
+
+    label maxElements = maxBufferSize;
+
+    if constexpr (is_contiguous_v<T>)
+    {
+        // Using element or component type (or byte-wise) size
+        maxElements = (maxBufferSize / label(UPstream_dataType<T>::size(1)));
+    }
+    else if (values.size() >= 100000)
+    {
+        // Larger list, may need chunking for serialization.
+        // - estimate the size by serializing a few items
+
+        DynamicList<char> scratch(1024);
+        UOPstream os(scratch);
+
+        constexpr int averaging = 8;
+
+        for (int i = 0; i < averaging; ++i)
+        {
+            os << values[i];
+        }
+        os.alignp(8);
+
+        maxElements = (maxBufferSize / label(os.tellp()/averaging));
+    }
+    // else: smaller list, very unlikely to need chunking
+
+    return Foam::min(maxElements, values.size());
+}
+
+
+// Broadcast (sync) UList content without exceeding MPI <int> buffer limits.
+// Lists are same length on all ranks!
+
+template<class T>
+void UList_chunked_broadcast(UList<T>& values, int communicator)
+{
+    if (values.empty())
+    {
+        return;
+    }
+    else if (values.size() == 1)
+    {
+        // Single value - optimized version
+        Pstream::broadcast(values[0], communicator);
+        return;
+    }
+
+    // Multiple values - same length on all ranks
+    const label listLen = values.size();
+
+    // Chunk length (== listLen if no chunking is required)
+    const label chunkLen = PstreamDetail::listMaxChunkSize(values);
+
+    // Operate on chunks, single pass when no chunking is needed
+    for (label start = 0; start < listLen; start += chunkLen)
+    {
+        const auto len = Foam::min(chunkLen, listLen - start);
+
+        auto slice = values.slice(start, len);
+
+        if constexpr (is_contiguous_v<T>)
+        {
+            // Broadcast contiguous content
+            UPstream::broadcast(slice.data(), slice.size(), communicator);
+        }
+        else
+        {
+            // Non-contiguous content - serialize it
+            // Same as Pstream::broadcast(slice, communicator);
+
+            if (UPstream::master(communicator))
+            {
+                OPBstream::send(slice, communicator);
+            }
+            else
+            {
+                IPBstream::recv(slice, communicator);
+            }
+        }
+    }
+}
+
+} // End namespace PstreamDetail
+} // End namespace Foam
+
+
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 template<class Type>
@@ -48,12 +153,8 @@ void Foam::Pstream::broadcast
     }
     else if constexpr (is_contiguous_v<Type>)
     {
-        UPstream::broadcast
-        (
-            reinterpret_cast<char*>(&value),
-            sizeof(Type),
-            communicator
-        );
+        // A single-value and contiguous
+        UPstream::broadcast(&value, 1, communicator);
     }
     else
     {
@@ -83,8 +184,7 @@ void Foam::Pstream::broadcast
     }
     else if constexpr (is_contiguous_v<Type>)
     {
-        // UPstream has extra handling for FixedList
-        UPstream::broadcast(list, communicator);
+        UPstream::broadcast(list.data(), list.size(), communicator);
     }
     else
     {
@@ -167,13 +267,13 @@ void Foam::Pstream::broadcastList
         // 2. resize for receiver list
         // 3. broadcast contiguous contents
 
-        label len(list.size());
+        int64_t len(list.size());
 
         UPstream::mpi_broadcast
         (
-            reinterpret_cast<char*>(&len),
-            sizeof(label),
-            UPstream::dataTypes::type_byte,
+            &len,
+            1,
+            UPstream::dataTypes::type_int64,
             communicator
         );
 
