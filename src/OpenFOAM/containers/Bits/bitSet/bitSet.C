@@ -259,6 +259,186 @@ void Foam::bitSet::xorEq(const bitSet& other)
 }
 
 
+void Foam::bitSet::left_shiftEq(label n)
+{
+    // Left-shift (moves content towards higher indices),
+    // vacated low bits are cleared.
+    // Bits shifted past the end are discarded and the size is unchanged.
+
+    if (n >= size())
+    {
+        reset();
+    }
+    else if (n > 0)
+    {
+        // Left shift by N
+
+        // Last addressable block, num_blocks() is >= 1
+        const label last = num_blocks() - 1;
+
+        // block_index(n)
+        const label blkOffset = (n / elem_per_block);
+
+        // sub_index(n)
+        const auto bitShift = static_cast<unsigned int>(n % elem_per_block);
+
+        if (bitShift)
+        {
+            const unsigned int invShift = (bits_per_block - bitShift);
+
+            // Copy from lower to higher
+            for (label i = last - blkOffset; i > 0; --i)
+            {
+                blocks_[i + blkOffset] =
+                (
+                    (blocks_[i] << bitShift) | (blocks_[i-1] >> invShift)
+                );
+            }
+            blocks_[blkOffset] = (blocks_[0] << bitShift);
+        }
+        else
+        {
+            // Block-aligned: straight block-wise copy (high to low)
+            for (label i = last - blkOffset; i > 0; --i)
+            {
+                blocks_[i + blkOffset] = blocks_[i];
+            }
+
+            blocks_[blkOffset] = blocks_[0];
+        }
+
+        // Vacated lower blocks become all-zero
+        for (label i = 0; i < blkOffset; ++i)
+        {
+            blocks_[i] = 0u;
+        }
+
+        // Remove any bits that shifted in beyond the current size
+        clear_trailing_bits();
+    }
+}
+
+
+void Foam::bitSet::right_shiftEq(label n)
+{
+    // Right-shift (moves content from upper to lower indices),
+    // vacated high bits are cleared.
+    // Bits shifted past the end are discarded and the size is unchanged.
+
+    if (n >= size())
+    {
+        reset();
+    }
+    else if (n > 0)
+    {
+        // Right shift by N
+
+        // Last addressable block, num_blocks() is >= 1
+        const label last = num_blocks() - 1;
+
+        // block_index(n)
+        const label blkOffset = (n / elem_per_block);
+
+        // sub_index(n)
+        const auto bitShift = static_cast<unsigned int>(n % elem_per_block);
+
+        if (bitShift)
+        {
+            const unsigned int invShift = (bits_per_block - bitShift);
+
+            // Copy from higher to lower
+            for (label i = blkOffset; i < last; ++i)
+            {
+                blocks_[i - blkOffset] =
+                (
+                    (blocks_[i] >> bitShift) | (blocks_[i+1] << invShift)
+                );
+            }
+            blocks_[last-blkOffset] = (blocks_[last] >> bitShift);
+        }
+        else
+        {
+            // Block-aligned: straight block-wise copy (low to high)
+            for (label i = blkOffset; i <= last; ++i)
+            {
+                blocks_[i - blkOffset] = blocks_[i];
+            }
+        }
+
+        // Vacated upper blocks become all-zero
+        for (label i = (last - blkOffset + 1); i <= last; ++i)
+        {
+            blocks_[i] = 0u;
+        }
+    }
+}
+
+
+void Foam::bitSet::extract_copy
+(
+    const bitSet& source,
+    bitSet& target,
+    const labelRange& range
+)
+{
+    if (&source == &target)
+    {
+        FatalErrorInFunction
+            << "Cannot extract a copy into itself !"
+            << abort(FatalError);
+    }
+
+    // With clamped range
+    const label len = range.subset0(source.size()).size();
+
+    if (len <= 0)
+    {
+        // Nothing to extract
+        target.clear();
+    }
+    // Trivial cases - avoid any block-wise copying/shifting
+    else if (source.empty() || source.none())
+    {
+        // All bits false
+        target.resize_fill(len, false);
+    }
+    else if (source.all())
+    {
+        // All bits true
+        target.resize_fill(len, true);
+    }
+    else
+    {
+        // General case: block-wise extraction with sub-block bit shifting
+        PackedList<1>::extract_copy(source, target, range);
+    }
+}
+
+
+void Foam::bitSet::extract_copy
+(
+    const bitSet& source,
+    bitSet& target,
+    const label pos,
+    const label len
+)
+{
+    // With start/len clamped to the source extents
+    const labelRange range(clamp_pos_len(pos, len, source.size()));
+
+    if (range.empty())
+    {
+        // Nothing to copy
+        target.clear();
+    }
+    else
+    {
+        // Extract the range
+        extract_copy(source, target, range);
+    }
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::bitSet::bitSet(Istream& is)
@@ -282,18 +462,11 @@ Foam::bitSet::bitSet(const bitSet& bitset, const labelUList& addr)
 }
 
 
-Foam::bitSet::bitSet(const bitSet& bitset, const labelRange& range)
+Foam::bitSet::bitSet(const bitSet& source, const labelRange& range)
 :
-    bitSet(range.size())
+    bitSet()
 {
-    label pos = range.start();
-    const label len = range.size();
-
-    for (label i = 0; i < len; ++i)
-    {
-        set(i, bitset.get(pos));
-        ++pos;
-    }
+    extract_copy(source, *this, range);
 }
 
 
@@ -348,7 +521,7 @@ void Foam::bitSet::assign(const UList<bool>& bools)
             *packed |= (1u << bitIdx);
         }
 
-        if (++bitIdx >= PackedList<1>::elem_per_block)
+        if (++bitIdx >= elem_per_block)
         {
             bitIdx = 0u;
             ++packed;
@@ -377,157 +550,175 @@ bool Foam::bitSet::intersects(const bitSet& other) const
 }
 
 
-void Foam::bitSet::set(const labelRange& range)
+void Foam::bitSet::unset(const label offset, const bitSet& other)
 {
-    labelRange slice(range);
-    slice.adjust();  // No negative start, size adjusted accordingly
-
-    // Range is invalid (zero-sized or entirely negative) - noop
-    if (slice.empty())
+    if (other.none() || this->none())
     {
+        // no-op: nothing to clear, or nothing can change
+        return;
+    }
+    else if (offset == 0)
+    {
+        unset(other);
         return;
     }
 
-    // Range finishes at or beyond the right side.
-    // - zero fill any gaps that we might create.
-    // - flood-fill the reset, which now corresponds to the full range.
-    if (slice.end_value() >= size())
+    // one-past last active positon
+    const label thisExtent = (this->find_last()+1);
+    const label thatExtent = (other.find_last()+1);
+
+    // With clamped start/size.
+    // - clearing bits beyond the current size is a no-op anyhow.
+    const label lower = Foam::max(0, offset);
+    const label upper = Foam::min(thisExtent, (offset + thatExtent));
+
+    if (upper <= lower)
     {
-        reserve(slice.end_value());
-        resize(slice.begin_value(), false);
-        resize(slice.end_value(), true);
+        // No overlap
         return;
     }
 
-    // The more difficult case - everything in between.
-    // 1. sequence may begin/end in the same block
-    // 2. Cover more than one block
-    //    a. with partial coverage in the first block
-    //    b. with partial coverage in the end block
-
-    // The begin block/offset
-    unsigned int bblock = slice.begin_value() / elem_per_block;
-    unsigned int bmask  = slice.begin_value() % elem_per_block;
-
-    // The end block/offset
-    unsigned int eblock = slice.end_value() / elem_per_block;
-    unsigned int emask  = slice.end_value() % elem_per_block;
-
-    // Transform offsets to lower bit masks
-    if (bmask) bmask = mask_lower(bmask);
-    if (emask) emask = mask_lower(emask);
-
-    if (bblock == eblock)
+    if (other.all())
     {
-        // Same block - flll between the begin/end bits.
-        // Example:
-        // bmask = 0000000000001111  (lower bits)
-        // emask = 0000111111111111  (lower bits)
-        // -> set  0000111111110000  (xor)
+        unset(labelRange(lower, (upper-lower)));
+        return;
+    }
 
-        blocks_[bblock] |= (emask^bmask);
+    // Uncommon case (negative offset clips the leading bits of 'other')
+    //
+    // Handle simply/directly, bit-by-bit.
+    if (offset < 0)
+    {
+        for (label i : other)
+        {
+            unset(i + offset);  // silently handles out-of-range
+        }
+
+        return;
+    }
+
+    // ---------------
+
+    // Process block-wise as much as possible, which may need
+    // to carry values between blocks.
+    // Note that clearing (AND NOT) does not disturb bits lying
+    // outside of the target range but within the same block(s).
+
+    // The actually usable source length:
+    const label nblocks =
+        num_blocks(Foam::min(thatExtent, (this->size() - lower)));
+
+    const label bblock   = block_index(lower);
+    const unsigned bmask = sub_index(lower);
+
+    // The input start/end
+    auto iter = other.blocks_.cbegin();
+    const auto last = (iter + nblocks);
+
+    auto output = (blocks_.begin() + bblock);
+
+    if (!bmask)
+    {
+        // Fast path: block-aligned start - direct AND NOT, no shift
+        while (iter != last)
+        {
+            *output &= ~(*iter);
+
+            ++iter;
+            ++output;
+        }
     }
     else
     {
-        if (bmask)
+        // General case: each source block spans (up to) two
+        // destination blocks.
+
+        const auto endOutput = blocks_.end();
+        unsigned int carry = 0;
+
+        while (iter != last)
         {
-            // The first (partial) block
-            // - set everything above the bmask.
-            blocks_[bblock] |= (~bmask);
-            ++bblock;
+            const unsigned int val = *iter;
+            ++iter;
+
+            *output &= ~(carry | (val << bmask));
+            ++output;
+
+            carry = (val >> (elem_per_block - bmask));
         }
 
-        // Fill these blocks
-        for (unsigned blocki = bblock; blocki < eblock; ++blocki)
+        if (carry && output != endOutput)
         {
-            blocks_[blocki] = (~0u);
-        }
-
-        if (emask)
-        {
-            // The last (partial) block.
-            // - set everything below emask.
-            blocks_[eblock] |= (emask);
+            *output &= ~carry;
         }
     }
 }
 
 
-void Foam::bitSet::unset(const labelRange& range)
+void Foam::bitSet::assign(const label offset, const bitSet& source)
 {
-    // Require intersection with the current bitset
-    const labelRange slice = range.subset0(size());
-
-    // Range does not intersect (invalid, empty, bitset is empty)
-    if (slice.empty())
+    if (source.empty())
     {
+        // Nothing to do
         return;
     }
 
-    // Range finishes at or beyond the right side.
-    if (slice.end_value() >= size())
-    {
-        // The original size
-        const label orig = size();
+    // With clamped start/size
+    const label lower = Foam::max(0, offset);
+    const label upper = (offset + source.size());
 
-        resize(slice.begin_value(), false);
-        resize(orig, false);
+    // TBD: avoid self assignment?
+
+    if (upper <= lower)
+    {
+        // No overlap
         return;
     }
 
-
-    // The more difficult case - everything in between.
-    // 1. sequence may begin/end in the same block
-    // 2. Cover more than one block
-    //    a. with partial coverage in the first block
-    //    b. with partial coverage in the end block
-
-    // The begin block/offset
-    unsigned int bblock = slice.begin_value() / elem_per_block;
-    unsigned int bmask  = slice.begin_value() % elem_per_block;
-
-    // The end block/offset
-    unsigned int eblock = slice.end_value() / elem_per_block;
-    unsigned int emask  = slice.end_value() % elem_per_block;
-
-    // Transform offsets to lower bit masks
-    if (bmask) bmask = mask_lower(bmask);
-    if (emask) emask = mask_lower(emask);
-
-    if (bblock == eblock)
+    // Resize (growing only), also introducing trailing 0 bits since
+    // this is meant to mimic a full bit copy - regardless of the
+    // content of 'source' (ie, even if all zero).
+    if (this->size() < upper)
     {
-        // Same block - flll between the begin/end bits.
-        // Example:
-        // bmask = 0000000000001111  (lower bits)
-        // emask = 0000111111111111  (lower bits)
-        // -> set  0000111111110000  (xor)
-        // -> ~    1111000000001111
-
-        blocks_[bblock] &= (~(emask^bmask));
+        resize(upper);
     }
-    else
+
+    if (source.all())
     {
-        if (bmask)
-        {
-            // The first (partial) block
-            // - only retain things below bmask.
-            blocks_[bblock] &= (bmask);
-            ++bblock;
-        }
-
-        // Clear these blocks
-        for (unsigned blocki = bblock; blocki < eblock; ++blocki)
-        {
-            blocks_[blocki] = (0u);
-        }
-
-        if (emask)
-        {
-            // The last (partial) block.
-            // - only retain things above bmask.
-            blocks_[eblock] &= (~emask);
-        }
+        // Trivial case
+        set(labelRange(lower, (upper-lower)));
+        return;
     }
+
+    // Clear the target range first and assign by OR-ing  bits from 'source'
+    unset(labelRange(lower, (upper-lower)));
+
+    if (source.none())
+    {
+        // Already cleared the bits just above
+        return;
+    }
+
+    // Uncommon case (negative offset clips the leading bits of 'source').
+    // Handle simply/directly, bit-by-bit.
+    if (offset < 0)
+    {
+        for (label i : source)
+        {
+            if (auto x = i + offset; x >= 0)
+            {
+                set(x);
+            }
+        }
+        return;
+    }
+
+    // General case: reuse the block-wise merge from the base.
+    // The target range was already cleared above, so a plain OR-merge
+    // (without re-clearing) would suffice, but assign_at() re-clearing
+    // the same (already-zero) range is harmless and keeps a single,
+    // well-tested implementation.
+    PackedList<1>::assign_at(offset, source);
 }
 
 
@@ -549,9 +740,7 @@ Foam::labelList Foam::bitSet::toc(const label offset) const
     const label nblocks = num_blocks(size());
     for (label blocki = 0; blocki < nblocks; ++blocki)
     {
-        unsigned int blockval = blocks_[blocki];
-
-        if (blockval)
+        if (unsigned int blockval = blocks_[blocki]; blockval)
         {
             for (label pos = (blocki * elem_per_block); blockval; ++pos)
             {

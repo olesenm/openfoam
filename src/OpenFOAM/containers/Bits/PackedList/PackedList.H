@@ -132,6 +132,51 @@ struct PackedListCore
 {
     //- Define template name
     ClassNameNoDebug("PackedList");
+
+protected:
+
+    // Protected Member Functions
+
+        //- Resolve a (possibly negative/open-ended) \p pos, \p len pair
+        //- into a labelRange clamped to addressable indices [0, maxSize).
+        //  A negative \p len is treated as "the remainder", ie, up to
+        //  \p maxSize. A negative \p pos is clamped to 0 (the length is
+        //  \em not shifted to compensate).
+        //  \return An empty (zero-sized) labelRange if \p maxSize is not
+        //      positive, or if the resulting sub-range would be empty.
+        inline static labelRange clamp_pos_len
+        (
+            const label pos,
+            const label len,
+            const label maxSize
+        ) noexcept
+        {
+            // Basic input sanity check
+            if (maxSize <= 0)
+            {
+                return labelRange();
+            }
+
+            // With clamped start/size
+            const label lower = (pos < 0 ? 0 : pos);
+            label upper = (pos + len);
+
+            if (len < 0)
+            {
+                upper = maxSize;
+            }
+            else if (upper > maxSize)
+            {
+                upper = maxSize;
+            }
+
+            return
+            (
+                (lower < upper)
+              ? labelRange(lower, (upper-lower))
+              : labelRange()
+            );
+        }
 };
 
 } // End namespace Detail
@@ -185,10 +230,22 @@ public:
         }
 
         //- Masking for all bits below the element offset.
-        //  Ill-defined when elementOffset is out of range.
+        //  Returns 0 (no bits) when elementOffset is 0, ill-defined
+        //  when elementOffset is greater than elem_per_block
         static constexpr block_type mask_lower(unsigned elementOffset) noexcept
         {
-            return (~0u >> (bits_per_block - Width * elementOffset));
+            // Not yet needed (only used internally at the moment)
+            // if (elementOffset > elem_per_block)
+            // {
+            //     elementOffset = elem_per_block;
+            // }
+
+            return
+            (
+                elementOffset
+              ? (~0u >> (bits_per_block - Width * elementOffset))
+              : 0u
+            );
         }
 
 
@@ -232,6 +289,18 @@ protected:
             }
         }
 
+        //- The block index corresponding to the given location
+        static constexpr label block_index(label i) noexcept
+        {
+            return (i / elem_per_block);
+        }
+
+        //- The sub-index for the given location
+        static constexpr unsigned sub_index(label i) noexcept
+        {
+            return (i % elem_per_block);
+        }
+
         //- Read a list entry
         inline static unsigned int readValue(Istream& is);
 
@@ -257,13 +326,52 @@ protected:
         inline void clear_trailing_bits() noexcept;
 
         //- Find the first block with a '1' bit
-        //  \return block number or -1 for an list or if all bits are OFF.
-        inline label first_block() const noexcept;
+        //  \return block number (-1 if all bits are OFF)
+        inline label find_first_block() const noexcept;
 
         //- Find the first block with a '0' bit
-        //  \return block number or -1 for an list or if all bits are ON.
-        inline label first_not_block() const noexcept;
+        //  \return block number (-1 if all bits are ON).
+        inline label find_first_not_block() const noexcept;
 
+        //- Find the last block with a '1' bit
+        //  \return block number (-1 if all bits are OFF).
+        inline label find_last_block() const noexcept;
+
+        //- Find the last block with a '0' bit
+        //  \return block number (-1 if all bits are ON).
+        inline label find_last_not_block() const noexcept;
+
+        //- Copy/assign all values of \p source to the current set
+        //- at the given \p offset, overwriting existing content in that range.
+        //  If the offset + source ends exceeds the current size,
+        //  the contents will grow, even if filled with zero bits.
+        void assign_at(const label offset, const PackedList<Width>& source);
+
+        //- Overwrite all entries addressed by \p slice with \p val
+        //- Shared implementation for set(labelRange)/unset(labelRange).
+        //  The \p slice is assumed to already be clipped/valid
+        //  (non-empty, non-negative, with slice.end_value() <= size()).
+        //  Does not resize - the caller handles any growth/truncation.
+        inline void fill_range(const labelRange& slice, unsigned int val);
+
+        //- Extract/copy a sub-section from \p source into \p target list,
+        //- resizing and overwriting any existing content.
+        static void extract_copy
+        (
+            const PackedList<Width>& source,
+            PackedList<Width>& target,
+            const labelRange& range
+        );
+
+        //- Extract/copy a sub-section from \p source into \p target list,
+        //- resizing and overwriting any existing content.
+        static void extract_copy
+        (
+            const PackedList<Width>& source,
+            PackedList<Width>& target,
+            label pos,
+            label len = -1
+        );
 
 public:
 
@@ -341,8 +449,15 @@ public:
         //- Test for equality of sizes and the bits set
         bool equal(const PackedList<Width>& other) const noexcept;
 
+        //- Numeric-style comparison.
+        //- Returns -1, 0, +1 for less/equal/greater. Takes linear time
+        int compare(const PackedList<Width>& other) const noexcept;
 
-    // Access
+
+    // Assignment
+
+        //- Assign all entries to the given value.
+        inline void fill(const unsigned int val) noexcept;
 
         //- Get value at specified index.
         //- A no-op and returns \c 0 for out-of-range positions
@@ -355,12 +470,32 @@ public:
         //  \return true if value changed.
         inline bool set(const label i, unsigned int val = ~0u);
 
+        //- Assign all entries to the specified range to given value.
+        //  The current set size may grow to accommodate any new bits
+        //  (auto-vivifies).
+        //  \note this operation is generally more efficient than calling
+        //      set(pos) on individual bits.
+        void set(const labelRange& range, unsigned int val = ~0u);
+
         //- Unset the entry at specified index.
         //- A no-op and returns \c false for out-of-range positions
         //- (safely/silently ignores negative positions).
         //  Never auto-vivify entries.
         //  \return true if the value changed.
         inline bool unset(const label i);
+
+        //- Reset (clear to zero) all entries in the given range.
+        //  Never auto-vivify, never changes the container size.
+        void unset(const labelRange& range);
+
+        //- Copy/assign all values of \p source to the current set
+        //- at the given \p offset, overwriting existing content in that range.
+        //  If the offset + source ends exceeds the current size,
+        //  the contents will grow, even if filled with zero bits.
+        void assign(const label offset, const PackedList<Width>& source);
+
+
+    // Access
 
         //- Return the values as a list of labels
         labelList values() const;
@@ -381,11 +516,31 @@ public:
         template<class IntType = unsigned int>
         List<IntType> unpack(const labelUList& locations) const;
 
+        //- Extract a sub-section \b copy as a new PackedList
+        inline PackedList<Width> extract(label pos, label len = -1) const;
+
+        //- Extract a sub-section \b copy as a new PackedList
+        inline PackedList<Width> extract(const labelRange& range) const;
+
+        //- Extract/copy a sub-section into the \p target list
+        //- overwriting any existing content in \p target.
+        inline void extract
+        (
+            PackedList<Width>& target,
+            label pos,
+            label len = -1
+        ) const;
+
+        //- Extract/copy a sub-section into the \p target list
+        //- overwriting any existing content in \p target.
+        inline void extract
+        (
+            PackedList<Width>& target,
+            const labelRange& range
+        ) const;
+
 
     // Edit
-
-        //- Assign all entries to the given value.
-        inline void fill(const unsigned int val) noexcept;
 
         //- Trim any trailing zero elements, optionally specifying a
         //- a minimum position, below which trimming will not occur.
@@ -515,10 +670,22 @@ public:
         inline void operator=(const unsigned int val) noexcept;
 
         //- Test for equality of sizes and the bits set
-        inline bool operator==(const PackedList<Width>& list) const noexcept;
+        inline bool operator==(const PackedList<Width>& other) const noexcept;
 
         //- Test for inequality of sizes or the bits set
-        inline bool operator!=(const PackedList<Width>& list) const noexcept;
+        inline bool operator!=(const PackedList<Width>& other) const noexcept;
+
+        //- Compare lexicographically. Takes linear time
+        inline bool operator<(const PackedList<Width>& other) const noexcept;
+
+        //- Compare lexicographically. Takes linear time
+        inline bool operator>(const PackedList<Width>& other) const noexcept;
+
+        //- Return true if !(a > b). Takes linear time
+        inline bool operator<=(const PackedList<Width>& other) const noexcept;
+
+        //- Return true if !(a < b). Takes linear time
+        inline bool operator>=(const PackedList<Width>& other) const noexcept;
 
 
     // Access helpers

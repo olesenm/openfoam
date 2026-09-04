@@ -51,6 +51,7 @@ inline Ostream& extent(const bitSet& bitset)
     Info<< "first: " << bitset.find_first()
         << " last: " << bitset.find_last()
         << " first_not: " << bitset.find_first_not()
+        << " last_not: " << bitset.find_last_not()
         << endl;
 
     return Info;
