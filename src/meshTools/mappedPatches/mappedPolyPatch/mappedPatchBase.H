@@ -151,7 +151,7 @@ public:
     //  Data content will frequently correspond to
     //  (sqr(distance), (rank, world)) with rank = -1 for "not-found".
     //  However, this tuple can be repurposed for (distance, (rank, index)) etc.
-    typedef Tuple2<scalar, Tuple2<label, label>> nearKey;
+    typedef Tuple2<scalar, labelPair> nearKey;
 
     //- Reduction/combine operator for nearKey and/or nearInfo
     class nearestSameWorldEqOp

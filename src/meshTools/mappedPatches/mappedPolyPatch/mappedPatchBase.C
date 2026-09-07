@@ -345,17 +345,6 @@ Foam::mappedPatchBase::findLocalSamples
         nearKey(Foam::sqr(GREAT), { -1, mySampleWorld })
     );
 
-
-    // Unhandled selection - ignore all samples
-    const auto ignoreAllSamples = [&nearest]()
-    {
-        for (auto& near : nearest)
-        {
-            // Set world to be ignored
-            near.second().second() = -1;
-        }
-    };
-
     // For multi-world, ignore this sample?
     const auto ignoreSample = [&sampleSubset,&nearest](label i) -> bool
     {
@@ -456,11 +445,9 @@ Foam::mappedPatchBase::findLocalSamples
 
             const polyPatch& pp = lookupPatch(sampleRegion, samplePatch);
 
-            if (pp.empty())
-            {
-                ignoreAllSamples();
-            }
-            else
+            // NB: an empty patch == "missed" sampling (already handled above)
+
+            if (!pp.empty())
             {
                 treeBoundBox patchBb(pp.points(), pp.meshPoints());
 
@@ -508,11 +495,9 @@ Foam::mappedPatchBase::findLocalSamples
 
             const polyPatch& pp = lookupPatch(sampleRegion, samplePatch);
 
-            if (pp.empty())
-            {
-                ignoreAllSamples();
-            }
-            else
+            // NB: an empty patch == "missed" sampling (already handled above)
+
+            if (!pp.empty())
             {
                 // patch (local) points
                 treeBoundBox patchBb(pp.points(), pp.meshPoints());
@@ -588,8 +573,8 @@ Foam::mappedPatchBase::findLocalSamples
 
         case NEARESTPATCHFACEAMI:
         {
-            // nothing to do here - ignore everything
-            ignoreAllSamples();
+            // nothing to do here, treat as "missed" sampling
+            // (already handled above)
             break;
         }
 
