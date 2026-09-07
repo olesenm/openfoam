@@ -62,10 +62,6 @@ class pairGAMGAgglomeration
         //- Apply renumbering after clustering
         bool renumber_;
 
-        //- Direction of cell loop for the current level
-        static bool forward_;
-
-
 protected:
 
     // Protected Member Functions
@@ -110,6 +106,16 @@ public:
             const lduAddressing& fineMatrixAddressing,
             const scalarField& faceWeights,
             const bool renumber
+        );
+
+        //- Calculate and return agglomeration, updating the supplied direction
+        static tmp<labelField> agglomerate
+        (
+            label& nCoarseCells,
+            const lduAddressing& fineMatrixAddressing,
+            const scalarField& faceWeights,
+            const bool renumber,
+            bool& forward
         );
 
         //- Agglomerate from a starting level. Starting level is usually 0

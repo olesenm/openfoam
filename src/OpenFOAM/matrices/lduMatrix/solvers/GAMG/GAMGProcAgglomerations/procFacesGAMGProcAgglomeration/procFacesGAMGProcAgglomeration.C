@@ -523,12 +523,14 @@ Foam::procFacesGAMGProcAgglomeration::processorAgglomeration
         // and there are no algorithms that rely on the ordering of
         // the processors.
         label nCoarseProcs;
+        bool forward = true;
         fineToCoarse = pairGAMGAgglomeration::agglomerate
         (
             nCoarseProcs,
             singleCellMeshPtr(),
             faceWeights,
-            false  // no need for renumber
+            false,  // no need for renumber
+            forward
         );
 
         // Keep on agglomerating until we've reached the limit. (nCoarsest is
@@ -565,7 +567,8 @@ Foam::procFacesGAMGProcAgglomeration::processorAgglomeration
                 nCoarseProcs,
                 singleCellMeshPtr(),
                 coarseFaceWeights,
-                false  // no need for renumber
+                false,  // no need for renumber
+                forward
             );
             faceWeights.transfer(coarseFaceWeights);
 

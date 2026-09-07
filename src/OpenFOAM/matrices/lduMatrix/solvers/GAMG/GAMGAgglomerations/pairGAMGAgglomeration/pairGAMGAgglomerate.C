@@ -173,6 +173,7 @@ void Foam::pairGAMGAgglomeration::agglomerate
 
     label nPairLevels = 0;
     label nCreatedLevels = startLevel;
+    bool forward = true;
 
     while (nCreatedLevels < maxLevels_ - 1)
     {
@@ -193,7 +194,8 @@ void Foam::pairGAMGAgglomeration::agglomerate
             nCoarseCells,
             fineMesh.lduAddr(),
             faceWeights,
-            renumber_
+            renumber_,
+            forward
         );
 
         if
@@ -324,6 +326,28 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
     const bool renumber
 )
 {
+    bool forward = true;
+
+    return agglomerate
+    (
+        nCoarseCells,
+        fineMatrixAddressing,
+        faceWeights,
+        renumber,
+        forward
+    );
+}
+
+
+Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
+(
+    label& nCoarseCells,
+    const lduAddressing& fineMatrixAddressing,
+    const scalarField& faceWeights,
+    const bool renumber,
+    bool& forward
+)
+{
     const label nFineCells = fineMatrixAddressing.size();
 
     const labelUList& upperAddr = fineMatrixAddressing.upperAddr();
@@ -435,7 +459,7 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
         (
             visitOrder.size()
           ? visitOrder[cellfi]
-          : forward_ ? cellfi : nFineCells - cellfi - 1
+          : forward ? cellfi : nFineCells - cellfi - 1
         );
 
         if (coarseCellMap[celli] < 0)
@@ -520,7 +544,7 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
         (
             visitOrder.size()
           ? visitOrder[cellfi]
-          : forward_ ? cellfi : nFineCells - cellfi - 1
+          : forward ? cellfi : nFineCells - cellfi - 1
         );
 
         if (coarseCellMap[celli] < 0)
@@ -530,7 +554,7 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
         }
     }
 
-    if (!forward_)
+    if (!forward)
     {
         forAll(coarseCellMap, celli)
         {
@@ -540,7 +564,7 @@ Foam::tmp<Foam::labelField> Foam::pairGAMGAgglomeration::agglomerate
 
     // Reverse the map ordering for the next level
     // to improve the next level of agglomeration
-    forward_ = !forward_;
+    forward = !forward;
 
     return tcoarseCellMap;
 }
