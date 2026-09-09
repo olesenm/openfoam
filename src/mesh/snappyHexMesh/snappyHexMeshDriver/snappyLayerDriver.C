@@ -4698,6 +4698,7 @@ Foam::label Foam::snappyLayerDriver::mergePatchFacesUndo
 
 void Foam::snappyLayerDriver::smoothAddedLayers
 (
+    const dictionary& layerParamsDict,
     const dictionary& motionDict,
     const label nAllowableErrors,
     const labelList& cellNLayers
@@ -4707,16 +4708,17 @@ void Foam::snappyLayerDriver::smoothAddedLayers
 
     // Tuning (optional; conservative defaults). Kept local and bounded.
     // const label nSweeps =
-    //     motionDict.getOrDefault<label>("nSmoothLayerCells", 10);
+    //     layerParamsDict.getOrDefault<label>("nSmoothLayerCells", 10);
     label nSweeps;
-    if (!motionDict.readIfPresent("nSmoothLayerCells", nSweeps))
+    if (!layerParamsDict.readIfPresent("nSmoothLayerCells", nSweeps))
     {
         return;
     }
+
     const label nGrow =
-        motionDict.getOrDefault<label>("nSmoothLayerGrow", 2);
+        layerParamsDict.getOrDefault<label>("nSmoothLayerGrow", 2);
     const scalar relax =
-        motionDict.getOrDefault<scalar>("layerSmoothRelax", 0.33);
+        layerParamsDict.getOrDefault<scalar>("layerSmoothRelax", 0.33);
 
 
     // Mark cells that actually have layers
@@ -5646,7 +5648,13 @@ void Foam::snappyLayerDriver::addLayers
 
         if (!dryRun_)
         {
-            smoothAddedLayers(motionDict, nAllowableErrors, cellNLayers);
+            smoothAddedLayers
+            (
+                layerParams.dict(),
+                motionDict,
+                nAllowableErrors,
+                cellNLayers
+            );
         }
     }
 

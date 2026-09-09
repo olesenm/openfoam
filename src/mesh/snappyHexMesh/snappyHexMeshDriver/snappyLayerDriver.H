@@ -650,6 +650,7 @@ public:
             //  unaffected).
             void smoothAddedLayers
             (
+                const dictionary& layerParamsDict,
                 const dictionary& motionDict,
                 const label nAllowableErrors,
                 const labelList& cellNLayers
