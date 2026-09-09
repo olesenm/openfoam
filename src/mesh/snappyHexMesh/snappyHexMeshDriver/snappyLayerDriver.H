@@ -636,6 +636,25 @@ public:
                 const meshRefinement::FaceMergeType mergeType
             );
 
+            //- Locally smooth/untangle previously-added layer cells in
+            //  between outer iterations. Only the points of the illegal faces
+            //  and a small (nGrow) neighbourhood are moved, so layer thickness
+            //  elsewhere is preserved. Interior points move freely;
+            //  symmetry-plane points slide in-plane and processor-shared
+            //  points are synchronised across ranks via
+            //  pointConstraints::constrainDisplacement(); only wall/inlet/
+            //  outlet (non-constraint) boundary points are held fixed. A
+            //  smoothing sweep is only kept if it reduces the number of
+            //  illegal faces, and the whole routine is a no-op when there are
+            //  no illegal faces (single outer iteration / clean meshes are
+            //  unaffected).
+            void smoothAddedLayers
+            (
+                const dictionary& motionDict,
+                const label nAllowableErrors,
+                const labelList& cellNLayers
+            );
+
             void addLayers
             (
                 const layerParameters& layerParams,

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -61,6 +62,10 @@ Description
 #include "externalDisplacementMeshMover.H"
 #include "scalarIOField.H"
 #include "profiling.H"
+#include "pointMesh.H"
+#include "pointConstraints.H"
+#include "weightedPosition.H"
+#include "syncTools.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -4691,6 +4696,330 @@ Foam::label Foam::snappyLayerDriver::mergePatchFacesUndo
 }
 
 
+void Foam::snappyLayerDriver::smoothAddedLayers
+(
+    const dictionary& motionDict,
+    const label nAllowableErrors,
+    const labelList& cellNLayers
+)
+{
+    fvMesh& mesh = meshRefiner_.mesh();
+
+    // Tuning (optional; conservative defaults). Kept local and bounded.
+    // const label nSweeps =
+    //     motionDict.getOrDefault<label>("nSmoothLayerCells", 10);
+    label nSweeps;
+    if (!motionDict.readIfPresent("nSmoothLayerCells", nSweeps))
+    {
+        return;
+    }
+    const label nGrow =
+        motionDict.getOrDefault<label>("nSmoothLayerGrow", 2);
+    const scalar relax =
+        motionDict.getOrDefault<scalar>("layerSmoothRelax", 0.33);
+
+
+    // Mark cells that actually have layers
+    const label nCheckCells = min(cellNLayers.size(), mesh.nCells());
+    bitSet isLayerCell(mesh.nCells(), false);
+    for (label celli = 0; celli < nCheckCells; ++celli)
+    {
+        if (cellNLayers[celli] > 0)
+        {
+            isLayerCell.set(celli);
+        }
+    }
+
+    // Faces of layer cells: initial region to test for illegal faces
+    labelList layerFaces;
+    {
+        bitSet isLayerFace(mesh.nFaces(), false);
+        const cellList& cells = mesh.cells();
+        forAll(cells, celli)
+        {
+            if (isLayerCell[celli])
+            {
+                for (const label facei : cells[celli])
+                {
+                    isLayerFace.set(facei);
+                }
+            }
+        }
+        layerFaces = isLayerFace.toc();
+    }
+
+    // Any illegal faces in the layer region? If not, nothing to do. This makes
+    // the routine a no-op for a clean mesh (and hence single outer iteration).
+    labelHashSet wrongFaces(mesh.nFaces()/100);
+    motionSmoother::checkMesh
+    (
+        false, mesh, motionDict, layerFaces, wrongFaces, dryRun_
+    );
+    label nWrong = returnReduce(wrongFaces.size(), sumOp<label>());
+    if (nWrong <= nAllowableErrors)
+    {
+        return;
+    }
+
+    Info<< nl << "Smoothing previously-added layer cells locally around "
+        << nWrong << " illegal faces ..." << endl;
+
+
+    // Constraint-aware point handling:
+    //  - points on real (non-constraint) patches (wall/inlet/outlet) are kept
+    //    fixed (they carry a prescribed motion);
+    //  - points on constraint patches (symmetryPlane/symmetry/wedge/cyclic)
+    //    and processor-shared points are movable and reconciled every sweep by
+    //    pointConstraints::constrainDisplacement() (symmetry-plane points are
+    //    projected back onto their plane, processor-shared points synchronised
+    //    across ranks), so nothing is pinned at processor seams and the
+    //    symmetry plane stays planar;
+    //  - everything else is a free interior point.
+    const polyBoundaryMesh& pbm = mesh.boundaryMesh();
+
+    bitSet isRealBoundaryPoint(mesh.nPoints(), false);
+    {
+        forAll(pbm, patchi)
+        {
+            if (!polyPatch::constraintType(pbm[patchi].type()))
+            {
+                isRealBoundaryPoint.set(pbm[patchi].meshPoints());
+            }
+        }
+        // OR-synchronise so a point that is a real-boundary point on any rank
+        // is treated so on all ranks (decomposition independent).
+        syncTools::syncPointList
+        (
+            mesh, isRealBoundaryPoint, orEqOp<unsigned int>(), 0u
+        );
+    }
+
+    // Constraint-aware displacement field used to move the smoothed points.
+    // Constraint patches get their real point-patch type so
+    // constrainDisplacement() enforces the constraint (incl. processor
+    // coupling / synchronisation).
+    const pointMesh& pMesh = pointMesh::New(mesh);
+    const pointBoundaryMesh& pointPatches = pMesh.boundary();
+    wordList patchFieldTypes
+    (
+        pointPatches.size(),
+        calculatedPointPatchVectorField::typeName
+    );
+    wordList actualPatchTypes(pointPatches.size());
+    forAll(pointPatches, patchi)
+    {
+        actualPatchTypes[patchi] = pointPatches[patchi].type();
+        if (polyPatch::constraintType(pointPatches[patchi].type()))
+        {
+            patchFieldTypes[patchi] = pointPatches[patchi].type();
+        }
+    }
+    pointVectorField smoothDisp
+    (
+        IOobject
+        (
+            "layerSmoothDisplacement",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE,
+            IOobject::NO_REGISTER
+        ),
+        pMesh,
+        dimensionedVector(dimLength, Zero),
+        patchFieldTypes,
+        actualPatchTypes
+    );
+
+
+    // Local set of points to move: points of the illegal faces grown by nGrow
+    // point-neighbour hops, restricted to layer-cell points and movable
+    // (non-fixed) points. Keeping the set small preserves layer thickness away
+    // from the problem region.
+    // Seed from the illegal faces, OR-synchronised across processors so the
+    // seed is identical on both sides of a coupled illegal face.
+    bitSet affectedPoint(mesh.nPoints(), false);
+    for (const label facei : wrongFaces)
+    {
+        affectedPoint.set(mesh.faces()[facei]);
+    }
+    syncTools::syncPointList(mesh, affectedPoint, orEqOp<unsigned int>(), 0u);
+
+    const labelListList& pointPoints = mesh.pointPoints();
+    for (label g = 0; g < nGrow; ++g)
+    {
+        // Grow one hop locally, then OR-synchronise across processor
+        // boundaries. Repeating (grow + sync) nGrow times reaches exactly
+        // nGrow hops in the *global* point connectivity, so the affected
+        // region is identical for any decomposition.
+        const bitSet oldAffected(affectedPoint);
+        for (const label pointi : oldAffected)
+        {
+            for (const label nbr : pointPoints[pointi])
+            {
+                affectedPoint.set(nbr);
+            }
+        }
+        syncTools::syncPointList
+        (
+            mesh, affectedPoint, orEqOp<unsigned int>(), 0u
+        );
+    }
+
+    // Points that belong to layer cells. OR-synchronised across processors so
+    // a point shared with a layer cell on any rank counts as a layer point on
+    // all ranks (decomposition independent).
+    bitSet isLayerPoint(mesh.nPoints(), false);
+    {
+        for (const label celli : isLayerCell)
+        {
+            isLayerPoint.set(mesh.cellPoints(celli));
+        }
+        syncTools::syncPointList
+        (
+            mesh, isLayerPoint, orEqOp<unsigned int>(), 0u
+        );
+    }
+
+    // Final movable set
+    bitSet moveMask(mesh.nPoints(), false);
+    for (const label pointi : affectedPoint)
+    {
+        if (isLayerPoint[pointi] && !isRealBoundaryPoint[pointi])
+        {
+            moveMask.set(pointi);
+        }
+    }
+    const labelList movePts(moveMask.toc());
+
+
+    // Faces to (re)check quality on: ALL faces of every cell that contains an
+    // affected point. Moving a point shifts the centre (and hence the
+    // pyramid volume/quality) of every face of the cells it belongs to, not
+    // just the faces that use that point, so the check region must be
+    // cell-complete. This guarantees the revert-if-worse test below can never
+    // accept a sweep that inverts/collapses a cell (behaviour is then robust
+    // and version-independent).
+    labelList checkFaces;
+    {
+        bitSet isCheckFace(mesh.nFaces(), false);
+        const labelListList& pointCells = mesh.pointCells();
+        const cellList& cells = mesh.cells();
+        for (const label pointi : affectedPoint)
+        {
+            for (const label celli : pointCells[pointi])
+            {
+                for (const label facei : cells[celli])
+                {
+                    isCheckFace.set(facei);
+                }
+            }
+        }
+        checkFaces = isCheckFace.toc();
+    }
+
+    // Re-evaluate on the local check region
+    wrongFaces.clear();
+    motionSmoother::checkMesh
+    (
+        false, mesh, motionDict, checkFaces, wrongFaces, dryRun_
+    );
+    nWrong = returnReduce(wrongFaces.size(), sumOp<label>());
+    if (nWrong <= nAllowableErrors)
+    {
+        return;
+    }
+
+
+    // Master points: used to count each (possibly coupled) neighbour exactly
+    // once when forming the parallel neighbour average. Topology is fixed
+    // during smoothing (only point positions change) so compute this once.
+    const bitSet isMasterPoint(syncTools::getMasterPoints(mesh));
+
+    // Bounded, revert-if-worse constrained Laplacian sweeps
+    for (label sweep = 0; sweep < nSweeps; ++sweep)
+    {
+        const pointField prevPoints(mesh.points());
+
+        // Parallel-correct neighbour average (same technique as
+        // snappySnapDriver::avg): accumulate (weight, position) counting each
+        // neighbour exactly once via its master point, then synchronise the
+        // bundled (weight, position) across all couplings (handles processor
+        // and cyclic transforms). This avoids double-counting neighbours that
+        // lie on processor boundaries.
+        Field<weightedPosition> wps
+        (
+            mesh.nPoints(),
+            pTraits<weightedPosition>::zero
+        );
+        for (const label pointi : movePts)
+        {
+            weightedPosition& wp = wps[pointi];
+            for (const label nbr : pointPoints[pointi])
+            {
+                if (isMasterPoint[nbr])
+                {
+                    wp.first() += 1.0;
+                    wp.second() += prevPoints[nbr];
+                }
+            }
+        }
+        weightedPosition::syncPoints(mesh, wps);
+
+        vectorField& d = smoothDisp.primitiveFieldRef();
+        d = Zero;
+        for (const label pointi : movePts)
+        {
+            const weightedPosition& wp = wps[pointi];
+            if (mag(wp.first()) > VSMALL)
+            {
+                const vector avg(wp.second()/wp.first());
+                d[pointi] = relax*(avg - prevPoints[pointi]);
+            }
+        }
+
+        // Enforce constraints (symmetry-plane in-plane, processor
+        // synchronisation, edge/corner and 2D constraints).
+        pointConstraints::New(pMesh).constrainDisplacement(smoothDisp);
+
+        const pointField newPoints(prevPoints + smoothDisp.primitiveField());
+
+        mesh.movePoints(newPoints);
+        mesh.moving(false);
+
+        wrongFaces.clear();
+        motionSmoother::checkMesh
+        (
+            false, mesh, motionDict, checkFaces, wrongFaces, dryRun_
+        );
+        const label nNow = returnReduce(wrongFaces.size(), sumOp<label>());
+
+        if (nNow < nWrong)
+        {
+            nWrong = nNow;
+            Info<< "    sweep " << sweep << " : " << nWrong
+                << " illegal faces" << endl;
+            if (nWrong <= nAllowableErrors)
+            {
+                break;
+            }
+        }
+        else
+        {
+            // No improvement: revert this sweep and stop
+            mesh.movePoints(prevPoints);
+            mesh.moving(false);
+            Info<< "    sweep " << sweep << " : no improvement ("
+                << nNow << "), reverting" << endl;
+            break;
+        }
+    }
+
+    Info<< "Finished local layer smoothing with " << nWrong
+        << " illegal faces in the smoothed region" << endl;
+}
+
+
 void Foam::snappyLayerDriver::addLayers
 (
     const layerParameters& layerParams,
@@ -5308,6 +5637,16 @@ void Foam::snappyLayerDriver::addLayers
                 label(0),
                 nAddedLayers
             );
+        }
+
+        // Locally untangle the previously-added layer cells before the next
+        // outer iteration shrinks/compresses them further. No-op
+        // when the layer mesh has no illegal faces. Not active if no parameters
+        // are specified for smoothing.
+
+        if (!dryRun_)
+        {
+            smoothAddedLayers(motionDict, nAllowableErrors, cellNLayers);
         }
     }
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -3042,6 +3043,8 @@ void Foam::snappyRefineDriver::splitAndMergeBaffles
 
     if (debug&meshRefinement::MESH)
     {
+        const_cast<Time&>(mesh.time())++;
+
         Pout<< "Writing handleProblemCells mesh to time "
             << meshRefiner_.timeName() << endl;
         meshRefiner_.write
@@ -3083,27 +3086,28 @@ void Foam::snappyRefineDriver::erodeNonManifoldZoneFaces
     //
     // Limitations:
     // - analyses across all zones - does not support overlapping zones
-    // - requires zones to be consistent across processor patches
+    // - requires zones to be consistent across processor patches (including
+    //   flipMap!)
 
     bitSet isZoneFace(mesh.nFaces());
     for (const auto& fz : fzs)
     {
         isZoneFace.set(fz.addressing());
     }
-    // Unmark non-owner side of processor patches so they don't get double
-    // counted.
+    // Mark own side of processor patches. Used later on so they don't get
+    // double counted.
+    bitSet isOwnFace(mesh.nFaces());
     const auto& pbm = mesh.boundaryMesh();
     for (label patchi = pbm.nNonProcessor(); patchi < pbm.size(); patchi++)
     {
-        if (!refCast<const processorPolyPatch>(pbm[patchi]).owner())
+        if (refCast<const processorPolyPatch>(pbm[patchi]).owner())
         {
-            isZoneFace.unset(pbm[patchi].range());
+            isOwnFace.set(pbm[patchi].range());
         }
     }
 
 
-    // TBD: replace with mesh.globalData().globalMeshFaceAddr()
-    const globalIndex globalFaces(mesh.nFaces());
+    const globalIndex& globalFaces = mesh.globalData().globalMeshFaceAddr();
 
     label nChanged = 0;
 
@@ -3121,13 +3125,25 @@ void Foam::snappyRefineDriver::erodeNonManifoldZoneFaces
             mesh.points()
         );
 
+        // Get per pp edge the connected pp faces (in mesh face ordering)
+        // Exclude slave faces from consideration
+        bitSet flipMap(pp.size());  // Mark faces that are flipped on
+                                    // processor patches
+        forAll(pp, patchFacei)
+        {
+            if (!isOwnFace[pp.addressing()[patchFacei]])
+            {
+                flipMap.set(patchFacei);
+            }
+        }
         const labelListList edgeGlobalFaces
         (
             addPatchCellLayer::globalEdgeFaces
             (
                 mesh,
                 globalFaces,
-                pp
+                pp,
+                flipMap
             )
         );
 
@@ -3139,11 +3155,13 @@ void Foam::snappyRefineDriver::erodeNonManifoldZoneFaces
             label nNonManif = 0;
             for (const label edgei : pp.faceEdges()[patchFacei])
             {
-                if (edgeGlobalFaces[edgei].size() == 1)
+                const label nFaces = edgeGlobalFaces[edgei].size();
+
+                if (nFaces == 1)
                 {
                     nOpen++;
                 }
-                else if (edgeGlobalFaces[edgei].size() > 2)
+                else if (nFaces > 2)
                 {
                     nNonManif++;
                 }
@@ -3166,6 +3184,22 @@ void Foam::snappyRefineDriver::erodeNonManifoldZoneFaces
 
     if (nChanged)
     {
+        // Sync across processor patches since the starting set excluded the
+        // slave processor faces. Note: this is not a perfect solution since
+        // it is possible that a face is non-manifold on one processor but not
+        // on
+        // another. However, this is a rare case and the user can always run
+        // with
+        // nErodeCellZone > 0 to remove any remaining non-manifold faces.
+        syncTools::syncFaceList
+        (
+            mesh,
+            isZoneFace,
+            orEqOp<unsigned int>(),
+            0
+        );
+
+
         // Filter out eroded faceZone faces
         fzs.clearAddressing();
 
