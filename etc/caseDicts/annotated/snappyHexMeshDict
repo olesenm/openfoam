@@ -185,6 +185,8 @@ castellatedMeshControls
     // The second level is the maximum level. Cells that 'see' multiple
     // intersections where the intersections make an
     // angle > resolveFeatureAngle get refined up to the maximum level.
+    // Optional resolveFeatureAngleMax can exclude near-opposite normals
+    // (e.g. thin plates at ~180 deg).
 
     refinementSurfaces
     {
@@ -284,6 +286,13 @@ castellatedMeshControls
     // - used if min and max refinement level of a surface differ
     // - used if feature snapping (see snapControls below) is used
     resolveFeatureAngle 30;
+
+    //- Optional upper bound (degrees) on feature-angle max-level refinement.
+    //  0 = off (default). When set, refine only when
+    //      resolveFeatureAngle < angle < resolveFeatureAngleMax
+    //  Useful for thin plates where top/bottom faces give ~180 deg between
+    //  normals and would otherwise refine the whole plate to max 'level'.
+    //resolveFeatureAngleMax 170;
 
     //- Optional increment (on top of max level) in small gaps
     //gapLevelIncrement 2;

@@ -157,6 +157,46 @@ Foam::refinementParameters::refinementParameters
     {
         curvature_ = Foam::cos(degToRad(featAngle));
     }
+
+    // Optional upper bound on feature angle (degrees). 0 = off.
+    // Refine to max surface level only when
+    //     resolveFeatureAngle < angle < resolveFeatureAngleMax
+    // Useful for thin plates where opposite faces give ~180 deg between
+    // normals and would otherwise refine the whole plate.
+    curvatureMaxCos_ = -2;  // inactive (cos range is [-1,1])
+    {
+        const scalar maxFeatAngle
+        (
+            dict.getOrDefault<scalar>("resolveFeatureAngleMax", 0)
+        );
+
+        if (maxFeatAngle != 0)
+        {
+            if (maxFeatAngle < 0 || maxFeatAngle > 180)
+            {
+                FatalIOErrorInFunction(dict)
+                    << "resolveFeatureAngleMax " << maxFeatAngle
+                    << " must be in (0,180], or 0 to disable"
+                    << exit(FatalIOError);
+            }
+
+            if (featAngle >= 0 && featAngle <= 180 && maxFeatAngle <= featAngle)
+            {
+                FatalIOErrorInFunction(dict)
+                    << "resolveFeatureAngleMax " << maxFeatAngle
+                    << " must be greater than resolveFeatureAngle "
+                    << featAngle
+                    << exit(FatalIOError);
+            }
+
+            // Skip when angle >= maxFeatAngle (cosAngle <= cos(maxFeatAngle))
+            curvatureMaxCos_ = Foam::cos(degToRad(maxFeatAngle));
+
+            Info<< "Feature angle max " << maxFeatAngle
+                << " deg (cos <= " << curvatureMaxCos_ << " ignored)"
+                << endl;
+        }
+    }
 }
 
 

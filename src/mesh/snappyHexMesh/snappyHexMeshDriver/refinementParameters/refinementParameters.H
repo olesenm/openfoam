@@ -69,8 +69,14 @@ class refinementParameters
         //- When to stop refining
         const label minRefineCells_;
 
-        //- Curvature
+        //- Curvature (cos of resolveFeatureAngle)
         scalar curvature_;
+
+        //- Cosine of optional resolveFeatureAngleMax.
+        //  If >= -1, normals with cos(angle) <= this value are not treated
+        //  as sharp features (suppresses near-opposite / thin-plate hits).
+        //  Set to < -1 when resolveFeatureAngleMax is inactive (0).
+        scalar curvatureMaxCos_;
 
         //- Planarity criterion
         const scalar planarAngle_;
@@ -168,10 +174,16 @@ public:
                 return minRefineCells_;
             }
 
-            //- Curvature
+            //- Curvature (cos of resolveFeatureAngle)
             scalar curvature() const
             {
                 return curvature_;
+            }
+
+            //- Cosine of resolveFeatureAngleMax, or < -1 if unused (0)
+            scalar curvatureMaxCos() const noexcept
+            {
+                return curvatureMaxCos_;
             }
 
             //- Angle when two intersections are considered to be planar
