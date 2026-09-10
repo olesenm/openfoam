@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2017 OpenFOAM Foundation
     Copyright (C) 2018-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,8 +33,10 @@ Group
 
 Description
     This source is designed to model the effect of solidification and
-    melting processes, e.g. windhield defrosting, within a specified region.
-    The phase change occurs at the melting temperature, \c Tmelt.
+    melting processes, e.g. windshield defrosting, within a specified region.
+    The phase change can occur at the melting temperature \c Tmelt, over a
+    linear solidus/liquidus interval specified by \c Tsol and \c Tliq, or
+    according to a solid-fraction temperature function \c alphaSolidT.
 
     The presence of the solid phase in the flow field is incorporated into the
     model as a momentum porosity contribution; the energy associated with the
@@ -65,11 +68,26 @@ Usage
         type           solidificationMeltingSource;
 
         // Mandatory entries (runtime modifiable)
-        Tmelt          273;
         L              334000;
         thermoMode     <thermoModeName>;
         rhoRef         800;
         beta           5e-6;
+
+        // Conditional mandatory entries (runtime modifiable)
+
+            // Phase-change specification
+            Tmelt          273;
+
+            // Alternative solidus/liquidus specification
+            // Tsol        273;
+            // Tliq        278;
+
+            // Alternative solid fraction as a function of temperature
+            // alphaSolidT table
+            // (
+            //     (273 1)
+            //     (278 0)
+            // );
 
         // Optional entries (runtime modifiable)
         relax          0.9;
@@ -99,12 +117,16 @@ Usage
     \table
       Property  | Description                       | Type   | Reqd | Dflt
       type      | Type name: solidificationMeltingSource  | word   | yes   | -
-      Tmelt     | Melting temperature [K]           | scalar | yes  | -
+      Tmelt     | Melting temperature [K]           | scalar | cndtnl | -
+      Tsol      | Solidus temperature [K]           | scalar | cndtnl | -
+      Tliq      | Liquidus temperature [K]          | scalar | no | Tsol
+      alphaSolidT | Solid fraction as function of temperature | Function1 <!--
+                -->                                          | cndtnl | -
       L         | Latent heat of fusion [J/kg]      | scalar | yes  | -
       thermoMode  | Thermo mode                     | word   | yes  | -
       rhoRef    | Reference (solid) density         | scalar | yes  | -
       beta      | Thermal expansion coefficient [1/K] | scalar | yes | -
-      relax     | Relaxation factor [0-1]           | scakar | no   | 0.9
+      relax     | Relaxation factor [0-1]           | scalar | no   | 0.9
       T         | Name of operand temperature field | word   | no   | T
       rho       | Name of operand density field     | word   | no   | rho
       U         | Name of operand velocity field    | word   | no   | U
@@ -126,19 +148,29 @@ Usage
       lookup    | Access Cp information by looking up from dictionary
     \endverbatim
 
+Note
+  - One of \c alphaSolidT, \c Tsol, or \c Tmelt must be supplied.  If more than
+    one is supplied, the precedence is \c alphaSolidT, then \c Tsol/\c Tliq,
+    then \c Tmelt.  The \c alphaSolidT entry specifies the solid fraction, but
+    the generated field \c \<name\>:alpha1 remains the melt fraction.  For
+    table-driven phase change, \c Tmelt or \c Tsol may be supplied as the
+    buoyancy temperature reference; otherwise the Boussinesq temperature offset
+    is neutral.
+
 SourceFiles
     solidificationMeltingSource.C
     solidificationMeltingSourceTemplates.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef solidificationMeltingSource_H
-#define solidificationMeltingSource_H
+#ifndef Foam_solidificationMeltingSource_H
+#define Foam_solidificationMeltingSource_H
 
 #include "fvMesh.H"
 #include "volFields.H"
 #include "cellSetOption.H"
 #include "Enum.H"
+#include "Function1.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -172,22 +204,31 @@ public:
 
 private:
 
+        //- Options for the phase-change temperature specification
+        enum phaseChangeMode
+        {
+            mdTmelt,
+            mdTsolTliq,
+            mdAlphaSolidT
+        };
+
+
     // Private Data
-
-        //- Temperature at which melting occurs [K]
-        scalar Tmelt_;
-
-        //- Latent heat of fusion [J/kg]
-        scalar L_;
-
-        //- Phase fraction under-relaxation coefficient
-        scalar relax_;
 
         //- Thermodynamics mode
         thermoMode mode_;
 
-        //- Reference density - typically the solid density
-        scalar rhoRef_;
+        //- Phase-change temperature specification
+        phaseChangeMode phaseChangeMode_;
+
+        //- Solid fraction as a function of temperature
+        autoPtr<Function1<scalar>> alphaSolidTptr_;
+
+        //- Phase fraction indicator field
+        volScalarField alpha1_;
+
+        //- Temperature change cached for source calculation when alpha1 updated
+        scalarField deltaT_;
 
         //- Name of operand temperature field
         word TName_;
@@ -201,6 +242,24 @@ private:
         //- Name of operand flux field
         word phiName_;
 
+        //- Melting temperature, or table-mode buoyancy reference [K]
+        scalar Tmelt_;
+
+        //- Solidus temperature [K]
+        scalar Tsol_;
+
+        //- Liquidus temperature [K]
+        scalar Tliq_;
+
+        //- Latent heat of fusion [J/kg]
+        scalar L_;
+
+        //- Phase fraction under-relaxation coefficient
+        scalar relax_;
+
+        //- Reference density - typically the solid density
+        scalar rhoRef_;
+
         //- Mushy region momentum sink coefficient [1/s]
         scalar Cu_;
 
@@ -210,17 +269,17 @@ private:
         //- Thermal expansion coefficient [1/K]
         scalar beta_;
 
-        //- Phase fraction indicator field
-        volScalarField alpha1_;
-
         //- Current time index (used for updating)
         label curTimeIndex_;
 
-        //- Temperature change cached for source calculation when alpha1 updated
-        scalarField deltaT_;
+        //- True if a temperature reference is available for buoyancy
+        bool hasTemperatureRef_;
 
 
     // Private Member Functions
+
+        //- Read the phase-change temperature specification
+        void readPhaseChangeCoeffs(const dictionary& dict);
 
         //- Return the specific heat capacity field
         tmp<volScalarField> Cp() const;
