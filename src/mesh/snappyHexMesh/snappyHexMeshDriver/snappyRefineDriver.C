@@ -126,6 +126,7 @@ Foam::label Foam::snappyRefineDriver::featureEdgeRefine
                 (
                     refineParams.locationsInMesh(),
                     refineParams.curvature(),
+                    refineParams.curvatureMaxCos(),
                     refineParams.planarAngle(),
 
                     true,               // featureRefinement
@@ -260,6 +261,7 @@ Foam::label Foam::snappyRefineDriver::smallFeatureRefine
             (
                 refineParams.locationsInMesh(),
                 refineParams.curvature(),
+                refineParams.curvatureMaxCos(),
                 refineParams.planarAngle(),
 
                 false,              // featureRefinement
@@ -433,6 +435,7 @@ Foam::label Foam::snappyRefineDriver::surfaceOnlyRefine
             (
                 refineParams.locationsInMesh(),
                 refineParams.curvature(),
+                refineParams.curvatureMaxCos(),
                 refineParams.planarAngle(),
 
                 false,              // featureRefinement
@@ -577,6 +580,7 @@ Foam::label Foam::snappyRefineDriver::gapOnlyRefine
             (
                 refineParams.locationsInMesh(),
                 refineParams.curvature(),
+                refineParams.curvatureMaxCos(),
                 refineParams.planarAngle(),
 
                 false,              // featureRefinement
@@ -888,6 +892,7 @@ Foam::label Foam::snappyRefineDriver::bigGapOnlyRefine
             (
                 refineParams.locationsInMesh(),
                 refineParams.curvature(),
+                refineParams.curvatureMaxCos(),
                 refineParams.planarAngle(),
 
                 false,              // featureRefinement
@@ -1894,6 +1899,7 @@ Foam::label Foam::snappyRefineDriver::shellRefine
             (
                 refineParams.locationsInMesh(),
                 refineParams.curvature(),
+                refineParams.curvatureMaxCos(),
                 refineParams.planarAngle(),
 
                 false,              // featureRefinement

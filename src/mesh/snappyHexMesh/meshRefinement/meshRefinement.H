@@ -510,10 +510,12 @@ private:
             ) const;
 
             //- Detect if two intersection points are high curvature (w.r.t.
-            //  lengthscale
+            //  lengthscale). Optional curvatureMaxCos (>= -1) suppresses
+            //  near-opposite normals (thin plates); see resolveFeatureAngleMax.
             bool highCurvature
             (
                 const scalar minCosAngle,
+                const scalar curvatureMaxCos,
                 const scalar lengthScale,
                 const point& p0,
                 const vector& n0,
@@ -527,6 +529,7 @@ private:
             label markSurfaceCurvatureRefinement
             (
                 const scalar curvature,
+                const scalar curvatureMaxCos,
                 const label nAllowRefine,
                 const labelList& neiLevel,
                 const pointField& neiCc,
@@ -1217,6 +1220,7 @@ public:
             (
                 const pointField& keepPoints,
                 const scalar curvature,
+                const scalar curvatureMaxCos,
                 const scalar planarAngle,
 
                 const bool featureRefinement,

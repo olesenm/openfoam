@@ -1117,6 +1117,7 @@ Foam::label Foam::meshRefinement::countMatches
 bool Foam::meshRefinement::highCurvature
 (
     const scalar minCosAngle,
+    const scalar curvatureMaxCos,
     const scalar lengthScale,
     const point& p0,
     const vector& n0,
@@ -1128,6 +1129,13 @@ bool Foam::meshRefinement::highCurvature
 
     if (cosAngle < minCosAngle)
     {
+        // Near-opposite normals (e.g. thin flat plate faces): optional
+        // resolveFeatureAngleMax
+        if (curvatureMaxCos >= -1 && cosAngle <= curvatureMaxCos)
+        {
+            return false;
+        }
+
         // Sharp feature, independent of intersection points
         return true;
     }
@@ -1175,6 +1183,7 @@ bool Foam::meshRefinement::highCurvature
 Foam::label Foam::meshRefinement::markSurfaceCurvatureRefinement
 (
     const scalar curvature,
+    const scalar curvatureMaxCos,
     const label nAllowRefine,
     const labelList& neiLevel,
     const pointField& neiCc,
@@ -1460,6 +1469,7 @@ Foam::label Foam::meshRefinement::markSurfaceCurvatureRefinement
                     highCurvature
                     (
                         curvature,
+                        curvatureMaxCos,
                         (hasCurvatureLevels ? cellSize : scalar(0)),
                         points[i],
                         normals[i],
@@ -1556,6 +1566,7 @@ Foam::label Foam::meshRefinement::markSurfaceCurvatureRefinement
                         highCurvature
                         (
                             curvature,
+                            curvatureMaxCos,
                             (hasCurvatureLevels ? cellSize : scalar(0)),
                             ownPoints[i],
                             ownNormals[i],
@@ -1677,6 +1688,7 @@ Foam::label Foam::meshRefinement::markSurfaceCurvatureRefinement
                         highCurvature
                         (
                             curvature,
+                            curvatureMaxCos,
                             (hasCurvatureLevels ? cellSize : scalar(0)),
                             ownPoints[i],
                             ownNormals[i],
@@ -2223,6 +2235,7 @@ Foam::labelList Foam::meshRefinement::refineCandidates
 (
     const pointField& keepPoints,
     const scalar curvature,
+    const scalar curvatureMaxCos,
     const scalar planarAngle,
 
     const bool featureRefinement,
@@ -2392,6 +2405,7 @@ Foam::labelList Foam::meshRefinement::refineCandidates
             label nCurv = markSurfaceCurvatureRefinement
             (
                 curvature,
+                curvatureMaxCos,
                 nAllowRefine,
                 neiLevel,
                 neiCc,
