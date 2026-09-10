@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     ocountstream plain;
 
     generateOutput(cstr);
-    generateOutput(sstr);
+    generateOutput(cstr);
     generateOutput(cnt);
     generateOutput(plain);
 
