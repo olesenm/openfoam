@@ -311,9 +311,8 @@ Foam::mappedPatchBase::findLocalSamples
 (
     const sampleMode mode,
 
-    const label mySampleWorld,  // local world to sample == my own world
-    const word& sampleRegion,   // local region to sample
-    const word& samplePatch,    // local patch to sample
+    const word& sampleRegion,
+    const word& samplePatch,
 
     const pointField& samples,
 
@@ -321,8 +320,8 @@ Foam::mappedPatchBase::findLocalSamples
     labelList& sampleIndices,
     // Locations within the locally sampled entity
     pointField& sampleLocations,
-    // optional: subset filter - zero-size == subsetting
-    const bitSet& sampleSubset
+    // optional: subset filter (zero-size == no subsetting)
+    const bitSet& sampleFilter
 ) const
 {
     DebugInFunction << nl;
@@ -338,44 +337,29 @@ Foam::mappedPatchBase::findLocalSamples
     sampleLocations.resize_fill(samples.size(), point::max);
 
     // The nearest selection key. Construct as missed sample
-    // == (large distance, proc = -1, myWorld)
-    List<nearKey> nearest
-    (
-        samples.size(),
-        nearKey(Foam::sqr(GREAT), { -1, mySampleWorld })
-    );
+    // == (large distance, proc = -1)
+    List<nearKey> nearest(samples.size(), nearKey(Foam::sqr(GREAT), -1));
 
-    // For multi-world, ignore this sample?
-    const auto ignoreSample = [&sampleSubset,&nearest](label i) -> bool
+    // For multi-world, accept or ignore this sample?
+    const auto accept = [&sampleFilter](label i) noexcept
     {
-        if (sampleSubset.empty() || sampleSubset.test(i))
-        {
-            // No subset defined or the sample is in the subset.
-            return false;
-        }
-        else
-        {
-            // Not in subset selection, set world to be ignored
-            nearest[i].second().second() = -1;
-            return true;
-        }
+        return sampleFilter.empty_or_test(i);
     };
 
     // Update the indices and locations.
-    // Caller already checked that pointIndexHit is good.
+    // Caller already checked that pointIndexHit is hit()
     const auto setHit =
         [&sampleIndices,&sampleLocations,&nearest,myRank]
         (
             label i,
             const pointIndexHit& pHit,
-            scalar dist
+            scalar distSqr
         )
         {
             sampleIndices[i] = pHit.index();
             sampleLocations[i] = pHit.point();
-            nearest[i].first() = dist;
-            nearest[i].second().first() = myRank;
-            // mySampleWorld already set during initialization
+            nearest[i].first() = distSqr;
+            nearest[i].second() = myRank;
         };
 
 
@@ -395,7 +379,7 @@ Foam::mappedPatchBase::findLocalSamples
 
             forAll(samples, samplei)
             {
-                if (ignoreSample(samplei)) continue;
+                if (!accept(samplei)) continue;
 
                 const point& sample = samples[samplei];
 
@@ -425,7 +409,7 @@ Foam::mappedPatchBase::findLocalSamples
 
             forAll(samples, samplei)
             {
-                if (ignoreSample(samplei)) continue;
+                if (!accept(samplei)) continue;
 
                 const point& sample = samples[samplei];
 
@@ -470,7 +454,7 @@ Foam::mappedPatchBase::findLocalSamples
 
                 forAll(samples, samplei)
                 {
-                    if (ignoreSample(samplei)) continue;
+                    if (!accept(samplei)) continue;
 
                     const point& sample = samples[samplei];
 
@@ -521,7 +505,7 @@ Foam::mappedPatchBase::findLocalSamples
 
                 forAll(samples, samplei)
                 {
-                    if (ignoreSample(samplei)) continue;
+                    if (!accept(samplei)) continue;
 
                     const point& sample = samples[samplei];
 
@@ -551,7 +535,7 @@ Foam::mappedPatchBase::findLocalSamples
 
             forAll(samples, samplei)
             {
-                if (ignoreSample(samplei)) continue;
+                if (!accept(samplei)) continue;
 
                 const point& sample = samples[samplei];
 
@@ -700,14 +684,13 @@ void Foam::mappedPatchBase::findSamples
 
 
     // The selection keys for MINLOC-style reduction.
-    // (large distance, proc = -1, world)
+    // (distance, rank)
 
     List<nearKey> selectionKeys
     (
         findLocalSamples
         (
             mode,
-            myWorld,
             origRegion,
             origPatch,
             samples,
@@ -726,13 +709,12 @@ void Foam::mappedPatchBase::findSamples
 
     // Reduction: Stage 1
     //
-    // reduce the (distance, rank, world) key as a MINLOC type of operation
-    // filtered on matching world values
+    // reduce the (distance, rank) key as a MINLOC type of operation
 
     Pstream::listCombineReduce
     (
         selectionKeys,
-        nearestSameWorldEqOp(),
+        minFirstEqOp{},
         uniqueTag,
         myComm
     );
@@ -749,7 +731,7 @@ void Foam::mappedPatchBase::findSamples
 
     forAll(selectionKeys, i)
     {
-        const auto& rank = selectionKeys[i].second().first();
+        const auto& rank = selectionKeys[i].second();
 
         if (rank == myRank)
         {
@@ -800,20 +782,18 @@ void Foam::mappedPatchBase::findSamples
         myComm
     );
 
-    if constexpr (false) // if (debug)
+    if constexpr (false)  // OR: if (debug >= 4)
     {
         Pout<< "** After combining:" << endl;
         forAll(samples, i)
         {
-            const auto whichRank  = selectionKeys[i].second().first();
-            const auto whichWorld = selectionKeys[i].second().second();
+            const auto rank  = selectionKeys[i].second();
 
             Pout<< "  sample: " << samples[i]
                 << " from proc:" << origProcs[i]
                 << " (world:" << wantedWorlds[i]
-                << " ) found on proc:" << whichRank
-                << " (world:" << whichWorld
-                << " ) at index:" << sampleIndices[i]
+                << " ) found on proc:" << rank
+                << " at index:" << sampleIndices[i]
                 << " point:" << sampleLocations[i] << nl;
         }
         Pout<< endl;
@@ -934,16 +914,16 @@ void Foam::mappedPatchBase::calcMapping() const
         patchFc
     );
 
-    //if (debug)
-    //{
-    //    forAll(samples, samplei)
-    //    {
-    //        Pout<< "    sample:" << samples[samplei]
-    //            << " origating from proc:" << patchFaceProcs[samplei]
-    //            << "  face:" << patchFaces[samplei]
-    //            << " to be found on world:" << patchFaceWorlds[samplei] << nl;
-    //    }
-    //}
+    if constexpr (false)  // OR: if (debug >= 4)
+    {
+        forAll(samples, i)
+        {
+            Pout<< "    sample:" << samples[i]
+                << " from proc:" << patchFaceProcs[i]
+                << " face:" << patchFaces[i]
+                << " on world:" << patchFaceWorlds[i] << nl;
+        }
+    }
 
     // Find processor and cell/face samples are in and actual location.
     labelList sampleProcs;
@@ -1029,7 +1009,7 @@ void Foam::mappedPatchBase::calcMapping() const
     // - cell/face sample is in (so source when mapping)
     //   sampleIndices, sampleProcs.
 
-    if (Pstream::master(myComm))
+    if (UPstream::master(myComm))
     {
         forAll(samples, i)
         {
@@ -1046,21 +1026,26 @@ void Foam::mappedPatchBase::calcMapping() const
     }
 
 
-    if (debug && Pstream::master(myComm))
+    if (debug && UPstream::master(myComm))
     {
-        //forAll(samples, i)
-        //{
-        //    Pout<< i << " need data in region "
-        //        << patch_.boundaryMesh().mesh().name()
-        //        << " for proc:" << patchFaceProcs[i]
-        //        << " face:" << patchFaces[i]
-        //        << " at:" << patchFc[i] << endl
-        //        << "Found data in region " << sampleRegion()
-        //        << " at proc:" << sampleProcs[i]
-        //        << " face:" << sampleIndices[i]
-        //        << " at:" << sampleLocations[i]
-        //        << nl << endl;
-        //}
+        if constexpr (false)  // OR: if (debug >= 4)
+        {
+            const auto& meshName = patch_.boundaryMesh().mesh().name();
+            const auto& sampleName = sampleRegion();
+
+            forAll(samples, i)
+            {
+                Pout<< i << " need data in region " << meshName
+                    << " for proc:" << patchFaceProcs[i]
+                    << " face:" << patchFaces[i]
+                    << " at:" << patchFc[i] << endl
+                    << "Found data in region " << sampleName
+                    << " at proc:" << sampleProcs[i]
+                    << " face:" << sampleIndices[i]
+                    << " at:" << sampleLocations[i]
+                    << nl << endl;
+            }
+        }
 
         OFstream str
         (
@@ -1783,6 +1768,8 @@ const Foam::polyPatch& Foam::mappedPatchBase::samplePolyPatch() const
 
 bool Foam::mappedPatchBase::upToDate() const
 {
+    const auto myComm = getCommunicator();  // Get or create
+
     const polyMesh& thisMesh = patch_.boundaryMesh().mesh();
 
     bool thisUpToDate = thisMesh.upToDatePoints(updateMeshTime());
@@ -1793,9 +1780,22 @@ bool Foam::mappedPatchBase::upToDate() const
       : true
     );
 
+    // Ensure that states are globally consistent
+    if (thisMesh.moving())
+    {
+        UPstream::reduceAnd(thisUpToDate, myComm);
+    }
+    if (sameWorld() && sampleMesh().moving() && isPatchSampling())
+    {
+        UPstream::reduceAnd(sampleUpToDate, myComm);
+    }
 
     // Lambda to check for points on the patch being the same
-    auto checkPointMovement = []
+    // based on the distance change being within a tolerance value
+
+    const scalar maxDistSqr = Foam::sqr(SMALL);
+
+    auto checkPointMovement = [maxDistSqr,myComm]
     (
         const polyMesh& mesh,
         const polyPatch& patch,
@@ -1808,17 +1808,14 @@ bool Foam::mappedPatchBase::upToDate() const
 
         for (const label pointi : patch.meshPoints())
         {
-            const point& oldPt = oldPoints[pointi];
-            const point& currentPt = points[pointi];
-
-            if (mag(oldPt - currentPt) > SMALL)
+            if (maxDistSqr < oldPoints[pointi].distSqr(points[pointi]))
             {
                 upToDate = false;
                 break;
             }
         }
 
-        Pstream::reduceAnd(upToDate);
+        UPstream::reduceAnd(upToDate, myComm);
 
         if (upToDate)
         {
@@ -1837,17 +1834,9 @@ bool Foam::mappedPatchBase::upToDate() const
         thisUpToDate = checkPointMovement(thisMesh, patch_, updateMeshTime());
     }
 
-    if
-    (
-       !sampleUpToDate
-     && sampleMesh().moving()
-     && (
-            mode_ == NEARESTPATCHFACE
-         || mode_ == NEARESTPATCHFACEAMI
-         || mode_ == NEARESTPATCHPOINT
-        )
-    )
+    if (!sampleUpToDate && sampleMesh().moving() && isPatchSampling())
     {
+        // implicitly (sameWorld() == true) - see above
         sampleUpToDate = checkPointMovement
         (
             sampleMesh(),

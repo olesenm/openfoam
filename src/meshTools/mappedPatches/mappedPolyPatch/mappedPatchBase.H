@@ -119,7 +119,7 @@ class mappedPatchBase
 {
 public:
 
-    // Type enumerations
+    // Data Types
 
         //- Mesh items to sample
         enum sampleMode
@@ -140,69 +140,52 @@ public:
             NORMAL              //!< use face normal + distance
         };
 
+        //! Names for sampleMode enumeration
         static const Enum<sampleMode> sampleModeNames_;
 
+        //! Names for offsetMode enumeration
         static const Enum<offsetMode> offsetModeNames_;
 
+        //- Compact reduction key for nearest distance
+        //- as a MINLOC-style reduction.
+        //
+        //  Data content will frequently correspond to
+        //  (sqr(distance), rank) with rank = -1 for "not-found".
+        typedef Tuple2<scalar, label> nearKey;
 
-    //- Compact reduction key for finding the nearest distance
-    //- as a MINLOC-style reduction.
-    //
-    //  Data content will frequently correspond to
-    //  (sqr(distance), (rank, world)) with rank = -1 for "not-found".
-    //  However, this tuple can be repurposed for (distance, (rank, index)) etc.
-    typedef Tuple2<scalar, labelPair> nearKey;
+        //- A pointIndexHit reduction information for finding the nearest
+        //- hit distance.
+        //  Nearest:
+        //  - pointIndexHit == (point+local index)
+        //  - sqr(distance)
+        //  - rank
+        typedef Tuple2<pointIndexHit, Tuple2<scalar, label>> nearInfo;
 
-    //- Reduction/combine operator for nearKey and/or nearInfo
-    class nearestSameWorldEqOp
-    {
-    public:
-
-        //- Min distance (MINLOC) for ranks with same world.
-        void operator()(nearKey& x, const nearKey& y) const noexcept
+        //- Reduction/combine operator for nearInfo
+        struct nearestEqOp
         {
-            if
-            (
-                (x.second().second() == y.second().second())    // same world
-             && (y.first() < x.first())                         // minFirst
-            )
+            //- Min distance (MINLOC) operation for nearInfo,
+            //- that only propagates through 'hit' entries.
+            void operator()(nearInfo& x, const nearInfo& y) const
             {
-                x = y;
-            }
-        }
-    };
-
-    //- A pointIndexHit reduction information for finding the nearest
-    //- hit distance.
-    //  Nearest:
-    //  - pointIndexHit == (point+local index)
-    //  - sqr(distance)
-    //  - rank
-    typedef Tuple2<pointIndexHit, Tuple2<scalar, label>> nearInfo;
-
-    //- Reduction/combine operator for nearKey and/or nearInfo
-    class nearestEqOp
-    {
-    public:
-
-        //- Min distance (MINLOC) operation that propagates through
-        //- 'good' pointIndexHit entries
-        void operator()(nearInfo& x, const nearInfo& y) const
-        {
-            if (y.first().hit())
-            {
-                if (!x.first().hit())
+                if (y.first().hit())
                 {
-                    x = y;
-                }
-                else if (y.second().first() < x.second().first())
-                {
-                    // both hit and y is closer
-                    x = y;
+                    if (x.first().hit())
+                    {
+                        // minFirstEqOp on payload
+                        if (y.second().first() < x.second().first())
+                        {
+                            x = y;
+                        }
+                    }
+                    else
+                    {
+                        // x = not-hit, y = hit
+                        x = y;
+                    }
                 }
             }
-        }
-    };
+        };
 
 
 protected:
@@ -347,13 +330,13 @@ protected:
         ) const;
 
         //- Find (local) cells/faces containing samples.
-        //  \return a list of selection keys (distance, rank, world)
+        //  \return a list of selection keys (sqr(distance), rank)
         List<nearKey> findLocalSamples
         (
             const sampleMode mode,
-            const label sampleWorld,        // my world as index
-            const word& sampleRegion,
-            const word& samplePatch,
+            const word& sampleRegion,   //!< local region to sample
+            const word& samplePatch,    //!< local patch to sample
+
             //! The sample point references
             const pointField& samplePoints,
 
@@ -364,7 +347,7 @@ protected:
             pointField& sampleLocations,
             //! optional: the samplePoints to include, with a zero-size set
             //! corresponding to no subsetting.
-            const bitSet& sampleSubset = bitSet::null()
+            const bitSet& sampleFilter = bitSet::null()
         ) const;
 
         //- Find (global) cells/faces containing samples
@@ -373,7 +356,9 @@ protected:
             const sampleMode mode,      // search mode
             const label myWorldIndex,   // my world (in index form)
 
-            const pointField&,
+            //! The sample point references
+            const pointField& samplePoints,
+
             const labelUList& wantedWorlds,
             const labelUList& origProcs, // per sample the originating proc
 
@@ -391,6 +376,16 @@ protected:
         //- Calculate AMI interpolator
         void calcAMI() const;
 
+        //- True if using any variant of nearest patch face sampling
+        bool isPatchSampling() const noexcept
+        {
+            return
+            (
+                mode_ == sampleMode::NEARESTPATCHFACE
+             || mode_ == sampleMode::NEARESTPATCHFACEAMI
+             || mode_ == sampleMode::NEARESTPATCHPOINT
+            );
+        }
 
         // Database Handling
 
