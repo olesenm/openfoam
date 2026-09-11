@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -58,6 +59,9 @@ namespace Foam
 // Forward Declarations
 template<class T> class Pair;
 
+template<class T> Istream& operator>>(Istream&, Pair<T>&);
+template<class T> Ostream& operator<<(Ostream&, const Pair<T>&);
+
 // Common pair types
 typedef Pair<label> labelPair;      //!< A pair of labels
 typedef Pair<word> wordPair;        //!< A pair of words
@@ -85,16 +89,16 @@ public:
         Pair() = default;
 
         //- Copy construct
-        Pair(const Pair&) = default;
+        constexpr Pair(const Pair&) = default;
 
         //- Move construct
-        Pair(Pair&&) = default;
+        constexpr Pair(Pair&&) = default;
 
         //- Copy assignment
-        Pair& operator=(const Pair&) = default;
+        constexpr Pair& operator=(const Pair&) = default;
 
         //- Move assignment
-        Pair& operator=(Pair&&) = default;
+        constexpr Pair& operator=(Pair&&) = default;
 
         //- The front() accessor (from FixedList) has no purpose
         void front() = delete;
@@ -106,28 +110,28 @@ public:
     // Constructors
 
         //- Copy construct from components
-        inline Pair(const T& f, const T& s);
+        inline constexpr Pair(const T& f, const T& s);
 
         //- Move construct from components
-        inline Pair(T&& f, T&& s);
+        inline constexpr Pair(T&& f, T&& s);
 
         //- Copy construct from std::pair
-        inline Pair(const std::pair<T,T>& vals);
+        inline constexpr Pair(const std::pair<T,T>& vals);
 
         //- Move construct from std::pair
-        inline Pair(std::pair<T,T>&& vals);
+        inline constexpr Pair(std::pair<T,T>&& vals);
 
         //- Copy construct FixedList of two items
-        inline Pair(const FixedList<T, 2>& list);
+        inline constexpr Pair(const FixedList<T, 2>& list);
 
         //- Copy construct, optionally sorted with first less-than second
-        inline Pair(const T& f, const T& s, bool doSort);
+        inline constexpr Pair(const T& f, const T& s, bool doSort);
 
         //- Copy construct, optionally sorted with first less-than second
-        inline Pair(const FixedList<T, 2>& list, bool doSort);
+        inline constexpr Pair(const FixedList<T, 2>& list, bool doSort);
 
-        //- Construct from Istream
-        inline explicit Pair(Istream& is);
+        //- Construct from Istream, as (first second) components
+        explicit Pair(Istream& is) : FixedList<T, 2>() { is >> *this; }
 
 
     // Member Functions
@@ -135,16 +139,22 @@ public:
     // Access
 
         //- Access the first element
-        const T& first() const noexcept { return this->template get<0>(); }
+        constexpr const T& first() const noexcept
+        {
+            return this->template get<0>();
+        }
 
         //- Access the first element
-        T& first() noexcept { return this->template get<0>(); }
+        constexpr T& first() noexcept { return this->template get<0>(); }
 
         //- Access the second element
-        const T& second() const noexcept { return this->template get<1>(); }
+        constexpr const T& second() const noexcept
+        {
+            return this->template get<1>();
+        }
 
         //- Access the second element
-        T& second() noexcept { return this->template get<1>(); }
+        constexpr T& second() noexcept { return this->template get<1>(); }
 
         //- Return other element
         inline const T& other(const T& a) const;
@@ -225,35 +235,6 @@ public:
 };
 
 
-// * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
-
-//- Pair is contiguous if the type is contiguous
-template<class T>
-struct is_contiguous<Pair<T>> : is_contiguous<T> {};
-
-//- Check for Pair of labels
-template<class T>
-struct is_contiguous_label<Pair<T>> : is_contiguous_label<T> {};
-
-//- Check for Pair of scalars
-template<class T>
-struct is_contiguous_scalar<Pair<T>> : is_contiguous_scalar<T> {};
-
-//- Hashing for Pair of data
-template<class T>
-struct Hash<Pair<T>> : Pair<T>::hasher {};
-
-//- Hashing for std::pair data
-template<class T1, class T2>
-struct Hash<std::pair<T1, T2>>
-{
-    unsigned operator()(const std::pair<T1, T2>& obj, unsigned seed=0) const
-    {
-        return Hash<T2>()(obj.second, Hash<T1>()(obj.first, seed));
-    }
-};
-
-
 // * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * * //
 
 //- Return reverse of a Pair
@@ -263,32 +244,7 @@ Pair<T> reverse(const Pair<T>& p)
     return Pair<T>(p.second(), p.first());
 }
 
-
-// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
-
-//- Read std::pair from Istream
-template<class T1, class T2>
-inline Istream& operator>>(Istream& is, std::pair<T1,T2>& t)
-{
-    is.readBegin("pair");
-    is >> t.first >> t.second;
-    is.readEnd("pair");
-
-    is.check(FUNCTION_NAME);
-    return is;
-}
-
-
-//- Write std::pair to Ostream
-template<class T1, class T2>
-inline Ostream& operator<<(Ostream& os, const std::pair<T1,T2>& t)
-{
-    os  << token::BEGIN_LIST
-        << t.first << token::SPACE << t.second
-        << token::END_LIST;
-    return os;
-}
-
+// Note: Traits and IO Operators defined later in the included inline file...
 
 // * * * * * * * * * * * * * * * ADL Lookups * * * * * * * * * * * * * * * * //
 
