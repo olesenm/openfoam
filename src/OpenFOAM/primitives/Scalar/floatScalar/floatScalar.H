@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2017-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -46,54 +47,28 @@ SourceFiles
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Typedef (floatScalar) in scalarFwd.H
+// Typedef (floatScalar) and its limits in scalarFwd.H
 
 namespace Foam
 {
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Largest and smallest scalar values allowed in certain parts of the code.
-// See std::numeric_limits max(), min(), epsilon()
-constexpr floatScalar floatScalarGREAT = 1.0e+6;
-constexpr floatScalar floatScalarROOTGREAT = 1.0e+3;
-constexpr floatScalar floatScalarVGREAT = 1.0e+37;
-constexpr floatScalar floatScalarROOTVGREAT = 1.0e+18;
-constexpr floatScalar floatScalarSMALL = 1.0e-6;
-constexpr floatScalar floatScalarROOTSMALL = 1.0e-3;
-constexpr floatScalar floatScalarVSMALL = 1.0e-37;
-constexpr floatScalar floatScalarROOTVSMALL = 1.0e-18;
-
-
-#define Scalar floatScalar
+#define Scalar float
 #define ScalarVGREAT floatScalarVGREAT
 #define ScalarVSMALL floatScalarVSMALL
 #define ScalarROOTVGREAT floatScalarROOTVGREAT
 #define ScalarROOTVSMALL floatScalarROOTVSMALL
 #define ScalarRead readFloat
 
+inline Scalar mag(Scalar s) { return std::fabs(s); }
+inline Scalar hypot(Scalar x, Scalar y) { return std::hypot(x, y); }
+inline Scalar atan2(Scalar y, Scalar x) { return std::atan2(y, x); }
 
-inline Scalar mag(const Scalar s)
-{
-    return ::fabsf(s);
-}
 
-inline Scalar hypot(const Scalar x, const Scalar y)
-{
-    return ::hypotf(x, y);
-}
-
-inline Scalar atan2(const Scalar y, const Scalar x)
-{
-    return ::atan2f(y, x);
-}
-
-// Single-precision transcendental functions (with 'f' appended to the name)
-#define transFunc(func)                                         \
-inline Scalar func(const Scalar s)                              \
-{                                                               \
-    return ::func##f(s);                                        \
-}
+// Unary functions, standard C++ <cmath> (single precision)
+#define transFunc(func) \
+inline Scalar func(Scalar s) { return std::func(s); }
 
 
 // Single-precision bessel functions.

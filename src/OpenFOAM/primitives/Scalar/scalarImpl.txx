@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,11 +44,11 @@ const char* const pTraits<Scalar>::componentNames[] = { "" };
 
 const Scalar pTraits<Scalar>::zero = 0;
 const Scalar pTraits<Scalar>::one = 1;
-const Scalar pTraits<Scalar>::min = -ScalarVGREAT;
-const Scalar pTraits<Scalar>::max = ScalarVGREAT;
-const Scalar pTraits<Scalar>::rootMin = -ScalarROOTVGREAT;
-const Scalar pTraits<Scalar>::rootMax = ScalarROOTVGREAT;
-const Scalar pTraits<Scalar>::vsmall = ScalarVSMALL;
+const Scalar pTraits<Scalar>::min = pTraits<Scalar>::min_;
+const Scalar pTraits<Scalar>::max = pTraits<Scalar>::max_;
+const Scalar pTraits<Scalar>::rootMin = pTraits<Scalar>::rootMin_;
+const Scalar pTraits<Scalar>::rootMax = pTraits<Scalar>::rootMax_;
+const Scalar pTraits<Scalar>::vsmall = pTraits<Scalar>::vsmall_;
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -100,7 +101,7 @@ Scalar ScalarRead(const char* buf)
 }
 
 
-bool ScalarRead(const char* buf, Scalar& val)
+bool readScalar(const char* buf, Scalar& val)
 {
     char* endptr = nullptr;
     errno = 0;

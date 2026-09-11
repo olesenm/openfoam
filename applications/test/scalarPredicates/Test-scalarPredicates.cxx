@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,6 +41,7 @@ Description
 #include "SpanStream.H"
 #include "ops.H"
 #include "bitSet.H"
+#include "Switch.H"
 
 using namespace Foam;
 
@@ -118,11 +120,11 @@ int main(int argc, char *argv[])
                 ),
                 predicates::scalars::orOp
                 (
-                    [](const scalar& val){ return val < 5; },
+                    [](scalar x){ return x < 5; },
                     predicates::scalars::greaterOp(100)
                 ),
 
-                [](const scalar& val){ return val < -8; },
+                [](scalar x){ return x < -8; },
 
                 // Rather wordy, word normally not be called manually
                 predicates::scalars::operation("le", -9),
@@ -159,6 +161,46 @@ int main(int argc, char *argv[])
             {"le", -9},
         });
 
+        Info<< "push_back('le', 15)" << nl;
+
+        accept.push_back("le", 15);
+
+        doTest(values, accept);
+    }
+
+    Info<< nl << "Construct with some bad content" << nl;
+    {
+        const bool oldThrowingError = FatalError.throwing(true);
+        const bool oldThrowingIOerr = FatalIOError.throwing(true);
+
+        predicates::scalars accept;
+
+        try
+        {
+            accept = predicates::scalars
+            ({
+                {"foo", 10},
+                {"bar", 100},
+                {"less", -8},
+                {"le", -9},
+            });
+
+        }
+        catch (const Foam::IOerror& err)
+        {
+            Info<< "?? Caught FatalIOError ??"
+                << err << nl
+                << "=========================" << endl;
+        }
+        catch (const Foam::error& err)
+        {
+            Info<< "?? Caught FatalError ??"
+                << err << nl
+                << "=========================" << endl;
+        }
+        FatalError.throwing(oldThrowingError);
+        FatalIOError.throwing(oldThrowingIOerr);
+
         doTest(values, accept);
     }
 
@@ -185,6 +227,23 @@ int main(int argc, char *argv[])
 
         // Also with dissimilar type
         testPredicate(values, lessEqualOp1<label>(0));
+    }
+
+    Info<< nl << "Test warnOp() - should warn and return false" << nl;
+    {
+        predicates::scalars::unary test1(predicates::scalars::warnOp());
+        predicates::scalars::unary test2
+        (
+            predicates::scalars::warnOp("some context")
+        );
+        predicates::scalars::unary test3
+        (
+            predicates::scalars::warnOp("some context", __FILE__, __LINE__)
+        );
+
+        Info<< "warnOp()() =\n" << Switch(test1(1.0)) << nl;
+        Info<< "warnOp(context)() =\n" << Switch(test2(1.0)) << nl;
+        Info<< "warnOp(context, file, line)() =\n" << Switch(test3(1.0)) << nl;
     }
 
     Info<< "\nEnd\n" << endl;

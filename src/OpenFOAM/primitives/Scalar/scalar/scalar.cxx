@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,30 +28,8 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "scalar.H"
+#include "stdFoam.H"
 #include "IOstreams.H"
-
-// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
-
-Foam::scalar Foam::readScalarOrDefault(Istream& is, const scalar defaultValue)
-{
-    if (is.good())
-    {
-        token tok(is);
-
-        // NB: does not handle separated '-' (or '+') prefixes
-        // like operator>>(Istream&, scalar&) does
-
-        if (tok.isNumber())
-        {
-            return tok.number();
-        }
-
-        is.putBack(tok);
-    }
-
-    return defaultValue;
-}
-
 
 // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
@@ -59,7 +38,7 @@ namespace
 
 // Binary reading with narrowing/widening
 template<class readType, class dataType>
-static void reading(Foam::Istream& is, dataType* data, size_t nElem)
+void reading(Foam::Istream& is, dataType* data, size_t nElem)
 {
     if constexpr (sizeof(dataType) == sizeof(readType))
     {
@@ -68,6 +47,13 @@ static void reading(Foam::Istream& is, dataType* data, size_t nElem)
     }
     else
     {
+        if (data == nullptr)
+        {
+            // Even handle 'seek' behaviour
+            is.readRaw(nullptr, nElem*sizeof(readType));
+            return;
+        }
+
         for (const dataType* last = data + nElem; data != last; ++data)
         {
             readType val;
@@ -87,37 +73,96 @@ static void reading(Foam::Istream& is, dataType* data, size_t nElem)
     }
 }
 
+
+// Dispatch for binary reading with narrowing/widening
+// No check for binary vs ascii, the caller knows what they are doing
+template<class dataType>
+void dispatch_reading(Foam::Istream& is, dataType* data, size_t nElem)
+{
+    if constexpr
+    (
+        (sizeof(dataType) == sizeof(float))
+     || (sizeof(dataType) == sizeof(double))
+    )
+    {
+        switch (is.scalarByteSize())
+        {
+            case sizeof(float) : reading<float>(is, data, nElem); break;
+            case sizeof(double): reading<double>(is, data, nElem); break;
+
+            default:
+            {
+                // Cannot recover from this
+                using namespace Foam;
+
+                FatalIOErrorInFunction(is)
+                    << "Currently no code to read float"
+                    << (8*is.scalarByteSize())
+                    << " as float" << (8*sizeof(dataType)) << nl
+                    << abort(FatalIOError);
+                break;
+            }
+        }
+    }
+    else
+    {
+        static_assert
+        (
+            stdFoam::dependent_false_v<dataType>,
+            "Only float or double are currently supported"
+        );
+    }
+}
+
+
+// Read scalar from Istream (if good and correct token type)
+template<class dataType>
+bool try_read(Foam::Istream& is, dataType& value)
+{
+    if (is.good())
+    {
+        Foam::token tok(is);
+
+        // NB: does not handle separated '-' (or '+') prefixes
+        // like operator>>(Istream&, scalar&) does
+
+        if (tok.isNumber())
+        {
+            value = tok.number();
+            return true;
+        }
+
+        is.putBack(tok);
+    }
+
+    return false;
+}
+
 } // End anonymous namespace
 
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
+#if defined(WM_SP) || defined(WM_SPDP) || defined(WM_DP)
+
 void Foam::readRawScalar(Istream& is, scalar* data, size_t nElem)
 {
-    // No check for binary vs ascii, the caller knows what they are doing
+    dispatch_reading(is, data, nElem);
+}
 
-    switch (is.scalarByteSize())
+
+Foam::scalar Foam::readScalarOrDefault(Istream& is, scalar defaultValue)
+{
+    if (scalar val(0); try_read(is, val))
     {
-        case sizeof(float):
-        {
-            reading<float, scalar>(is, data, nElem);
-            break;
-        }
-        case sizeof(double):
-        {
-            reading<double, scalar>(is, data, nElem);
-            break;
-        }
-        default:
-        {
-            // Cannot recover from this
-            FatalIOErrorInFunction(is)
-                << "Currently no code to read float" << (8*is.scalarByteSize())
-                << " as float" << (8*sizeof(scalar)) << nl
-                << abort(FatalIOError);
-        }
+        return val;
+    }
+    else
+    {
+        return defaultValue;
     }
 }
 
+#endif
 
 // ************************************************************************* //

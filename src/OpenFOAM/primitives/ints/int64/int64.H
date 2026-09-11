@@ -107,6 +107,20 @@ inline bool readInt64(const std::string& str, int64_t& val)
 
 //- Same as readInt64
 //  \return True if successful.
+inline bool readLabel(const char* buf, int64_t& val)
+{
+    return readInt64(buf, val);
+}
+
+//- Same as readInt64
+//  \return True if successful.
+inline bool readLabel(const std::string& str, int64_t& val)
+{
+    return readInt64(str, val);
+}
+
+//- Same as readInt64
+//  \return True if successful.
 inline bool read(const char* buf, int64_t& val)
 {
     return readInt64(buf, val);

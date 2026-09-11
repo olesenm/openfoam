@@ -38,7 +38,7 @@ License
 
 // <scalarImpl.txx> is used for template-like substitution (but using macros)
 
-#define Scalar floatScalar
+#define Scalar float
 #define ScalarVGREAT floatScalarVGREAT
 #define ScalarVSMALL floatScalarVSMALL
 #define ScalarROOTVGREAT floatScalarROOTVGREAT

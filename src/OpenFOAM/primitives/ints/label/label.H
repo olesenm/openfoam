@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2014 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,21 +45,29 @@ Description
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+#undef INT_ADD_SIZE
+#undef INT_ADD_DEF_SIZE
+#undef INT_SIZE
+
 #define INT_ADD_SIZE(x,s,y) x ## s ## y
 #define INT_ADD_DEF_SIZE(x,s,y) INT_ADD_SIZE(x,s,y)
 #define INT_SIZE(x,y) INT_ADD_DEF_SIZE(x,WM_LABEL_SIZE,y)
 
+// ------------------------------------------------------------------------- //
+
 // Size checks and typedefs (label) in labelFwd.H
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Two-parameter forms of readLabel :
+//   * readLabel(const char*, label&)
+//   * readLabel(const std::string&, label&)
+// are defined in int32.H and int64.H
+
+// ------------------------------------------------------------------------- //
 
 namespace Foam
 {
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-constexpr label labelMin = INT_SIZE(INT, _MIN);
-constexpr label labelMax = INT_SIZE(INT, _MAX);
 
 //- Parse entire buffer as a label, skipping leading/trailing whitespace.
 //  Uses readInt32 or readInt64 according to WM_LABEL_SIZE
@@ -76,23 +85,6 @@ inline label readLabel(const std::string& str)
     return INT_SIZE(readInt,) (str);
 }
 
-//- Parse entire buffer as a label, skipping leading/trailing whitespace.
-//  Uses readInt32 or readInt64 according to WM_LABEL_SIZE
-//  \return True if successful.
-inline bool readLabel(const char* buf, label& val)
-{
-    return INT_SIZE(readInt,) (buf, val);
-}
-
-//- Parse entire string as a label, skipping leading/trailing whitespace.
-//  Uses readInt32 or readInt64 according to WM_LABEL_SIZE
-//  \return True if successful.
-inline bool readLabel(const std::string& str, label& val)
-{
-    return INT_SIZE(readInt,) (str, val);
-}
-
-
 //- Read label from stream.
 //  Uses readInt32 or readInt64 according to WM_LABEL_SIZE
 inline label readLabel(Istream& is)
@@ -100,9 +92,9 @@ inline label readLabel(Istream& is)
     return INT_SIZE(readInt,) (is);
 }
 
+
 //- Read raw label(s) from binary stream.
-//  \note No internal check for binary vs ascii,
-//        the caller knows what they are doing
+//  \note No check for binary vs ascii, the caller knows what they are doing
 void readRawLabel(Istream& is, label* data, size_t nElem = 1);
 
 //- Read raw label from binary stream.
@@ -189,11 +181,14 @@ struct labelOp<int64_t>
 {
     constexpr label operator()(const int64_t& val) const noexcept
     {
-        #if WM_LABEL_SIZE == 32
-        return label(val);
-        #elif WM_LABEL_SIZE == 64
-        return val;
-        #endif
+        if constexpr (sizeof(label) == sizeof(int32_t))
+        {
+            return label(val);
+        }
+        else
+        {
+            return val;
+        }
     }
 };
 
@@ -217,15 +212,62 @@ inline constexpr int32_t narrowInt32(const int64_t val) noexcept
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+// Label specific functions for which there is no uLabel equivalent
+
+//- Return 1 if s is greater_equal zero, or otherwise -1
+inline constexpr label sign(const label s) noexcept
+{
+    return (s >= 0)? 1: -1;
+}
+
+
+//- Return 1 if s is greater_equal zero, or otherwise 0
+inline constexpr label pos0(const label s) noexcept
+{
+    return (s >= 0)? 1: 0;
+}
+
+
+//- Return 1 if s is less than zero, or otherwise 0
+inline constexpr label neg(const label s) noexcept
+{
+    return (s < 0)? 1: 0;
+}
+
+
+//- Return 1 if s is less_equal zero, or otherwise 0
+inline constexpr label neg0(const label s) noexcept
+{
+    return (s <= 0)? 1: 0;
+}
+
+
+//- Return the positive part of s, otherwise zero. Same as max(0, s).
+inline constexpr label posPart(const label s) noexcept
+{
+    return (s > 0)? s: 0;
+}
+
+
+//- Return the negative part of s, otherwise zero. Same as min(0, s).
+//- Does not change the sign.
+inline constexpr label negPart(const label s) noexcept
+{
+    return (s < 0)? s: 0;
+}
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
 } // End namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-#include "labelSpecific.H"
-
 #undef INT_ADD_SIZE
 #undef INT_ADD_DEF_SIZE
 #undef INT_SIZE
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #endif
 

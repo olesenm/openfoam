@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -48,16 +49,17 @@ SourceFiles
 namespace Foam
 {
 
+#undef  MAXMIN
 #define MAXMIN(RetType, Type1, Type2)                                          \
                                                                                \
-/*! \brief Floating/integral min. Use std::min() to preserve references */     \
-inline RetType min(const Type1 s1, const Type2 s2)                             \
+/*! \brief Integral min. Use std::min() to preserve references */              \
+inline constexpr RetType min(Type1 s1, Type2 s2) noexcept                      \
 {                                                                              \
     return (s1 < s2) ? s1 : s2;                                                \
 }                                                                              \
                                                                                \
-/*! \brief Floating/integral max. Use std::max() to preserve references */     \
-inline RetType max(const Type1 s1, const Type2 s2)                             \
+/*! \brief Integral max. Use std::max() to preserve references */              \
+inline constexpr RetType max(Type1 s1, Type2 s2) noexcept                      \
 {                                                                              \
     return (s2 < s1) ? s1 : s2;                                                \
 }
@@ -69,6 +71,8 @@ MAXMIN(uint32_t, uint32_t, uint32_t)
 MAXMIN(uint64_t, uint64_t, uint32_t)
 MAXMIN(uint64_t, uint32_t, uint64_t)
 MAXMIN(uint64_t, uint64_t, uint64_t)
+
+#undef MAXMIN
 
 
 // * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -104,6 +105,8 @@ public:
 
         static constexpr Scalar min_ = -ScalarVGREAT;
         static constexpr Scalar max_ = ScalarVGREAT;
+        static constexpr Scalar rootMin_ = -ScalarROOTVGREAT;
+        static constexpr Scalar rootMax_ = ScalarROOTVGREAT;
         static constexpr Scalar vsmall_ = ScalarVSMALL;
 
 
@@ -156,14 +159,9 @@ struct nameOp<Scalar>
     }
 };
 
-
 //- Parse entire buffer as a float/double, skipping leading/trailing whitespace.
 //  \return Parsed value or FatalIOError on any problem
 Scalar ScalarRead(const char* buf);
-
-//- Parse entire buffer as a float/double, skipping leading/trailing whitespace.
-//  \return True if successful.
-bool ScalarRead(const char* buf, Scalar& val);
 
 //- Parse entire string as a float/double, skipping leading/trailing whitespace.
 //  \return Parsed value or FatalIOError on any problem
@@ -172,25 +170,47 @@ inline Scalar ScalarRead(const std::string& str)
     return ScalarRead(str.c_str());
 }
 
+//- Parse entire buffer as a float/double, skipping leading/trailing whitespace.
+//  \return True if successful.
+bool readScalar(const char* buf, Scalar& val);
+
+//- Parse entire string as a float/double, skipping leading/trailing whitespace.
+//  \return True if successful.
+inline bool readScalar(const std::string& str, Scalar& val)
+{
+    return readScalar(str.c_str(), val);
+}
+
+//- Parse entire buffer as a float/double, skipping leading/trailing whitespace.
+//  \return True if successful.
+inline bool ScalarRead(const char* buf, Scalar& val)
+{
+    return readScalar(buf, val);
+}
+
 //- Parse entire string as a float/double, skipping leading/trailing whitespace.
 //  \return True if successful.
 inline bool ScalarRead(const std::string& str, Scalar& val)
 {
-    return ScalarRead(str.c_str(), val);
+    return readScalar(str, val);
 }
 
 
-//- Read from Istream (uses tokenizer)
+//- Read float/double from Istream (uses tokenizer)
 Scalar ScalarRead(Istream& is);
+
+//- Read float/double from Istream (uses tokenizer)
 Istream& operator>>(Istream& is, Scalar& val);
+
+//- Write to float/double Ostream
 Ostream& operator<<(Ostream& os, const Scalar val);
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Standard C++ transcendental functions
-transFunc(sqrt)
+// Unary functions, standard C++ <cmath> functions
 
+transFunc(sqrt)
 transFunc(cbrt)
 transFunc(exp)
 transFunc(log)
@@ -208,12 +228,14 @@ transFunc(asinh)
 transFunc(acosh)
 transFunc(atanh)
 
-// Standard ANSI-C (but not in <cmath>) transcendental functions
+// Error functions, also standard C++11 <cmath> functions
 
 transFunc(erf)
 transFunc(erfc)
 transFunc(lgamma)
 transFunc(tgamma)
+
+// ANSI-C functions, not in std:: namespace
 
 besselFunc(j0)
 besselFunc(j1)
@@ -238,56 +260,56 @@ inline constexpr Scalar component(const Scalar val, const direction) noexcept
 
 
 //- Return 1 if s is greater_equal zero, or otherwise -1
-inline Scalar sign(const Scalar s) noexcept
+inline constexpr Scalar sign(const Scalar s) noexcept
 {
     return (s >= 0)? 1: -1;
 }
 
 
 //- Return 1 if s is greater than zero, otherwise 0
-inline Scalar pos(const Scalar s) noexcept
+inline constexpr Scalar pos(const Scalar s) noexcept
 {
     return (s > 0)? 1: 0;
 }
 
 
 //- Return 1 if s is greater_equal zero, or otherwise 0
-inline Scalar pos0(const Scalar s) noexcept
+inline constexpr Scalar pos0(const Scalar s) noexcept
 {
     return (s >= 0)? 1: 0;
 }
 
 
 //- Return 1 if s is less than zero, or otherwise 0
-inline Scalar neg(const Scalar s) noexcept
+inline constexpr Scalar neg(const Scalar s) noexcept
 {
     return (s < 0)? 1: 0;
 }
 
 
 //- Return 1 if s is less_equal zero, or otherwise 0
-inline Scalar neg0(const Scalar s) noexcept
+inline constexpr Scalar neg0(const Scalar s) noexcept
 {
     return (s <= 0)? 1: 0;
 }
 
 
 //- Return the positive part of s, otherwise zero. Same as max(0, s).
-inline Scalar posPart(const Scalar s) noexcept
+inline constexpr Scalar posPart(const Scalar s) noexcept
 {
     return (s > 0)? s: 0;
 }
 
 
 //- Return the negative part of s, otherwise zero. Same as min(0, s).
-//  Does not change the sign
-inline Scalar negPart(const Scalar s) noexcept
+//- Does not change the sign.
+inline constexpr Scalar negPart(const Scalar s) noexcept
 {
     return (s < 0)? s: 0;
 }
 
 
-inline bool equal(const Scalar& a, const Scalar& b)
+inline bool equal(const Scalar a, const Scalar b)
 {
     return mag(a - b) <= ScalarVSMALL;
 }
@@ -334,37 +356,37 @@ inline constexpr Scalar lerp(const Scalar a, const Scalar b, const Scalar t)
 }
 
 
-inline Scalar magSqr(const Scalar s)
+inline constexpr Scalar magSqr(const Scalar s) noexcept
 {
     return s*s;
 }
 
 
-inline Scalar sqr(const Scalar s)
+inline constexpr Scalar sqr(const Scalar s) noexcept
 {
     return s*s;
 }
 
 
-inline Scalar pow3(const Scalar s)
+inline constexpr Scalar pow3(const Scalar s) noexcept
 {
     return s*sqr(s);
 }
 
 
-inline Scalar pow4(const Scalar s)
+inline constexpr Scalar pow4(const Scalar s) noexcept
 {
     return sqr(sqr(s));
 }
 
 
-inline Scalar pow5(const Scalar s)
+inline constexpr Scalar pow5(const Scalar s) noexcept
 {
     return s*pow4(s);
 }
 
 
-inline Scalar pow6(const Scalar s)
+inline constexpr Scalar pow6(const Scalar s) noexcept
 {
     return pow3(sqr(s));
 }
@@ -372,7 +394,7 @@ inline Scalar pow6(const Scalar s)
 
 inline Scalar pow025(const Scalar s)
 {
-    return sqrt(sqrt(s));
+    return std::sqrt(std::sqrt(s));
 }
 
 
@@ -396,7 +418,7 @@ inline Scalar cmptMultiply(const Scalar s1, const Scalar s2)
 
 inline Scalar cmptPow(const Scalar s1, const Scalar s2)
 {
-    return pow(s1, s2);
+    return Foam::pow(s1, s2);
 }
 
 
@@ -406,25 +428,25 @@ inline Scalar cmptDivide(const Scalar s1, const Scalar s2)
 }
 
 
-inline Scalar cmptMax(const Scalar s)
+inline constexpr Scalar cmptMax(const Scalar s) noexcept
 {
     return s;
 }
 
 
-inline Scalar cmptMin(const Scalar s)
+inline constexpr Scalar cmptMin(const Scalar s) noexcept
 {
     return s;
 }
 
 
-inline Scalar cmptAv(const Scalar s)
+inline constexpr Scalar cmptAv(const Scalar s) noexcept
 {
     return s;
 }
 
 
-inline Scalar cmptSqr(const Scalar s)
+inline constexpr Scalar cmptSqr(const Scalar s) noexcept
 {
     return sqr(s);
 }
@@ -436,7 +458,7 @@ inline Scalar cmptMag(const Scalar s)
 }
 
 
-inline Scalar cmptMagSqr(const Scalar s)
+inline constexpr Scalar cmptMagSqr(const Scalar s) noexcept
 {
     return magSqr(s);
 }
@@ -459,7 +481,7 @@ inline Scalar sqrtSumSqr(const Scalar a, const Scalar b)
 
 
 //- Stabilisation around zero for division
-inline Scalar stabilise(const Scalar s, const Scalar tol)
+inline constexpr Scalar stabilise(const Scalar s, const Scalar tol) noexcept
 {
     if (s >= 0)
     {
@@ -484,7 +506,7 @@ struct compareOp<Scalar>
     const Scalar tolerance;
 
     //- Construct with specified tolerance (non-negative value)
-    compareOp(Scalar tol = ScalarVSMALL)
+    constexpr compareOp(Scalar tol = ScalarVSMALL) noexcept
     :
         tolerance(tol)
     {}
@@ -506,7 +528,7 @@ struct equalOp<Scalar>
     const Scalar tolerance;
 
     //- Construct with specified tolerance (non-negative value)
-    equalOp(Scalar tol = ScalarVSMALL)
+    constexpr equalOp(Scalar tol = ScalarVSMALL) noexcept
     :
         tolerance(tol)
     {}
@@ -528,7 +550,7 @@ struct notEqualOp<Scalar>
     const Scalar tolerance;
 
     //- Construct with specified tolerance (non-negative value)
-    notEqualOp(Scalar tol = ScalarVSMALL)
+    constexpr notEqualOp(Scalar tol = ScalarVSMALL) noexcept
     :
         tolerance(tol)
     {}

@@ -84,7 +84,7 @@ inline Foam::scalar Foam::complex::magnitude() const
 }
 
 
-inline Foam::scalar Foam::complex::magSqr() const
+inline Foam::scalar Foam::complex::magSqr() const noexcept
 {
     return (re*re + im*im);
 }
@@ -195,13 +195,13 @@ inline scalar mag(const complex& c)
 }
 
 
-inline scalar magSqr(const complex& c)
+inline scalar magSqr(const complex& c) noexcept
 {
     return c.magSqr();
 }
 
 
-inline complex sqr(const complex& c)
+inline complex sqr(const complex& c) noexcept
 {
     return c*c;
 }
@@ -223,13 +223,13 @@ inline scalar csign(const complex& c)
 }
 
 
-inline const complex& min(const complex& c1, const complex& c2)
+inline const complex& min(const complex& c1, const complex& c2) noexcept
 {
     return (c1.magSqr() < c2.magSqr()) ? c1 : c2;
 }
 
 
-inline const complex& max(const complex& c1, const complex& c2)
+inline const complex& max(const complex& c1, const complex& c2) noexcept
 {
     return (c1.magSqr() < c2.magSqr()) ? c2 : c1;
 }

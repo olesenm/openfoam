@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -41,14 +42,25 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-#define MAXMINPOW(RetType, Type1, Type2)                \
-                                                        \
-MAXMIN(RetType, Type1, Type2)                           \
-                                                        \
-/*! \brief Raise base to the power expon */             \
-inline double pow(const Type1 base, const Type2 expon)  \
-{                                                       \
-    return ::pow(double(base), double(expon));          \
+#undef  MAXMINPOW
+#define MAXMINPOW(RetType, Type1, Type2)                                       \
+                                                                               \
+/*! \brief Floating/integral min. Use std::min() to preserve references */     \
+inline constexpr RetType min(Type1 s1, Type2 s2) noexcept                      \
+{                                                                              \
+    return (s1 < s2) ? s1 : s2;                                                \
+}                                                                              \
+                                                                               \
+/*! \brief Floating/integral max. Use std::max() to preserve references */     \
+inline constexpr RetType max(Type1 s1, Type2 s2) noexcept                      \
+{                                                                              \
+    return (s2 < s1) ? s1 : s2;                                                \
+}                                                                              \
+                                                                               \
+/*! \brief Raise base to the power expon, returning double */                  \
+inline double pow(Type1 base, Type2 expon)                                     \
+{                                                                              \
+    return std::pow(double(base), double(expon));                              \
 }
 
 

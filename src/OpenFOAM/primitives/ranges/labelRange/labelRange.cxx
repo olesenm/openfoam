@@ -128,33 +128,33 @@ Foam::labelRange Foam::labelRange::join(const labelRange& range) const
         return range;
     }
 
-    const label lower = Foam::min(this->min(), range.min());
-    const label upper = Foam::max(this->max(), range.max());
-    const label total = upper+1 - lower;
-    // last = start+size-1
-    // size = last+1-start
+    const label lower = std::min(this->begin_value(), range.begin_value());
+    const label upper = std::max(this->end_value(), range.end_value());
 
-    labelRange newRange(lower, total);
-    newRange.clampSize();
-
-    return newRange;
+    if (lower < upper)
+    {
+        return labelRange(lower, (upper-lower));
+    }
+    else
+    {
+        return labelRange(lower, 0);
+    }
 }
 
 
 Foam::labelRange Foam::labelRange::subset(const labelRange& range) const
 {
-    const label lower = Foam::max(this->min(), range.min());
-    const label upper = Foam::min(this->max(), range.max());
-    const label total = upper+1 - lower;
-    // last = start+size-1
-    // size = last+1-start
+    const label lower = std::max(this->begin_value(), range.begin_value());
+    const label upper = std::min(this->end_value(), range.end_value());
 
-    if (total > 0)
+    if (lower < upper)
     {
-        return labelRange(lower, total);
+        return labelRange(lower, (upper-lower));
     }
-
-    return labelRange();
+    else
+    {
+        return labelRange();
+    }
 }
 
 
@@ -164,18 +164,17 @@ Foam::labelRange Foam::labelRange::subset
     label size
 ) const
 {
-    const label lower = Foam::max(this->min(), start);
-    const label upper = Foam::min(this->max(), start+Foam::max(0,size-1));
-    const label total = upper+1 - lower;
-    // last = start+size-1
-    // size = last+1-start
+    const label lower = Foam::max(this->begin_value(), start);
+    const label upper = Foam::min(this->end_value(), start+size);
 
-    if (total > 0)
+    if (lower < upper)
     {
-        return labelRange(lower, total);
+        return labelRange(lower, (upper-lower));
     }
-
-    return labelRange();
+    else
+    {
+        return labelRange();
+    }
 }
 
 

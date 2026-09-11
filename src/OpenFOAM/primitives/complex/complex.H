@@ -185,7 +185,7 @@ public:
         inline scalar magnitude() const;
 
         //- The L2-norm squared of complex
-        inline scalar magSqr() const;
+        inline scalar magSqr() const noexcept;
 
         //- The sum of real/imag components
         inline scalar cmptSum() const noexcept;

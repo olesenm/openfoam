@@ -107,6 +107,20 @@ inline bool readInt32(const std::string& str, int32_t& val)
 
 //- Same as readInt32
 //  \return True if successful.
+inline bool readLabel(const char* buf, int32_t& val)
+{
+    return readInt32(buf, val);
+}
+
+//- Same as readInt32
+//  \return True if successful.
+inline bool readLabel(const std::string& str, int32_t& val)
+{
+    return readInt32(str, val);
+}
+
+//- Same as readInt32
+//  \return True if successful.
 inline bool read(const char* buf, int32_t& val)
 {
     return readInt32(buf, val);

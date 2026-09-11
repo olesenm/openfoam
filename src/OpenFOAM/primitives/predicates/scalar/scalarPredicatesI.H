@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,34 +28,37 @@ License
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
-inline Foam::predicates::scalars::unary Foam::predicates::scalars::operation
+inline Foam::predicates::scalars::unary
+Foam::predicates::scalars::operation
 (
     const word& opName,
-    const scalar opVal,
-    const scalar tol
+    scalar operand,
+    scalar tolerance
 )
 {
-    return operation(opNames[opName], opVal, tol);
+    return operation(opNames[opName], operand, tolerance);
 }
 
 
-inline Foam::predicates::scalars::unary Foam::predicates::scalars::operation
+inline Foam::predicates::scalars::unary
+Foam::predicates::scalars::operation
 (
     const Tuple2<word, scalar>& op,
-    const scalar tol
+    scalar tolerance
 )
 {
-    return operation(opNames[op.first()], op.second(), tol);
+    return operation(opNames[op.first()], op.second(), tolerance);
 }
 
 
-inline Foam::predicates::scalars::unary Foam::predicates::scalars::operation
+inline Foam::predicates::scalars::unary
+Foam::predicates::scalars::operation
 (
     const std::pair<word, scalar>& op,
-    const scalar tol
+    scalar tolerance
 )
 {
-    return operation(opNames[op.first], op.second, tol);
+    return operation(opNames[op.first], op.second, tolerance);
 }
 
 
@@ -62,7 +66,7 @@ inline Foam::predicates::scalars::unary Foam::predicates::scalars::operation
 
 inline bool Foam::predicates::scalars::contains
 (
-    const scalar value,
+    scalar value,
     label pos
 ) const
 {
@@ -70,13 +74,13 @@ inline bool Foam::predicates::scalars::contains
 }
 
 
-inline bool Foam::predicates::scalars::match(const scalar value) const
+inline bool Foam::predicates::scalars::match(scalar value) const
 {
     return matchAny(value);
 }
 
 
-inline bool Foam::predicates::scalars::matchAny(const scalar value) const
+inline bool Foam::predicates::scalars::matchAny(scalar value) const
 {
     for (const unary& pred : *this)
     {
@@ -90,7 +94,7 @@ inline bool Foam::predicates::scalars::matchAny(const scalar value) const
 }
 
 
-inline bool Foam::predicates::scalars::matchAll(const scalar value) const
+inline bool Foam::predicates::scalars::matchAll(scalar value) const
 {
     for (const unary& pred : *this)
     {
@@ -106,7 +110,7 @@ inline bool Foam::predicates::scalars::matchAll(const scalar value) const
 
 inline Foam::labelList Foam::predicates::scalars::matching
 (
-    const scalar value
+    scalar value
 ) const
 {
     labelList indices(this->size());

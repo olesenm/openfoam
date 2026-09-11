@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -45,12 +46,102 @@ void printInfo(const labelRange& range)
     // Info<< "rbegin rend " << *range.rbegin() << ' ' << *range.rend() << nl;
 }
 
+void test_sorting()
+{
+    Info<< "test sorting" << endl;
+    labelRanges list1(10);
+
+    list1.emplace_back(25, 8);
+    list1.emplace_back(8);
+    list1.emplace_back(15, 5);
+    list1.emplace_back(50, -10, true);
+
+    // Move construct
+    labelRanges ranges(std::move(list1));
+    if (!list1.empty())
+    {
+        Info<< "Move construct failed? "
+            << flatOutput(list1.ranges()) << nl;
+    }
+
+    Info<< "unsorted: ";
+    ranges.writeList(Info) << nl;
+
+    ranges.sort();
+    Info<< "sorted: ";
+    ranges.writeList(Info) << nl;
+
+    Info<< nl
+        << "list linear length = " << ranges.totalSize() << nl;
+
+    Info<< "list labels = ";
+    ranges.labels().writeList(Info) << nl;
+
+    Info<< nl;
+    for (int i : { -1, 0, 5, 8, 10, 20, 26 })
+    {
+        Info<< "value at [" << i << "] = " << ranges[i] << nl;
+    }
+}
+
+
+void test_intersections()
+{
+    Info<< "test intersections" << endl;
+    labelRange range1(-15, 25);
+    labelRange range2(7, 8);
+    labelRange range3(-20, 8);
+    labelRange range4(50, 8);
+
+    Info<<range1 << " & " << range2
+        << " = " << range1.subset(range2) << nl;
+
+    Info<< range1 << " & " << range3
+        << " = " << range1.subset(range3) << nl;
+
+    Info<< range2 << " & " << range4
+        << " = " << range2.subset(range4) << nl;
+}
+
+
+void test_subset()
+{
+    Info<< nl << "test subset() edge cases (zero-sized constraint)" << endl;
+
+    // Adjacent, non-overlapping ranges: [0,5) and [5,10)
+    labelRange range1(0, 5);
+    labelRange range2(5, 5);
+
+    const labelRange result1(range1.subset(range2));
+    const labelRange result2(range2.subset(range1));
+
+    Info<< range1 << " subset " << range2
+        << " = " << result1
+        << " (size " << result1.size() << ") "
+        << (result1.size() == 0 ? "PASS" : "FAIL") << nl;
+
+    Info<< range2 << " subset " << range1
+        << " = " << result2
+        << " (size " << result2.size() << ") "
+        << (result2.size() == 0 ? "PASS" : "FAIL") << nl;
+
+    // Fully overlapping single point should still report size 1
+    labelRange range3(0, 1);
+    const labelRange result3(range1.subset(range3));
+
+    Info<< range1 << " subset " << range3
+        << " = " << result3
+        << " (size " << result3.size() << ") "
+        << (result3.size() == 1 ? "PASS" : "FAIL") << nl;
+}
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 //  Main program:
 
 int main(int argc, char *argv[])
 {
+    argList::noBanner();
     argList::noParallel();
     argList::noFunctionObjects();
     argList::addArgument("start size .. startN sizeN");
@@ -74,59 +165,12 @@ int main(int argc, char *argv[])
         Info<< "identity: " << identity(range) << nl;
     }
 
-    {
-        Info<< "test sorting" << endl;
-        labelRanges list1(10);
 
-        list1.emplace_back(25, 8);
-        list1.emplace_back(8);
-        list1.emplace_back(15, 5);
-        list1.emplace_back(50, -10, true);
+    test_sorting();
 
-        // Move construct
-        labelRanges ranges(std::move(list1));
-        if (!list1.empty())
-        {
-            Info<< "Move construct failed? "
-                << flatOutput(list1.ranges()) << nl;
-        }
+    test_intersections();
 
-        Info<< "unsorted: ";
-        ranges.writeList(Info) << nl;
-
-        ranges.sort();
-        Info<< "sorted: ";
-        ranges.writeList(Info) << nl;
-
-        Info<< nl
-            << "list linear length = " << ranges.totalSize() << nl;
-
-        Info<< "list labels = ";
-        ranges.labels().writeList(Info) << nl;
-
-        Info<< nl;
-        for (int i : { -1, 0, 5, 8, 10, 20, 26 })
-        {
-            Info<< "value at [" << i << "] = " << ranges[i] << nl;
-        }
-    }
-
-    {
-        Info<< "test intersections" << endl;
-        labelRange range1(-15, 25);
-        labelRange range2(7, 8);
-        labelRange range3(-20, 8);
-        labelRange range4(50, 8);
-
-        Info<<range1 << " & " << range2
-            << " = " << range1.subset(range2) << nl;
-
-        Info<< range1 << " & " << range3
-            << " = " << range1.subset(range3) << nl;
-
-        Info<< range2 << " & " << range4
-            << " = " << range2.subset(range4) << nl;
-    }
+    test_subset();
 
     labelRange range;
     labelRanges ranges;

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,7 +39,7 @@ SeeAlso
     Foam::scalarRange, Foam::scalarRanges
 
 SourceFiles
-    scalarPredicates.C
+    scalarPredicates.cxx
     scalarPredicatesI.H
 
 \*---------------------------------------------------------------------------*/
@@ -70,13 +71,16 @@ class scalars
 {
 public:
 
-    // Public types
+    // Public Types
 
         //- The unary function type for testing a scalar
-        typedef std::function<bool(Foam::scalar)> unary;
+        using unary = std::function<bool(Foam::scalar)>;
+
+        //- The default tolerance to use is \c VSMALL
+        static constexpr scalar defaultTol() noexcept { return VSMALL; }
 
         //- Enumerations for some standard comparison predicates
-        enum opType
+        enum class opType
         {
             EQUAL,              //!< "eq", "equal"
             NOT_EQUAL,          //!< "neq", "notEqual"
@@ -86,10 +90,7 @@ public:
             GREATER_EQUAL,      //!< "ge", "greaterEqual", "greaterEq"
             ALWAYS,             //!< Always matches
             NEVER,              //!< Never matches
-
-            // OpenFOAM-v2112 and earlier:
-            LESS_EQ = LESS_EQUAL,
-            GREATER_EQ = GREATER_EQUAL,
+            WARN,               //!< A warning operation (false)
         };
 
         //- Names for the opType enumeration.
@@ -98,72 +99,48 @@ public:
 
     // Standard comparison methods
 
-        //- Compare for equality, with specified tolerance (non-negative)
-        static unary equalOp
-        (
-            const scalar opVal,
-            const scalar tol = VSMALL
-        )
+        //- Compare for equality to \p target,
+        //- within specified \p tolerance (non-negative)
+        static unary equalOp(scalar target, scalar tolerance = defaultTol())
         {
-            return [=](const scalar val)
+            return [target,tolerance](scalar x)
             {
-                return (Foam::mag(opVal - val) <= tol);
+                return (std::fabs(target - x) <= tolerance);
             };
         }
 
-
-        //- Compare for inequality, with specified tolerance (non-negative)
-        static unary notEqualOp
-        (
-            const scalar opVal,
-            const scalar tol = VSMALL
-        )
+        //- Compare for inequality to \p target,
+        //- within specified \p tolerance (non-negative)
+        static unary notEqualOp(scalar target, scalar tolerance = defaultTol())
         {
-            return [=](const scalar val)
+            return [target,tolerance](scalar x)
             {
-                return (Foam::mag(opVal - val) > tol);
+                return (std::fabs(target - x) > tolerance);
             };
         }
 
-
-        //- Test if value is 'less' than prescribed
-        static unary lessOp(const scalar opVal)
+        //- Test if value is 'less' than prescribed \p threshold
+        static unary lessOp(scalar threshold)
         {
-            return std::bind
-            (
-                std::less<scalar>(), std::placeholders::_1, opVal
-            );
+            return [threshold](scalar x) { return (x < threshold); };
         }
 
-
-        //- Test if value is 'less_equal' to prescribed
-        static unary lessEqualOp(const scalar opVal)
+        //- Test if value is 'less_equal' to prescribed \p threshold
+        static unary lessEqualOp(scalar threshold)
         {
-            return std::bind
-            (
-                std::less_equal<scalar>(), std::placeholders::_1, opVal
-            );
+            return [threshold](scalar x) { return (x <= threshold); };
         }
 
-
-        //- Test if value is 'greater' than prescribed
-        //- Compare scalar values for inequality
-        static unary greaterOp(const scalar opVal)
+        //- Test if value is 'greater' than prescribed \p threshold
+        static unary greaterOp(scalar threshold)
         {
-            return std::bind
-            (
-                std::greater<scalar>(), std::placeholders::_1, opVal
-            );
+            return [threshold](scalar x) { return (x > threshold); };
         }
 
-
-        //- Test if value is 'greater_equal' to prescribed
-        static unary greaterEqualOp(const scalar opVal)
+        //- Test if value is 'greater_equal' to prescribed \p threshold
+        static unary greaterEqualOp(scalar threshold)
         {
-            return std::bind
-            (
-                std::greater_equal<scalar>(), std::placeholders::_1, opVal
-            );
+            return [threshold](scalar x) { return (x >= threshold); };
         }
 
 
@@ -172,13 +149,51 @@ public:
         //- Predicate that always returns true
         static unary trueOp()
         {
-            return [](const scalar) { return true; };
+            return [](scalar) { return true; };
         }
 
         //- Predicate that always returns false
         static unary falseOp()
         {
-            return [](const scalar) { return false; };
+            return [](scalar) { return false; };
+        }
+
+        //- Predicate that triggers a warning when used.
+        //  \returns false
+        static unary warnOp()
+        {
+            return [](scalar)
+            {
+                WarningIn("predicates::scalars::warnOp")
+                    << "Using an invalid scalar unary predicate\n";
+                return false;
+            };
+        }
+
+        //- Predicate that triggers a warning when used.
+        //- Reports the context in the message.
+        //  \returns false
+        static unary warnOp(std::string context)
+        {
+            return [context = std::move(context)](scalar)
+            {
+                WarningIn(context)
+                    << "Using an invalid scalar unary predicate\n";
+                return false;
+            };
+        }
+
+        //- Predicate that triggers a warning when used.
+        //- Reports the \p context, file/line in the message.
+        //  \returns false
+        static unary warnOp(std::string context, const char* file, int line)
+        {
+            return [context = std::move(context), file, line](scalar)
+            {
+                Foam::Warning(context, file, line)
+                    << "Using an invalid scalar unary predicate\n";
+                return false;
+            };
         }
 
 
@@ -187,18 +202,18 @@ public:
         //- Combine unary tests as an AND operation
         static unary andOp(const unary& test1, const unary& test2)
         {
-            return [=](const scalar value)
+            return [test1, test2](scalar x)
             {
-                return (test1(value) && test2(value));
+                return (test1(x) && test2(x));
             };
         }
 
         //- Combine unary tests as an OR operation
         static unary orOp(const unary& test1, const unary& test2)
         {
-            return [=](const scalar value)
+            return [test1, test2](scalar x)
             {
-                return (test1(value) || test2(value));
+                return (test1(x) || test2(x));
             };
         }
 
@@ -208,31 +223,31 @@ public:
         //- Standard comparison method by type
         static unary operation
         (
-            const opType op,
-            const scalar opVal,
-            const scalar tol = VSMALL
+            opType op,
+            scalar operand,
+            scalar tolerance = defaultTol()
         );
 
         //- Standard comparison method by name
         inline static unary operation
         (
             const word& opName,
-            const scalar opVal,
-            const scalar tol = VSMALL
+            scalar operand,
+            scalar tolerance = defaultTol()
         );
 
         //- Standard comparison method by (name, value)
         inline static unary operation
         (
             const Tuple2<word, scalar>& op,
-            const scalar tol = VSMALL
+            scalar tolerance = defaultTol()
         );
 
         //- Standard comparison method by (name, value)
         inline static unary operation
         (
             const std::pair<word, scalar>& op,
-            const scalar tol = VSMALL
+            scalar tolerance = defaultTol()
         );
 
 
@@ -241,16 +256,16 @@ public:
         //- Inherit constructors from List of unary functions
         using List<unary>::List;
 
-        //- Construct from an initializer list of (opName opValue) tuples
+        //- Construct from an initializer list of (opName operand) tuples
         explicit scalars
         (
-            std::initializer_list<std::pair<word, scalar>> entries
+            std::initializer_list<std::pair<const char*, scalar>> entries
         );
 
-        //- Copy construct from a list of (opName opValue) tuples
+        //- Copy construct from a list of (opName operand) tuples
         explicit scalars(const UList<Tuple2<word, scalar>>& entries);
 
-        //- Construct from Istream, from list of (opName opValue) tuples
+        //- Construct from Istream, from list of (opName operand) tuples
         explicit scalars(Istream& is);
 
 
@@ -261,11 +276,33 @@ public:
     // Member Functions
 
         //- Assign new predicates from an initializer list of
-        //- (opName opValue) tuples
-        void assign(std::initializer_list<std::pair<word, scalar>> entries);
+        //- (opName operand) tuples
+        void assign
+        (
+            std::initializer_list<std::pair<const char*, scalar>> entries
+        );
 
-        //- Assign new predicates from a list of (opName opValue) tuples
+        //- Assign new predicates from a list of (opName operand) tuples
         void assign(const UList<Tuple2<word, scalar>>& entries);
+
+        //- Inherit regular push_back methods (even if not particularly useful)
+        using List<unary>::push_back;
+
+        //- Append operation by operation \b type and operand value
+        void push_back
+        (
+            opType op,
+            scalar operand,
+            scalar tolerance = defaultTol()
+        );
+
+        //- Append operation by operation \b name and operand value
+        void push_back
+        (
+            const word& opName,
+            scalar operand,
+            scalar tolerance = defaultTol()
+        );
 
 
     // Search
@@ -274,64 +311,64 @@ public:
         //  Any occurrences before the start pos are ignored.
         //  Linear search.
         //  \return position in list or -1 if not found.
-        label find(const scalar value, label pos = 0) const;
+        label find(scalar value, label pos = 0) const;
 
         //- Index of the last match for the value.
         //  Any occurrences after the end pos are ignored.
         //  Linear search.
         //  \return position in list or -1 if not found.
-        label rfind(const scalar value, label pos = -1) const;
+        label rfind(scalar value, label pos = -1) const;
 
         //- Matches \em any condition in the list after the offset position.
         //  Linear search from start pos until the end of the list.
         //  Any occurrences before the start pos are ignored.
         //
         //  \return True if the value matches any condition in the (sub)list.
-        inline bool contains(const scalar value, label pos = 0) const;
+        inline bool contains(scalar value, label pos = 0) const;
 
         //- Matches \em any condition in the list.
         //
         //  \return True if the value matches any condition in the list.
-        inline bool match(const scalar value) const;
+        inline bool match(scalar value) const;
 
         //- Matches \em any condition in the list.
         //
         //  \return True if the value matches any condition in the list.
-        inline bool matchAny(const scalar value) const;
+        inline bool matchAny(scalar value) const;
 
         //- Matches \em all conditions in the list.
         //
         //  \return True if the value matches all conditions in the list.
-        inline bool matchAll(const scalar value) const;
+        inline bool matchAll(scalar value) const;
 
         //- Extract list indices for all matches.
         //
         //  \return The locations (indices) of the predicates that match
-        inline labelList matching(const scalar value) const;
+        inline labelList matching(scalar value) const;
 
         //- Extract list indices for all matches.
         //
-        //  \param input  A list of scalar inputs to test
-        //  \param invert invert the matching logic
-        //  \return The locations (indices) in the input list where match()
-        //      is true
+        //  \return The locations (indices) in the input list
+        //      where match() is true
         inline labelList matching
         (
+            //! A list of scalar inputs to test
             const UList<scalar>& input,
-            const bool invert=false
+            //! invert the matching logic
+            const bool invert = false
         ) const;
 
 
     // Member Operators
 
         //- Identical to contains(), match(), for use as a predicate.
-        bool operator()(const scalar value) const { return matchAny(value); }
+        bool operator()(scalar value) const { return matchAny(value); }
 
 
     // Housekeeping
 
         //- Same as contains()
-        bool found(const scalar value, label pos = 0) const
+        bool found(scalar value, label pos = 0) const
         {
             return this->contains(value, pos);
         }
