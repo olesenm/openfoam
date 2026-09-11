@@ -58,14 +58,6 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-//! \class Foam::floatTensor
-//! \brief A Tensor of values with float precision
-typedef Tensor<float> floatTensor;
-
-//! \class Foam::doubleTensor
-//! \brief A Tensor of values with double precision
-typedef Tensor<double> doubleTensor;
-
 // With float or double precision (depending on compilation)
 typedef Tensor<scalar> tensor;
 

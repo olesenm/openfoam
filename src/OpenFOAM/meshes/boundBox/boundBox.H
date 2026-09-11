@@ -154,10 +154,14 @@ public:
             ZDIR = 4   //!< 4: z-direction. Same as (1 << vector::Z)
         };
 
-        //- A large boundBox: min/max == -/+ ROOTVGREAT
+        //- The largest dimension normally used for boxes.
+        //- Also used for initializations.
+        static constexpr scalar greatDim() noexcept { return ROOTVGREAT; }
+
+        //- A large boundBox: min/max == -/+ greatDim()
         static const boundBox greatBox;
 
-        //- A large inverted boundBox: min/max == +/- ROOTVGREAT
+        //- A large inverted boundBox: min/max == +/- greatDim()
         static const boundBox invertedBox;
 
         //- The unit normal per face
@@ -195,13 +199,19 @@ public:
     // Standard (Generated) Methods
 
         //- Default construct: an inverted bounding box
-        inline boundBox();
+        inline constexpr boundBox();
 
         //- Copy construct
-        boundBox(const boundBox&) = default;
+        constexpr boundBox(const boundBox&) = default;
+
+        //- Move construct
+        constexpr boundBox(boundBox&&) = default;
 
         //- Copy assignment
-        boundBox& operator=(const boundBox&) = default;
+        constexpr boundBox& operator=(const boundBox&) = default;
+
+        //- Move assignment
+        constexpr boundBox& operator=(boundBox&&) = default;
 
 
     // Constructors
@@ -210,19 +220,19 @@ public:
         boundBox(const boundBox& bb, bool syncPar);
 
         //- Construct a bounding box containing a single initial point
-        inline explicit boundBox(const point& p);
+        inline explicit constexpr boundBox(const point& p);
 
         //- Construct a 0/1 unit bounding box
-        inline explicit boundBox(Foam::zero_one);
+        inline explicit constexpr boundBox(Foam::zero_one);
 
         //- Construct from bound box min/max points
-        inline boundBox(const point& min, const point& max);
+        inline constexpr boundBox(const point& min, const point& max);
 
         ///TBD: Construct from bound box min/max points
         ///inline explicit boundBox(const MinMax<point>& bb);
 
         //- Construct from bound box min/max points
-        inline explicit boundBox(const Pair<point>& bb);
+        inline explicit constexpr boundBox(const Pair<point>& bb);
 
         //- Construct with extent of two bounding boxes, no reduction
         inline boundBox(const boundBox& a, const boundBox& b);

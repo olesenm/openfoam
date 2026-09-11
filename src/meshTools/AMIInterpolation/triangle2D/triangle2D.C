@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -52,18 +53,14 @@ Foam::triangle2D::triangle2D
     const bool orient
 )
 :
-    FixedList<vector2D, 3>({a, b, c}),
+    tuple_type(Foam::direct_construct_t{}, a, b, c),
     area_(area(a, b, c))
 {
     if (orient && area_ < 0)
     {
         // Inverted triangle
-        triangle2D& tri = *this;
-        vector2D tmp = tri[0];
-        tri[0] = tri[2];
-        tri[2] = tmp;
-
-        area_ = mag(area_);
+        flip();
+        area_ = Foam::mag(area_);
     }
 }
 

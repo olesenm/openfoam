@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -80,7 +81,7 @@ class PointHit
 
 public:
 
-    // Public Typedefs
+    // Properties
 
         //- The point type
         typedef PointType point_type;
@@ -90,9 +91,9 @@ public:
 
         //- Default construct. A zero point with a large distance,
         //- no hit, no eligible misses
-        PointHit()
+        constexpr PointHit()
         :
-            point_(Zero),
+            point_(Foam::zero{}),
             distance_(GREAT),
             hit_(false),
             eligibleMiss_(false)
@@ -100,7 +101,7 @@ public:
 
         //- Construct from point with a large distance,
         //- no hit, no eligible misses
-        explicit PointHit(const point_type& p)
+        explicit constexpr PointHit(const point_type& p)
         :
             point_(p),
             distance_(GREAT),
@@ -109,7 +110,7 @@ public:
         {}
 
         //- Construct from components
-        PointHit
+        constexpr PointHit
         (
             bool hit,
             const point_type& p,
@@ -129,28 +130,19 @@ public:
     // Access
 
         //- Is there a hit
-        bool hit() const noexcept
-        {
-            return hit_;
-        }
+        constexpr bool hit() const noexcept { return hit_; }
 
         //- Is this an eligible miss
-        bool eligibleMiss() const noexcept
-        {
-            return eligibleMiss_;
-        }
+        constexpr bool eligibleMiss() const noexcept { return eligibleMiss_; }
 
         //- Return the point, no checks
-        const point_type& point() const noexcept
-        {
-            return point_;
-        }
+        constexpr const point_type& point() const noexcept { return point_; }
+
+        //- Access the point, no checks
+        constexpr point_type& point() noexcept { return point_; }
 
         //- Return distance to hit
-        scalar distance() const noexcept
-        {
-            return distance_;
-        }
+        constexpr scalar distance() const noexcept { return distance_; }
 
         //- Return the hit point. Fatal if not hit.
         const point_type& hitPoint() const
@@ -161,7 +153,6 @@ public:
                     << "Requested a hit point, but it was not hit"
                     << abort(FatalError);
             }
-
             return point_;
         }
 
@@ -174,16 +165,21 @@ public:
                     << "Requested a miss point, but it was hit"
                     << abort(FatalError);
             }
-
             return point_;
         }
 
-        //- The point, no checks
-        //  \deprecated(2020-10) use point()
-        const point_type& rawPoint() const noexcept { return point_; }
-
 
     // Edit
+
+        //- Reset to default construct state
+        //- (zero point, with no hit and GREAT distance
+        void reset()
+        {
+            point_ = Foam::zero{};
+            distance_ = GREAT;
+            hit_ = false;
+            eligibleMiss_ = false;
+        }
 
         //- Set the hit status \em on
         void setHit() noexcept
@@ -193,7 +189,7 @@ public:
         }
 
         //- Set the hit status \em off and set the eligible miss status
-        void setMiss(const bool eligible) noexcept
+        void setMiss(bool eligible) noexcept
         {
             hit_ = false;
             eligibleMiss_ = eligible;
@@ -205,10 +201,25 @@ public:
             point_ = p;
         }
 
-        //- Set the distance
-        void setDistance(const scalar d) noexcept
+        //- Set the point and distance
+        void setPoint(const point_type& p, scalar dist)
         {
-            distance_ = d;
+            point_ = p;
+            distance_ = dist;
+        }
+
+        //- Set the distance
+        void setDistance(scalar dist) noexcept
+        {
+            distance_ = dist;
+        }
+
+        //- Set the distance as \em hit
+        void hitDistance(scalar dist) noexcept
+        {
+            distance_ = dist;
+            hit_ = true;
+            eligibleMiss_ = false;
         }
 
         //- Set the point as \em hit.
@@ -219,15 +230,36 @@ public:
             eligibleMiss_ = false;
         }
 
+        //- Set the point as \em hit and set the hit distance
+        void hitPoint(const point_type& p, scalar dist)
+        {
+            point_ = p;
+            distance_ = dist;
+            hit_ = true;
+            eligibleMiss_ = false;
+        }
+
 
     // Member Operators
 
-        //- Distance comparision operator, for sorting
+        //- Distance comparison operator, for sorting
         template<class AnyPointType>
-        bool operator<(const PointHit<AnyPointType>& rhs) const noexcept
+        constexpr bool
+        operator<(const PointHit<AnyPointType>& rhs) const noexcept
         {
             return distance_ < rhs.distance_;
         }
+
+
+    // Housekeeping
+
+        //- The point, no checks. Same as point()
+        //  \deprecated(2020-10) use point()
+        const point_type& rawPoint() const noexcept { return point_; }
+
+        //- The point, no checks. Same as point()
+        //  \deprecated(2020-10) use point()
+        point_type& rawPoint() noexcept { return point_; }
 };
 
 

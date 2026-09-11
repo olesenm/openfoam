@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SphericalTensor<Cmpt>::SphericalTensor(Foam::zero)
+inline constexpr Foam::SphericalTensor<Cmpt>::SphericalTensor(Foam::zero)
 :
     SphericalTensor::vsType(Foam::zero{})
 {}
@@ -49,10 +50,11 @@ inline Foam::SphericalTensor<Cmpt>::SphericalTensor
 
 
 template<class Cmpt>
-inline Foam::SphericalTensor<Cmpt>::SphericalTensor(const Cmpt& stii)
-{
-    this->v_[II] = stii;
-}
+inline constexpr Foam::SphericalTensor<Cmpt>::SphericalTensor(const Cmpt& stii)
+:
+    // aggregate initialization
+    SphericalTensor::vsType(Foam::direct_construct_t{}, stii)
+{}
 
 
 template<class Cmpt>
@@ -65,7 +67,7 @@ inline Foam::SphericalTensor<Cmpt>::SphericalTensor(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::scalar Foam::SphericalTensor<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::SphericalTensor<Cmpt>::diagSqr() const
 {
     return 3*Foam::magSqr(this->ii());
 }
@@ -122,7 +124,7 @@ inline SphericalTensor<Cmpt> inv(const SphericalTensor<Cmpt>& st)
 
 //- Return the square of Frobenius norm of a SphericalTensor
 template<class Cmpt>
-inline Foam::scalar magSqr(const SphericalTensor<Cmpt>& st)
+inline constexpr Foam::scalar magSqr(const SphericalTensor<Cmpt>& st)
 {
     return st.diagSqr();
 }

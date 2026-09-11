@@ -56,9 +56,13 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+// With float or double precision (depending on compilation)
+typedef Tensor<scalar> tensor;
+
+// With float or double precision (depending on compilation)
 typedef SymmTensor<scalar> symmTensor;
 
-typedef Tensor<scalar> tensor;
+// typedef Tensor<scalar> tensor;  //< already defined defined in tensor.H
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

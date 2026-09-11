@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -75,7 +76,8 @@ public:
         //- Default construct
         CompactSpatialTensor() = default;
 
-        inline CompactSpatialTensor(const Foam::zero);
+        //- Construct initialized to zero
+        inline constexpr CompactSpatialTensor(const Foam::zero);
 
         //- Construct given MatrixSpace of the same rank
         inline CompactSpatialTensor
@@ -84,7 +86,7 @@ public:
         );
 
         //- Construct given 18 components
-        inline CompactSpatialTensor
+        inline constexpr CompactSpatialTensor
         (
             const Cmpt& t00, const Cmpt& t01, const Cmpt& t02,
             const Cmpt& t10, const Cmpt& t11, const Cmpt& t12,

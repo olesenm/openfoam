@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -86,10 +87,10 @@ public:
     // Constructors
 
         //- Construct initialised to zero
-        inline BarycentricTensor(const Foam::zero);
+        inline constexpr BarycentricTensor(Foam::zero);
 
         //- Construct given three barycentric components (rows)
-        inline BarycentricTensor
+        inline constexpr BarycentricTensor
         (
             const Barycentric<Cmpt>& x,
             const Barycentric<Cmpt>& y,
@@ -111,20 +112,20 @@ public:
 
     // Component Access
 
-        const Cmpt& xa() const noexcept { return this->v_[XA]; }
-        const Cmpt& xb() const noexcept { return this->v_[XB]; }
-        const Cmpt& xc() const noexcept { return this->v_[XC]; }
-        const Cmpt& xd() const noexcept { return this->v_[XD]; }
+        constexpr const Cmpt& xa() const noexcept { return this->v_[XA]; }
+        constexpr const Cmpt& xb() const noexcept { return this->v_[XB]; }
+        constexpr const Cmpt& xc() const noexcept { return this->v_[XC]; }
+        constexpr const Cmpt& xd() const noexcept { return this->v_[XD]; }
 
-        const Cmpt& ya() const noexcept { return this->v_[YA]; }
-        const Cmpt& yb() const noexcept { return this->v_[YB]; }
-        const Cmpt& yc() const noexcept { return this->v_[YC]; }
-        const Cmpt& yd() const noexcept { return this->v_[YD]; }
+        constexpr const Cmpt& ya() const noexcept { return this->v_[YA]; }
+        constexpr const Cmpt& yb() const noexcept { return this->v_[YB]; }
+        constexpr const Cmpt& yc() const noexcept { return this->v_[YC]; }
+        constexpr const Cmpt& yd() const noexcept { return this->v_[YD]; }
 
-        const Cmpt& za() const noexcept { return this->v_[ZA]; }
-        const Cmpt& zb() const noexcept { return this->v_[ZB]; }
-        const Cmpt& zc() const noexcept { return this->v_[ZC]; }
-        const Cmpt& zd() const noexcept { return this->v_[ZD]; }
+        constexpr const Cmpt& za() const noexcept { return this->v_[ZA]; }
+        constexpr const Cmpt& zb() const noexcept { return this->v_[ZB]; }
+        constexpr const Cmpt& zc() const noexcept { return this->v_[ZC]; }
+        constexpr const Cmpt& zd() const noexcept { return this->v_[ZD]; }
 
 
     // Row-barycentric access

@@ -226,8 +226,8 @@ $(spatialVectorAlgebra)/CompactSpatialTensor/compactSpatialTensor/compactSpatial
 primitives/polynomialEqns/cubicEqn/cubicEqn.C
 primitives/polynomialEqns/quadraticEqn/quadraticEqn.C
 
-primitives/Barycentric/barycentric/barycentric.C
-primitives/Barycentric2D/barycentric2D/barycentric2D.C
+primitives/Barycentric/barycentric.cxx
+primitives/Barycentric/barycentric2D.cxx
 
 containers/Bits/bitSet/bitSet.C
 containers/Bits/bitSet/bitSetIO.C

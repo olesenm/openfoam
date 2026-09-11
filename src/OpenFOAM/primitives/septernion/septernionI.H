@@ -28,10 +28,10 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::septernion::septernion(const Foam::zero)
+inline constexpr Foam::septernion::septernion(Foam::zero)
 :
-    t_(Zero),
-    r_(Zero)
+    t_(Foam::zero{}),
+    r_(Foam::zero{})
 {}
 
 

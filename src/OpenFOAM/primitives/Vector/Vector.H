@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,7 +45,6 @@ SourceFiles
 #ifndef Foam_Vector_H
 #define Foam_Vector_H
 
-#include "contiguous.H"
 #include "VectorSpace.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -54,6 +54,17 @@ namespace Foam
 
 // Forward Declarations
 template<class T> class List;
+template<class Cmpt> class Vector;
+
+// Common Types
+
+//! \class Foam::floatVector
+//! \brief A Vector of values with float precision
+typedef Vector<float> floatVector;
+
+//! \class Foam::doubleVector
+//! \brief A Vector of values with double precision
+typedef Vector<double> doubleVector;
 
 /*---------------------------------------------------------------------------*\
                            Class Vector Declaration
@@ -88,32 +99,45 @@ public:
         Vector() = default;
 
         //- Copy construct
-        Vector(const Vector&) = default;
+        constexpr Vector(const Vector&) = default;
 
         //- Move construct
-        Vector(Vector&&) = default;
+        constexpr Vector(Vector&&) = default;
 
         //- Copy assignment
-        Vector& operator=(const Vector&) = default;
+        constexpr Vector& operator=(const Vector&) = default;
 
         //- Move assignment
-        Vector& operator=(Vector&&) = default;
+        constexpr Vector& operator=(Vector&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline Vector(Foam::zero);
+        inline constexpr Vector(Foam::zero);
 
         //- Copy construct from VectorSpace of the same rank
         template<class Cmpt2>
-        inline Vector(const VectorSpace<Vector<Cmpt2>, Cmpt2, 3>& vs);
+        inline constexpr Vector(const VectorSpace<Vector<Cmpt2>, Cmpt2, 3>& vs);
 
         //- Construct from three components
-        inline Vector(const Cmpt& vx, const Cmpt& vy, const Cmpt& vz);
+        inline constexpr Vector
+        (
+            const Cmpt& vx,
+            const Cmpt& vy,
+            const Cmpt& vz
+        );
 
         //- Construct from Istream
         inline explicit Vector(Istream& is);
+
+
+    // Factory Methods
+
+        //- Return a Vector with uniform components.
+        //  Hides/overrides the generic VectorSpace::uniform(),
+        //  which cannot be constexpr in the general form.
+        static inline constexpr Vector uniform(const Cmpt& s);
 
 
     // Member Functions
@@ -121,22 +145,22 @@ public:
     // Component Access
 
         //- Access to the vector x component
-        const Cmpt& x() const noexcept { return this->v_[components::X]; }
+        constexpr const Cmpt& x() const noexcept { return this->v_[X]; }
 
         //- Access to the vector y component
-        const Cmpt& y() const noexcept { return this->v_[components::Y]; }
+        constexpr const Cmpt& y() const noexcept { return this->v_[Y]; }
 
         //- Access to the vector z component
-        const Cmpt& z() const noexcept { return this->v_[components::Z]; }
+        constexpr const Cmpt& z() const noexcept { return this->v_[Z]; }
 
         //- Access to the vector x component
-        Cmpt& x() noexcept { return this->v_[components::X]; }
+        constexpr Cmpt& x() noexcept { return this->v_[X]; }
 
         //- Access to the vector y component
-        Cmpt& y() noexcept { return this->v_[components::Y]; }
+        constexpr Cmpt& y() noexcept { return this->v_[Y]; }
 
         //- Access to the vector z component
-        Cmpt& z() noexcept { return this->v_[components::Z]; }
+        constexpr Cmpt& z() noexcept { return this->v_[Z]; }
 
 
     // Vector Operations
@@ -151,7 +175,7 @@ public:
         inline scalar mag() const;
 
         //- The length (L2-norm) squared of the vector.
-        inline scalar magSqr() const;
+        inline constexpr scalar magSqr() const;
 
         //- The L2-norm distance from another vector.
         //- The mag() of the difference.
@@ -159,7 +183,7 @@ public:
 
         //- The L2-norm distance squared from another vector.
         //- The magSqr() of the difference.
-        inline scalar distSqr(const Vector<Cmpt>& v2) const;
+        inline constexpr scalar distSqr(const Vector<Cmpt>& v2) const;
 
         //- Inplace normalise the vector by its magnitude
         //  For small magnitudes (less than ROOTVSMALL) set to zero.
@@ -171,10 +195,10 @@ public:
         inline Vector<Cmpt>& removeCollinear(const Vector<Cmpt>& unitVec);
 
         //- Scalar-product of \c this with another Vector.
-        inline Cmpt inner(const Vector<Cmpt>& v2) const;
+        inline constexpr Cmpt inner(const Vector<Cmpt>& v2) const;
 
         //- Cross-product of \c this with another Vector.
-        inline Vector<Cmpt> cross(const Vector<Cmpt>& v2) const;
+        inline constexpr Vector<Cmpt> cross(const Vector<Cmpt>& v2) const;
 
 
     // Comparison Operations

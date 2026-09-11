@@ -45,7 +45,6 @@ SourceFiles
 
 #include "vector.H"
 #include "tensor.H"
-#include "contiguous.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

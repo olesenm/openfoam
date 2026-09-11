@@ -31,25 +31,29 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::treeBoundBox::treeBoundBox(const point& p)
+inline constexpr Foam::treeBoundBox::treeBoundBox(const point& p)
 :
     boundBox(p)
 {}
 
 
-inline Foam::treeBoundBox::treeBoundBox(Foam::zero_one)
+inline constexpr Foam::treeBoundBox::treeBoundBox(Foam::zero_one)
 :
     boundBox(Foam::zero_one{})
 {}
 
 
-inline Foam::treeBoundBox::treeBoundBox(const point& min, const point& max)
+inline constexpr Foam::treeBoundBox::treeBoundBox
+(
+    const point& min,
+    const point& max
+)
 :
     boundBox(min, max)
 {}
 
 
-inline Foam::treeBoundBox::treeBoundBox(const Pair<point>& bb)
+inline constexpr Foam::treeBoundBox::treeBoundBox(const Pair<point>& bb)
 :
     boundBox(bb)
 {}

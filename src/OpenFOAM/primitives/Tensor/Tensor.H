@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -53,6 +54,15 @@ namespace Foam
 
 // Forward Declarations
 template<class Cmpt> class SymmTensor;
+template<class Cmpt> class Tensor;
+
+//! \class Foam::floatTensor
+//! \brief A Tensor of values with float precision
+typedef Tensor<float> floatTensor;
+
+//! \class Foam::doubleTensor
+//! \brief A Tensor of values with double precision
+typedef Tensor<double> doubleTensor;
 
 /*---------------------------------------------------------------------------*\
                            Class Tensor Declaration
@@ -92,16 +102,22 @@ public:
         Tensor() = default;
 
         //- Copy construct
-        Tensor(const Tensor&) = default;
+        constexpr Tensor(const Tensor&) = default;
+
+        //- Move construct
+        constexpr Tensor(Tensor&&) = default;
 
         //- Copy assignment
-        Tensor& operator=(const Tensor&) = default;
+        constexpr Tensor& operator=(const Tensor&) = default;
+
+        //- Move assignment
+        constexpr Tensor& operator=(Tensor&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline Tensor(Foam::zero);
+        inline constexpr Tensor(Foam::zero);
 
         //- Construct given MatrixSpace of the same rank
         template<class Cmpt2>
@@ -112,17 +128,29 @@ public:
         inline Tensor(const VectorSpace<Tensor<Cmpt2>, Cmpt2, 9>& vs);
 
         //- Construct given SphericalTensor
-        inline Tensor(const SphericalTensor<Cmpt>& st);
+        inline constexpr Tensor(const SphericalTensor<Cmpt>& st);
 
         //- Construct given SymmTensor
-        inline Tensor(const SymmTensor<Cmpt>& st);
+        inline constexpr Tensor(const SymmTensor<Cmpt>& st);
+
+        //- Construct given triad of row vectors
+        inline constexpr Tensor(const Vector<Vector<Cmpt>>& vecs);
+
+        //- Construct given three row vectors
+        inline constexpr Tensor
+        (
+            const Vector<Cmpt>& x,
+            const Vector<Cmpt>& y,
+            const Vector<Cmpt>& z
+        );
 
         //- Construct given triad of row vectors,
         //- optionally treated as transposed (ie, column vectors)
         inline Tensor
         (
             const Vector<Vector<Cmpt>>& vecs,
-            const bool transposed = false
+            //! Inputs are transposed (ie, column vectors)
+            const bool transposed
         );
 
         //- Construct given the three row vectors,
@@ -132,11 +160,12 @@ public:
             const Vector<Cmpt>& x,
             const Vector<Cmpt>& y,
             const Vector<Cmpt>& z,
-            const bool transposed = false
+            //! Inputs are transposed (ie, column vectors)
+            const bool transposed
         );
 
         //- Construct given the nine components
-        inline Tensor
+        inline constexpr Tensor
         (
             const Cmpt txx, const Cmpt txy, const Cmpt txz,
             const Cmpt tyx, const Cmpt tyy, const Cmpt tyz,
@@ -163,41 +192,41 @@ public:
 
     // Component Access
 
-        const Cmpt& xx() const noexcept { return this->v_[XX]; }
-        const Cmpt& xy() const noexcept { return this->v_[XY]; }
-        const Cmpt& xz() const noexcept { return this->v_[XZ]; }
-        const Cmpt& yx() const noexcept { return this->v_[YX]; }
-        const Cmpt& yy() const noexcept { return this->v_[YY]; }
-        const Cmpt& yz() const noexcept { return this->v_[YZ]; }
-        const Cmpt& zx() const noexcept { return this->v_[ZX]; }
-        const Cmpt& zy() const noexcept { return this->v_[ZY]; }
-        const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
+        constexpr const Cmpt& xx() const noexcept { return this->v_[XX]; }
+        constexpr const Cmpt& xy() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& xz() const noexcept { return this->v_[XZ]; }
+        constexpr const Cmpt& yx() const noexcept { return this->v_[YX]; }
+        constexpr const Cmpt& yy() const noexcept { return this->v_[YY]; }
+        constexpr const Cmpt& yz() const noexcept { return this->v_[YZ]; }
+        constexpr const Cmpt& zx() const noexcept { return this->v_[ZX]; }
+        constexpr const Cmpt& zy() const noexcept { return this->v_[ZY]; }
+        constexpr const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
 
-        Cmpt& xx() noexcept { return this->v_[XX]; }
-        Cmpt& xy() noexcept { return this->v_[XY]; }
-        Cmpt& xz() noexcept { return this->v_[XZ]; }
-        Cmpt& yx() noexcept { return this->v_[YX]; }
-        Cmpt& yy() noexcept { return this->v_[YY]; }
-        Cmpt& yz() noexcept { return this->v_[YZ]; }
-        Cmpt& zx() noexcept { return this->v_[ZX]; }
-        Cmpt& zy() noexcept { return this->v_[ZY]; }
-        Cmpt& zz() noexcept { return this->v_[ZZ]; }
+        constexpr Cmpt& xx() noexcept { return this->v_[XX]; }
+        constexpr Cmpt& xy() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& xz() noexcept { return this->v_[XZ]; }
+        constexpr Cmpt& yx() noexcept { return this->v_[YX]; }
+        constexpr Cmpt& yy() noexcept { return this->v_[YY]; }
+        constexpr Cmpt& yz() noexcept { return this->v_[YZ]; }
+        constexpr Cmpt& zx() noexcept { return this->v_[ZX]; }
+        constexpr Cmpt& zy() noexcept { return this->v_[ZY]; }
+        constexpr Cmpt& zz() noexcept { return this->v_[ZZ]; }
 
 
     // Column-vector access
 
         //- Extract vector for column 0
-        inline Vector<Cmpt> cx() const;
+        inline constexpr Vector<Cmpt> cx() const;
 
         //- Extract vector for column 1
-        inline Vector<Cmpt> cy() const;
+        inline constexpr Vector<Cmpt> cy() const;
 
         //- Extract vector for column 2
-        inline Vector<Cmpt> cz() const;
+        inline constexpr Vector<Cmpt> cz() const;
 
         //- Extract vector for given column: compile-time check of index
         template<direction Idx>
-        inline Vector<Cmpt> col() const;
+        inline constexpr Vector<Cmpt> col() const;
 
         //- Extract vector for given column (0,1,2): runtime check of index
         inline Vector<Cmpt> col(const direction c) const;
@@ -221,17 +250,17 @@ public:
     // Row-vector access
 
         //- Extract vector for row 0
-        inline Vector<Cmpt> x() const;
+        inline constexpr Vector<Cmpt> x() const;
 
         //- Extract vector for row 1
-        inline Vector<Cmpt> y() const;
+        inline constexpr Vector<Cmpt> y() const;
 
         //- Extract vector for row 2
-        inline Vector<Cmpt> z() const;
+        inline constexpr Vector<Cmpt> z() const;
 
         //- Extract vector for given row: compile-time check of index
         template<direction Idx>
-        inline Vector<Cmpt> row() const;
+        inline constexpr Vector<Cmpt> row() const;
 
         //- Extract vector for given row (0,1,2): runtime check of index
         inline Vector<Cmpt> row(const direction r) const;
@@ -267,7 +296,7 @@ public:
         inline void subtractDiag(const Vector<Cmpt>& v);
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Characteristics

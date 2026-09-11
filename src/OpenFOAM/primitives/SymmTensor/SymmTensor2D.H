@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,7 +43,6 @@ SourceFiles
 #ifndef Foam_SymmTensor2D_H
 #define Foam_SymmTensor2D_H
 
-#include "contiguous.H"
 #include "Vector2D.H"
 #include "SphericalTensor2D.H"
 
@@ -89,25 +89,31 @@ public:
         SymmTensor2D() = default;
 
         //- Copy construct
-        SymmTensor2D(const SymmTensor2D&) = default;
+        constexpr SymmTensor2D(const SymmTensor2D&) = default;
+
+        //- Move construct
+        constexpr SymmTensor2D(SymmTensor2D&&) = default;
 
         //- Copy assignment
-        SymmTensor2D& operator=(const SymmTensor2D&) = default;
+        constexpr SymmTensor2D& operator=(const SymmTensor2D&) = default;
+
+        //- Move assignment
+        constexpr SymmTensor2D& operator=(SymmTensor2D&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline SymmTensor2D(Foam::zero);
+        inline constexpr SymmTensor2D(Foam::zero);
 
         //- Construct given VectorSpace
         inline SymmTensor2D(const VectorSpace<SymmTensor2D<Cmpt>, Cmpt, 3>&);
 
-        //- Construct given SphericalTensor
-        inline SymmTensor2D(const SphericalTensor2D<Cmpt>&);
+        //- Implicit construct from SphericalTensor2D
+        inline constexpr SymmTensor2D(const SphericalTensor2D<Cmpt>&);
 
         //- Construct given the three components
-        inline SymmTensor2D
+        inline constexpr SymmTensor2D
         (
             const Cmpt txx, const Cmpt txy,
                             const Cmpt tyy
@@ -121,15 +127,15 @@ public:
 
     // Component Access
 
-        const Cmpt& xx() const noexcept { return this->v_[XX]; }
-        const Cmpt& xy() const noexcept { return this->v_[XY]; }
-        const Cmpt& yx() const noexcept { return this->v_[XY]; }
-        const Cmpt& yy() const noexcept { return this->v_[YY]; }
+        constexpr const Cmpt& xx() const noexcept { return this->v_[XX]; }
+        constexpr const Cmpt& xy() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& yx() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& yy() const noexcept { return this->v_[YY]; }
 
-        Cmpt& xx() noexcept { return this->v_[XX]; }
-        Cmpt& xy() noexcept { return this->v_[XY]; }
-        Cmpt& yx() noexcept { return this->v_[XY]; }
-        Cmpt& yy() noexcept { return this->v_[YY]; }
+        constexpr Cmpt& xx() noexcept { return this->v_[XX]; }
+        constexpr Cmpt& xy() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& yx() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& yy() noexcept { return this->v_[YY]; }
 
 
     // Diagonal access and manipulation
@@ -141,7 +147,7 @@ public:
         inline void diag(const Vector2D<Cmpt>& v);
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Tensor Operations
@@ -167,7 +173,7 @@ public:
         //- Inherit VectorSpace assignment operators
         using SymmTensor2D::vsType::operator=;
 
-        //- Construct given SphericalTensor2D
+        //- Assign from SphericalTensor2D
         inline void operator=(const SphericalTensor2D<Cmpt>&);
 };
 

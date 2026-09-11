@@ -28,10 +28,10 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::quaternion::quaternion(const Foam::zero)
+inline constexpr Foam::quaternion::quaternion(Foam::zero)
 :
     w_(0),
-    v_(Zero)
+    v_(Foam::zero{})
 {}
 
 
@@ -623,10 +623,10 @@ inline void Foam::quaternion::operator=(const vector& v)
 }
 
 
-inline void Foam::quaternion::operator=(const Foam::zero)
+inline void Foam::quaternion::operator=(Foam::zero)
 {
     w_ = 0;
-    v_ = Zero;
+    v_ = Foam::zero{};
 }
 
 

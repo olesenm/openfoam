@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -46,41 +47,52 @@ namespace Foam
 template<direction N, direction I=0>
 struct VectorSpaceOps
 {
-    //- Somewhat equivalent to std::copy_n() but with templated loops.
+    //- Like std::copy_n() but with templated loops (constexpr).
     //  \param [in] input indexable input data
     //  \param [out] result indexable output data
     template<class Input, class Output>
-    static inline void copy_n(Input input, Output result)
+    static inline constexpr void copy_n
+    (
+        [[maybe_unused]] Input input,
+        [[maybe_unused]] Output result
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             result[I] = input[I];
             VectorSpaceOps<N, I+1>::copy_n(input, result);
         }
     }
 
-    //- Somewhat equivalent to std::fill_n() but with templated loops
+    //- Like std::fill_n() but with templated loops (constexpr).
     //  \param [out] result indexable output data
     //  \param val the value to assign for each entry
     template<class Output, class T>
-    static inline void fill_n(Output result, const T& val)
+    static inline constexpr void fill_n
+    (
+        [[maybe_unused]] Output result,
+        [[maybe_unused]] const T& val
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             result[I] = val;
             VectorSpaceOps<N, I+1>::fill_n(result, val);
         }
     }
 
-    //- Apply the binary assignment operation to each vector-space
-    //- component.
+    //- Apply binary assignment operation to each vector-space component.
     //  \param [in,out] vs vector-space (indexed) data
     //  \param s scalar/component data (non-indexed)
-    //  \param eo binary combine/assign operation
     template<class V, class S, class EqOp>
-    static inline void eqOpS(V& vs, const S& s, EqOp eo)
+    static inline constexpr void eqOpS
+    (
+        [[maybe_unused]] V& vs,
+        [[maybe_unused]] const S& s,
+        [[maybe_unused]] EqOp eo
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             eo(vs.v_[I], s);
             VectorSpaceOps<N, I+1>::eqOpS(vs, s, eo);
@@ -92,9 +104,14 @@ struct VectorSpaceOps
     //  \param [in] vs input vector-space (indexed) data
     //  \param eo binary combine/assign operation
     template<class S, class V, class EqOp>
-    static inline void SeqOp(S& s, const V& vs, EqOp eo)
+    static inline constexpr void SeqOp
+    (
+        [[maybe_unused]] S& s,
+        [[maybe_unused]] const V& vs,
+        [[maybe_unused]] EqOp eo
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             eo(s, vs.v_[I]);
             VectorSpaceOps<N, I+1>::SeqOp(s, vs, eo);
@@ -106,9 +123,14 @@ struct VectorSpaceOps
     //  \param [in] vs2 second vector-space (indexed) data
     //  \param eo binary combine/assign operation
     template<class V1, class V2, class EqOp>
-    static inline void eqOp(V1& vs1, const V2& vs2, EqOp eo)
+    static inline constexpr void eqOp
+    (
+        [[maybe_unused]] V1& vs1,
+        [[maybe_unused]] const V2& vs2,
+        [[maybe_unused]] EqOp eo
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             eo(vs1.v_[I], vs2.v_[I]);
             VectorSpaceOps<N, I+1>::eqOp(vs1, vs2, eo);
@@ -122,9 +144,15 @@ struct VectorSpaceOps
     //  \param [in] s scalar operand
     //  \param bop binary operation
     template<class V, class V1, class S, class BinaryOp>
-    static inline void opVS(V& vs, const V1& vs1, const S& s, BinaryOp bop)
+    static inline constexpr void opVS
+    (
+        [[maybe_unused]] V& vs,
+        [[maybe_unused]] const V1& vs1,
+        [[maybe_unused]] const S& s,
+        [[maybe_unused]] BinaryOp bop
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             vs.v_[I] = bop(vs1.v_[I], s);
             VectorSpaceOps<N, I+1>::opVS(vs, vs1, s, bop);
@@ -138,9 +166,15 @@ struct VectorSpaceOps
     //  \param [in] vs1 vector-space (indexed) data operand
     //  \param bop binary operation
     template<class V, class S, class V1, class BinaryOp>
-    static inline void opSV(V& vs, const S& s, const V1& vs1, BinaryOp bop)
+    static inline constexpr void opSV
+    (
+        [[maybe_unused]] V& vs,
+        [[maybe_unused]] const S& s,
+        [[maybe_unused]] const V1& vs1,
+        [[maybe_unused]] BinaryOp bop
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             vs.v_[I] = bop(s, vs1.v_[I]);
             VectorSpaceOps<N, I+1>::opSV(vs, s, vs1, bop);
@@ -154,46 +188,20 @@ struct VectorSpaceOps
     //  \param [in] vs2 vector-space (indexed) data operand
     //  \param bop binary operation
     template<class V, class V1, class BinaryOp>
-    static inline void op(V& vs, const V1& vs1, const V1& vs2, BinaryOp bop)
+    static inline constexpr void op
+    (
+        [[maybe_unused]] V& vs,
+        [[maybe_unused]] const V1& vs1,
+        [[maybe_unused]] const V1& vs2,
+        [[maybe_unused]] BinaryOp bop
+    )
     {
-        // if constexpr (I < N)
+        if constexpr (I < N)
         {
             vs.v_[I] = bop(vs1.v_[I], vs2.v_[I]);
             VectorSpaceOps<N, I+1>::op(vs, vs1, vs2, bop);
         }
     }
-};
-
-
-//- Loop termination form, when index and loop count \<N\> are identical
-//  Not really needed with c++17 'if constexpr' except that gcc-7, gcc-8
-//  produce spurious warnings about unused parameters
-template<direction N>
-struct VectorSpaceOps<N, N>
-{
-    template<class Input, class Output>
-    static inline void copy_n(Input, Output) {}
-
-    template<class Output, class T>
-    static inline void fill_n(Output, const T&) {}
-
-    template<class V, class S, class EqOp>
-    static inline void eqOpS(V&, const S&, EqOp) {}
-
-    template<class S, class V, class EqOp>
-    static inline void SeqOp(S&, const V&, EqOp) {}
-
-    template<class V1, class V2, class EqOp>
-    static inline void eqOp(V1&, const V2&, EqOp) {}
-
-    template<class V, class V1, class S, class BinaryOp>
-    static inline void opVS(V&, const V1&, const S&, BinaryOp) {}
-
-    template<class V, class S, class V1, class BinaryOp>
-    static inline void opSV(V&, const S&, const V1&, BinaryOp) {}
-
-    template<class V, class V1, class BinaryOp>
-    static inline void op(V&, const V1&, const V1&, BinaryOp) {}
 };
 
 

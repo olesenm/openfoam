@@ -30,9 +30,9 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SpatialTensor<Cmpt>::SpatialTensor(const Foam::zero)
+inline constexpr Foam::SpatialTensor<Cmpt>::SpatialTensor(Foam::zero)
 :
-    SpatialTensor::msType(Zero)
+    SpatialTensor::msType(Foam::zero{})
 {}
 
 
@@ -96,31 +96,25 @@ inline Foam::SpatialTensor<Cmpt>::SpatialTensor
     const Cmpt& t50, const Cmpt& t51, const Cmpt& t52,
     const Cmpt& t53, const Cmpt& t54, const Cmpt& t55
 )
-{
-    // Row 0
-    this->v_[0] = t00;    this->v_[1] = t01;    this->v_[2] = t02;
-    this->v_[3] = t03;    this->v_[4] = t04;    this->v_[5] = t05;
-
-    // Row 1
-    this->v_[6] = t10;    this->v_[7] = t11;    this->v_[8] = t12;
-    this->v_[9] = t13;    this->v_[10] = t14;   this->v_[11] = t15;
-
-    // Row 2
-    this->v_[12] = t20;   this->v_[13] = t21;   this->v_[14] = t22;
-    this->v_[15] = t23;   this->v_[16] = t24;   this->v_[17] = t25;
-
-    // Row 3
-    this->v_[18] = t30;   this->v_[19] = t31;   this->v_[20] = t32;
-    this->v_[21] = t33;   this->v_[22] = t34;   this->v_[23] = t35;
-
-    // Row 4
-    this->v_[24] = t40;   this->v_[25] = t41;   this->v_[26] = t42;
-    this->v_[27] = t43;   this->v_[28] = t44;   this->v_[29] = t45;
-
-    // Row 5
-    this->v_[30] = t50;   this->v_[31] = t51;   this->v_[32] = t52;
-    this->v_[33] = t53;   this->v_[34] = t54;   this->v_[35] = t55;
-}
+:
+    // aggregate initialization
+    SpatialTensor::msType
+    (
+        Foam::direct_construct_t{},
+        t00, t01, t02,
+        t03, t04, t05,
+        t10, t11, t12,
+        t13, t14, t15,
+        t20, t21, t22,
+        t23, t24, t25,
+        t30, t31, t32,
+        t33, t34, t35,
+        t40, t41, t42,
+        t43, t44, t45,
+        t50, t51, t52,
+        t53, t54, t55
+    )
+{}
 
 
 template<class Cmpt>

@@ -124,14 +124,14 @@ void reduceBoxes_impl
 
 const Foam::boundBox Foam::boundBox::greatBox
 (
-    point::uniform(-ROOTVGREAT),
-    point::uniform(ROOTVGREAT)
+    point::uniform(-boundBox::greatDim()),
+    point::uniform(boundBox::greatDim())
 );
 
 const Foam::boundBox Foam::boundBox::invertedBox
 (
-    point::uniform(ROOTVGREAT),
-    point::uniform(-ROOTVGREAT)
+    point::uniform(boundBox::greatDim()),
+    point::uniform(-boundBox::greatDim())
 );
 
 const Foam::FixedList<Foam::vector, 6> Foam::boundBox::faceNormals

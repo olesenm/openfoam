@@ -148,7 +148,7 @@ public:
     // Constructors
 
         //- Construct initialized to zero
-        inline quaternion(const Foam::zero);
+        inline constexpr quaternion(Foam::zero);
 
         //- Construct given scalar and vector parts
         inline quaternion(const scalar w, const vector& v);
@@ -247,7 +247,7 @@ public:
         inline void operator=(const vector& v);
 
         //- Assign scalar and vector to zero
-        inline void operator=(const Foam::zero);
+        inline void operator=(Foam::zero);
 
         inline void operator*=(const scalar s);
         inline void operator/=(const scalar s);

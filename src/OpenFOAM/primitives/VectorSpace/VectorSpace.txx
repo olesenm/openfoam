@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,9 +41,11 @@ Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace
 {
     is.readBegin("VectorSpace");
 
-    for (direction i=0; i<Ncmpts; i++)
+    Cmpt* iter = this->data();
+
+    for (direction i=0; i<Ncmpts; ++i)
     {
-        is >> v_[i];
+        is >> iter[i];
     }
 
     is.readEnd("VectorSpace");
@@ -59,11 +62,13 @@ Foam::word Foam::name
 {
     std::ostringstream buf;
 
-    buf << '(' << vs.v_[0];
+    const Cmpt* iter = vs.cdata();
+
+    buf << '(' << iter[0];
 
     for (direction i=1; i<Ncmpts; ++i)
     {
-        buf << ',' << vs.v_[i];
+        buf << ',' << iter[i];
     }
 
     buf << ')';
@@ -83,9 +88,11 @@ Foam::Istream& Foam::operator>>
 {
     is.readBegin("VectorSpace");
 
-    for (direction i=0; i<Ncmpts; i++)
+    Cmpt* iter = vs.data();
+
+    for (direction i=0; i<Ncmpts; ++i)
     {
-        is >> vs.v_[i];
+        is >> iter[i];
     }
 
     is.readEnd("VectorSpace");
@@ -103,11 +110,13 @@ Foam::Ostream& Foam::operator<<
     const VectorSpace<Form, Cmpt, Ncmpts>& vs
 )
 {
-    os << token::BEGIN_LIST << vs.v_[0];
+    const Cmpt* iter = vs.cdata();
+
+    os << token::BEGIN_LIST << iter[0];
 
     for (direction i=1; i<Ncmpts; ++i)
     {
-        os << token::SPACE << vs.v_[i];
+        os << token::SPACE << iter[i];
     }
 
     os << token::END_LIST;

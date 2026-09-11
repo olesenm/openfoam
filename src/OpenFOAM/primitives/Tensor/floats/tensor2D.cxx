@@ -189,8 +189,8 @@ Foam::Tensor2D<Foam::complex> Foam::eigenVectors
     const Vector2D<complex>& eVals
 )
 {
-    Vector2D<complex> Ux(pTraits<complex>::one, Zero);
-    Vector2D<complex> Uy(Zero, pTraits<complex>::one);
+    Vector2D<complex> Ux(complex(1), complex(0));
+    Vector2D<complex> Uy(complex(0), complex(1));
 
     Ux = eigenVector(T, eVals.x(), Uy);
     Uy = eigenVector(T, eVals.y(), Ux);

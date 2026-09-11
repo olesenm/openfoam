@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,37 +43,37 @@ const char* const Foam::complexVector::vsType::componentNames[] =
 template<>
 const Foam::complexVector Foam::complexVector::vsType::zero
 (
-    complexVector::uniform(pTraits<complex>::zero)
+    complexVector::uniform(complex::zero)
 );
 
 template<>
 const Foam::complexVector Foam::complexVector::vsType::one
 (
-    complexVector::uniform(pTraits<complex>::one)
+    complexVector::uniform(complex::one)
 );
 
 template<>
 const Foam::complexVector Foam::complexVector::vsType::max
 (
-    complexVector::uniform(pTraits<complex>::max)
+    complexVector::uniform(complex::max)
 );
 
 template<>
 const Foam::complexVector Foam::complexVector::vsType::min
 (
-    complexVector::uniform(pTraits<complex>::min)
+    complexVector::uniform(complex::min)
 );
 
 template<>
 const Foam::complexVector Foam::complexVector::vsType::rootMax
 (
-    complexVector::uniform(pTraits<complex>::rootMax)
+    complexVector::uniform(complex::rootMax)
 );
 
 template<>
 const Foam::complexVector Foam::complexVector::vsType::rootMin
 (
-    complexVector::uniform(pTraits<complex>::rootMin)
+    complexVector::uniform(complex::rootMin)
 );
 
 

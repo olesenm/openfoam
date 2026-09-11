@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,8 +33,8 @@ Description
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef Identity_H
-#define Identity_H
+#ifndef Foam_Identity_H
+#define Foam_Identity_H
 
 #include "SphericalTensor.H"
 
@@ -54,7 +55,7 @@ class Identity
 public:
 
     //- Construct initializing the SphericalTensor to 1
-    Identity()
+    constexpr Identity()
     :
         SphericalTensor<Cmpt>(1)
     {}
@@ -78,21 +79,15 @@ public:
     }
 
     //- Return 1 for label
-    explicit operator label() const noexcept
-    {
-        return 1;
-    }
+    constexpr explicit operator label() const noexcept { return 1; }
 
     //- Return 1 for scalar
-    explicit operator scalar() const noexcept
-    {
-        return 1;
-    }
+    constexpr explicit operator scalar() const noexcept { return 1; }
 };
 
 
-// Global Identity tensor
-static const Identity<scalar> I;
+//- Global Identity tensor
+static constexpr Identity<scalar> I;
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

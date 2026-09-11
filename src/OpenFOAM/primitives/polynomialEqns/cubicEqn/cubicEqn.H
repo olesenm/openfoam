@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -126,31 +127,25 @@ public:
         cubicEqn() = default;
 
         //- Construct initialized to zero
-        inline cubicEqn(const Foam::zero);
+        inline constexpr cubicEqn(Foam::zero);
 
         //- Construct from components
-        inline cubicEqn
-        (
-            const scalar a,
-            const scalar b,
-            const scalar c,
-            const scalar d
-        );
+        inline constexpr cubicEqn(scalar a, scalar b, scalar c, scalar d);
 
 
     // Member Functions
 
     // Access
 
-        scalar a() const noexcept { return this->v_[A]; }
-        scalar b() const noexcept { return this->v_[B]; }
-        scalar c() const noexcept { return this->v_[C]; }
-        scalar d() const noexcept { return this->v_[D]; }
+        constexpr scalar a() const noexcept { return this->v_[A]; }
+        constexpr scalar b() const noexcept { return this->v_[B]; }
+        constexpr scalar c() const noexcept { return this->v_[C]; }
+        constexpr scalar d() const noexcept { return this->v_[D]; }
 
-        scalar& a() noexcept { return this->v_[A]; }
-        scalar& b() noexcept { return this->v_[B]; }
-        scalar& c() noexcept { return this->v_[C]; }
-        scalar& d() noexcept { return this->v_[D]; }
+        constexpr scalar& a() noexcept { return this->v_[A]; }
+        constexpr scalar& b() noexcept { return this->v_[B]; }
+        constexpr scalar& c() noexcept { return this->v_[C]; }
+        constexpr scalar& d() noexcept { return this->v_[D]; }
 
 
     // Evaluate

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,7 +43,6 @@ SourceFiles
 #ifndef Foam_SphericalTensor_H
 #define Foam_SphericalTensor_H
 
-#include "contiguous.H"
 #include "VectorSpace.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -90,18 +90,25 @@ public:
         SphericalTensor() = default;
 
         //- Copy construct
-        SphericalTensor(const SphericalTensor&) = default;
+        constexpr SphericalTensor(const SphericalTensor&) = default;
+
+        //- Move construct
+        constexpr SphericalTensor(SphericalTensor&&) = default;
 
         //- Copy assignment
-        SphericalTensor& operator=(const SphericalTensor&) = default;
+        constexpr SphericalTensor& operator=(const SphericalTensor&) = default;
+
+        //- Move assignment
+        constexpr SphericalTensor& operator=(SphericalTensor&&) = default;
+
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline SphericalTensor(Foam::zero);
+        inline constexpr SphericalTensor(Foam::zero);
 
-        //- Construct given VectorSpace
+        //- Construct given VectorSpace of the same form/rank
         template<class Cmpt2>
         inline SphericalTensor
         (
@@ -109,7 +116,7 @@ public:
         );
 
         //- Construct given the component
-        inline explicit SphericalTensor(const Cmpt& tii);
+        inline constexpr explicit SphericalTensor(const Cmpt& tii);
 
         //- Construct from Istream
         inline explicit SphericalTensor(Istream& is);
@@ -119,15 +126,15 @@ public:
 
     // Component Access
 
-        const Cmpt& ii() const noexcept { return this->v_[II]; }
+        constexpr const Cmpt& ii() const noexcept { return this->v_[II]; }
 
-        Cmpt& ii() noexcept { return this->v_[II]; }
+        constexpr Cmpt& ii() noexcept { return this->v_[II]; }
 
 
     // Diagonal access and manipulation
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Tensor Operations

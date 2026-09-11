@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -85,23 +86,29 @@ public:
         SymmTensor() = default;
 
         //- Copy construct
-        SymmTensor(const SymmTensor&) = default;
+        constexpr SymmTensor(const SymmTensor&) = default;
+
+        //- Move construct
+        constexpr SymmTensor(SymmTensor&&) = default;
 
         //- Copy assignment
-        SymmTensor& operator=(const SymmTensor&) = default;
+        constexpr SymmTensor& operator=(const SymmTensor&) = default;
+
+        //- Move assignment
+        constexpr SymmTensor& operator=(SymmTensor&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline SymmTensor(Foam::zero);
+        inline constexpr SymmTensor(Foam::zero);
 
         //- Construct given VectorSpace of the same rank
         template<class Cmpt2>
         inline SymmTensor(const VectorSpace<SymmTensor<Cmpt2>, Cmpt2, 6>&);
 
         //- Construct given SphericalTensor
-        inline SymmTensor(const SphericalTensor<Cmpt>&);
+        inline constexpr SymmTensor(const SphericalTensor<Cmpt>&);
 
         //- Construct given the three row (or column) vectors
         inline SymmTensor
@@ -113,7 +120,7 @@ public:
         );
 
         //- Construct given the six components
-        inline SymmTensor
+        inline constexpr SymmTensor
         (
             const Cmpt txx, const Cmpt txy, const Cmpt txz,
                             const Cmpt tyy, const Cmpt tyz,
@@ -128,41 +135,42 @@ public:
 
     // Component Access
 
-        const Cmpt& xx() const noexcept { return this->v_[XX]; }
-        const Cmpt& xy() const noexcept { return this->v_[XY]; }
-        const Cmpt& xz() const noexcept { return this->v_[XZ]; }
-        const Cmpt& yx() const noexcept { return this->v_[XY]; }
-        const Cmpt& yy() const noexcept { return this->v_[YY]; }
-        const Cmpt& yz() const noexcept { return this->v_[YZ]; }
-        const Cmpt& zx() const noexcept { return this->v_[XZ]; }
-        const Cmpt& zy() const noexcept { return this->v_[YZ]; }
-        const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
+        constexpr const Cmpt& xx() const noexcept { return this->v_[XX]; }
+        constexpr const Cmpt& xy() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& xz() const noexcept { return this->v_[XZ]; }
+        constexpr const Cmpt& yx() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& yy() const noexcept { return this->v_[YY]; }
+        constexpr const Cmpt& yz() const noexcept { return this->v_[YZ]; }
+        constexpr const Cmpt& zx() const noexcept { return this->v_[XZ]; }
+        constexpr const Cmpt& zy() const noexcept { return this->v_[YZ]; }
+        constexpr const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
 
-        Cmpt& xx() noexcept { return this->v_[XX]; }
-        Cmpt& xy() noexcept { return this->v_[XY]; }
-        Cmpt& xz() noexcept { return this->v_[XZ]; }
-        Cmpt& yx() noexcept { return this->v_[XY]; }
-        Cmpt& yy() noexcept { return this->v_[YY]; }
-        Cmpt& yz() noexcept { return this->v_[YZ]; }
-        Cmpt& zx() noexcept { return this->v_[XZ]; }
-        Cmpt& zy() noexcept { return this->v_[YZ]; }
-        Cmpt& zz() noexcept { return this->v_[ZZ]; }
+        constexpr Cmpt& xx() noexcept { return this->v_[XX]; }
+        constexpr Cmpt& xy() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& xz() noexcept { return this->v_[XZ]; }
+        constexpr Cmpt& yx() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& yy() noexcept { return this->v_[YY]; }
+        constexpr Cmpt& yz() noexcept { return this->v_[YZ]; }
+        constexpr Cmpt& zx() noexcept { return this->v_[XZ]; }
+        constexpr Cmpt& zy() noexcept { return this->v_[YZ]; }
+        constexpr Cmpt& zz() noexcept { return this->v_[ZZ]; }
 
 
     // Column-vector access
 
         //- Extract vector for column 0
-        Vector<Cmpt> cx() const { return this->x(); }
+        constexpr Vector<Cmpt> cx() const { return this->x(); }
 
         //- Extract vector for column 1
-        Vector<Cmpt> cy() const { return this->y(); }
+        constexpr Vector<Cmpt> cy() const { return this->y(); }
 
         //- Extract vector for column 2
-        Vector<Cmpt> cz() const { return this->z(); }
+        constexpr Vector<Cmpt> cz() const { return this->z(); }
 
         //- Extract vector for given column: compile-time check of index
+        //  \note same as row() since it is symmetric
         template<direction Idx>
-        Vector<Cmpt> col() const { return this->row<Idx>(); }
+        constexpr Vector<Cmpt> col() const { return this->row<Idx>(); }
 
         //- Extract vector for given column (0,1,2): runtime check of index
         Vector<Cmpt> col(const direction c) const { return this->row(c); }
@@ -170,7 +178,7 @@ public:
         //- Set values of given column (0,1,2): runtime check of index
         void col(const direction c, const Vector<Cmpt>& v) { this->row(c, v); }
 
-        //- Set column values
+        //- Set column values (same as setting rows for symmetric)
         void cols
         (
             const Vector<Cmpt>& x,
@@ -185,17 +193,17 @@ public:
     // Row-vector access
 
         //- Extract vector for row 0
-        inline Vector<Cmpt> x() const;
+        inline constexpr Vector<Cmpt> x() const;
 
         //- Extract vector for row 1
-        inline Vector<Cmpt> y() const;
+        inline constexpr Vector<Cmpt> y() const;
 
         //- Extract vector for row 2
-        inline Vector<Cmpt> z() const;
+        inline constexpr Vector<Cmpt> z() const;
 
         //- Extract vector for given row: compile-time check of index
         template<direction Row>
-        inline Vector<Cmpt> row() const;
+        inline constexpr Vector<Cmpt> row() const;
 
         //- Extract vector for given row (0,1,2): runtime check of index
         inline Vector<Cmpt> row(const direction r) const;
@@ -231,7 +239,7 @@ public:
         inline void subtractDiag(const Vector<Cmpt>& v);
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Characteristics

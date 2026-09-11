@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -83,26 +84,37 @@ public:
         DiagTensor() = default;
 
         //- Copy construct
-        DiagTensor(const DiagTensor&) = default;
+        constexpr DiagTensor(const DiagTensor&) = default;
+
+        //- Move construct
+        constexpr DiagTensor(DiagTensor&&) = default;
 
         //- Copy assignment
-        DiagTensor& operator=(const DiagTensor&) = default;
+        constexpr DiagTensor& operator=(const DiagTensor&) = default;
+
+        //- Move assignment
+        constexpr DiagTensor& operator=(DiagTensor&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline DiagTensor(Foam::zero);
+        inline constexpr DiagTensor(Foam::zero);
 
         //- Construct given VectorSpace
         template<class Cmpt2>
         inline DiagTensor(const VectorSpace<DiagTensor<Cmpt2>, Cmpt2, 3>&);
 
         //- Construct given SphericalTensor
-        inline DiagTensor(const SphericalTensor<Cmpt>&);
+        inline constexpr DiagTensor(const SphericalTensor<Cmpt>&);
 
         //- Construct given three components
-        inline DiagTensor(const Cmpt& txx, const Cmpt& tyy, const Cmpt& tzz);
+        inline constexpr DiagTensor
+        (
+            const Cmpt& txx,
+            const Cmpt& tyy,
+            const Cmpt& tzz
+        );
 
         //- Construct from Istream
         inline explicit DiagTensor(Istream& is);
@@ -112,13 +124,13 @@ public:
 
     // Component Access
 
-        const Cmpt& xx() const noexcept { return this->v_[XX]; }
-        const Cmpt& yy() const noexcept { return this->v_[YY]; }
-        const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
+        constexpr const Cmpt& xx() const noexcept { return this->v_[XX]; }
+        constexpr const Cmpt& yy() const noexcept { return this->v_[YY]; }
+        constexpr const Cmpt& zz() const noexcept { return this->v_[ZZ]; }
 
-        Cmpt& xx() noexcept { return this->v_[XX]; }
-        Cmpt& yy() noexcept { return this->v_[YY]; }
-        Cmpt& zz() noexcept { return this->v_[ZZ]; }
+        constexpr Cmpt& xx() noexcept { return this->v_[XX]; }
+        constexpr Cmpt& yy() noexcept { return this->v_[YY]; }
+        constexpr Cmpt& zz() noexcept { return this->v_[ZZ]; }
 
 
     // Diagonal access and manipulation
@@ -127,7 +139,7 @@ public:
         inline Vector<Cmpt> diag() const;
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 };
 
 

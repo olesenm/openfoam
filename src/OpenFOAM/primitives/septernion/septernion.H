@@ -100,7 +100,7 @@ public:
     // Constructors
 
         //- Construct zero initialized
-        inline septernion(const Foam::zero);
+        inline constexpr septernion(Foam::zero);
 
         //- Construct given a translation vector and rotation quaternion
         inline septernion(const vector& t, const quaternion& r);

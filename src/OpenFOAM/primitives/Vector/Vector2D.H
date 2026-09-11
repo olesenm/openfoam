@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,13 +41,25 @@ SourceFiles
 #ifndef Foam_Vector2D_H
 #define Foam_Vector2D_H
 
-#include "contiguous.H"
-#include "VectorSpace.H"
+#include "Vector.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
+
+// Forward Declarations
+template<class Cmpt> class Vector2D;
+
+// Common Types
+
+//! \class Foam::floatVector2D
+//! \brief A Vector2D of values with float precision
+typedef Vector2D<float> floatVector2D;
+
+//! \class Foam::doubleVector2D
+//! \brief A Vector2D of values with double precision
+typedef Vector2D<double> doubleVector2D;
 
 /*---------------------------------------------------------------------------*\
                            Class Vector2D Declaration
@@ -81,22 +94,31 @@ public:
         Vector2D() = default;
 
         //- Copy construct
-        Vector2D(const Vector2D&) = default;
+        constexpr Vector2D(const Vector2D&) = default;
+
+        //- Move construct
+        constexpr Vector2D(Vector2D&&) = default;
 
         //- Copy assignment
-        Vector2D& operator=(const Vector2D&) = default;
+        constexpr Vector2D& operator=(const Vector2D&) = default;
+
+        //- Move assignment
+        constexpr Vector2D& operator=(Vector2D&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline Vector2D(Foam::zero);
+        inline constexpr Vector2D(Foam::zero);
 
         //- Copy construct from VectorSpace of the same rank
         inline Vector2D(const VectorSpace<Vector2D<Cmpt>, Cmpt, 2>& vs);
 
         //- Construct from two components
-        inline Vector2D(const Cmpt& vx, const Cmpt& vy);
+        inline constexpr Vector2D(const Cmpt& vx, const Cmpt& vy);
+
+        //- Copy construct from 3D variant, discarding z component
+        inline constexpr explicit Vector2D(const Vector<Cmpt>& vs);
 
         //- Construct from Istream
         inline explicit Vector2D(Istream& is);
@@ -107,16 +129,19 @@ public:
     // Component Access
 
         //- Access to the vector x component
-        const Cmpt& x() const noexcept { return this->v_[components::X]; }
+        constexpr const Cmpt& x() const noexcept { return this->v_[X]; }
 
         //- Access to the vector y component
-        const Cmpt& y() const noexcept { return this->v_[components::Y]; }
+        constexpr const Cmpt& y() const noexcept { return this->v_[Y]; }
 
         //- Access to the vector x component
-        Cmpt& x() noexcept { return this->v_[components::X]; }
+        constexpr Cmpt& x() noexcept { return this->v_[X]; }
 
         //- Access to the vector y component
-        Cmpt& y() noexcept { return this->v_[components::Y]; }
+        constexpr Cmpt& y() noexcept { return this->v_[Y]; }
+
+        // //- A 'fake' value for z component
+        // static Cmpt z() { return Cmpt(Foam::zero{}); }
 
 
     // Vector Operations
@@ -125,7 +150,7 @@ public:
         inline scalar mag() const;
 
         //- The length (L2-norm) squared of the vector.
-        inline scalar magSqr() const;
+        inline constexpr scalar magSqr() const;
 
         //- The L2-norm distance from another vector.
         //- The mag() of the difference.
@@ -133,7 +158,7 @@ public:
 
         //- The L2-norm distance squared from another vector.
         //- The magSqr() of the difference.
-        inline scalar distSqr(const Vector2D<Cmpt>& v2) const;
+        inline constexpr scalar distSqr(const Vector2D<Cmpt>& v2) const;
 
         //- Normalise the vector by its magnitude
         //  For small magnitudes (less than ROOTVSMALL) set to zero.
@@ -144,8 +169,11 @@ public:
         //- unit vector.
         inline Vector2D<Cmpt>& removeCollinear(const Vector2D<Cmpt>& unitVec);
 
+        //- Scalar-product of \c this with another Vector.
+        inline constexpr Cmpt inner(const Vector2D<Cmpt>& v2) const;
+
         //- Perp dot product (dot product with perpendicular vector)
-        inline scalar perp(const Vector2D<Cmpt>& b) const;
+        inline constexpr Cmpt perp(const Vector2D<Cmpt>& b) const;
 
         //- Return true if vector is within tol
         inline bool isClose

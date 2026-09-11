@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,30 +33,26 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors * * * * * * * * * * * * * * //
 
-inline Foam::triPoints::triPoints
+inline constexpr Foam::triPoints::triPoints
 (
     const point& p0,
     const point& p1,
     const point& p2
 )
-{
-    a() = p0;
-    b() = p1;
-    c() = p2;
-}
-
-
-inline Foam::triPoints::triPoints(const triPointRef& pts)
-{
-    a() = pts.a();
-    b() = pts.b();
-    c() = pts.c();
-}
-
-
-inline Foam::triPoints::triPoints(const FixedList<point, 3>& pts)
 :
-    FixedList<point, 3>(pts)
+    tuple_type(Foam::direct_construct_t{}, p0, p1, p2)
+{}
+
+
+inline constexpr Foam::triPoints::triPoints(const triPointRef& pts)
+:
+    tuple_type(Foam::direct_construct_t{}, pts.a(), pts.b(), pts.c())
+{}
+
+
+inline constexpr Foam::triPoints::triPoints(const FixedList<point, 3>& pts)
+:
+    tuple_type(pts)
 {}
 
 
@@ -65,26 +62,30 @@ inline Foam::triPoints::triPoints
     const FixedList<label, 3>& indices
 )
 :
-    FixedList<point, 3>(points, indices)
+    tuple_type(points, indices)
 {}
 
 
 inline Foam::triPoints::triPoints
 (
     const UList<point>& points,
-    const label p0,
-    const label p1,
-    const label p2
+    label p0,
+    label p1,
+    label p2
 )
-{
-    a() = points[p0];
-    b() = points[p1];
-    c() = points[p2];
-}
+:
+    tuple_type
+    (
+        Foam::direct_construct_t{},
+        points[p0],
+        points[p1],
+        points[p2]
+    )
+{}
 
 
 template<class Point, class PointRef>
-inline Foam::triangle<Point, PointRef>::triangle
+inline constexpr Foam::triangle<Point, PointRef>::triangle
 (
     const Point& p0,
     const Point& p1,
@@ -98,7 +99,7 @@ inline Foam::triangle<Point, PointRef>::triangle
 
 
 template<class Point, class PointRef>
-inline Foam::triangle<Point, PointRef>::triangle
+inline constexpr Foam::triangle<Point, PointRef>::triangle
 (
     const FixedList<Point, 3>& pts
 )
@@ -1065,38 +1066,6 @@ inline int Foam::triangle<Point, PointRef>::sign
     const scalar dist = ((p - a_) & unitNormal());
 
     return ((dist < -tol) ? -1 : (dist > tol) ? +1 : 0);
-}
-
-
-template<class Point, class PointRef>
-inline void Foam::triangle<Point, PointRef>::sumAreaOp::operator()
-(
-    const triPoints& tri
-)
-{
-    area_ += triangle<Point, const Point&>(tri).mag();
-}
-
-
-template<class Point, class PointRef>
-inline Foam::triangle<Point, PointRef>::storeOp::storeOp
-(
-    triIntersectionList& tris,
-    label& nTris
-)
-:
-    tris_(tris),
-    nTris_(nTris)
-{}
-
-
-template<class Point, class PointRef>
-inline void Foam::triangle<Point, PointRef>::storeOp::operator()
-(
-    const triPoints& tri
-)
-{
-    tris_[nTris_++] = tri;
 }
 
 

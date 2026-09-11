@@ -45,10 +45,6 @@ Description
 namespace Foam
 {
 
-// Forward Declarations
-class objectHit;
-inline Ostream& operator<<(Ostream& os, const objectHit& obj);
-
 /*---------------------------------------------------------------------------*\
                            Class objectHit Declaration
 \*---------------------------------------------------------------------------*/
@@ -63,8 +59,13 @@ class objectHit
         //- The hit object index
         label index_;
 
-
 public:
+
+    // Properties
+
+        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
+        static constexpr label bad_index() noexcept { return labelMin; }
+
 
     // Constructors
 
@@ -90,27 +91,18 @@ public:
         {}
 
 
-    // Properties
-
-        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
-        static constexpr label bad_index() noexcept { return labelMin; }
-
-
     // Member Functions
 
     // Access
 
         //- Is there a hit?
-        bool hit() const noexcept { return hit_; }
+        constexpr bool hit() const noexcept { return hit_; }
 
         //- Considered \em "bad" if the index is equal to bad_index()
-        bool bad() const noexcept { return index_ == bad_index(); }
+        constexpr bool bad() const noexcept { return index_ == bad_index(); }
 
         //- Return the hit object index
-        label index() const noexcept { return index_; }
-
-        //- Identical to index()
-        label hitObject() const noexcept { return index_; }
+        constexpr label index() const noexcept { return index_; }
 
 
     // Edit
@@ -147,26 +139,45 @@ public:
         }
 
 
-    // Ostream Operator
+    // Member Operators
 
-        inline friend Ostream& operator<<(Ostream& os, const objectHit& obj)
+        //- Comparison operator, for sorting
+        //  1. hit (true) sorts before miss (false)
+        //  2. normal comparison on index
+        bool operator<(const objectHit& rhs) const
         {
-             return os << obj.hit() << token::SPACE << obj.index();
+            if (hit_ != rhs.hit_)
+            {
+                return hit_;
+            }
+            return index_ < rhs.index_;
         }
+
+        //- Test for equality of all components
+        bool operator==(const objectHit& rhs) const noexcept
+        {
+            return (hit_ == rhs.hit_ && index_ == rhs.index_);
+        }
+
+        //- Test for inequality of components
+        bool operator!=(const objectHit& rhs) const noexcept
+        {
+            return !(*this == rhs);
+        }
+
+
+    // Housekeeping
+
+        //- Identical to index()
+        label hitObject() const noexcept { return index_; }
 };
 
 
-// * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
 
-inline bool operator==(const objectHit& a, const objectHit& b)
+inline Ostream& operator<<(Ostream& os, const objectHit& obj)
 {
-    return a.hit() == b.hit() && a.index() == b.index();
-}
-
-
-inline bool operator!=(const objectHit& a, const objectHit& b)
-{
-    return !(a == b);
+    return os << obj.hit() << token::SPACE << obj.index();
 }
 
 

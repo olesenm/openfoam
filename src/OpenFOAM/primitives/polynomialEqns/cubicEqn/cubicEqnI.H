@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,25 +28,23 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::cubicEqn::cubicEqn(const Foam::zero)
+inline constexpr Foam::cubicEqn::cubicEqn(Foam::zero)
 :
-    VectorSpace<cubicEqn, scalar, 4>(Foam::zero{})
+    cubicEqn::vsType(Foam::zero{})
 {}
 
 
-inline Foam::cubicEqn::cubicEqn
+inline constexpr Foam::cubicEqn::cubicEqn
 (
-    const scalar a,
-    const scalar b,
-    const scalar c,
-    const scalar d
+    scalar a,
+    scalar b,
+    scalar c,
+    scalar d
 )
-{
-    this->v_[A] = a;
-    this->v_[B] = b;
-    this->v_[C] = c;
-    this->v_[D] = d;
-}
+:
+    // aggregate initialization
+    cubicEqn::vsType(Foam::direct_construct_t{}, a, b, c, d)
+{}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //

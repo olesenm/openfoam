@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2019-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -54,10 +55,10 @@ namespace Foam
 typedef SphericalTensor2D<scalar> sphericalTensor2D;
 
 //- Identity tensor
-static const sphericalTensor2D I2D(1);
+static constexpr sphericalTensor2D I2D(1);
 
-static const sphericalTensor2D oneThirdI2D(1.0/3.0);
-static const sphericalTensor2D twoThirdsI2D(2.0/3.0);
+static constexpr sphericalTensor2D oneThirdI2D(1.0/3.0);
+static constexpr sphericalTensor2D twoThirdsI2D(2.0/3.0);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

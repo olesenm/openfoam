@@ -78,14 +78,14 @@ template<>                                                                    \
 const Foam::SphericalTensor<Type>                                             \
 Foam::SphericalTensor<Type>::vsType::rootMax                                  \
 (                                                                             \
-    SphericalTensor<Type>::uniform(::sqrt(double(Prefix##Max)))               \
+    SphericalTensor<Type>::uniform(std::sqrt(double(Prefix##Max)))            \
 );                                                                            \
                                                                               \
 template<>                                                                    \
 const Foam::SphericalTensor<Type>                                             \
 Foam::SphericalTensor<Type>::vsType::rootMin                                  \
 (                                                                             \
-    SphericalTensor<Type>::uniform(-::sqrt(double(Prefix##Max)))              \
+    SphericalTensor<Type>::uniform(-std::sqrt(double(Prefix##Max)))           \
 );                                                                            \
                                                                               \
 template<>                                                                    \

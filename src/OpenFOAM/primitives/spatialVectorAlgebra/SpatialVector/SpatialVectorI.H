@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,9 +29,9 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SpatialVector<Cmpt>::SpatialVector(const Foam::zero)
+inline constexpr Foam::SpatialVector<Cmpt>::SpatialVector(Foam::zero)
 :
-    SpatialVector::vsType(Zero)
+    SpatialVector::vsType(Foam::zero{})
 {}
 
 
@@ -45,23 +46,24 @@ inline Foam::SpatialVector<Cmpt>::SpatialVector
 
 
 template<class Cmpt>
-inline Foam::SpatialVector<Cmpt>::SpatialVector
+inline constexpr Foam::SpatialVector<Cmpt>::SpatialVector
 (
     const Vector<Cmpt>& w,
     const Vector<Cmpt>& l
 )
-{
-    this->v_[WX] = w.x();
-    this->v_[WY] = w.y();
-    this->v_[WZ] = w.z();
-    this->v_[LX] = l.x();
-    this->v_[LY] = l.y();
-    this->v_[LZ] = l.z();
-}
+:
+    // aggregate initialization
+    SpatialVector::vsType
+    (
+        Foam::direct_construct_t{},
+        w.x(), w.y(), w.z(),
+        l.x(), l.y(), l.z()
+    )
+{}
 
 
 template<class Cmpt>
-inline Foam::SpatialVector<Cmpt>::SpatialVector
+inline constexpr Foam::SpatialVector<Cmpt>::SpatialVector
 (
     const Cmpt& v0,
     const Cmpt& v1,
@@ -70,14 +72,15 @@ inline Foam::SpatialVector<Cmpt>::SpatialVector
     const Cmpt& v4,
     const Cmpt& v5
 )
-{
-    this->v_[WX] = v0;
-    this->v_[WY] = v1;
-    this->v_[WZ] = v2;
-    this->v_[LX] = v3;
-    this->v_[LY] = v4;
-    this->v_[LZ] = v5;
-}
+:
+    // aggregate initialization
+    SpatialVector::vsType
+    (
+        Foam::direct_construct_t{},
+        v0, v1, v2,
+        v3, v4, v5
+    )
+{}
 
 
 template<class Cmpt>
@@ -97,13 +100,13 @@ inline Foam::SpatialVector<Cmpt>::dual::dual(const SpatialVector& v)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::SpatialVector<Cmpt>::w() const
+inline constexpr Foam::Vector<Cmpt> Foam::SpatialVector<Cmpt>::w() const
 {
     return Vector<Cmpt>(this->v_[WX], this->v_[WY], this->v_[WZ]);
 }
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::SpatialVector<Cmpt>::l() const
+inline constexpr Foam::Vector<Cmpt> Foam::SpatialVector<Cmpt>::l() const
 {
     return Vector<Cmpt>(this->v_[LX], this->v_[LY], this->v_[LZ]);
 }

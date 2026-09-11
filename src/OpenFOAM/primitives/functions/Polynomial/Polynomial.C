@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,9 +32,9 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<int PolySize>
-Foam::Polynomial<PolySize>::Polynomial()
+constexpr Foam::Polynomial<PolySize>::Polynomial()
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(Zero),
+    Polynomial::vsType(Foam::zero{}),
     logActive_(false),
     logCoeff_(0)
 {}
@@ -42,7 +43,7 @@ Foam::Polynomial<PolySize>::Polynomial()
 template<int PolySize>
 Foam::Polynomial<PolySize>::Polynomial(std::initializer_list<scalar> coeffs)
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(),
+    Polynomial::vsType(),
     logActive_(false),
     logCoeff_(0)
 {
@@ -66,7 +67,7 @@ Foam::Polynomial<PolySize>::Polynomial(std::initializer_list<scalar> coeffs)
 template<int PolySize>
 Foam::Polynomial<PolySize>::Polynomial(const scalar coeffs[PolySize])
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(),
+    Polynomial::vsType(),
     logActive_(false),
     logCoeff_(0)
 {
@@ -80,7 +81,7 @@ Foam::Polynomial<PolySize>::Polynomial(const scalar coeffs[PolySize])
 template<int PolySize>
 Foam::Polynomial<PolySize>::Polynomial(const UList<scalar>& coeffs)
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(),
+    Polynomial::vsType(),
     logActive_(false),
     logCoeff_(0)
 {
@@ -102,7 +103,7 @@ Foam::Polynomial<PolySize>::Polynomial(const UList<scalar>& coeffs)
 template<int PolySize>
 Foam::Polynomial<PolySize>::Polynomial(Istream& is)
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(is),
+    Polynomial::vsType(is),
     logActive_(false),
     logCoeff_(0)
 {}
@@ -111,7 +112,7 @@ Foam::Polynomial<PolySize>::Polynomial(Istream& is)
 template<int PolySize>
 Foam::Polynomial<PolySize>::Polynomial(const word& name, Istream& is)
 :
-    VectorSpace<Polynomial<PolySize>, scalar, PolySize>(),
+    Polynomial::vsType(),
     logActive_(false),
     logCoeff_(0)
 {

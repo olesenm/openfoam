@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,14 +27,12 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include <type_traits>
-
 #include "SymmTensor.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Tensor<Cmpt>::Tensor(Foam::zero)
+inline constexpr Foam::Tensor<Cmpt>::Tensor(Foam::zero)
 :
     Tensor::msType(Foam::zero{})
 {}
@@ -62,21 +61,54 @@ inline Foam::Tensor<Cmpt>::Tensor
 
 
 template<class Cmpt>
-inline Foam::Tensor<Cmpt>::Tensor(const SphericalTensor<Cmpt>& st)
-{
-    this->v_[XX] = st.ii();    this->v_[XY] = Zero;      this->v_[XZ] = Zero;
-    this->v_[YX] = Zero;       this->v_[YY] = st.ii();   this->v_[YZ] = Zero;
-    this->v_[ZX] = Zero;       this->v_[ZY] = Zero;      this->v_[ZZ] = st.ii();
-}
+inline constexpr Foam::Tensor<Cmpt>::Tensor(const SphericalTensor<Cmpt>& st)
+:
+    Tensor
+    (
+        st.ii(), Zero,    Zero,
+        Zero,    st.ii(), Zero,
+        Zero,    Zero,    st.ii()
+    )
+{}
 
 
 template<class Cmpt>
-inline Foam::Tensor<Cmpt>::Tensor(const SymmTensor<Cmpt>& st)
-{
-    this->v_[XX] = st.xx(); this->v_[XY] = st.xy(); this->v_[XZ] = st.xz();
-    this->v_[YX] = st.xy(); this->v_[YY] = st.yy(); this->v_[YZ] = st.yz();
-    this->v_[ZX] = st.xz(); this->v_[ZY] = st.yz(); this->v_[ZZ] = st.zz();
-}
+inline constexpr Foam::Tensor<Cmpt>::Tensor(const SymmTensor<Cmpt>& st)
+:
+    Tensor
+    (
+        st.xx(), st.xy(), st.xz(),
+        st.xy(), st.yy(), st.yz(),
+        st.xz(), st.yz(), st.zz()
+    )
+{}
+
+
+template<class Cmpt>
+inline constexpr Foam::Tensor<Cmpt>::Tensor
+(
+    const Vector<Vector<Cmpt>>& vecs
+)
+:
+    Tensor(vecs.x(), vecs.y(), vecs.z())
+{}
+
+
+template<class Cmpt>
+inline constexpr Foam::Tensor<Cmpt>::Tensor
+(
+    const Vector<Cmpt>& rx,
+    const Vector<Cmpt>& ry,
+    const Vector<Cmpt>& rz
+)
+:
+    Tensor
+    (
+        rx.x(), rx.y(), rx.z(),
+        ry.x(), ry.y(), ry.z(),
+        rz.x(), rz.y(), rz.z()
+    )
+{}
 
 
 template<class Cmpt>
@@ -86,7 +118,7 @@ inline Foam::Tensor<Cmpt>::Tensor
     const bool transposed
 )
 :
-    Tensor<Cmpt>(vecs.x(), vecs.y(), vecs.z(), transposed)
+    Tensor(vecs.x(), vecs.y(), vecs.z(), transposed)
 {}
 
 
@@ -111,17 +143,22 @@ inline Foam::Tensor<Cmpt>::Tensor
 
 
 template<class Cmpt>
-inline Foam::Tensor<Cmpt>::Tensor
+inline constexpr Foam::Tensor<Cmpt>::Tensor
 (
     const Cmpt txx, const Cmpt txy, const Cmpt txz,
     const Cmpt tyx, const Cmpt tyy, const Cmpt tyz,
     const Cmpt tzx, const Cmpt tzy, const Cmpt tzz
 )
-{
-    this->v_[XX] = txx; this->v_[XY] = txy; this->v_[XZ] = txz;
-    this->v_[YX] = tyx; this->v_[YY] = tyy; this->v_[YZ] = tyz;
-    this->v_[ZX] = tzx; this->v_[ZY] = tzy; this->v_[ZZ] = tzz;
-}
+:
+    // aggregate initialization
+    Tensor::msType
+    (
+        Foam::direct_construct_t{},
+        txx, txy, txz,
+        tyx, tyy, tyz,
+        tzx, tzy, tzz
+    )
+{}
 
 
 template<class Cmpt>
@@ -150,42 +187,42 @@ inline Foam::Tensor<Cmpt>::Tensor(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::x() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::x() const
 {
     return Vector<Cmpt>(this->v_[XX], this->v_[XY], this->v_[XZ]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::y() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::y() const
 {
     return Vector<Cmpt>(this->v_[YX], this->v_[YY], this->v_[YZ]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::z() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::z() const
 {
     return Vector<Cmpt>(this->v_[ZX], this->v_[ZY], this->v_[ZZ]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cx() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cx() const
 {
     return Vector<Cmpt>(this->v_[XX], this->v_[YX], this->v_[ZX]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cy() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cy() const
 {
     return Vector<Cmpt>(this->v_[XY], this->v_[YY], this->v_[ZY]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cz() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cz() const
 {
     return Vector<Cmpt>(this->v_[XZ], this->v_[YZ], this->v_[ZZ]);
 }
@@ -193,7 +230,7 @@ inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::cz() const
 
 template<class Cmpt>
 template<Foam::direction Idx>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::col() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::col() const
 {
     if (Idx == 0) return cx();
     else if (Idx == 1) return cy();
@@ -223,7 +260,7 @@ inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::col(const direction c) const
 
 template<class Cmpt>
 template<Foam::direction Idx>
-inline Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::row() const
+inline constexpr Foam::Vector<Cmpt> Foam::Tensor<Cmpt>::row() const
 {
     if (Idx == 0) return x();
     else if (Idx == 1) return y();
@@ -394,7 +431,7 @@ inline void Foam::Tensor<Cmpt>::subtractDiag(const Vector<Cmpt>& v)
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::Tensor<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::Tensor<Cmpt>::diagSqr() const
 {
     return
     (

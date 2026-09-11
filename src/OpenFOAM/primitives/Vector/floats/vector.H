@@ -49,15 +49,6 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-
-//! \class Foam::floatVector
-//! \brief A Vector of values with float precision
-typedef Vector<float> floatVector;
-
-//! \class Foam::doubleVector
-//! \brief A Vector of values with double precision
-typedef Vector<double> doubleVector;
-
 // With float or double precision (depending on compilation)
 typedef Vector<scalar> vector;
 

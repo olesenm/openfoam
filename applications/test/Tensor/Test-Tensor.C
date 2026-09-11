@@ -954,8 +954,8 @@ void test_eigen_funcs(const tensor& T, const bool prod = true)
 
     Info<< "# Return an eigenvector of a given tensor in a given direction"
         << " corresponding to a given eigenvalue:" << nl;
-    const Vector<complex> standardBasis1(Zero, pTraits<complex>::one, Zero);
-    const Vector<complex> standardBasis2(Zero, Zero, pTraits<complex>::one);
+    const Vector<complex> standardBasis1(Zero, complex::one, Zero);
+    const Vector<complex> standardBasis2(Zero, Zero, complex::one);
     const Vector<complex> EVec
     (
         eigenVector(T, EVals.x(), standardBasis1, standardBasis2)
