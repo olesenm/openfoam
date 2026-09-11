@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,16 +30,55 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class T, unsigned N>
-inline Foam::FixedList<T, N>::FixedList(const T& val)
+inline constexpr Foam::FixedList<T, N>::FixedList(const T& val)
+:
+    v_{}
 {
-    this->fill(val);
+    // Raw loop: std::fill() not constexpr until C++20.
+    // #if (__cplusplus >= 202002L)
+    // std::fill_n(v_, N, val);
+    // #endif
+    for (unsigned i = 0; i < N; ++i)
+    {
+        v_[i] = val;
+    }
 }
 
 
 template<class T, unsigned N>
-inline Foam::FixedList<T, N>::FixedList(Foam::zero)
+inline constexpr Foam::FixedList<T, N>::FixedList(Foam::zero)
+:
+    v_{}
 {
-    this->fill(Foam::zero{});
+    // For scalar types, already value-initialized to zero (by v_{} above)
+    // so no further assignment is needed.
+
+    if constexpr (!std::is_scalar_v<T>)
+    {
+        // Raw loop: std::fill() not constexpr until C++20.
+        for (unsigned i = 0; i < N; ++i)
+        {
+            v_[i] = Foam::zero{};
+        }
+    }
+}
+
+
+template<class T, unsigned N>
+template<class... Args>
+inline constexpr Foam::FixedList<T, N>::FixedList
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    v_{ static_cast<T>(std::forward<Args>(vals))... }
+{
+    static_assert
+    (
+        (sizeof...(Args) == N),
+        "Number of arguments != number of FixedList elements"
+    );
 }
 
 
@@ -58,6 +98,7 @@ inline Foam::FixedList<T, N>::FixedList(const UList<T>& list)
 }
 
 
+// Not constexpr (unknown bounds on the indices)
 template<class T, unsigned N>
 template<unsigned AnyNum>
 inline Foam::FixedList<T, N>::FixedList
@@ -329,7 +370,6 @@ inline void Foam::FixedList<T, N>::resize_nocopy(const label n)
 template<class T, unsigned N>
 inline void Foam::FixedList<T, N>::fill(const T& val)
 {
-    // Usually small enough that parallel execution is pointless...
     std::fill_n(v_, N, val);
 }
 
@@ -337,13 +377,26 @@ inline void Foam::FixedList<T, N>::fill(const T& val)
 template<class T, unsigned N>
 inline void Foam::FixedList<T, N>::fill(Foam::zero)
 {
-    if constexpr (std::is_arithmetic_v<T>)
+    if constexpr (std::is_scalar_v<T>)
     {
-        // Usually small enough that parallel execution is pointless...
-        std::fill_n(v_, N, T(0));
+        // Raw loop: std::fill() not constexpr until C++20.
+        for (unsigned i = 0; i < N; ++i)
+        {
+            // Avoid ambiguous casting from Foam::zero
+            v_[i] = T(0);
+        }
+    }
+    else if constexpr (is_contiguous_v<T>)
+    {
+        // Use byte-wise filling for contiguous data
+        std::fill_n
+        (
+            this->data_bytes(), this->size_bytes(), char(0)
+        );
     }
     else
     {
+        // Raw loop: std::fill() not constexpr until C++20.
         for (unsigned i = 0; i < N; ++i)
         {
             v_[i] = Foam::zero{};
@@ -384,7 +437,7 @@ inline void Foam::FixedList<T, N>::transfer(FixedList<T, N>& list)
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
 template<class T, unsigned N>
-inline T& Foam::FixedList<T, N>::operator[](const label i)
+inline T& Foam::FixedList<T, N>::operator[](label i)
 {
     #ifdef FULLDEBUG
     checkIndex(i);
@@ -394,7 +447,7 @@ inline T& Foam::FixedList<T, N>::operator[](const label i)
 
 
 template<class T, unsigned N>
-inline const T& Foam::FixedList<T, N>::operator[](const label i) const
+inline const T& Foam::FixedList<T, N>::operator[](label i) const
 {
     #ifdef FULLDEBUG
     checkIndex(i);
@@ -434,28 +487,40 @@ inline void Foam::FixedList<T, N>::operator=(Foam::zero)
 
 
 template<class T, unsigned N>
-inline void Foam::FixedList<T, N>::operator=(const FixedList& list)
+inline constexpr void Foam::FixedList<T, N>::operator=(const FixedList& list)
 {
     if (this == &list)
     {
         return;  // Self-assignment is a no-op
     }
 
-    // std::execution::unsequenced_policy
-    std::copy(list.begin(), list.end(), v_);
+    // Raw loop: std::copy() not constexpr until C++20.
+    // #if (__cplusplus >= 202002L)
+    // std::copy(list.begin(), list.end(), v_);
+    // #endif
+    for (unsigned i = 0; i < N; ++i)
+    {
+        v_[i] = list.v_[i];
+    }
 }
 
 
 template<class T, unsigned N>
-inline void Foam::FixedList<T, N>::operator=(FixedList&& list)
+inline constexpr void Foam::FixedList<T, N>::operator=(FixedList&& list)
 {
     if (this == &list)
     {
         return;  // Self-assignment is a no-op
     }
 
-    // std::execution::unsequenced_policy
-    std::move(list.begin(), list.end(), v_);
+    // Raw loop: std::move() not constexpr until C++20.
+    // #if (__cplusplus >= 202002L)
+    // std::move(list.begin(), list.end(), v_);
+    // #endif
+    for (unsigned i = 0; i < N; ++i)
+    {
+        v_[i] = std::move(list.v_[i]);
+    }
 }
 
 

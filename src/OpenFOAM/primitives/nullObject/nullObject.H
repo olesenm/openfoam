@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014 OpenFOAM Foundation
     Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -52,7 +53,6 @@ namespace Foam
 // Forward Declarations
 class Istream;
 class Ostream;
-class NullObject;
 
 /*---------------------------------------------------------------------------*\
                          Class NullObject Declaration
@@ -71,22 +71,19 @@ class NullObject
     // Private Data
 
         //- The zero data content
-        zeros data_[4];
+        zeros data_[8];
 
 
     // Constructors
 
-        //- Private constructor for singleton only
-        //  Could also rely on bit-wise zero initialization for union content
-        NullObject()
-        :
-           data_{{nullptr}, {nullptr}, {nullptr}, {nullptr}}
-        {}
+        //- Private constructor for singleton only,
+        //- using zero initialized union content.
+        constexpr NullObject() : data_{} {}
 
-        //- No copy construct
+        //- No copy construct (only use as singleton)
         NullObject(const NullObject&) = delete;
 
-        //- No copy assignment
+        //- No copy assignment (only use as singleton)
         void operator=(const NullObject&) = delete;
 
 
@@ -101,47 +98,29 @@ public:
     // Member Functions
 
         //- A nullptr pointer content
-        const void* pointer() const noexcept
-        {
-            return data_[0].ptr;
-        }
+        constexpr const void* pointer() const noexcept { return data_[0].ptr; }
 
-        //- Zero valued integer content
-        unsigned long value() const noexcept
-        {
-            return 0;
-        }
+        //- For zero-valued integer content
+        static constexpr unsigned long value() noexcept { return 0; }
 
-        //- No elements
-        bool empty() const noexcept
-        {
-            return true;
-        }
+        //- Empty is true (no elements)
+        static constexpr bool empty() noexcept { return true; }
 
-        //- Zero elements
-        label size() const noexcept
-        {
-            return 0;
-        }
+        //- Size is zero (no elements)
+        static constexpr label size() noexcept { return 0; }
 
         //- No-op method (for HashTable replacement)
-        const NullObject& toc() const noexcept
-        {
-            return *this;
-        }
+        constexpr const NullObject& toc() const noexcept { return *this; }
 
         //- No-op method (for HashTable replacement)
-        const NullObject& sortedToc() const noexcept
-        {
-            return *this;
-        }
+        constexpr const NullObject& sortedToc() const noexcept { return *this; }
 
 
     // Member Operators
 
         //- Swallow assignment (cf, std::ignore)
         template<class T>
-        const NullObject& operator=(const T&) const noexcept
+        constexpr const NullObject& operator=(const T&) const noexcept
         {
             return *this;
         }

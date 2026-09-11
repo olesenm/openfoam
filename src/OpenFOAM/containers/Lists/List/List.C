@@ -343,6 +343,25 @@ Foam::List<T>::List(std::initializer_list<T> list)
 
 
 template<class T>
+template<class... Args>
+Foam::List<T>::List
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    UList<T>()
+{
+    if constexpr (sizeof...(Args) > 0)
+    {
+        doAlloc(label(sizeof...(Args)));
+        auto* iter = this->data();
+        ((*iter++ = std::forward<Args>(vals)), ...);
+    }
+}
+
+
+template<class T>
 template<int SizeMin>
 Foam::List<T>::List(DynamicList<T, SizeMin>&& list)
 :
@@ -378,14 +397,14 @@ template<class T>
 void Foam::List<T>::resize(const label len, const T& val)
 {
     const label oldLen = this->size_;
- 
+
     if (oldLen == len)
     {
         return;
     }
- 
+
     resize_copy(oldLen, len);
- 
+
     // Fill trailing part with new values
     if (oldLen < this->size_)
     {

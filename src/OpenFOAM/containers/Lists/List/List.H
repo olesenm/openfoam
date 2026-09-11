@@ -190,6 +190,10 @@ public:
         //- Construct from an initializer list
         List(std::initializer_list<T> list);
 
+        //- Construct (pseudo-aggregate) from a parameter list
+        template<class... Args>
+        explicit List(Foam::direct_construct_t, Args&&... vals);
+
         //- Move construct from List
         inline List(List<T>&& list) noexcept;
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -89,7 +90,8 @@ public:
     constexpr operator double() const noexcept { return 0; }
 
     //- Component-wise or element-wise access returns zero
-    zero operator[](const label) const noexcept { return zero{}; }
+    template<class T>
+    constexpr zero operator[](const T&) const noexcept { return zero{}; }
 
     // FUTURE?: Swallow assignment (as per std::ignore)
     // template<class T>

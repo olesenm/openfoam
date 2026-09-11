@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -153,22 +154,27 @@ public:
         FixedList() = default;
 
         //- Copy construct
-        FixedList(const FixedList&) = default;
+        constexpr FixedList(const FixedList&) = default;
 
         //- Move construct
-        FixedList(FixedList&&) = default;
+        constexpr FixedList(FixedList&&) = default;
 
 
     // Constructors
 
         //- Construct and initialize all entries to given value
-        inline explicit FixedList(const T& val);
+        inline constexpr explicit FixedList(const T& val);
 
         //- Construct and initialize all entries to zero
-        inline explicit FixedList(Foam::zero);
+        inline constexpr explicit FixedList(Foam::zero);
 
         //- Construct from an initializer list. Runtime size check
         inline FixedList(std::initializer_list<T> list);
+
+        //- Forward aggregate-style initialization
+        template<class... Args>
+        inline explicit
+        constexpr FixedList(Foam::direct_construct_t, Args&&... vals);
 
         //- Construct from UList. Runtime size check
         inline explicit FixedList(const UList<T>& list);
@@ -352,11 +358,13 @@ public:
 
     // Member Operators
 
-        //- Return element of FixedList
-        inline T& operator[](const label i);
+        //- Return element of FixedList,
+        //- with runtime range checking (Fatal) in FULLDEBUG
+        inline T& operator[](label i);
 
-        //- Return element of constant FixedList
-        inline const T& operator[](const label i) const;
+        //- Return const element of FixedList
+        //- with runtime range checking (Fatal) in FULLDEBUG
+        inline const T& operator[](label i) const;
 
         //- Assignment to UList operator. Takes linear time
         inline void operator=(const UList<T>& list);
@@ -371,10 +379,10 @@ public:
         inline void operator=(Foam::zero);
 
         //- Copy assignment
-        inline void operator=(const FixedList& list);
+        inline constexpr void operator=(const FixedList& list);
 
         //- Move assignment
-        inline void operator=(FixedList&& list);
+        inline constexpr void operator=(FixedList&& list);
 
 
     // Random access iterator (non-const)
@@ -579,6 +587,10 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+//- Identical base elements for FixedList
+template<class T, unsigned N>
+struct contiguous_element<FixedList<T, N>> : contiguous_element<T> {};
+
 //- FixedList is contiguous if the type is contiguous
 template<class T, unsigned N>
 struct is_contiguous<FixedList<T, N>> : is_contiguous<T> {};
@@ -590,6 +602,7 @@ struct is_contiguous_label<FixedList<T, N>> : is_contiguous_label<T> {};
 //- Check for FixedList of scalars
 template<class T, unsigned N>
 struct is_contiguous_scalar<FixedList<T, N>> : is_contiguous_scalar<T> {};
+
 
 //- Hashing for FixedList data
 template<class T, unsigned N>

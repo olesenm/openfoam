@@ -56,14 +56,14 @@ inline constexpr Foam::complex::complex(const scalar r, const scalar i) noexcept
 {}
 
 
-inline Foam::complex::complex(const std::complex<float>& c)
+inline constexpr Foam::complex::complex(const std::complex<float>& c)
 :
     re(c.real()),
     im(c.imag())
 {}
 
 
-inline Foam::complex::complex(const std::complex<double>& c)
+inline constexpr Foam::complex::complex(const std::complex<double>& c)
 :
     re(c.real()),
     im(c.imag())
@@ -72,7 +72,7 @@ inline Foam::complex::complex(const std::complex<double>& c)
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-inline Foam::complex Foam::complex::conjugate() const
+inline constexpr Foam::complex Foam::complex::conjugate() const
 {
     return complex(re, -im);
 }
@@ -84,13 +84,13 @@ inline Foam::scalar Foam::complex::magnitude() const
 }
 
 
-inline Foam::scalar Foam::complex::magSqr() const noexcept
+inline constexpr Foam::scalar Foam::complex::magSqr() const noexcept
 {
     return (re*re + im*im);
 }
 
 
-inline Foam::scalar Foam::complex::cmptSum() const noexcept
+inline constexpr Foam::scalar Foam::complex::cmptSum() const noexcept
 {
     return (re + im);
 }
@@ -195,7 +195,7 @@ inline scalar mag(const complex& c)
 }
 
 
-inline scalar magSqr(const complex& c) noexcept
+inline constexpr scalar magSqr(const complex& c) noexcept
 {
     return c.magSqr();
 }
