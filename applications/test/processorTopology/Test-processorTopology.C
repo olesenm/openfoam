@@ -120,12 +120,13 @@ int main(int argc, char *argv[])
 
         // As integers values
         List<int> connected(neighbours.size());
-        List<int> weights(neighbours.size());
         forAll(neighbours, i)
         {
             connected[i] = neighbours[i];
-            weights[i] = 1;
         }
+
+        const int* const unweighted =
+            reinterpret_cast<const int*>(MPI_UNWEIGHTED);
 
         MPI_Comm topoComm;
 
@@ -134,9 +135,9 @@ int main(int argc, char *argv[])
         (
             MPI_COMM_WORLD,
             // Connections into this rank
-            connected.size(), connected.cdata(), MPI_UNWEIGHTED,
+            connected.size(), connected.cdata(), unweighted,
             // Connections out of this rank
-            connected.size(), connected.cdata(), MPI_UNWEIGHTED,
+            connected.size(), connected.cdata(), unweighted,
             MPI_INFO_NULL,
             0,   // no reordering (apparently broken anyhow)
             &topoComm

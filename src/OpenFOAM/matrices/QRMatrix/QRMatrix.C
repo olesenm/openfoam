@@ -55,6 +55,8 @@ void Foam::QRMatrix<MatrixType>::decompose
     MatrixType& AT
 )
 {
+    using magType = typename typeOfMag<cmptType>::type;
+
     const label n = AT.m();
     const label m = AT.n();
 
@@ -63,7 +65,7 @@ void Foam::QRMatrix<MatrixType>::decompose
     for (label k = 0; k < n; ++k)
     {
         // Compute 2-norm of k-th column without under/overflow
-        scalar nrm = 0;
+        magType nrm = 0;
 
         for (label i = k; i < m; ++i)
         {
@@ -72,7 +74,7 @@ void Foam::QRMatrix<MatrixType>::decompose
 
         // Avoid divide-by-zero. Use compare with == 0 not mag or VSMALL etc,
         // otherwise wrong results (may need more investigation)
-        if (nrm != scalar(0))
+        if (nrm != magType(0))
         {
             // Form k-th Householder vector
             if (mag(AT(k,k)) < 0)
@@ -125,6 +127,8 @@ void Foam::QRMatrix<MatrixType>::decompose
     const bool pivoting
 )
 {
+    using magType = typename typeOfMag<cmptType>::type;
+
     const label n = AT.m();
     const label m = AT.n();
     const label sz = Foam::min(m, n);
@@ -133,7 +137,7 @@ void Foam::QRMatrix<MatrixType>::decompose
     p_ = identity(n);
 
     // Initialise vector norms of each column of A
-    List<scalar> norms(n, Zero);
+    List<magType> norms(n, Zero);
     for (label k = 0; k < n; ++k)
     {
         for (label i = 0; i < m; ++i)
@@ -171,14 +175,14 @@ void Foam::QRMatrix<MatrixType>::decompose
 
         {
             // Compute 2-norm of k-th column without under/overflow
-            scalar nrm = 0;
+            magType nrm = 0;
 
             for (label i = k; i < m; ++i)
             {
                 nrm = Foam::hypot(nrm, mag(AT(k,i)));
             }
 
-            if (nrm != scalar(0))
+            if (nrm != magType(0))
             {
                 // Form k-th Householder vector
                 if (mag(AT(k,k)) < 0)

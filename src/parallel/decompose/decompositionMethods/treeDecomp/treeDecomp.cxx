@@ -269,16 +269,6 @@ static void select_weights
     {
         // Appears to have valid and non-uniform weights
         // - can leave in non-normalized state
-
-        #ifdef FULLDEBUG
-        // Normalized values (eg, for debugging)
-        const double scaling = 1/totalWeight;
-
-        for (auto& val : procWeights)
-        {
-            val *= scaling;
-        }
-        #endif
     }
 }
 

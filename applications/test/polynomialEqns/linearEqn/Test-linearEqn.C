@@ -138,26 +138,16 @@ void test_member_funcs()
 
 scalar randomScalar(const scalar min, const scalar max)
 {
-    static_assert
-    (
-        sizeof(long) == sizeof(scalar),
-        "Scalar and long are not the same size"
-    );
     static std::default_random_engine generator(std::time(0));
-    static std::uniform_int_distribution<long>
-        distribution
-        (
-            std::numeric_limits<long>::min(),
-            std::numeric_limits<long>::max()
-        );
+    std::uniform_real_distribution<scalar> distribution(-max, max);
 
     scalar x = 0;
 
     do
     {
-        x = scalar(distribution(generator));
+        x = distribution(generator);
     }
-    while (min > mag(x) || mag(x) > max || !std::isfinite(x));
+    while (min > mag(x) || !std::isfinite(x));
 
     return x;
 };
@@ -225,6 +215,14 @@ int main()
     // Sanity checks
     const scalar tol = 5;
 
+    #if defined(WM_SP) || defined(WM_SPDP)
+    const scalar randomMin = SMALL;
+    const scalar randomMax = ROOTGREAT;
+    #else
+    const scalar randomMin = 1e-50;
+    const scalar randomMax = 1e+50;
+    #endif
+
     const label nTests = 1000000;
     for (label t = 0; t < nTests; ++t)
     {
@@ -232,8 +230,8 @@ int main()
         (
             linearEqn
             (
-                randomScalar(1e-50, 1e+50),
-                randomScalar(1e-50, 1e+50)
+                randomScalar(randomMin, randomMax),
+                randomScalar(randomMin, randomMax)
             ),
             tol
         );

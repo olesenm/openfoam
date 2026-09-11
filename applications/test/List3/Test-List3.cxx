@@ -53,25 +53,7 @@ void printAddress(const UList<T>& list)
 
 
 template<class T>
-void printAddress(const SLList<T>& list)
-{
-    Info<< "list addr: " << name(&list)
-        << " data addr: ???" << nl;
-}
-
-
-template<class T>
 void printAddresses(const List<List<T>>& list)
-{
-    for (const auto& elem : list)
-    {
-        printAddress(elem);
-    }
-}
-
-
-template<class T>
-void printAddresses(const SLList<List<T>>& list)
 {
     for (const auto& elem : list)
     {
@@ -97,36 +79,7 @@ int main(int argc, char *argv[])
     {
         for (label argi=1; argi < args.size(); ++argi)
         {
-            if (true)
-            {
-                IFstream is(args.get<fileName>(argi));
-
-                Info<< nl << nl
-                    << "read from " << is.name() << nl << endl;
-
-                SLList<List<label>> sll(is);
-                Info<< "read " << sll.size() << " entries" << nl;
-
-                Info<< "sll" << nl;
-                for (const auto& elem : sll)
-                {
-                    printAddress(elem);
-                }
-
-
-//            List<List<label>> list(std::move(sll));
-                List<List<label>> list;
-                Info<< "move to List" << nl;
-                list = std::move(sll);
-
-                Info<< "sll" << nl;
-                for (const auto& elem : sll)
-                {
-                    printAddress(elem);
-                }
-                Info<< "list" << nl;
-                printAddresses(list);
-            }
+            // Note: construct from SLList removed (2025-03)
 
             if (true)
             {

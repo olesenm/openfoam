@@ -204,8 +204,8 @@ int main(int argc, char *argv[])
         const scalar a = 1e24, b = 1.0;
 
         Info<< "lerp exact: "
-            << (a == lerp(a, b, 0.0)) << " "
-            << (b == lerp(a, b, 1.0)) << nl;
+            << (a == lerp(a, b, scalar(0))) << " "
+            << (b == lerp(a, b, scalar(1))) << nl;
 
         Info<< "naive lerp exact: "
             << (a == naive_lerp(a, b, 0.0)) << " "
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 
         Info<< "lerp of " << a << " : " << b << nl;
 
-        for (const double t : { 0.0, 0.5, 1.0, -0.5, 1.5 })
+        for (const scalar t : { 0.0, 0.5, 1.0, -0.5, 1.5 })
         {
             Info<< "    " << t << " = " << lerp(a, b, t) << nl;
         }

@@ -202,7 +202,7 @@ void reduce
 )
 {
     // single value
-    reduce(&value, 1, tag, communicator, req);
+    reduce(&value, 1, bop, tag, communicator, req);
 }
 
 

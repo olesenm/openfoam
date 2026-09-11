@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
             vtmWriter.append_hdf<vtk::fileTag::POLY_DATA>
             (
                 "patch0",
-                regionName/"boundary"/"patch0",
+                regionName/"boundary"/"patch0"
             );
             vtmBoundaries.append_hdf<vtk::fileTag::POLY_DATA>
             (

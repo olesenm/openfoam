@@ -52,8 +52,8 @@ void test_member_funcs(Type)
     for (label i = 0; i < numberOfTests; ++i)
     {
         Info<< "# Inverse error functions:" << endl;
-        const Type x1 = rndGen.sample01<Type>();
-        const Type x2 = rndGen.sample01<Type>();
+        const Type x1 = Type(rndGen.sample01<scalar>());
+        const Type x2 = Type(rndGen.sample01<scalar>());
         Info<< "    # Operands:" << nl
             << "      x1 = " << x1 << nl
             << "      x2 = " << x2 << endl;
@@ -75,8 +75,8 @@ void test_member_funcs(Type)
         );
 
         Info<< "# Incomplete gamma functions:" << endl;
-        const Type a = rndGen.position(SMALL, Type(100));
-        const Type x = rndGen.position(Type(0), Type(100));
+        const Type a = Type(rndGen.position<scalar>(SMALL, scalar(100)));
+        const Type x = Type(rndGen.position<scalar>(scalar(0), scalar(100)));
         Info<< "    # Operands:" << nl
             << "      a = " << a << nl
             << "      x = " << x << endl;

@@ -106,10 +106,13 @@ void verify_R_pivoting
     const MatrixType& R
 )
 {
+    using cmptType = typename MatrixType::cmptType;
+    using magType = typename typeOfMag<cmptType>::type;
+
     // w.wiki/54m (Retrieved:20-06-19)
-    const List<scalar> diag0(mag(R.diag()));
-    List<scalar> diag1(diag0);
-    Foam::sort(diag1, std::greater<scalar>());
+    const List<magType> diag0(mag(R.diag()));
+    List<magType> diag1(diag0);
+    Foam::sort(diag1, std::greater<magType>());
     cmp
     (
         "# Diag elems of R non-increasing: |R11| >= |R22| >= ... >= |Rnn|: ",
@@ -304,7 +307,7 @@ void verify_pinv
 // Verify the direct solution of a linear system by QRMatrix
 void verify_solve
 (
-    const SquareMatrix<complex>& A
+    const SquareMatrix<complex>&
 )
 {
     // do nothing
@@ -312,14 +315,15 @@ void verify_solve
 
 
 // Verify the direct solution of a linear system by QRMatrix
-void verify_solve
+template<class Type>
+std::enable_if_t<std::is_floating_point_v<Type>, void> verify_solve
 (
-    const SquareMatrix<scalar>& A
+    const SquareMatrix<Type>& A
 )
 {
     Info<< "## Verify direct solution of A*x = b with A = Q*R:" << nl << endl;
 
-    typedef SquareMatrix<scalar> SMatrix;
+    typedef SquareMatrix<Type> SMatrix;
     const scalar absTol = 1e-6;
 
     // Direct solution of a linear system by QR decomposition
@@ -330,12 +334,12 @@ void verify_solve
         QRMatrix<SMatrix>::outputs::BOTH_QR
     );
 
-    const scalarField residual(A.m(), 0);
-    const scalarField source(A.m(), 1);
+    const Field<Type> residual(A.m(), Zero);
+    const Field<Type> source(A.m(), Type(1));
 
-    const scalarField x(QRM.solve(source));
-    const scalarField AxMinusSource(A*x - source);
-    const scalarField xMinusQRinvSource(x - QRM.inv()*source);
+    const Field<Type> x(QRM.solve(source));
+    const Field<Type> AxMinusSource(A*x - source);
+    const Field<Type> xMinusQRinvSource(x - QRM.inv()*source);
     const SMatrix QRinvA(QRM.inv()*A);
     const SMatrix identity(A.m(), I);
 

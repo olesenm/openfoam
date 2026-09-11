@@ -741,7 +741,13 @@ void test_characteristic_equation
 
         for (const auto x : X)
         {
-            cmp("  (Tc & EVec - EVal*EVec) = 0:", mag(x), 0.0, 1e-5);
+            cmp
+            (
+                "  (Tc & EVec - EVal*EVec) = 0:",
+                mag(x),
+                scalar(0),
+                1e-5
+            );
         }
     }
 }

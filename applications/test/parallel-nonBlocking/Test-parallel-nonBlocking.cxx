@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     scalar data1 = 1.0;
-    label request1 = -1;
+    UPstream::Request request1;
     {
         Foam::reduce
         (
@@ -179,10 +179,10 @@ int main(int argc, char *argv[])
     }
 
 
-    if (request1 != -1)
+    if (request1.good())
     {
         Pout<< "Waiting for non-blocking reduce with request "
-            << request1 << endl;
+            << Foam::name(request1.pointer()) << endl;
         UPstream::waitRequest(request1);
     }
     Info<< "Reduced data1:" << data1 << endl;
