@@ -41,7 +41,7 @@ SourceFiles
 
 #include "Random.H"
 #include "primitivePatch.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "coordinateSystem.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

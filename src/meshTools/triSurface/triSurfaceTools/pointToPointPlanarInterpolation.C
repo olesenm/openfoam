@@ -27,7 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "pointToPointPlanarInterpolation.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "Random.H"
 #include "vector2D.H"
 #include "triSurface.H"

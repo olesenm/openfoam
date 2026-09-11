@@ -26,7 +26,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "PDRobstacle.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "meshedSurf.H"
 #include "axisAngleRotation.H"
 #include "coordinateSystem.H"
@@ -386,9 +386,9 @@ Foam::meshedSurface Foam::PDRobstacle::surface() const
         case PDRobstacle::CUBOID_1 :
         case PDRobstacle::CUBOID :
         {
-            boundBox box(obs.pt, obs.pt + obs.span);
+            treeBoundBox box(obs.pt, obs.pt + obs.span);
 
-            pointField pts(box.points());
+            pointField pts(box.hexCorners());
             faceList fcs(boundBox::hexFaces());
 
             surf.transfer(pts, fcs);
@@ -398,7 +398,7 @@ Foam::meshedSurface Foam::PDRobstacle::surface() const
 
         case PDRobstacle::DIAG_BEAM :
         {
-            boundBox box(Zero);
+            treeBoundBox box(point::zero);
 
             switch (orient)
             {
@@ -435,7 +435,7 @@ Foam::meshedSurface Foam::PDRobstacle::surface() const
                 )
             );
 
-            pointField pts0(box.points());
+            pointField pts0(box.hexCorners());
             faceList fcs(boundBox::hexFaces());
 
             pointField pts(cs.globalPosition(pts0));

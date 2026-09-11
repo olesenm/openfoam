@@ -46,6 +46,7 @@ SourceFiles
 
 #include "pointField.H"
 #include "edgeList.H"
+#include "treeBoundBox.H"
 #include "dictionary.H"
 #include "edgeMeshFormatsCore.H"
 #include "runTimeSelectionTables.H"

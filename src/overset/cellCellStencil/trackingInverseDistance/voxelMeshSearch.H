@@ -34,10 +34,10 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef voxelMeshSearch_H
-#define voxelMeshSearch_H
+#ifndef Foam_voxelMeshSearch_H
+#define Foam_voxelMeshSearch_H
 
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "labelVector.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

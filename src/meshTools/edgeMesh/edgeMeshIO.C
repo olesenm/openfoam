@@ -27,7 +27,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "edgeMesh.H"
-#include "boundBox.H"
 #include "edgeMeshFormat.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //

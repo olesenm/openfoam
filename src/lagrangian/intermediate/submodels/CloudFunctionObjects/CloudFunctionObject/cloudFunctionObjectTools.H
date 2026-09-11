@@ -35,11 +35,10 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef cloudFunctionObjectTools_collector_H
-#define cloudFunctionObjectTools_collector_H
+#ifndef Foam_cloudFunctionObjectTools_collector_H
+#define Foam_cloudFunctionObjectTools_collector_H
 
 #include "polyMesh.H"
-#include "boundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

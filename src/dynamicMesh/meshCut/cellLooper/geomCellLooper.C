@@ -32,7 +32,6 @@ License
 #include "plane.H"
 #include "meshTools.H"
 #include "SortableList.H"
-#include "triSurfaceTools.H"
 #include "HashSet.H"
 #include "ListOps.H"
 #include "transform.H"

@@ -35,13 +35,13 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef DistributedDelaunayMesh_H
-#define DistributedDelaunayMesh_H
+#ifndef Foam_DistributedDelaunayMesh_H
+#define Foam_DistributedDelaunayMesh_H
 
 #include "DelaunayMesh.H"
 #include "backgroundMeshDecomposition.H"
 #include "autoPtr.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "indexedVertex.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

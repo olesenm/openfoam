@@ -42,11 +42,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef cellCentreSet_H
-#define cellCentreSet_H
+#ifndef Foam_cellCentreSet_H
+#define Foam_cellCentreSet_H
 
 #include "sampledSet.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

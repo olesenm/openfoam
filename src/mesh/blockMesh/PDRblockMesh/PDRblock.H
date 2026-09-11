@@ -69,7 +69,7 @@ SourceFiles
 #define Foam_PDRblock_H
 
 #include "ijkMesh.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "pointField.H"
 #include "faceList.H"
 #include "Enum.H"

@@ -36,13 +36,13 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef snappyVoxelMeshDriver_H
-#define snappyVoxelMeshDriver_H
+#ifndef Foam_snappyVoxelMeshDriver_H
+#define Foam_snappyVoxelMeshDriver_H
 
 #include "labelList.H"
 #include "DynamicList.H"
 #include "labelVector.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

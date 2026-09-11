@@ -32,6 +32,7 @@ License
 #include "Random.H"
 #include "addToRunTimeSelectionTable.H"
 #include "triangle.H"
+#include "triSurfaceTools.H"
 #include "matchPoints.H"
 #include "globalIndex.H"
 #include "Time.H"

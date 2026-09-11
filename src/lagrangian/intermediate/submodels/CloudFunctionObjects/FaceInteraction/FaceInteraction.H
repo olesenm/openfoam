@@ -62,12 +62,12 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef FaceInteraction_H
-#define FaceInteraction_H
+#ifndef Foam_FaceInteraction_H
+#define Foam_FaceInteraction_H
 
 #include "CloudFunctionObject.H"
 #include "Enum.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

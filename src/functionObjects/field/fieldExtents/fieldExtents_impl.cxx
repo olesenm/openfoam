@@ -28,7 +28,7 @@ License
 
 #include "fieldExtents.H"
 #include "volFields.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "UPstream.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

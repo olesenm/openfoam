@@ -29,7 +29,7 @@ License
 #include "boundaryRadiationProperties.H"
 #include "cyclicAMIPolyPatch.H"
 #include "volFields.H"
-
+#include "triSurfaceTools.H"
 
 using namespace Foam::constant::mathematical;
 
@@ -44,7 +44,6 @@ namespace Foam
 
 void Foam::faceReflecting::initialise(const dictionary& coeffs)
 {
-
     forAll(qreflective_, bandI)
     {
         qreflective_.set

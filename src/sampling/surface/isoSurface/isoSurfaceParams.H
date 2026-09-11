@@ -59,7 +59,7 @@ SourceFiles
 #ifndef Foam_isoSurfaceParams_H
 #define Foam_isoSurfaceParams_H
 
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "Enum.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

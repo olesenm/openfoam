@@ -45,7 +45,6 @@ Description
 \*---------------------------------------------------------------------------*/
 
 #include "argList.H"
-#include "boundBox.H"
 #include "edgeMesh.H"
 #include "matchPoints.H"
 #include "MeshedSurfaces.H"
@@ -186,7 +185,7 @@ int main(int argc, char *argv[])
 
     Info<< "Faces       : " << surf1.size() << nl
         << "Vertices    : " << surf1.nPoints() << nl
-        << "Bounding Box: " << boundBox(surf1.localPoints()) << endl;
+        << "Bounding Box: " << treeBoundBox(surf1.localPoints()) << endl;
 
     bitSet fixedPoints(surf1.localPoints().size(), false);
 

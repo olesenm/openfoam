@@ -31,7 +31,7 @@ Description
 
 #include "PatchTools.H"
 #include "bitSet.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

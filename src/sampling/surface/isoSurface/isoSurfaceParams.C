@@ -28,7 +28,6 @@ License
 #include "isoSurfaceParams.H"
 #include "dictionary.H"
 #include "Switch.H"
-#include "boundBox.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 

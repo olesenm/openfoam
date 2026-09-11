@@ -35,6 +35,7 @@ License
 #include "searchableSurfacesQueries.H"
 #include "UPtrList.H"
 #include "volumeType.H"
+#include "triSurfaceTools.H"
 // For dictionary::get wrapper
 #include "meshRefinement.H"
 

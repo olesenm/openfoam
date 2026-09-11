@@ -40,7 +40,7 @@ Description
 #include "triSurfaceTools.H"
 #include "argList.H"
 #include "OFstream.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 using namespace Foam;
 

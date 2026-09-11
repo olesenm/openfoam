@@ -28,7 +28,6 @@ License
 #include "ensightCells.H"
 #include "ensightOutput.H"
 #include "InfoProxy.H"
-#include "boundBox.H"
 #include "polyMesh.H"
 #include "cellModel.H"
 #include "globalIndex.H"

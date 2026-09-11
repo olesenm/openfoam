@@ -45,7 +45,7 @@ SourceFiles
 #define Foam_searchableSurface_H
 
 #include "pointField.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "typeInfo.H"
 #include "runTimeSelectionTables.H"
 #include "pointIndexHit.H"

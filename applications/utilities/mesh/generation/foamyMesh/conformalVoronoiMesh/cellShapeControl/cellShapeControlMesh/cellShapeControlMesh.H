@@ -34,8 +34,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef cellShapeControlMesh_H
-#define cellShapeControlMesh_H
+#ifndef Foam_cellShapeControlMesh_H
+#define Foam_cellShapeControlMesh_H
 
 #include "Time.H"
 #include "scalar.H"
@@ -48,7 +48,7 @@ SourceFiles
 #include "DistributedDelaunayMesh.H"
 #include "CGALTriangulation3Ddefs.H"
 #include "backgroundMeshDecomposition.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

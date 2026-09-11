@@ -35,22 +35,20 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef cv2DControls_H
-#define cv2DControls_H
+#ifndef Foam_cv2DControls_H
+#define Foam_cv2DControls_H
 
 #include "Switch.H"
 #include "dictionary.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
 
-// Forward declaration of friend functions and operators
-
+// Forward Declarations
 class cv2DControls;
-
 Ostream& operator<<(Ostream&, const cv2DControls&);
 
 

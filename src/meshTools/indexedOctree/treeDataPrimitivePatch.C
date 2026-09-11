@@ -29,8 +29,6 @@ License
 #include "treeDataPrimitivePatch.H"
 #include "indexedOctree.H"
 #include "triangle.H"
-#include "triSurfaceTools.H"
-#include "triFace.H"
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 

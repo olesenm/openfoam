@@ -27,7 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "MeshedSurface.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "faceTraits.H"
 #include "Istream.H"
 #include "Ostream.H"
@@ -88,7 +88,7 @@ void Foam::MeshedSurface<Face>::writeStats(Ostream& os) const
             << " poly:" << (this->size() - nTri - nQuad) << ")" << nl;
     }
 
-    os  << "boundingBox : " << boundBox(this->points()) << endl;
+    os  << "boundingBox : " << treeBoundBox(this->points()) << endl;
 }
 
 

@@ -55,7 +55,7 @@ SourceFiles
 #include "faceIOList.H"
 #include "labelIOList.H"
 #include "polyBoundaryMesh.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "globalIndex.H"
 #include "pointZoneMesh.H"
 #include "faceZoneMesh.H"

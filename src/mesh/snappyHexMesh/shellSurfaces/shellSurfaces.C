@@ -28,7 +28,7 @@ License
 
 #include "shellSurfaces.H"
 #include "searchableSurface.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "triSurfaceMesh.H"
 #include "refinementSurfaces.H"
 #include "searchableSurfaces.H"

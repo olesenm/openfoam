@@ -28,7 +28,7 @@ License
 #include "ccmReader.H"
 #include "IFstream.H"
 #include "IOdictionary.H"
-
+#include "treeBoundBox.H"
 #include "ccmInternal.H"  // include last to avoid any strange interactions
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //

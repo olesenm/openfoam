@@ -28,7 +28,7 @@ License
 
 #include "primitiveMesh.H"
 #include "cell.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 

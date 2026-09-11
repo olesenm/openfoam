@@ -28,7 +28,6 @@ License
 #include "energySpectrum.H"
 #include "fft.H"
 #include "fvMesh.H"
-#include "boundBox.H"
 #include "OFstream.H"
 #include "mathematicalConstants.H"
 #include "volFields.H"

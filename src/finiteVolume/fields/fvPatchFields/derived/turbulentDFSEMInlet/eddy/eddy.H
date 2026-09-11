@@ -45,7 +45,7 @@ SourceFiles
 #include "point.H"
 #include "tensor.H"
 #include "Random.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

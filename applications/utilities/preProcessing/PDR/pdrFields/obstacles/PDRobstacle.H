@@ -44,7 +44,6 @@ SourceFiles
 #include "labelPair.H"
 #include "MeshedSurface.H"
 #include "MeshedSurfacesFwd.H"
-#include "boundBox.H"
 #include "DynamicList.H"
 #include "pointField.H"
 #include "volumeType.H"

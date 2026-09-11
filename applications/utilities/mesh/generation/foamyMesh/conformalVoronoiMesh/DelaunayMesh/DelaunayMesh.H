@@ -36,11 +36,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef DelaunayMesh_H
-#define DelaunayMesh_H
+#ifndef Foam_DelaunayMesh_H
+#define Foam_DelaunayMesh_H
 
 #include "labelPairHashes.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "indexedVertex.H"
 #include "CGALTriangulation3Ddefs.H"
 #include "Time.H"

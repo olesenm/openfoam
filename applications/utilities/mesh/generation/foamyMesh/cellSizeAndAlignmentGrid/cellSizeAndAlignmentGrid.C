@@ -44,7 +44,7 @@ Description
 #include "conformationSurfaces.H"
 #include "PrintTable.H"
 #include "Random.H"
-#include "boundBox.H"
+#include "treeBoundBox.H"
 #include "point.H"
 #include "cellShapeControlMesh.H"
 #include "triadField.H"

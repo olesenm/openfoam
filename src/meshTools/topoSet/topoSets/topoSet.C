@@ -29,7 +29,6 @@ License
 #include "topoSet.H"
 #include "mapPolyMesh.H"
 #include "polyMesh.H"
-#include "boundBox.H"
 #include "Time.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //

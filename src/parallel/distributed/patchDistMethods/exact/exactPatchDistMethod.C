@@ -29,6 +29,7 @@ License
 #include "distributedTriSurfaceMesh.H"
 #include "addToRunTimeSelectionTable.H"
 #include "volFields.H"
+#include "triSurfaceTools.H"
 #include "DynamicField.H"
 #include "OBJstream.H"
 
