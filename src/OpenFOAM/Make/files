@@ -55,6 +55,7 @@ $(ints)/uint64/uint64.C
 $(ints)/uint64/uint64IO.C
 $(ints)/uLabel/uLabel.C
 $(ints)/int/intIO.C
+$(ints)/int8/int8.C
 $(ints)/int16/int16.C
 $(ints)/int32/int32.C
 $(ints)/int32/int32IO.C
