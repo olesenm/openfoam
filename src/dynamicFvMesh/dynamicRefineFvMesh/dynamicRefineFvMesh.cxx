@@ -1160,6 +1160,8 @@ bool Foam::dynamicRefineFvMesh::init(const bool doInit)
     // Count number of points <= cellLevel
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    // First, count all anchor points. Then protect any cell that deviates
+    // from 8 anchor points, e.g. snappy layer and transition cells
     labelList nAnchors(nCells(), Zero);
 
     forAll(pointCells(), pointi)
@@ -1168,18 +1170,18 @@ bool Foam::dynamicRefineFvMesh::init(const bool doInit)
 
         for (const label celli : pCells)
         {
-            if (!protectedCell_.test(celli))
+            if (pointLevel[pointi] <= cellLevel[celli])
             {
-                if (pointLevel[pointi] <= cellLevel[celli])
-                {
-                    ++nAnchors[celli];
-
-                    if (nAnchors[celli] > 8)
-                    {
-                        protectedCell_.set(celli);
-                    }
-                }
+                ++nAnchors[celli];
             }
+        }
+    }
+
+    forAll(nAnchors, celli)
+    {
+        if (nAnchors[celli] != 8)
+        {
+            protectedCell_.set(celli);
         }
     }
 
@@ -1222,13 +1224,14 @@ bool Foam::dynamicRefineFvMesh::init(const bool doInit)
                 if (pointLevel[pointi] <= faceLevel)
                 {
                     ++nAnchors;
-
-                    if (nAnchors > 4)
-                    {
-                        protectedFace.set(facei);
-                        break;
-                    }
                 }
+            }
+
+            // Only faces with 4 anchors are refineable. Protect adjacent cells
+            // to prevent layer-stack transition cells from passing to hexRef8
+            if (nAnchors != 4)
+            {
+                protectedFace.set(facei);
             }
         }
 
