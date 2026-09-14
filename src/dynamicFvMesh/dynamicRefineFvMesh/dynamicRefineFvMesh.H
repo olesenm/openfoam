@@ -112,6 +112,12 @@ protected:
         //- Protected cells (usually since not hexes)
         bitSet protectedCell_;
 
+        //- Patches whose adjacent cells are refinement-protected
+        wordRes protectedPatches_;
+
+        //- Number of protected layers to grow from protectedPatches_
+        label nProtectedLayers_;
+
         //- Number of refinement/unrefinement steps done so far.
         label nRefinementIterations_;
 

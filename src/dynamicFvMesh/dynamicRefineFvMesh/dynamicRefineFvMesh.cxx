@@ -188,6 +188,10 @@ void Foam::dynamicRefineFvMesh::readDict()
             word::null,
             this
         );
+
+    protectedPatches_.clear();
+    refineDict.readIfPresent("protectedPatches", protectedPatches_);
+    nProtectedLayers_ = refineDict.getOrDefault<label>("nProtectedLayers", 0);
 }
 
 
@@ -1271,6 +1275,44 @@ bool Foam::dynamicRefineFvMesh::init(const bool doInit)
 
         // Check cells for 8 corner points
         checkEightAnchorPoints(protectedCell_);
+    }
+
+    // Protect cells near selected patches, e.g. prism layers. Grow protection
+    // nProtectedLayers_ rings inward to keep layer and transition cells out of
+    // AMR, which hexRef8 cannot refine reliably
+    if (!protectedPatches_.empty() && nProtectedLayers_ > 0)
+    {
+        const polyBoundaryMesh& pbm = boundaryMesh();
+        const labelHashSet patchIDs(pbm.patchSet(protectedPatches_));
+
+        bitSet layerCells(nCells());
+        for (const label patchi : patchIDs)
+        {
+            for (const label celli : pbm[patchi].faceCells())
+            {
+                layerCells.set(celli);
+            }
+        }
+
+        for (label i = 0; i < nProtectedLayers_; ++i)
+        {
+            extendMarkedCells(layerCells);
+        }
+
+        label nAdded = 0;
+        for (const label celli : layerCells)
+        {
+            if (protectedCell_.set(celli))
+            {
+                ++nAdded;
+            }
+        }
+
+        DebugInfo
+            << "dynamicRefineFvMesh: protected " << nProtectedLayers_
+            << " cell layers next to patches " << protectedPatches_
+            << " (" << returnReduce(nAdded, sumOp<label>())
+            << " additional cells) from refinement." << endl;
     }
 
     if (!returnReduceOr(protectedCell_.any()))
