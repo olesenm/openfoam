@@ -28,6 +28,7 @@ License
 
 #include "error.H"
 #include "label.H"
+#include "stdFoam.H"
 #include "Istream.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -57,6 +58,13 @@ void reading(Foam::Istream& is, dataType* data, size_t nElem)
     }
     else
     {
+        if (data == nullptr)
+        {
+            // Even handle 'seek' behaviour
+            is.readRaw(nullptr, nElem*sizeof(readType));
+            return;
+        }
+
         for (const dataType* last = data + nElem; data != last; ++data)
         {
             readType val;
@@ -76,36 +84,55 @@ void reading(Foam::Istream& is, dataType* data, size_t nElem)
     }
 }
 
+
+// Dispatch for binary reading with narrowing/widening
+// No check for binary vs ascii, the caller knows what they are doing
+template<class dataType>
+void dispatch_reading(Foam::Istream& is, dataType* data, size_t nElem)
+{
+    if constexpr
+    (
+        (sizeof(dataType) == sizeof(int32_t))
+     || (sizeof(dataType) == sizeof(int64_t))
+    )
+    {
+        switch (is.labelByteSize())
+        {
+            case sizeof(int32_t) : reading<int32_t>(is, data, nElem); break;
+            case sizeof(int64_t) : reading<int64_t>(is, data, nElem); break;
+
+            default:
+            {
+                // Cannot recover from this
+                using namespace Foam;
+
+                FatalIOErrorInFunction(is)
+                    << "Currently no code to read int"
+                    << (8*is.labelByteSize())
+                    << " as int" << (8*sizeof(dataType)) << nl
+                    << abort(FatalIOError);
+                break;
+            }
+        }
+    }
+    else
+    {
+        static_assert
+        (
+            stdFoam::dependent_false_v<dataType>,
+            "Only int32 or int64 are currently supported"
+        );
+    }
+}
+
 } // End anonymous namespace
 
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
-void Foam::readRawLabel(Istream& is, label* data, size_t nElem)
+void Foam::readRawLabel(Foam::Istream& is, Foam::label* data, size_t nElem)
 {
-    // No check for binary vs ascii, the caller knows what they are doing
-
-    switch (is.labelByteSize())
-    {
-        case sizeof(int32_t):
-        {
-            reading<int32_t, label>(is, data, nElem);
-            break;
-        }
-        case sizeof(int64_t):
-        {
-            reading<int64_t, label>(is, data, nElem);
-            break;
-        }
-        default:
-        {
-            // Cannot recover from this
-            FatalIOErrorInFunction(is)
-                << "Currently no code to read int" << (8*is.labelByteSize())
-                << " as int" << (8*sizeof(label)) << nl
-                << abort(FatalIOError);
-        }
-    }
+    dispatch_reading(is, data, nElem);
 }
 
 

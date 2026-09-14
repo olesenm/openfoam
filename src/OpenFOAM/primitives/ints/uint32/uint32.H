@@ -100,6 +100,20 @@ inline bool readUint32(const std::string& str, uint32_t& val)
 
 //- Same as readUint32
 //  \return True if successful.
+inline bool readULabel(const char* buf, uint32_t& val)
+{
+    return readUint32(buf, val);
+}
+
+//- Same as readUint32
+//  \return True if successful.
+inline bool readULabel(const std::string& str, uint32_t& val)
+{
+    return readUint32(str, val);
+}
+
+//- Same as readUint32
+//  \return True if successful.
 inline bool read(const char* buf, uint32_t& val)
 {
     return readUint32(buf, val);

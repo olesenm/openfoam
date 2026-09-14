@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -46,10 +47,18 @@ namespace Foam
 typedef int32_t label;
 typedef uint32_t uLabel;
 
+constexpr int32_t labelMin = INT32_MIN;
+constexpr int32_t labelMax = INT32_MAX;
+constexpr uint32_t uLabelMax = UINT32_MAX;
+
 #elif WM_LABEL_SIZE == 64
 
 typedef int64_t label;
 typedef uint64_t uLabel;
+
+constexpr int64_t labelMin = INT64_MIN;
+constexpr int64_t labelMax = INT64_MAX;
+constexpr uint64_t uLabelMax = UINT64_MAX;
 
 #else
     #error "WM_LABEL_SIZE must be set to either 32 or 64"

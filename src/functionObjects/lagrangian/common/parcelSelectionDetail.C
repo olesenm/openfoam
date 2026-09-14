@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -177,11 +178,12 @@ bool Foam::Detail::parcelSelection::calculateFilter
         return false;
     }
 
-    // The unary function type(s) for testing a scalar.
-    // Allocate 3 slots.
-    // 0 is the test
-    // 1,2 are for storage of composite tests (eg, and/or logic)
-    predicates::scalars tests(3);
+    // The unary function for testing a scalar.
+    // Initialized to warn (guards against a stale/unset predicate).
+    predicates::scalars::unary test
+    (
+        predicates::scalars::warnOp("parcelSelection", __FILE__, __LINE__)
+    );
 
     for (const entry& dEntry : parcelSelect_)
     {
@@ -277,7 +279,7 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     (
                         parcelAddr_,
                         action,
-                        [=](const label id) -> bool { return !(id % stride); },
+                        [stride](label id) -> bool { return !(id % stride); },
                         ids,
                         accessOp<label>()  // pass-through
                     );
@@ -323,7 +325,7 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     Tuple2<word,scalar> expr1(is);
                     e.checkITstream(is);
 
-                    tests.first() = predicates::scalars::operation(expr1);
+                    test = predicates::scalars::operation(expr1);
 
                     Log << " : " << expr1;
                 }
@@ -339,19 +341,26 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     e.checkITstream(is);
 
                     logicType logic = logicNames[logicName];
-                    tests[1] = predicates::scalars::operation(expr1);
-                    tests[2] = predicates::scalars::operation(expr2);
+
+                    // Local storage - only needed transiently to build
+                    // the combined 'test' below
+                    predicates::scalars::unary test1
+                    (
+                        predicates::scalars::operation(expr1)
+                    );
+                    predicates::scalars::unary test2
+                    (
+                        predicates::scalars::operation(expr2)
+                    );
 
                     switch (logic)
                     {
                         case logicType::AND:
-                            tests.first() =
-                                predicates::scalars::andOp(tests[1], tests[2]);
+                            test = predicates::scalars::andOp(test1, test2);
                             break;
 
                         case logicType::OR:
-                            tests.first() =
-                                predicates::scalars::orOp(tests[1], tests[2]);
+                            test = predicates::scalars::orOp(test1, test2);
                             break;
                     }
 
@@ -371,7 +380,7 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     (
                         parcelAddr_,
                         action,
-                        tests.first(),
+                        test,
                         *labelFld,
                         accessOp<label>()  // pass-through
                     );
@@ -382,7 +391,7 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     (
                         parcelAddr_,
                         action,
-                        tests.first(),
+                        test,
                         *scalarFld,
                         accessOp<scalar>() // pass-through
                     );
@@ -393,7 +402,7 @@ bool Foam::Detail::parcelSelection::calculateFilter
                     (
                         parcelAddr_,
                         action,
-                        tests.first(),
+                        test,
                         *vectorFld,
                         [](const vector& val) -> scalar
                         {

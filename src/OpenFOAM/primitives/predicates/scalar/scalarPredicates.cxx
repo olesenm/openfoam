@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,8 +28,8 @@ License
 
 #include "scalarPredicates.H"
 #include "HashSet.H"
-#include "FlatOutput.H"
 #include "Tuple2.H"
+#include <iterator>
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -57,38 +58,19 @@ Foam::predicates::scalars::opNames
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
-std::function<bool(Foam::scalar)> Foam::predicates::scalars::operation
-(
-    const enum predicates::scalars::opType op,
-    const Foam::scalar opVal,
-    const Foam::scalar tol
-)
+Foam::predicates::scalars::unary
+Foam::predicates::scalars::operation(opType op, scalar operand, scalar tol)
 {
     switch (op)
     {
-        case opType::EQUAL:
-            return equalOp(opVal, tol);
-            break;
-        case opType::NOT_EQUAL:
-            return notEqualOp(opVal, tol);
-            break;
-        case opType::LESS:
-            return lessOp(opVal);
-            break;
-        case opType::LESS_EQUAL:
-            return lessEqualOp(opVal);
-            break;
-        case opType::GREATER:
-            return greaterOp(opVal);
-            break;
-        case opType::GREATER_EQUAL:
-            return greaterEqualOp(opVal);
-            break;
-        case opType::ALWAYS:
-            return trueOp();
-            break;
-        default:
-            break;
+        case opType::EQUAL          : return equalOp(operand, tol); break;
+        case opType::NOT_EQUAL      : return notEqualOp(operand, tol); break;
+        case opType::LESS           : return lessOp(operand); break;
+        case opType::LESS_EQUAL     : return lessEqualOp(operand); break;
+        case opType::GREATER        : return greaterOp(operand); break;
+        case opType::GREATER_EQUAL  : return greaterEqualOp(operand); break;
+        case opType::ALWAYS         : return trueOp(); break;
+        default : break;
     }
 
     return falseOp();
@@ -97,95 +79,97 @@ std::function<bool(Foam::scalar)> Foam::predicates::scalars::operation
 
 // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
-namespace Foam
+namespace
 {
+
+// Append list of (opName operand) tuples to target after verifying their
+// validity.
+template<class ListType, class IteratorType>
+void append_impl(ListType& target, IteratorType first, IteratorType last)
+{
+    const auto len = std::distance(first, last);
+
+    using namespace Foam;
+    using std::get;   // for ADL lookups
+
+    labelHashSet badIndices;
+
     // Check for bad/unknown operations
-    template<class Container, class Get0>
-    static bool hasBadEntries
-    (
-        const Container& entries,
-        const Get0& get0
-    )
     {
-        for (const auto& entry : entries)
-        {
-            if (!Foam::predicates::scalars::opNames.contains(get0(entry)))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
-    // Print bad/unknown operations
-    template<class Error, class Container, class Get0, class Get1>
-    static Error& printBadEntries
-    (
-        Error& err,
-        const Container& entries,
-        const Get0& get0,
-        const Get1& get1
-    )
-    {
-        labelHashSet badIndices;
-
         label idx = 0;
-
-        for (const auto& entry : entries)
+        for (IteratorType iter = first; iter != last; ++iter)
         {
-            if (!Foam::predicates::scalars::opNames.contains(get0(entry)))
+            const auto& entry = *iter;
+
+            if (!Foam::predicates::scalars::opNames.contains(get<0>(entry)))
             {
                 badIndices.insert(idx);
             }
             ++idx;
         }
+    }
 
-        err
-            << "Entries with unknown operations:" << nl
-            << idx << nl
-            << '(' << nl;
+    // Report bad/unknown operations and exit (Fatal)
+    if (!badIndices.empty())
+    {
+        FatalErrorInFunction
+            << "Entries with unknown operations:\n"
+            << len << "\n(\n";
 
-        idx = 0;
-        for (const auto& entry : entries)
+        label idx = 0;
+        for (IteratorType iter = first; iter != last; ++iter)
         {
+            const auto& entry = *iter;
+
             const bool bad = badIndices.contains(idx);
             ++idx;
 
             if (bad)
             {
-                err << ">>> ";
+                FatalError << ">>> ";
             }
             else
             {
-                err << "    ";
+                FatalError << "    ";
             }
-            err << '(' << get0(entry) << ' ' << get1(entry) << ')';
+            FatalError << '(' << get<0>(entry) << ' ' << get<1>(entry) << ')';
 
             if (bad)
             {
-                err << " <<<";
+                FatalError << " <<<";
             }
-            err << nl;
+            FatalError << '\n';
         }
 
-        err << ')' << nl;
-
-        return err;
+        FatalError << ")\n"<< exit(FatalError);
     }
 
-} // End namespace Foam
+    // Appears to be good, fill the list
+
+    const auto start = target.size();
+
+    target.resize(start + len);
+
+    auto output = (target.begin() + start);
+
+    for (IteratorType iter = first; iter != last; ++iter)
+    {
+        *output = Foam::predicates::scalars::operation(*iter);
+        ++output;
+    }
+}
+
+} // End anonymous namespace
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::predicates::scalars::scalars
 (
-    std::initializer_list<std::pair<word, scalar>> entries
+    std::initializer_list<std::pair<const char*, scalar>> entries
 )
 {
-    assign(entries);
+    append_impl(*this, entries.begin(), entries.end());
 }
 
 
@@ -194,7 +178,7 @@ Foam::predicates::scalars::scalars
     const UList<Tuple2<word, scalar>>& entries
 )
 {
-    assign(entries);
+    append_impl(*this, entries.begin(), entries.end());
 }
 
 
@@ -208,31 +192,11 @@ Foam::predicates::scalars::scalars(Istream& is)
 
 void Foam::predicates::scalars::assign
 (
-    std::initializer_list<std::pair<word, scalar>> entries
+    std::initializer_list<std::pair<const char*, scalar>> entries
 )
 {
-    typedef std::pair<word, scalar> tuple_type;
-
-    // Access
-    const auto get0 = [](const tuple_type& entry) { return entry.first; };
-    const auto get1 = [](const tuple_type& entry) { return entry.second; };
-
-    // Check for bad/unknown operations
-    if (hasBadEntries(entries, get0))
-    {
-        printBadEntries(FatalErrorInFunction, entries, get0, get1)
-            << exit(FatalError);
-    }
-
-    // Appears to be good, fill the list
-    this->resize_nocopy(entries.size());
-    auto iter = this->begin();
-
-    for (const tuple_type& entry : entries)
-    {
-        *iter = predicates::scalars::operation(entry);
-        ++iter;
-    }
+    clear();
+    append_impl(*this, entries.begin(), entries.end());
 }
 
 
@@ -241,36 +205,48 @@ void Foam::predicates::scalars::assign
     const UList<Tuple2<word, scalar>>& entries
 )
 {
-    typedef Tuple2<word, scalar> tuple_type;
+    clear();
+    append_impl(*this, entries.begin(), entries.end());
+}
 
-    // Access
-    const auto get0 = [](const tuple_type& entry) { return entry.first(); };
-    const auto get1 = [](const tuple_type& entry) { return entry.second(); };
 
+void Foam::predicates::scalars::push_back
+(
+    opType op,
+    scalar operand,
+    scalar tolerance
+)
+{
+    List<unary>::push_back
+    (
+        predicates::scalars::operation(op, operand, tolerance)
+    );
+}
+
+
+void Foam::predicates::scalars::push_back
+(
+    const word& opName,
+    scalar operand,
+    scalar tolerance
+)
+{
     // Check for bad/unknown operations
-    if (hasBadEntries(entries, get0))
+    if (opType op = opNames.lookup(opName, opType::WARN); op != opType::WARN)
     {
-        printBadEntries(FatalErrorInFunction, entries, get0, get1)
-            << exit(FatalError);
+        this->push_back(op, operand, tolerance);
     }
-
-    // Appears to be good, fill the list
-    this->resize_nocopy(entries.size());
-    auto iter = this->begin();
-
-    for (const tuple_type& entry : entries)
+    else
     {
-        *iter = predicates::scalars::operation(entry);
-        ++iter;
+        FatalErrorInFunction
+            << "Unknown operation: <" << opName << "> with value:"
+            << operand
+            << exit(FatalError);
     }
 }
 
 
-Foam::label Foam::predicates::scalars::find
-(
-    const scalar value,
-    label pos
-) const
+Foam::label Foam::predicates::scalars::find(scalar value, label pos) const
 {
     const label len = this->size();
 
@@ -293,11 +269,7 @@ Foam::label Foam::predicates::scalars::find
 }
 
 
-Foam::label Foam::predicates::scalars::rfind
-(
-    const scalar value,
-    label pos
-) const
+Foam::label Foam::predicates::scalars::rfind(scalar value, label pos) const
 {
     // pos == -1 has same meaning as std::string::npos - search from end
     if (pos < 0 || pos >= this->size())

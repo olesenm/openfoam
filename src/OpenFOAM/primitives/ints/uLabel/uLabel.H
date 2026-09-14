@@ -44,6 +44,10 @@ Description
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+#undef UINT_ADD_SIZE
+#undef UINT_ADD_DEF_SIZE
+#undef UINT_SIZE
+
 #define UINT_ADD_SIZE(x,s,y) x ## s ## y
 #define UINT_ADD_DEF_SIZE(x,s,y) UINT_ADD_SIZE(x,s,y)
 #define UINT_SIZE(x,y) UINT_ADD_DEF_SIZE(x,WM_LABEL_SIZE,y)
@@ -56,8 +60,10 @@ namespace Foam
 {
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-constexpr uLabel uLabelMax = UINT_SIZE(UINT, _MAX);
+// Two-parameter forms of readULabel :
+//   * readULabel(const char*, uLabel&)
+//   * readULabel(const std::string&, label&)
+// are defined in uint32.H and uint64.H
 
 //- Read uLabel from stream.
 //  Uses readUint32 or readUint64 according to WM_LABEL_SIZE
@@ -80,23 +86,6 @@ inline uLabel readULabel(const char* buf)
 inline uLabel readULabel(const std::string& str)
 {
     return UINT_SIZE(readUint,) (str);
-}
-
-//- Parse entire buffer as a uLabel, skipping leading/trailing whitespace.
-//  Uses readUint32 or readUint64 according to WM_LABEL_SIZE
-//  \return True if successful.
-inline bool readULabel(const char* buf, uLabel& val)
-{
-    return UINT_SIZE(readUint,) (buf, val);
-}
-
-
-//- Parse entire string as a uLabel, skipping leading/trailing whitespace.
-//  Uses readUint32 or readUint64 according to WM_LABEL_SIZE
-//  \return True if successful.
-inline bool readULabel(const std::string& str, uLabel& val)
-{
-    return UINT_SIZE(readUint,) (str, val);
 }
 
 

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -37,7 +38,6 @@ SourceFiles
 #ifndef Foam_predicates_H
 #define Foam_predicates_H
 
-#include <string>
 #include <type_traits>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -51,28 +51,22 @@ namespace predicates
                            Class always Declaration
 \*---------------------------------------------------------------------------*/
 
-//- Unary and binary predicates that always return true, useful for templating.
+//- Unary, binary, n-ary predicates that \b always returning true,
+//- useful for templating.
 struct always : std::true_type
 {
-    //- Unary predicate
+    //- Unary, binary (or any other n-ary arity >= 1) predicate.
     //  \return true
-    template<class T>
-    constexpr bool operator()(const T&) const noexcept
+    template<class T, class... Args>
+    constexpr bool operator()(const T&, const Args&...) const noexcept
     {
         return value;
     }
 
-    //- Binary predicate
+    //- String matching (for example)
     //  \return true
-    template<class T1, class T2>
-    constexpr bool operator()(const T1&, const T2&) const noexcept
-    {
-        return value;
-    }
-
-    //- String match
-    //  \return true
-    constexpr bool match(const std::string&, bool literal=false) const noexcept
+    template<class T, class... Args>
+    constexpr bool match(const T&, const Args&...) const noexcept
     {
         return value;
     }
@@ -83,28 +77,22 @@ struct always : std::true_type
                             Class never Declaration
 \*---------------------------------------------------------------------------*/
 
-//- Unary and binary predicates that never return true, useful for templating.
+//- Unary, binary, n-ary predicates that \b never return true (only false),
+//- useful for templating.
 struct never : std::false_type
 {
-    //- Unary predicate
+    //- Unary, binary (or any other n-ary arity >= 1) predicate
     //  \return false
-    template<class T>
-    constexpr bool operator()(const T&) const noexcept
+    template<class T, class... Args>
+    constexpr bool operator()(const T&, const Args&...) const noexcept
     {
         return value;
     }
 
-    //- Binary predicate
+    //- String matching (for example)
     //  \return false
-    template<class T1, class T2>
-    constexpr bool operator()(const T1&, const T2&) const noexcept
-    {
-        return value;
-    }
-
-    //- String match
-    //  \return false
-    constexpr bool match(const std::string&, bool literal=false) const noexcept
+    template<class T, class... Args>
+    constexpr bool match(const T&, const Args&...) const noexcept
     {
         return value;
     }
