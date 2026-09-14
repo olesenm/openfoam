@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -349,6 +350,10 @@ void Foam::Matrix<Form, Type>::resize_nocopy(const label mrow, const label ncol)
     {
         return;
     }
+
+    // A wrapped newLen can equal oldLen, and the shallow branch then
+    // installs the dimensions without reaching doAlloc()
+    checkElementCount(mrow, ncol);
 
     const label oldLen = (mRows_ * nCols_);
 
