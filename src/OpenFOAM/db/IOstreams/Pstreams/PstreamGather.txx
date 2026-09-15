@@ -346,6 +346,11 @@ void listGather_algorithm
         // Same length on all ranks
         const label listLen = values.size();
 
+        if (printDebug)
+        {
+            Perr<< "listGather: length=" << listLen << endl;
+        }
+
         List<T> received;
 
         if (!below.empty())
@@ -360,6 +365,11 @@ void listGather_algorithm
         // Receive from my downstairs neighbours
         for (const auto proci : below)
         {
+            if (printDebug)
+            {
+                Perr<< "listGather: receive from " << proci << endl;
+            }
+
             if constexpr (is_contiguous_v<T>)
             {
                 UIPstream::read
@@ -377,13 +387,10 @@ void listGather_algorithm
                 IPstream::recv(received, proci, tag, communicator);
             }
 
-            if constexpr (InplaceMode)
+            if (printDebug)
             {
-                if (printDebug)
-                {
-                    Perr<< " received from "
-                        << proci << " data:" << received << endl;
-                }
+                Perr<< "listGather: received from "
+                    << proci << " data:" << received << endl;
             }
 
             for (label i = 0; i < listLen; ++i)
@@ -404,13 +411,10 @@ void listGather_algorithm
         // Send up values
         if (const auto above = myComm.above(); above >= 0)
         {
-            if constexpr (InplaceMode)
+            if (printDebug)
             {
-                if (printDebug)
-                {
-                    Perr<< " sending to " << above
-                        << " data:" << values << endl;
-                }
+                Perr<< "listGather: sending to " << above
+                    << " data:" << values << endl;
             }
 
             if constexpr (is_contiguous_v<T>)

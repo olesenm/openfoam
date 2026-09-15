@@ -8,6 +8,7 @@
 #------------------------------------------------------------------------------
 #     Copyright (C) 2011-2015 OpenFOAM Foundation
 #     Copyright (C) 2017-2025 OpenCFD Ltd.
+#     Copyright (C) 2026 Keysight Technologies
 #------------------------------------------------------------------------------
 # License
 #     This file is part of OpenFOAM, distributed under GPL-3.0-or-later.
@@ -41,6 +42,7 @@ options:
   -yes          Start without additional prompting
   -local        Same as -spawn=1
   -remote       Same as -spawn=2
+  -trace        Sets FOAM_ABORT=true for stacktrace on errors
   -clean        Remove log and startup files
   -no-core      Restrict core dump to 0 size
   -quick        Valgrind with 'summary' (not 'full') and use -no-core
@@ -100,8 +102,8 @@ methodNumberToName()
 # Basic settings
 
 unset appName appArgs nProcs
-unset method spawn optClean optValue opt_nocore
-optConfirm=true
+unset method spawn opt_clean opt_nocore opt_trace
+opt_confirm=true
 opt_leakcheck=full
 
 decompDict="system/decomposeParDict"
@@ -118,8 +120,9 @@ do
         case "$1" in
         ('') ;;  # Ignore junk
 
-        -clean)     optClean=true ;;
-        -yes)       unset optConfirm ;;
+        -clean)     opt_clean=true ;;
+        -trace)     opt_trace=true ;;
+        -yes)       unset opt_confirm ;;
 
         -local | -remote)
             spawn="${1#-}"
@@ -136,13 +139,13 @@ do
 
         -normal | -log)
             method="${1#*-}"
-            unset optConfirm
+            unset opt_confirm
             : "${spawn:=local}"
             ;;
 
         -xlog | -xterm)
             method="log-xterm"
-            unset optConfirm
+            unset opt_confirm
             : "${spawn:=local}"
             ;;
 
@@ -157,13 +160,13 @@ do
 
         -valgr*)
             method="valgrind"
-            unset optConfirm
+            unset opt_confirm
             : "${spawn:=local}"
             ;;
 
         -xvalgr*)
             method="valgrind-xterm"
-            unset optConfirm
+            unset opt_confirm
             : "${spawn:=local}"
             ;;
 
@@ -234,7 +237,7 @@ done
 #-------------------------------------------------------------------------------
 
 # Cleanup only
-if [ -n "$optClean" ]
+if [ -n "$opt_clean" ]
 then
     exec 1>&2
     echo "Cleanup old mpirunDebug files..."
@@ -387,6 +390,12 @@ COMMANDS
         echo "ulimit -c 0 2>/dev/null" >> "$procCmdFile"
     fi
 
+    if [ "$opt_trace" = true ]
+    then
+        echo "# with FOAM_ABORT for stacktrace on errors" >> "$procCmdFile"
+        echo "export FOAM_ABORT=true" >> "$procCmdFile"
+    fi
+
     # Add to the mpirun.schema
     case "$method" in
     (*xterm*) echo "${node}${xterm} -e ${procCmdFile}" >> "$schema_file" ;;
@@ -498,7 +507,7 @@ echo 1>&2
 echo "    $cmd" 1>&2
 echo 1>&2
 
-if [ -n "$optConfirm" ]
+if [ -n "$opt_confirm" ]
 then
     # Pause before running
     echo -e "Press return to execute, or ^C to abort...\c"
