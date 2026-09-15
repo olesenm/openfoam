@@ -53,7 +53,7 @@ Foam::domainDecompositionDryRun::domainDecompositionDryRun
 void Foam::domainDecompositionDryRun::execute
 (
     const bool writeCellDist,
-    const bool verbose
+    int verbose
 )
 {
     cpuTime decompositionTime;
@@ -154,6 +154,19 @@ void Foam::domainDecompositionDryRun::execute
 //            << " for use in manual decomposition." << endl;
 
         Info<< nl;
+    }
+
+    // write
+    if (writeCellDist && verbose > 1)
+    {
+        fileName base(mesh_.time().path()/"decomposePar");
+
+        if (const word& regName = mesh_.regionName(); !regName.empty())
+        {
+            base += "-" + regName;
+        }
+
+        writeScotch(base, cellCells, cellToProc);
     }
 
     if (verbose)

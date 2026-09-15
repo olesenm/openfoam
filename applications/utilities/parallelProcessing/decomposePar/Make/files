@@ -1,11 +1,11 @@
-decomposePar.C
+decomposePar.cxx
 
-domainDecomposition.C
-domainDecompositionMesh.C
-domainDecompositionDistribute.C
-domainDecompositionWrite.C
+domainDecomposition.cxx
+domainDecompositionMesh.cxx
+domainDecompositionDistribute.cxx
+domainDecompositionWrite.cxx
 
-domainDecompositionDryRun.C
-domainDecompositionDryRunWrite.C
+domainDecompositionDryRun.cxx
+domainDecompositionDryRunWrite.cxx
 
 EXE = $(FOAM_APPBIN)/decomposePar

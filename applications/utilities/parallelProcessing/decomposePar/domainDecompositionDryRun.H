@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,17 +31,21 @@ Description
     Testing of domain decomposition for finite-volume meshes
 
 SourceFiles
-    domainDecompositionDryRun.C
+    domainDecompositionDryRun.cxx
+    domainDecompositionDryRunWrite.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef domainDecompositionDryRun_H
-#define domainDecompositionDryRun_H
+#ifndef Foam_domainDecompositionDryRun_H
+#define Foam_domainDecompositionDryRun_H
 
 #include "fvMesh.H"
 
 namespace Foam
 {
+
+// Forward Declarations
+template<class T> class CompactListList;
 
 /*---------------------------------------------------------------------------*\
                   Class domainDecompositionDryRun Declaration
@@ -79,22 +84,30 @@ class domainDecompositionDryRun
             const labelUList& cellToProc
         ) const;
 
+        //- Write originating mesh as scotch ".grf" and ".xyz" files and
+        //- the target decomposition as a ".map"
+        void writeScotch
+        (
+            const fileName& file,
+            const CompactListList<label>& cellCells,
+            const labelUList& cellToProc
+        ) const;
+
 
 public:
 
     // Constructors
 
         //- Construct from components.
-        //  \param io the IOobject for mesh
-        //  \param decompDictFile optional non-standard location for the
-        //      decomposeParDict file
-        //  \param nDomains optional override value for numberOfSubdomains
-        //  \param methodName optional override value for decomposition method
         domainDecompositionDryRun
         (
+            //! The IOobject for mesh
             const IOobject& io,
+            //! optional non-standard location for the decomposeParDict file
             const fileName& decompDictFile = "",
+            //! optional override value for numberOfSubdomains
             const label nDomains = 0,
+            //! optional override value for decomposition method
             const word& methodName = ""
         );
 
@@ -112,7 +125,14 @@ public:
         }
 
         //- Perform dry-run
-        void execute(const bool writeCellDist, const bool verbose = false);
+        void execute
+        (
+            //! Write VTK (optionally scotch output, when verbose > 1)
+            const bool writeCellDist,
+            //! With verbose = 1, report extra statistics.
+            //! With verbose > 1, write scotch files when writeCellDist is true
+            int verbose = 0
+        );
 };
 
 

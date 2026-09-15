@@ -31,14 +31,14 @@ Description
     Automatic domain decomposition class for finite-volume meshes
 
 SourceFiles
-    domainDecomposition.C
-    domainDecompositionDistribute.C
-    domainDecompositionMesh.C
+    domainDecomposition.cxx
+    domainDecompositionDistribute.cxx
+    domainDecompositionMesh.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef domainDecomposition_H
-#define domainDecomposition_H
+#ifndef Foam_domainDecomposition_H
+#define Foam_domainDecomposition_H
 
 #include "fvMesh.H"
 #include "labelList.H"
@@ -250,7 +250,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "domainDecompositionTemplates.C"
+    #include "domainDecomposition.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

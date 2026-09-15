@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -365,12 +366,15 @@ int main(int argc, char *argv[])
     #include "addAllRegionOptions.H"
     #include "addAllFaRegionOptions.H"
 
+    argList::addVerboseOption
+    (
+        "Additional verbosity. (Can be used multiple times for debugging)"
+    );
     argList::addDryRunOption
     (
         "Test without writing the decomposition. "
         "Changes -cellDist to only write VTK output."
     );
-    argList::addVerboseOption();
     argList::addOption
     (
         "domains",
