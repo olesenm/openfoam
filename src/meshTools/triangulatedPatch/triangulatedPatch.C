@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2023-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,6 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "triangulatedPatch.H"
+#include "Random.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -68,14 +70,14 @@ bool Foam::triangulatedPatch::randomPoint
     facei = triFace_[trii].index();
     celli = patch_.faceCells()[facei];
 
-    if (perturbTol_ > 0)
+    if (perturb_)
     {
         const polyMesh& mesh = patch_.boundaryMesh().mesh();
         const point& cc = mesh.cellCentres()[celli];
 
         // Normal points out of domain => subtract correction
         const vector& n = patch_.faceNormals()[facei];
-        result -= perturbTol_*n*mag(n & (cc - result));
+        result -= n*Foam::mag(n & (cc - result));
 
         // Reset facei - point no longer resides on the face
         facei = -1;
@@ -90,13 +92,11 @@ bool Foam::triangulatedPatch::randomPoint
 Foam::triangulatedPatch::triangulatedPatch
 (
     const polyPatch& patch,
-    const scalar perturbTol
+    bool perturb
 )
 :
     patch_(patch),
-    perturbTol_(perturbTol),
-    triFace_(),
-    triWght_()
+    perturb_(perturb)
 {
     update();
 }
@@ -106,10 +106,10 @@ Foam::triangulatedPatch::triangulatedPatch
 (
     const polyMesh& mesh,
     const word& patchName,
-    const scalar perturbTol
+    bool perturb
 )
 :
-    triangulatedPatch(mesh.boundaryMesh()[patchName], perturbTol)
+    triangulatedPatch(mesh.boundaryMesh()[patchName], perturb)
 {}
 
 
@@ -129,6 +129,8 @@ void Foam::triangulatedPatch::triangulate
     {
         nTris += f.nTriangles();
     }
+
+    tris.clear();
 
     DynamicList<labelledTri> dynTris(nTris);
     DynamicList<face> tfaces(8);  // work array

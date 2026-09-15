@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2023-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -36,12 +37,15 @@ Description
 
 #include "polyMesh.H"
 #include "labelledTri.H"
-#include "Random.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
+
+// Forward Declarations
+class Random;
+
 /*---------------------------------------------------------------------------*\
                       Class triangulatedPatch Declaration
 \*---------------------------------------------------------------------------*/
@@ -53,9 +57,6 @@ class triangulatedPatch
         //- Reference to the polyPatch
         const polyPatch& patch_;
 
-        //- Perturbation tolerance to move the point towards the cell centre
-        bool perturbTol_;
-
         //- The polyPatch faces as triangles, the index of each corresponds
         //- to the undecomposed patch face index.
         List<labelledTri> triFace_;
@@ -63,6 +64,9 @@ class triangulatedPatch
         //- The cumulative triangle area per triangle face,
         //- globally normalised as a 0-1 interval.
         scalarList triWght_;
+
+        //- Perturb to move the point towards the cell centre?
+        bool perturb_;
 
 
     // Private Member Functions
@@ -94,7 +98,8 @@ public:
         triangulatedPatch
         (
             const polyPatch& patch,
-            const scalar perturbTol
+            //! Perturb to move the point towards the cell centre?
+            bool perturb
         );
 
         //- Construct from mesh and patch name
@@ -102,7 +107,8 @@ public:
         (
             const polyMesh& mesh,
             const word& patchName,
-            const scalar perturbTol
+            //! Perturb to move the point towards the cell centre?
+            bool perturb
         );
 
 
