@@ -33,6 +33,7 @@ License
 #include "labelIOList.H"
 #include "Map.H"
 #include "globalMeshData.H"
+#include "cyclicFaPatch.H"
 #include "processorFaPatch.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -565,8 +566,7 @@ void Foam::faMeshDecomposition::decomposeMesh()
 
             }
 
-//             if (!isA<cyclicFaPatch>(patches[patchI]))
-            if (true)
+            if (!isA<cyclicFaPatch>(fap))
             {
                 // Normal patch. Add edges to processor where the face
                 // next to the edge lives
