@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -480,6 +481,16 @@ bool Foam::pairPatchAgglomeration::agglomeratePatch
     // Patch faces per agglomeration
     labelListList coarseToFine(invertOneToMany(nCoarseI, fineToCoarse));
 
+    // Base patch faces per agglomeration
+    // Topology is checked on the base faces like singleCellFvMesh does,
+    // since the edge-loop walk is not unique for pinched unions
+    labelList baseToCoarse(restrictTopBottomAddressing_);
+    inplaceRenumber(fineToCoarse, baseToCoarse);
+
+    const labelListList coarseToBase(invertOneToMany(nCoarseI, baseToCoarse));
+
+    const bPatch& basePatch = patchLevels_[0];
+
     // Additional feature edges created
     nMarkedEdges = 0;
 
@@ -488,11 +499,11 @@ bool Foam::pairPatchAgglomeration::agglomeratePatch
     {
         const labelList& fineFaces = coarseToFine[coarseI];
 
-        // Construct single face
+        // Construct single face from the base patch faces
         indirectPrimitivePatch upp
         (
-            IndirectList<face>(patch, fineFaces),
-            patch.points()
+            IndirectList<face>(basePatch, coarseToBase[coarseI]),
+            basePatch.points()
         );
 
         if (upp.edgeLoops().size() != 1)
@@ -561,7 +572,7 @@ bool Foam::pairPatchAgglomeration::agglomeratePatch
         new bPatch
         (
             SubList<face>(patchFaces, nCoarseI, 0),
-            patch.points()
+            basePatch.points()
         )
     );
 
