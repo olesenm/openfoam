@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2020,2022 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -104,37 +105,58 @@ int main(int argc, char *argv[])
             keyType::LITERAL
         );
 
+    // Resolve per-patch agglomeration controls before agglomerating
+    UPtrList<const dictionary> patchDicts(boundary.size());
+
     for (const entry& dEntry : patchesDict)
     {
-        labelList patchids = boundary.indices(dEntry.keyword());
-
-        for (const label patchi : patchids)
+        for (const label patchi : boundary.indices(dEntry.keyword()))
         {
-            const polyPatch& pp = boundary[patchi];
-
-            if (!pp.coupled())
-            {
-                Info << "\nAgglomerating patch : " << pp.name() << endl;
-
-                pairPatchAgglomeration agglomObject
-                (
-                    pp.localFaces(),
-                    pp.localPoints(),
-                    dEntry.dict()
-                );
-
-                agglomObject.agglomerate();
-
-                finalAgglom[patchi] =
-                    agglomObject.restrictTopBottomAddressing();
-
-                if (finalAgglom[patchi].size())
-                {
-                    nCoarseFaces += max(finalAgglom[patchi] + 1);
-                }
-            }
+            patchDicts.set(patchi, &dEntry.dict());
         }
     }
+
+    forAll(patchDicts, patchi)
+    {
+        const dictionary* patchDict = patchDicts.get(patchi);
+        const polyPatch& pp = boundary[patchi];
+
+        if (!patchDict || pp.coupled())
+        {
+            continue;
+        }
+
+        const label nGlobalFine = returnReduce(pp.size(), sumOp<label>());
+
+        Info<< "\nAgglomerating patch : " << pp.name()
+            << " (" << nGlobalFine << " faces)" << endl;
+
+        pairPatchAgglomeration agglomObject
+        (
+            pp.localFaces(),
+            pp.localPoints(),
+            *patchDict
+        );
+
+        agglomObject.agglomerate();
+
+        finalAgglom[patchi] =
+            agglomObject.restrictTopBottomAddressing();
+
+        label nCoarse = 0;
+        if (finalAgglom[patchi].size())
+        {
+            nCoarse = max(finalAgglom[patchi]) + 1;
+            nCoarseFaces += nCoarse;
+        }
+
+        const label nGlobalCoarse = returnReduce(nCoarse, sumOp<label>());
+
+        Info<< "    Coarse faces : " << nGlobalCoarse << endl;
+    }
+
+    Info<< "\nTotal coarse faces : "
+        << returnReduce(nCoarseFaces, sumOp<label>()) << endl;
 
 
     // All patches which are not agglomerated are identity for finalAgglom
