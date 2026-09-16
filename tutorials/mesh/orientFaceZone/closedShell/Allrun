@@ -1,0 +1,18 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+runApplication blockMesh
+runApplication topoSet
+
+# orient inside
+runApplication -s inside \
+    orientFaceZone -inside innerShell '(0.05 0.05 0.05)'
+
+runApplication -s reset topoSet
+# orient outside
+runApplication -s outside \
+    orientFaceZone innerShell '(0.005 0.005 0.005)'
+
+#------------------------------------------------------------------------------

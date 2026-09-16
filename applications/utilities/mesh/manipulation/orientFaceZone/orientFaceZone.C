@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,9 +33,13 @@ Group
 
 Description
     Corrects the orientation of faceZone.
+    If the -inside option is used the point is considered inside.
 
     - correct in parallel - excludes coupled faceZones from walk
     - correct for non-manifold faceZones - restarts walk
+    - orients each walk from its initial seed face
+    - refuses a reference point that coincides with the seed face centre
+      or lies in its plane
 
 \*---------------------------------------------------------------------------*/
 
@@ -58,17 +63,24 @@ int main(int argc, char *argv[])
     );
     #include "addRegionOption.H"
     argList::addArgument("faceZone");
-    argList::addArgument("point", "A point outside of the mesh");
+    argList::addArgument("point", "The reference 'outside' point");
+    argList::addBoolOption
+    (
+        "inside",
+        "Treat the reference point as being inside"
+    );
 
     #include "setRootCase.H"
     #include "createTime.H"
     #include "createNamedPolyMesh.H"
 
     const word zoneName  = args[1];
-    const point outsidePoint = args.get<point>(2);
+    const point referencePoint = args.get<point>(2);
+    const bool inside = args.found("inside");
 
     Info<< "Orienting faceZone " << zoneName
-        << " such that " << outsidePoint << " is outside"
+        << " such that " << referencePoint << " is "
+        << (inside ? "inside" : "outside")
         << nl << endl;
 
 
@@ -219,14 +231,44 @@ int main(int argc, char *argv[])
         {
             // Determine orientation of seedFace
 
-            vector d = outsidePoint-patch.faceCentres()[seedFacei];
+            const point& fc = patch.faceCentres()[seedFacei];
+            const vector d = referencePoint-fc;
+            const scalar magD = mag(d);
+
+            // A reference point on the seed face leaves fn&d undecided
+            if (magD < SMALL)
+            {
+                FatalErrorInFunction
+                    << "Reference point " << referencePoint
+                    << " coincides with the centre of seed face " << seedFacei
+                    << nl
+                    << "Nothing orients the zone from there."
+                    << exit(FatalError);
+            }
+
             const vector& fn = patch.faceNormals()[seedFacei];
+            const scalar cosD = (fn&d)/magD;
+
+            // A reference point must not be in the seed face plane
+            if (mag(cosD) < SMALL)
+            {
+                FatalErrorInFunction
+                    << "Reference point " << referencePoint
+                    << " lies in the plane of seed face " << seedFacei
+                    << " at " << fc << nl
+                    << "Cosine to its normal " << fn << " is " << cosD
+                    << ", below " << SMALL << nl
+                    << "Nothing orients the zone from there."
+                    << exit(FatalError);
+            }
+
+            const bool needsFlip = (inside ? cosD > 0 : cosD < 0);
 
             // Set information to correct orientation
             patchFaceOrientation& faceInfo = allFaceInfo[seedFacei];
             faceInfo = orientedSurface::NOFLIP;
 
-            if ((fn&d) < 0)
+            if (needsFlip)
             {
                 faceInfo.flip();
 
@@ -240,8 +282,9 @@ int main(int argc, char *argv[])
                 Pout<< "Face " << seedFacei << " at "
                     << patch.faceCentres()[seedFacei]
                     << " with normal " << fn
-                    << " points in positive direction (cos = " << (fn&d)/mag(d)
-                    << ")" << endl;
+                    << " points in positive direction (cos = " << cosD
+                    << " to " << (inside ? "inside" : "outside")
+                    << " reference)" << endl;
             }
 
 
