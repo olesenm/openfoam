@@ -41,6 +41,7 @@ Description
 #include "IOstreams.H"
 #include "Random.H"
 #include "Tuple2.H"
+#include "mappedPatchBase.H"
 
 using namespace Foam;
 
@@ -65,7 +66,31 @@ int main(int argc, char *argv[])
 
     // Simple listCombineReduce
     {
-        typedef Tuple2<scalar, label> Type;
+        typedef Tuple2<scalar, int32_t> Type;
+
+        Pout<< nl << "type: " << error::demangle<Type>()
+            << ", contiguous:" << is_contiguous_v<Type> << endl;
+
+        List<Type> nearest(listLen, { GREAT, myProci });
+
+        for (auto& near : nearest)
+        {
+            near.first() = rndGen.position<scalar>(50, 100);
+        }
+
+        Pout<< nl << "input: " << flatOutput(nearest) << endl;
+
+        Pstream::listCombineReduce(nearest, minFirstEqOp{});
+
+        Pout<< nl << "reduced: " << flatOutput(nearest) << endl;
+    }
+
+    // Simple listCombineReduce
+    {
+        typedef Tuple2<scalar, int64_t> Type;
+
+        Pout<< nl << "type: " << error::demangle<Type>()
+            << ", contiguous:" << is_contiguous_v<Type> << endl;
 
         List<Type> nearest(listLen, { GREAT, myProci });
 
@@ -84,6 +109,9 @@ int main(int argc, char *argv[])
     // Simple listCombineReduce
     {
         typedef Tuple2<scalar, labelPair> Type;
+
+        Pout<< nl << "type: " << error::demangle<Type>()
+            << ", contiguous:" << is_contiguous_v<Type> << endl;
 
         List<Type> nearest(listLen, { GREAT, { myProci, -1 }} );
 

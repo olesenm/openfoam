@@ -673,19 +673,6 @@ public:
 };
 
 
-// * * * * * * * * * * * * * * * * * Traits * * * * * * * * * * * * * * * * //
-
-//- Contiguous data for mappedPatchBase::nearKey (scalar and two ints)
-template<> struct is_contiguous<mappedPatchBase::nearKey> : std::true_type {};
-
-//- Contiguous data for mappedPatchBase::nearInfo (pointIndexHit, scalar, label)
-template<>
-struct is_contiguous<mappedPatchBase::nearInfo>
-:
-    is_contiguous<pointIndexHit>
-{};
-
-
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace Foam
