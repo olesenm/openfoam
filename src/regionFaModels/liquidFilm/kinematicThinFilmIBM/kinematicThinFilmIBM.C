@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -78,17 +79,24 @@ void kinematicThinFilmIBM::evolveRegion()
 
     for (int oCorr=1; oCorr<=nOuterCorr_; oCorr++)
     {
+        // After the first one, outer corrections use updated h_, so mass
+        // source in momentum eq should be omitted in remaining outer iters.
+        const bool includeMassSource = (includeMassSourceOuter_ && oCorr == 1);
+
         areaVectorField rhs(-fac::grad(pf_*h_)/rho_ + pf_*fac::grad(h_)/rho_);
 
         // IBM force
-        areaVectorField f((UEqn(Ustar) - rhs) & Ustar);
+        areaVectorField f
+        (
+            (UEqn(Ustar, includeMassSource) - rhs) & Ustar
+        );
 
         // Ensure force is only applied to IBM faces
         immersedBoundary_.zeroFilter(f);
 
         pf_.storePrevIter();
 
-        faVectorMatrix UsEqn(UEqn(Uf_) == f);
+        faVectorMatrix UsEqn(UEqn(Uf_, includeMassSource) == f);
 
         UsEqn.relax();
 

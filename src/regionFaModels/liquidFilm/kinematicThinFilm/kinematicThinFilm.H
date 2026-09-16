@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -45,6 +46,8 @@ Usage
     \table
       Property   | Description                        | Type  | Reqd | Deflt
       liquidFilmModel  | Type name: kinematicThinFilm | dict  | yes  | -
+      includeMassSource | Include mass source in momentum equation for the <!--
+                       --> first outer iteration      | bool  | no   | false
     \endtable
 
     The inherited entries are elaborated in:
@@ -80,10 +83,21 @@ class kinematicThinFilm
 {
 protected:
 
+    // Protected Data
+
+        //- Include the mass source in the momentum equation for the first
+        //- outer iteration
+        bool includeMassSourceOuter_;
+
+
     // Protected Member Functions
 
         //- Construct a momentum equation
-        tmp<faVectorMatrix> UEqn(areaVectorField& U);
+        tmp<faVectorMatrix> UEqn
+        (
+            areaVectorField& U,
+            const bool includeMassSource = false
+        );
 
 
 public:
