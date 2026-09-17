@@ -129,7 +129,6 @@ void Foam::snappyVoxelMeshDriver::isInside
             );
             isVoxelInMesh[voxeli] = (celli != -1);
         }
-        Pstream::listCombineGather(isVoxelInMesh, orEqOp<bool>());
     }
     else
     {
@@ -147,8 +146,10 @@ void Foam::snappyVoxelMeshDriver::isInside
                 orEqOp<bool>()
             );
         }
-        Pstream::listCombineGather(isVoxelInMesh, orEqOp<bool>());
     }
+
+    // Reduce OR (onto master)
+    UPstream::mpiReduceOr(isVoxelInMesh.data(), isVoxelInMesh.size());
 }
 
 

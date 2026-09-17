@@ -1861,8 +1861,13 @@ int main(int argc, char *argv[])
     }
     const primitiveFacePatch extrudePatch(std::move(zoneFaces), mesh.points());
 
-
-    Pstream::listCombineReduce(isInternal, orEqOp<bool>());
+    // Reduce OR (same size on all ranks)
+    UPstream::reduceOr
+    (
+        isInternal.data(),
+        isInternal.size(),
+        UPstream::worldComm
+    );
 
     // Check zone either all internal or all external faces
     checkZoneInside(mesh, zoneNames, zoneID, extrudeMeshFaces, isInternal);

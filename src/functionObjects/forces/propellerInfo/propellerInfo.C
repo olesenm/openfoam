@@ -486,7 +486,8 @@ void Foam::functionObjects::propellerInfo::updateSampleDiskCells()
         }
     }
 
-    Pstream::listCombineReduce(pointMask_, orEqOp<bool>());
+    // Reduce OR (same size on all ranks)
+    UPstream::reduceOr(pointMask_.data(), pointMask_.size());
 }
 
 

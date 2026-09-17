@@ -867,7 +867,8 @@ Foam::scalar Foam::TDACChemistryModel<ReactionThermo, ThermoType>::solve
     if (reduced && Pstream::parRun())
     {
         List<bool> active(composition.active());
-        Pstream::listCombineReduce(active, orEqOp<bool>());
+        // Reduce OR (same size on all ranks)
+        UPstream::reduceOr(active.data(), active.size(), UPstream::worldComm);
 
         forAll(active, i)
         {

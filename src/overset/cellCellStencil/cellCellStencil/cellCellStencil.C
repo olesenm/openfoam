@@ -188,16 +188,18 @@ const Foam::labelIOList& Foam::cellCellStencil::zoneID(const fvMesh& mesh)
 Foam::labelList Foam::cellCellStencil::count
 (
     const label size,
-    const labelUList& lst
+    const labelUList& indices
 )
 {
-    labelList count(size, Zero);
-    forAll(lst, i)
+    labelList total(size, Foam::zero{});
+    for (label idx : indices)
     {
-        count[lst[i]]++;
+        total[idx]++;
     }
-    Pstream::listCombineGather(count, plusEqOp<label>());
-    return count;
+
+    // Reduce total onto master (same size on all ranks)
+    UPstream::mpiReduce_sum(total.data(), total.size(), UPstream::worldComm);
+    return total;
 }
 
 
