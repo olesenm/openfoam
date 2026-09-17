@@ -425,7 +425,10 @@ void Foam::blockMesh::calcTopologicalMerge()
         // Calculate a suitable test distance from the bounding box of the face.
         // Note this is used only as a sanity check and for diagnostics in
         // case there is a grading inconsistency.
-        const boundBox bb(topoCells[blockPi].points(topoFaces, topoPoints));
+        const treeBoundBox bb
+        (
+            topoCells[blockPi].points(topoFaces, topoPoints)
+        );
         const scalar testSqrDist = magSqr(1e-6*bb.span());
 
         // Accumulate the maximum merge distance for diagnostics

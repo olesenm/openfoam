@@ -157,12 +157,12 @@ bool Foam::triangleFuncs::intersectBb
     // to above intersectAxesBundle. However this function is not fully
     // correct and misses intersection between some triangles.
     {
-        const pointField points(cubeBb.points());
+        const pointField bbCorners(cubeBb.octCorners());
 
-        for (const edge& e : treeBoundBox::edges)
+        for (const auto& e : treeBoundBox::octEdges())
         {
-            const point& start = points[e[0]];
-            const point& end = points[e[1]];
+            const point& start = bbCorners[e[0]];
+            const point& end = bbCorners[e[1]];
 
             pointHit inter = tri.intersection
             (

@@ -226,11 +226,11 @@ Foam::triSurfaceSearch::tree() const
             }
 
             // Random number generator. Bit dodgy since not exactly random ;-)
-            Random rndGen(65431);
+            constexpr label rand_seed = 65431;
 
             // Slightly extended bb. Slightly off-centred just so on symmetric
             // geometry there are less face/edge aligned items.
-            bb.inflate(rndGen, 1e-4, ROOTVSMALL);
+            bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
         }
 
         const scalar oldTol =

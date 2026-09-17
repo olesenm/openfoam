@@ -162,20 +162,18 @@ void createBoundaryEdgeTrees
 {
     forAll(surfs, surfI)
     {
+        constexpr label rand_seed = 17301893;
+
         const triSurface& surf = surfs[surfI];
 
         // Boundary edges
         treeBoundaryEdges[surfI] =
             identity(surf.nBoundaryEdges(), surf.nInternalEdges());
 
-        Random rndGen(17301893);
-
         // Slightly extended bb. Slightly off-centred just so on symmetric
         // geometry there are less face/edge aligned items.
-        treeBoundBox bb
-        (
-            treeBoundBox(surf.localPoints()).extend(rndGen, 1e-4, ROOTVSMALL)
-        );
+        treeBoundBox bb(surf.localPoints());
+        bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
         bEdgeTrees.set
         (

@@ -222,8 +222,8 @@ public:
             ////- Refinement based on intersection with multiple planes.
             ////  Does not work well - too high a ratio between
             ////  neighbouring cubes.
-            //const pointField points(bb.points());
-            //const edgeList& edges = treeBoundBox::edges;
+            //const pointField points(bb.octCorners());
+            //const edgeList& edges = treeBoundBox::octEdges();
             //pointField start(edges.size());
             //pointField end(edges.size());
             //forAll(edges, i)

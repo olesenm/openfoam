@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -444,35 +445,17 @@ Foam::Ostream& Foam::OBJstream::write
 
 Foam::Ostream& Foam::OBJstream::write
 (
-    const treeBoundBox& bb,
+    const boundBox& bb,
     const bool lines
 )
 {
-    const label start = nVertices_+1;  // 1-offset for obj included here
-
-    write(bb.points());
-
-    if (lines)
+    if (!startOfLine_)
     {
-        for (const edge& e : treeBoundBox::edges)
-        {
-            write('l') << ' '
-                << e.first()+start << ' '
-                << e.second()+start << nl;
-        }
+        OFstream::write('\n');
+        startOfLine_ = true;
     }
-    else
-    {
-        for (const face& f : treeBoundBox::faces)
-        {
-            write('f');
-            for (const label fp : f)
-            {
-                write(' ') << fp+start;
-            }
-            write('\n');
-        }
-    }
+
+    bb.writeOBJ(static_cast<OFstream&>(*this), nVertices_, lines);
 
     return *this;
 }

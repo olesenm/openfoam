@@ -68,7 +68,7 @@ void Foam::conformalVoronoiMesh::cellSizeMeshOverlapsBackground() const
     const cellShapeControlMesh& cellSizeMesh =
         cellShapeControl_.shapeControlMesh();
 
-    DynamicList<Foam::point> pts(number_of_vertices());
+    boundBox bb;
 
     for
     (
@@ -79,11 +79,11 @@ void Foam::conformalVoronoiMesh::cellSizeMeshOverlapsBackground() const
     {
         if (vit->internalOrBoundaryPoint() && !vit->referred())
         {
-            pts.append(topoint(vit->point()));
+            bb.add(topoint(vit->point()));
         }
     }
 
-    boundBox bb(pts);
+    bb.reduce();
 
     boundBox cellSizeMeshBb = cellSizeMesh.bounds();
 

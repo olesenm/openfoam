@@ -53,21 +53,15 @@ void Foam::autoDensity::writeOBJ
     fileName name
 ) const
 {
-    OFstream str(time().path()/name + ".obj");
+    OFstream os(time().path()/name + ".obj");
 
-    Pout<< "Writing " << str.name() << endl;
+    Pout<< "Writing " << os.name() << endl;
 
-    pointField bbPoints(bb.points());
+    label vertIndex(0);
 
-    for (const point& pt : bbPoints)
-    {
-        meshTools::writeOBJ(str, pt);
-    }
+    constexpr bool writeLinesOnly = true;
 
-    for (const edge& e : treeBoundBox::edges)
-    {
-        str << "l " << e[0] + 1 << ' ' << e[1] + 1 << nl;
-    }
+    bb.writeOBJ(os, vertIndex, writeLinesOnly);
 }
 
 
@@ -357,7 +351,7 @@ bool Foam::autoDensity::fillBox
         // of the box so ensure that they are "wellInside".  If not, set as an
         // overlapping box.
 
-        pointField corners(bb.points());
+        pointField corners(bb.octCorners());
 
         scalarField cornerSizes = cellShapeControls().cellSize(corners);
 

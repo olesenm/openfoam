@@ -150,7 +150,8 @@ scalar getEdgeStats(const primitiveMesh& mesh, const direction excludeCmpt)
         }
     }
 
-    Info<< "Mesh bounding box:" << boundBox(mesh.points()) << nl << nl
+    // serial information
+    Info<< "Mesh bounding box:" << treeBoundBox(mesh.points()) << nl << nl
         << "Mesh edge statistics:" << nl
         << "    x aligned :  number:" << nX
         << "\tminLen:" << limitsX.min() << "\tmaxLen:" << limitsX.max() << nl

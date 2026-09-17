@@ -69,35 +69,11 @@ void Foam::advancingFrontAMI::checkPatches() const
 
         // Check bounds of source and target
         boundBox bbSrc(src.points(), src.meshPoints(), false);
-        Foam::reduce
-        (
-            bbSrc.min(),
-            minOp<point>(),
-            UPstream::msgType(),
-            comm()
-        );
-        Foam::reduce
-        (
-            bbSrc.max(),
-            maxOp<point>(),
-            UPstream::msgType(),
-            comm()
-        );
         boundBox bbTgt(tgt.points(), tgt.meshPoints(), false);
-        Foam::reduce
-        (
-            bbTgt.min(),
-            minOp<point>(),
-            UPstream::msgType(),
-            comm()
-        );
-        Foam::reduce
-        (
-            bbTgt.max(),
-            maxOp<point>(),
-            UPstream::msgType(),
-            comm()
-        );
+
+        // reduce with mesh communicator
+        bbSrc.reduce(comm());
+        bbTgt.reduce(comm());
 
         boundBox bbTgtInf(bbTgt);
         bbTgtInf.inflate(maxBoundsError);

@@ -92,22 +92,17 @@ Foam::triSurface& Foam::searchableSurfaceModifiers::cut::triangulate
     triSurface& cutSurf
 ) const
 {
-    if (isA<searchableBox>(cutter))
+    if (const auto* box = isA<searchableBox>(cutter))
     {
-        const searchableBox& bb = refCast<const searchableBox>(cutter);
-
-        pointField pts(bb.points());
-        triangulate(treeBoundBox::faces, pts, cutSurf);
+        pointField pts(box->points());
+        triangulate(treeBoundBox::octFaces(), pts, cutSurf);
 
         return cutSurf;
     }
-    else if (isA<searchableRotatedBox>(cutter))
+    else if (const auto* box = isA<searchableRotatedBox>(cutter))
     {
-        const searchableRotatedBox& bb =
-            refCast<const searchableRotatedBox>(cutter);
-
-        pointField pts(bb.points());
-        triangulate(treeBoundBox::faces, pts, cutSurf);
+        pointField pts(box->points());
+        triangulate(treeBoundBox::octFaces(), pts, cutSurf);
 
         return cutSurf;
     }

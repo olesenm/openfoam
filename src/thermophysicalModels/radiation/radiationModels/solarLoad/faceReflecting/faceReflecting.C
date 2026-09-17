@@ -191,13 +191,13 @@ void Foam::faceReflecting::initialise(const dictionary& coeffs)
 
     // * * * * * * * * * * * * * * *
     // Create distributedTriSurfaceMesh
-    Random rndGen(653213);
+    constexpr label rand_seed = 653213;
 
     // Determine mesh bounding boxes:
     List<treeBoundBox> meshBb
     (
         1,
-        treeBoundBox(mesh_.points()).extend(rndGen, 1e-3)
+        treeBoundBox(mesh_.points()).extend_random(rand_seed, 1e-3)
     );
 
     // Dummy bounds dictionary

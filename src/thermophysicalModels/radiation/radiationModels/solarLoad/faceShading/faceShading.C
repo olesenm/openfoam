@@ -80,7 +80,7 @@ void Foam::faceShading::calculate()
 
     // * * * * * * * * * * * * * * *
     // Create distributedTriSurfaceMesh
-    Random rndGen(653213);
+    constexpr label rand_seed = 653213;
 
     // Find potential obstructions. Include all faces that might potentially
     // block (so ignore normal)
@@ -107,7 +107,7 @@ void Foam::faceShading::calculate()
     List<treeBoundBox> meshBb
     (
         1,
-        treeBoundBox(mesh_.points()).extend(rndGen, 1e-3)
+        treeBoundBox(mesh_.points()).extend_random(rand_seed, 1e-3)
     );
 
     // Dummy bounds dictionary

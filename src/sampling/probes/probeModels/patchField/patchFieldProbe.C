@@ -78,8 +78,9 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
             }
         }
 
-        Random rndGen(123456);
-        overallBb.inflate(rndGen, 1e-4, ROOTVSMALL);
+        constexpr label rand_seed = 123456;
+
+        overallBb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
 
         const indexedOctree<treeDataFace> boundaryTree

@@ -300,7 +300,9 @@ Foam::polyMesh::readUpdateState Foam::polyMesh::readUpdate()
         boundary_.calcGeometry();
 
         // Derived info
-        bounds_ = boundBox(points_);
+        bounds_ = treeBoundBox(points_);  // no reduction
+        bounds_.reduce(comm_);            // reduce with mesh communicator
+
         geometricD_ = Zero;
         solutionD_ = Zero;
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1958,11 +1959,11 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ
         }
         else if (isContent(index))
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
         else if (isEmpty(index) && !leavesOnly)
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
     }
 }
@@ -1996,9 +1997,9 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ
     Pout<< "dumpContentNode : writing node:" << nodeI << " octant:" << octant
         << " to " << os.name() << endl;
 
-    bool writeLinesOnly(false);
     label vertIndex(0);
-    indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+    constexpr bool writeLinesOnly = false;
+    subBb.writeOBJ(os, vertIndex, writeLinesOnly);
 }
 
 
@@ -2008,8 +2009,9 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ(Ostream& os) const
     if (!nodes_.empty())
     {
         label vertIndex(0);
-        // leavesOnly=true, writeLinesOnly=false
-        writeOBJ(0, os, vertIndex, true, false);
+        constexpr bool leavesOnly = true;
+        constexpr bool writeLinesOnly = false;
+        writeOBJ(0, os, vertIndex, leavesOnly, writeLinesOnly);
     }
 }
 

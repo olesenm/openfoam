@@ -113,11 +113,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef boxToCell_H
-#define boxToCell_H
+#ifndef Foam_boxToCell_H
+#define Foam_boxToCell_H
 
 #include "topoSetCellSource.H"
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

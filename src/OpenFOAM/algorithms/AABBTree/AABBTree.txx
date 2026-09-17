@@ -46,7 +46,7 @@ void Foam::AABBTree<Type>::writeOBJ
 {
     if (!leavesOnly || nodeI < 0)
     {
-        AABBTreeBase::writeOBJ(os, bb, vertI, writeLinesOnly);
+        bb.writeOBJ(os, vertI, writeLinesOnly);
     }
 
     // recurse to find leaves
@@ -396,12 +396,13 @@ Foam::AABBTree<Type>::AABBTree
 template<class Type>
 void Foam::AABBTree<Type>::writeOBJ(Ostream& os) const
 {
+    constexpr bool writeLinesOnly = false;
+
     label vertIndex(0);
 
     for (const treeBoundBox& bb : boundBoxes_)
     {
-        // writeLinesOnly=false
-        AABBTreeBase::writeOBJ(os, bb, vertIndex, false);
+        bb.writeOBJ(os, vertIndex, writeLinesOnly);
     }
 }
 

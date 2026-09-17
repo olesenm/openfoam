@@ -563,7 +563,7 @@ bool Foam::shortestPathSet::genSingleLeakPath
     // and if we're on the processor that has the minimum
     if (frontCellI == -1)
     {
-        const scalar searchRadius = mag(mesh.bounds().max() - mesh.bounds().min()) * 0.1;
+        const scalar searchRadius = 0.1 * mesh.bounds().mag();
         if (globalMin.first() < searchRadius && globalMin.second() == Pstream::myProcNo() && minCellI != -1)
         {
             frontCellI = minCellI;
@@ -1003,7 +1003,7 @@ void Foam::shortestPathSet::genSamples
     // If not found, try perturbation (points on processor boundaries)
     if (globalOutsideCelli == -1)
     {
-        const vector perturbVec = 1e-6 * (mesh.bounds().max() - mesh.bounds().min());
+        const vector perturbVec = 1e-6 * mesh.bounds().span();
         localOutsideCelli = mesh.findCell(outsidePoint + perturbVec);
         if (localOutsideCelli != -1)
         {
@@ -1319,7 +1319,7 @@ void Foam::shortestPathSet::genSamples
         // If not found, try perturbation (points on processor boundaries)
         if (globalInsideCelli == -1)
         {
-            const vector perturbVec = 1e-6 * (mesh.bounds().max() - mesh.bounds().min());
+            const vector perturbVec = 1e-6 * mesh.bounds().span();
             localInsideCelli = mesh.findCell(insidePoint + perturbVec);
             if (localInsideCelli != -1)
             {

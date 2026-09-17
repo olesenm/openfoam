@@ -65,11 +65,9 @@ int main(int argc, char *argv[])
 
     // Move points
 
-    boundBox meshBb(mesh.points());
+    const point half = mesh.bounds().centre();
 
     pointField newPoints(mesh.points());
-
-    const point half = meshBb.centre();
 
     forAll(newPoints, pointi)
     {

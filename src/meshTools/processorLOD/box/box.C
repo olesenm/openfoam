@@ -62,7 +62,7 @@ void Foam::processorLODs::box::writeBoxes
 
     ++timeIndex;
 
-    label verti = 0;
+    label vertIndex(0);
     for (const int proci : UPstream::allProcs())
     {
         if (proci == UPstream::myProcNo())
@@ -72,21 +72,10 @@ void Foam::processorLODs::box::writeBoxes
 
         for (const treeBoundBox& bb : fixedBoxes[proci])
         {
-            // Write the points
-            const pointField pts(bb.points());
-            meshTools::writeOBJ(os, pts);
-
             // Write the box faces
-            for (const face& f : treeBoundBox::faces)
-            {
-                os  << 'f';
-                for (const label fpi : f)
-                {
-                    os  << ' ' << fpi + verti + 1;
-                }
-                os  << nl;
-            }
-            verti += pts.size();
+            constexpr bool writeLinesOnly = false;
+
+            bb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
     }
 }

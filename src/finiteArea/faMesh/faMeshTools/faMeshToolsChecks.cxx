@@ -138,9 +138,10 @@ void Foam::faMeshTools::printMeshChecks
     Info<< "----------------" << nl
         << "Mesh Information" << nl
         << "----------------" << nl
-        << "  " << "boundingBox: " << boundBox(mesh.points()) << nl;
+        << "  " << "boundingBox: "
+        << boundBox(mesh.points(), UPstream::parRun()) << nl;
 
-    if (Pstream::master())
+    if (UPstream::master())
     {
         reporter("faces", nFaces);
         reporter("points", nPoints);

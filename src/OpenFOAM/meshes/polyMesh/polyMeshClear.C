@@ -135,7 +135,8 @@ void Foam::polyMesh::updateGeomPoints
     boundary_.calcGeometry();
 
     // Derived info
-    bounds_ = boundBox(points_);
+    bounds_ = treeBoundBox(points_);  // processor local value
+    bounds_.reduce(comm_);            // reduce with mesh communicator
 
     // Rotation can cause direction vector to change
     geometricD_ = Zero;

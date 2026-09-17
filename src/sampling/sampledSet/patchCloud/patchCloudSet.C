@@ -86,10 +86,11 @@ void Foam::patchCloudSet::calcSamples
     }
 
     // Not very random
-    Random rndGen(123456);
+    constexpr label rand_seed = 123456;
+
     // Make bb asymmetric just to avoid problems on symmetric meshes
     // Make sure bb is 3D.
-    bb.inflate(rndGen, 1e-4, ROOTVSMALL);
+    bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
 
     indexedOctree<treeDataFace> patchTree

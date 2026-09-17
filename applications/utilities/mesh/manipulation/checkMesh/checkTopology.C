@@ -184,7 +184,7 @@ bool Foam::checkPatch
     if (allGeometry)
     {
         boundBox bb(pp.box());
-        bb.reduce();
+        bb.reduce(mesh.comm());
 
         if (bb.good())
         {
@@ -359,7 +359,7 @@ bool Foam::checkPatch
     if (allGeometry)
     {
         boundBox bb(pp.box());
-        bb.reduce();
+        bb.reduce(mesh.comm());
 
         if (bb.good())
         {
@@ -1065,7 +1065,7 @@ Foam::label Foam::checkTopology
                     }
                 }
 
-                bb.reduce();  // Global min/max
+                bb.reduce(mesh.comm());  // Global min/max
 
                 Info<< "    "
                     << setw(19) << cZone.name()
@@ -1125,8 +1125,9 @@ Foam::label Foam::checkTopology
                 (
                     mesh.points(),
                     static_cast<const labelUList&>(zone),
-                    true  // Reduce (global min/max)
+                    false  // no reduce
                 );
+                bb.reduce(mesh.comm());  // Global min/max
 
                 Info<< "    "
                     << setw(20) << zone.name()

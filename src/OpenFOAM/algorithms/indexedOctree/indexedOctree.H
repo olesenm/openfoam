@@ -236,18 +236,6 @@ public:
 
         //- Default construct
         indexedOctreeBase() = default;
-
-
-    // Output Helpers
-
-        //- Write treeBoundBox in OBJ format
-        static void writeOBJ
-        (
-            Ostream& os,
-            const treeBoundBox& bb,
-            label& vertIndex,
-            const bool writeLinesOnly = false
-        );
 };
 
 

@@ -59,8 +59,11 @@ int main(int argc, char *argv[])
     #include "setRootCase.H"
 
     Info<<"boundBox faces: " << boundBox::hexFaces() << nl
-        <<"tree-bb faces: " << treeBoundBox::faces << nl
-        <<"tree-bb edges: " << treeBoundBox::edges << endl;
+        <<"tree-bb faces: " << treeBoundBox::octFaces() << nl
+        <<"tree-bb edges: " << treeBoundBox::octEdges() << nl;
+
+    Info<< "deprecated: bb-faces:" << treeBoundBox::faces << nl
+        << "deprecated: bb-edges:" << treeBoundBox::edges << nl;
 
     boundBox bb = boundBox::greatBox;
     Info<<"great box: " << bb << endl;
@@ -79,6 +82,71 @@ int main(int argc, char *argv[])
 
         bb.reduce();
         Pout<<"reduced: " << bb << endl;
+
+        // Test bundled multi-box reduction: verify that reducing several
+        // boxes together (2 MPI calls total) gives the same result as
+        // reducing each box individually (2 MPI calls per box).
+        constexpr label nBoxes = 3;
+
+        boundBox bbs[nBoxes];
+        boundBox bbsRef[nBoxes];
+        for (label i = 0; i < nBoxes; ++i)
+        {
+            bbs[i] = cube(10*Pstream::myProcNo() + i, 0.5);
+            bbsRef[i] = bbs[i];
+            bbsRef[i].reduce();
+        }
+
+        boundBox::reduce(bbs, nBoxes);
+
+        bool ok = true;
+        for (label i = 0; i < nBoxes; ++i)
+        {
+            Pout<< "bundled bbs[" << i << "] = " << bbs[i] << endl;
+            if (bbs[i] != bbsRef[i])
+            {
+                ok = false;
+                FatalErrorInFunction
+                    << "Bundled boundBox::reduce mismatch at " << i
+                    << ": " << bbs[i] << " vs (individual) " << bbsRef[i]
+                    << abort(FatalError);
+            }
+        }
+        if (ok)
+        {
+            Pout<< "bundled boundBox::reduce: OK (matches individual)"
+                << endl;
+        }
+
+        // Same check for treeBoundBox
+        treeBoundBox tbbs[nBoxes];
+        treeBoundBox tbbsRef[nBoxes];
+        for (label i = 0; i < nBoxes; ++i)
+        {
+            tbbs[i] = treeBoundBox(cube(20*Pstream::myProcNo() + i, 0.25));
+            tbbsRef[i] = tbbs[i];
+            tbbsRef[i].boundBox::reduce();
+        }
+
+        treeBoundBox::reduce(tbbs, nBoxes);
+
+        ok = true;
+        for (label i = 0; i < nBoxes; ++i)
+        {
+            if (tbbs[i] != tbbsRef[i])
+            {
+                ok = false;
+                FatalErrorInFunction
+                    << "Bundled treeBoundBox::reduce mismatch at " << i
+                    << ": " << tbbs[i] << " vs (individual) " << tbbsRef[i]
+                    << abort(FatalError);
+            }
+        }
+        if (ok)
+        {
+            Pout<< "bundled treeBoundBox::reduce: OK (matches individual)"
+                << endl;
+        }
     }
     else
     {

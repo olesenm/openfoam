@@ -87,18 +87,6 @@ public:
 
         //- Default construct
         AABBTreeBase() = default;
-
-
-    // Output Helpers
-
-        //- Write treeBoundBox in OBJ format
-        static void writeOBJ
-        (
-            Ostream& os,
-            const treeBoundBox& bb,
-            label& vertIndex,
-            const bool writeLinesOnly = false
-        );
 };
 
 

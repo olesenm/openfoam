@@ -167,9 +167,16 @@ void Foam::points0MotionSolver::updateMesh(const mapPolyMesh& mpm)
       : mesh().points()
     );
 
-    // Note: boundBox does reduce
-    const vector span0 = boundBox(points0_).span();
-    const vector span = boundBox(points).span();
+    // start with processor local values
+    treeBoundBox bb0(points0_);
+    treeBoundBox bb(points);
+
+    // reduce with mesh communicator
+    bb0.reduce(mesh().comm());
+    bb.reduce(mesh().comm());
+
+    const vector span0 = bb0.span();
+    const vector span = bb.span();
 
     vector scaleFactors(cmptDivide(span0, span));
 

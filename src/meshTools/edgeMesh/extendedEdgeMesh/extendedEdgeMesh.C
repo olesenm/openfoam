@@ -29,7 +29,6 @@ License
 #include "extendedEdgeMesh.H"
 #include "surfaceFeatures.H"
 #include "triSurface.H"
-#include "Random.H"
 #include "Time.H"
 #include "OBJstream.H"
 #include "DynamicField.H"
@@ -800,14 +799,13 @@ Foam::extendedEdgeMesh::pointTree() const
 {
     if (!pointTree_)
     {
-        Random rndGen(17301893);
+        constexpr label rand_seed = 17301893;
 
         // Slightly extended bb. Slightly off-centred just so on symmetric
         // geometry there are less face/edge aligned items.
-        treeBoundBox bb
-        (
-            treeBoundBox(points()).extend(rndGen, 1e-4, ROOTVSMALL)
-        );
+
+        treeBoundBox bb(points());
+        bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
         const labelList featurePointLabels = identity(nonFeatureStart_);
 
@@ -834,14 +832,13 @@ Foam::extendedEdgeMesh::edgeTree() const
 {
     if (!edgeTree_)
     {
-        Random rndGen(17301893);
+        constexpr label rand_seed = 17301893;
 
         // Slightly extended bb. Slightly off-centred just so on symmetric
         // geometry there are less face/edge aligned items.
-        treeBoundBox bb
-        (
-            treeBoundBox(points()).extend(rndGen, 1e-4, ROOTVSMALL)
-        );
+
+        treeBoundBox bb(points());
+        bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
         edgeTree_.reset
         (
@@ -866,14 +863,13 @@ Foam::extendedEdgeMesh::edgeTreesByType() const
 {
     if (edgeTreesByType_.empty())
     {
-        Random rndGen(872141);
+        constexpr label rand_seed = 872141;
 
         // Slightly extended bb. Slightly off-centred just so on symmetric
         // geometry there are less face/edge aligned items.
-        treeBoundBox bb
-        (
-            treeBoundBox(points()).extend(rndGen, 1e-4, ROOTVSMALL)
-        );
+
+        treeBoundBox bb(points());
+        bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
         List<labelRange> sliceEdges(nEdgeTypes);
 

@@ -30,6 +30,7 @@ License
 #include "Fstream.H"
 #include "SpanStream.H"
 #include "meshSearch.H"
+#include "treeBoundBox.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -310,7 +311,7 @@ Foam::abaqusMeshSet::abaqusMeshSet
     sampleCoords_(),
     maxDistSqr_(sqr(dict.getOrDefault<scalar>("maxDist", 0)))
 {
-    if (Pstream::master())
+    if (UPstream::master())
     {
         const fileName inputFile(dict.get<fileName>("file").expand());
         IFstream pointsFile(inputFile);
@@ -337,7 +338,7 @@ Foam::abaqusMeshSet::abaqusMeshSet
 
     DebugInfo
         << "Number of sample points: " << sampleCoords_.size() << nl
-        << "Sample points bounds: " << boundBox(sampleCoords_) << endl;
+        << "Sample points bounds: " << treeBoundBox(sampleCoords_) << endl;
 
     genSamples();
 }

@@ -94,8 +94,8 @@ Foam::porosityModels::powerLawLopesdaCostaZone::powerLawLopesdaCostaZone
     // Limit the porous cell search to those within the lateral and vertical
     // extent of the top surface
 
-    boundBox surfBounds(searchSurf.points());
-    boundBox searchBounds
+    const boundBox surfBounds(searchSurf.points(), UPstream::parRun());
+    const boundBox searchBounds
     (
         surfBounds.min() - searchSpan*zDir, surfBounds.max()
     );

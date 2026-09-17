@@ -37,9 +37,7 @@ Foam::edgeMesh::edgeMesh
     const word& fileType
 )
 :
-    points_(),
-    edges_(),
-    pointEdgesPtr_(nullptr)
+    edgeMesh()
 {
     read(name, fileType);
 }
@@ -47,9 +45,7 @@ Foam::edgeMesh::edgeMesh
 
 Foam::edgeMesh::edgeMesh(const fileName& name)
 :
-    points_(),
-    edges_(),
-    pointEdgesPtr_(nullptr)
+    edgeMesh()
 {
     read(name);
 }
@@ -121,9 +117,10 @@ void Foam::edgeMesh::write
 
 void Foam::edgeMesh::writeStats(Ostream& os) const
 {
+    // non-parallel information
     os  << indent << "points      : " << points().size() << nl;
     os  << indent << "edges       : " << edges().size() << nl;
-    os  << indent << "boundingBox : " << boundBox(this->points()) << endl;
+    os  << indent << "boundingBox : " << treeBoundBox(this->points()) << endl;
 }
 
 

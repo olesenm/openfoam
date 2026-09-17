@@ -243,7 +243,7 @@ Foam::polyMesh::polyMesh(const IOobject& io, const bool doInit)
         ),
         *this
     ),
-    bounds_(points_),
+    bounds_(),  // init in the body
     comm_(UPstream::worldComm),
     geometricD_(Zero),
     solutionD_(Zero),
@@ -294,6 +294,9 @@ Foam::polyMesh::polyMesh(const IOobject& io, const bool doInit)
     storeOldCellCentres_(false),
     curMotionTimeIndex_(time().timeIndex())
 {
+    bounds_ = treeBoundBox(points_);  // processor local value
+    bounds_.reduce(comm_);            // reduce with mesh communicator
+
     if (owner_.hasHeaderClass())
     {
         initMesh();
@@ -445,7 +448,7 @@ Foam::polyMesh::polyMesh
         *this,
         polyPatchList()
     ),
-    bounds_(points_, syncPar),
+    bounds_(),  // init in the body
     comm_(UPstream::worldComm),
     geometricD_(Zero),
     solutionD_(Zero),
@@ -496,16 +499,26 @@ Foam::polyMesh::polyMesh
     storeOldCellCentres_(false),
     curMotionTimeIndex_(time().timeIndex())
 {
-    // Check if the faces and cells are valid
+    bounds_ = treeBoundBox(points_);  // processor local value
+    if (syncPar)
+    {
+        bounds_.reduce(comm_);        // reduce with mesh communicator
+    }
+
+    // Check if faces are valid
+    labelMinMax addrLimits(0, -1);
+
     forAll(faces_, facei)
     {
         const face& curFace = faces_[facei];
 
-        if (min(curFace) < 0 || max(curFace) > points_.size())
+        addrLimits.add(curFace);
+
+        if (addrLimits.min() < 0 || addrLimits.max() >= points_.size())
         {
             FatalErrorInFunction
-                << "Face " << facei << "contains vertex labels out of range: "
-                << curFace << " Max point index = " << points_.size()
+                << "Face " << facei << " contains vertex labels out of range: "
+                << curFace << " Max point index = " << (points_.size()-1)
                 << abort(FatalError);
         }
     }
@@ -594,7 +607,7 @@ Foam::polyMesh::polyMesh
         *this,
         Foam::zero{}
     ),
-    bounds_(points_, syncPar),
+    bounds_(),  // init in the body
     comm_(UPstream::worldComm),
     geometricD_(Zero),
     solutionD_(Zero),
@@ -645,16 +658,26 @@ Foam::polyMesh::polyMesh
     storeOldCellCentres_(false),
     curMotionTimeIndex_(time().timeIndex())
 {
+    bounds_ = treeBoundBox(points_);  // processor local value
+    if (syncPar)
+    {
+        bounds_.reduce(comm_);        // reduce with mesh communicator
+    }
+
     // Check if faces are valid
+    labelMinMax addrLimits(0, -1);
+
     forAll(faces_, facei)
     {
         const face& curFace = faces_[facei];
 
-        if (min(curFace) < 0 || max(curFace) > points_.size())
+        addrLimits.add(curFace);
+
+        if (addrLimits.min() < 0 || addrLimits.max() >= points_.size())
         {
             FatalErrorInFunction
-                << "Face " << facei << "contains vertex labels out of range: "
-                << curFace << " Max point index = " << points_.size()
+                << "Face " << facei << " contains vertex labels out of range: "
+                << curFace << " Max point index = " << (points_.size()-1)
                 << abort(FatalError);
         }
     }
@@ -663,15 +686,19 @@ Foam::polyMesh::polyMesh
     cellList cLst(std::move(cells));
 
     // Check if cells are valid
+    addrLimits.reset(0, -1);
+
     forAll(cLst, celli)
     {
         const cell& curCell = cLst[celli];
 
-        if (min(curCell) < 0 || max(curCell) > faces_.size())
+        addrLimits.add(curCell);
+
+        if (addrLimits.min() < 0 || addrLimits.max() >= faces_.size())
         {
             FatalErrorInFunction
-                << "Cell " << celli << "contains face labels out of range: "
-                << curCell << " Max face index = " << faces_.size()
+                << "Cell " << celli << " contains face labels out of range: "
+                << curCell << " Max face index = " << (faces_.size()-1)
                 << abort(FatalError);
         }
     }
@@ -711,7 +738,15 @@ void Foam::polyMesh::resetPrimitives
     if (points)
     {
         points_.transfer(*points);
-        bounds_ = boundBox(points_, validBoundary);
+        bounds_ = treeBoundBox(points_);  // processor local value
+
+        // Slightly odd, but validBoundary is also used to imply
+        // syncPar for some cases
+
+        if (validBoundary)
+        {
+            bounds_.reduce(comm_);
+        }
     }
 
     if (faces)
@@ -747,16 +782,20 @@ void Foam::polyMesh::resetPrimitives
     // Flags the mesh files as being changed
     setInstance(time().timeName());
 
-    // Check if the faces and cells are valid
+    // Check if faces are valid
+    labelMinMax addrLimits(0, -1);
+
     forAll(faces_, facei)
     {
         const face& curFace = faces_[facei];
 
-        if (min(curFace) < 0 || max(curFace) > points_.size())
+        addrLimits.add(curFace);
+
+        if (addrLimits.min() < 0 || addrLimits.max() >= points_.size())
         {
             FatalErrorInFunction
                 << "Face " << facei << " contains vertex labels out of range: "
-                << curFace << " Max point index = " << points_.size()
+                << curFace << " Max point index = " << (points_.size()-1)
                 << abort(FatalError);
         }
     }
@@ -932,10 +971,10 @@ Foam::polyMesh::cellTree() const
 {
     if (!cellTreePtr_)
     {
-        Random rndGen(261782);
+        constexpr label rand_seed = 261782;
 
         treeBoundBox overallBb(points());
-        overallBb.inflate(rndGen, 1e-4, ROOTVSMALL);
+        overallBb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
         cellTreePtr_.reset
         (
@@ -1245,7 +1284,9 @@ void Foam::polyMesh::movePoints(const pointField& newPoints)
 
     // Force recalculation of all geometric data with new points
 
-    bounds_ = boundBox(points_);
+    bounds_ = treeBoundBox(points_);  // processor local value
+    bounds_.reduce(comm_);            // reduce with mesh communicator
+
     boundary_.movePoints(points_);
 
     pointZones_.movePoints(points_);

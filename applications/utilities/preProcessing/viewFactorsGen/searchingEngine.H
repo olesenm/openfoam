@@ -1,10 +1,10 @@
-Random rndGen(653213);
+constexpr label rand_seed = 653213;
 
 // Determine mesh bounding boxes:
 List<treeBoundBox> meshBb
 (
     1,
-    treeBoundBox(coarseMesh.points()).extend(rndGen, 1e-3)
+    treeBoundBox(coarseMesh.points()).extend_random(rand_seed, 1e-3)
 );
 
 // Dummy bounds dictionary

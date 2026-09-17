@@ -739,7 +739,7 @@ pointBoundaryMesh = $(pointMesh)/pointBoundaryMesh
 $(pointBoundaryMesh)/pointBoundaryMesh.C
 
 meshes/boundBox/boundBox.cxx
-meshes/treeBoundBox/treeBoundBox.cxx
+meshes/boundBox/treeBoundBox.cxx
 
 meshTools = meshes/meshTools
 $(meshTools)/matchPoints.C

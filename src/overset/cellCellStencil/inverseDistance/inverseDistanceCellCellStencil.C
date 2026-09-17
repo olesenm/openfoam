@@ -35,7 +35,6 @@ License
 #include "oversetFvPatch.H"
 #include "zeroGradientFvPatchFields.H"
 #include "syncTools.H"
-#include "treeBoundBoxList.H"
 #include "waveMethod.H"
 
 #include "regionSplit.H"

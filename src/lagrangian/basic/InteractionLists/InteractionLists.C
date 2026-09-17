@@ -42,9 +42,9 @@ void Foam::InteractionLists<ParticleType>::buildInteractionLists()
     Info<< "Building InteractionLists with interaction distance "
         << maxDistance_ << endl;
 
-    Random rndGen(419715);
+    constexpr label rand_seed = 419715;
 
-    treeBoundBox procBb(mesh_.points());
+    const treeBoundBox procBb(mesh_.points());
 
     treeBoundBoxList allExtendedProcBbs(Pstream::nProcs());
 
@@ -140,7 +140,7 @@ void Foam::InteractionLists<ParticleType>::buildInteractionLists()
 
     treeBoundBox procBbRndExt
     (
-        treeBoundBox(mesh_.points()).extend(rndGen, 1e-4)
+        treeBoundBox(mesh_.points()).extend_random(rand_seed, 1e-4)
     );
 
     indexedOctree<treeDataCell> coupledPatchRangeTree

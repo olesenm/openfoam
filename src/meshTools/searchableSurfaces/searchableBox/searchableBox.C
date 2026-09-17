@@ -28,7 +28,7 @@ License
 
 #include "searchableBox.H"
 #include "addToRunTimeSelectionTable.H"
-#include "SortableList.H"
+#include <array>
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -256,16 +256,8 @@ const Foam::wordList& Foam::searchableBox::regions() const
 
 Foam::tmp<Foam::pointField> Foam::searchableBox::coordinates() const
 {
-    auto tctrs = tmp<pointField>::New(6);
-    auto& ctrs = tctrs.ref();
-
-    const pointField pts(treeBoundBox::points());
-    const faceList& fcs = treeBoundBox::faces;
-
-    forAll(fcs, i)
-    {
-        ctrs[i] = fcs[i].centre(pts);
-    }
+    auto tctrs = tmp<pointField>::New(treeBoundBox::nFaces());
+    treeBoundBox::faceCentres(tctrs.ref());
 
     return tctrs;
 }
@@ -277,24 +269,20 @@ void Foam::searchableBox::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.setSize(size());
-    radiusSqr.setSize(size());
-    radiusSqr = Zero;
+    centres.resize_nocopy(treeBoundBox::nFaces());
+    radiusSqr.resize_nocopy(treeBoundBox::nFaces());
 
-    const pointField pts(treeBoundBox::points());
-    const faceList& fcs = treeBoundBox::faces;
+    // Box faces are quads, points are axis-aligned,
+    // so the face centre is trivial and the only need one face corner
+    // to determine the bounding sphere radius
 
-    forAll(fcs, i)
+    for (label facei = 0; facei < treeBoundBox::nFaces(); ++facei)
     {
-        const face& f = fcs[i];
+        label pointi = treeBoundBox::octFaces()[facei][0];
+        point corner = treeBoundBox::octCorner(pointi);
 
-        centres[i] = f.centre(pts);
-        for (const label pointi : f)
-        {
-            const point& pt = pts[pointi];
-
-            radiusSqr[i] = Foam::max(radiusSqr[i], centres[i].distSqr(pt));
-        }
+        centres[facei] = treeBoundBox::faceCentre(facei);
+        radiusSqr[facei] = centres[facei].distSqr(corner);
     }
 
     // Add a bit to make sure all points are tested inside
@@ -361,18 +349,22 @@ Foam::pointIndexHit Foam::searchableBox::findNearestOnEdge
     if (!outside)
     {
         // Get the per-component distance to nearest wall
-        vector dist(cmptMag(info.point() - near));
+        const vector dist(cmptMag(info.point() - near));
 
-        SortableList<scalar> sortedDist(3);
-        sortedDist[0] = dist[0];
-        sortedDist[1] = dist[1];
-        sortedDist[2] = dist[2];
-        sortedDist.sort();
+        // The sorted order (by magnitude)
+        std::array<direction, vector::nComponents> indices{0, 1, 2};
+
+        std::stable_sort
+        (
+            indices.begin(),
+            indices.end(),
+            [&dist](auto a, auto b){ return dist[a] < dist[b]; }
+        );
 
         // Project onto nearest
-        projectOntoCoordPlane(sortedDist.indices()[0], near, info);
+        projectOntoCoordPlane(indices[0], near, info);
         // Project onto second nearest
-        projectOntoCoordPlane(sortedDist.indices()[1], near, info);
+        projectOntoCoordPlane(indices[1], near, info);
     }
 
 

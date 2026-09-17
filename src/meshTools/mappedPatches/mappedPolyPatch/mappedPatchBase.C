@@ -34,7 +34,6 @@ License
 #include "multiWorldConnectionsObject.H"
 #include "meshTools.H"
 #include "OFstream.H"
-#include "Random.H"
 #include "treeDataFace.H"
 #include "treeDataPoint.H"
 #include "indexedOctree.H"
@@ -425,7 +424,7 @@ Foam::mappedPatchBase::findLocalSamples
 
         case NEARESTPATCHFACE:
         {
-            Random rndGen(123456);
+            constexpr label rand_seed = 123456;
 
             const polyPatch& pp = lookupPatch(sampleRegion, samplePatch);
 
@@ -436,7 +435,7 @@ Foam::mappedPatchBase::findLocalSamples
                 treeBoundBox patchBb(pp.points(), pp.meshPoints());
 
                 // Inflate by 0.1% and clamp with min size
-                patchBb.inflate(rndGen, 1e-3, ROOTVSMALL);
+                patchBb.inflate_random(rand_seed, 1e-3, ROOTVSMALL);
 
                 const indexedOctree<treeDataFace> boundaryTree
                 (
@@ -475,7 +474,7 @@ Foam::mappedPatchBase::findLocalSamples
 
         case NEARESTPATCHPOINT:
         {
-            Random rndGen(123456);
+            constexpr label rand_seed = 123456;
 
             const polyPatch& pp = lookupPatch(sampleRegion, samplePatch);
 
@@ -487,7 +486,7 @@ Foam::mappedPatchBase::findLocalSamples
                 treeBoundBox patchBb(pp.points(), pp.meshPoints());
 
                 // Inflate by 0.1% and clamp with min size
-                patchBb.inflate(rndGen, 1e-3, ROOTVSMALL);
+                patchBb.inflate_random(rand_seed, 1e-3, ROOTVSMALL);
 
                 const indexedOctree<treeDataPoint> boundaryTree
                 (

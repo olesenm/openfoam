@@ -624,8 +624,6 @@ void Foam::backgroundMeshDecomposition::buildPatchAndTree()
     // Overall bb
     treeBoundBox overallBb(boundaryFacesPtr_().localPoints());
 
-    Random& rnd = rndGen_;
-
     bFTreePtr_.reset
     (
         new indexedOctree<treeDataBPatch>
@@ -636,7 +634,7 @@ void Foam::backgroundMeshDecomposition::buildPatchAndTree()
                 boundaryFacesPtr_(),
                 indexedOctree<treeDataBPatch>::perturbTol()
             ),
-            overallBb.extend(rnd, 1e-4),
+            overallBb.extend(rndGen_, 1e-4),
             10, // maxLevel
             10, // leafSize
             3.0 // duplicity

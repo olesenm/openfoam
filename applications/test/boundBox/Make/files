@@ -1,3 +1,3 @@
-Test-boundBox.C
+Test-boundBox.cxx
 
 EXE = $(FOAM_USER_APPBIN)/Test-boundBox

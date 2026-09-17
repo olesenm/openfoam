@@ -28,12 +28,97 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "boundBox.H"
+#include "treeBoundBox.H"
 #include "plane.H"
 #include "hexCell.H"
 #include "triangle.H"
 #include "MinMax.H"
 #include "Random.H"
 #include "PstreamReduceOps.H"
+
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
+
+namespace
+{
+
+// Broadcast contents (single or multiple boxes)
+template<class BoundBoxType, class IntType>
+void broadcastBoxes_impl
+(
+    BoundBoxType bbs[],
+    IntType count,
+    int communicator
+)
+{
+    using namespace Foam;
+
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (count <= 0 || !UPstream::is_parallel(communicator))
+    {
+        // Nothing to do
+        return;
+    }
+
+    // Note: UPstream_dataType<boundBox> will be "type_6double" etc
+    // (for the min/max point pair), so no need to adjust the count here.
+    UPstream::broadcast(bbs, count, communicator);
+}
+
+
+// Bundle multiple boxes together and reduce in two MPI calls
+template<class BoundBoxType, class IntType>
+void reduceBoxes_impl
+(
+    BoundBoxType bbs[],
+    IntType count,
+    int communicator
+)
+{
+    using namespace Foam;
+
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (count <= 0 || !UPstream::is_parallel(communicator))
+    {
+        // Nothing to do
+        return;
+    }
+    else if (count == 1)
+    {
+        // Single element
+        bbs[0].reduce(communicator);
+        return;
+    }
+
+    // Bundle min/max together and perform in two reductions.
+    List<point> work(count);
+
+    // Min values: pack, reduce, unpack
+    {
+        constexpr auto bop = UPstream::opCodes::op_min;
+
+        forAll(work, i) { work[i] = bbs[i].min(); }
+
+        UPstream::mpiAllReduce<bop>(work.data(), work.size(), communicator);
+
+        forAll(work, i) { bbs[i].min() = work[i]; }
+    }
+
+    // Max values: pack, reduce, unpack
+    {
+        constexpr auto bop = UPstream::opCodes::op_max;
+
+        forAll(work, i) { work[i] = bbs[i].max(); }
+
+        UPstream::mpiAllReduce<bop>(work.data(), work.size(), communicator);
+
+        forAll(work, i) { bbs[i].max() = work[i]; }
+    }
+}
+
+} // End anonymous namespace
+
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -60,6 +145,35 @@ const Foam::FixedList<Foam::vector, 6> Foam::boundBox::faceNormals
 });
 
 
+// Faces, in octant point order
+static int octModelFaces_[6][4]
+{
+    {0, 4, 6, 2},  // 0: x-min, left
+    {1, 3, 7, 5},  // 1: x-max, right
+    {0, 1, 5, 4},  // 2: y-min, bottom
+    {2, 6, 7, 3},  // 3: y-max, top
+    {0, 2, 3, 1},  // 4: z-min, back
+    {4, 5, 7, 6}   // 5: z-max, front
+};
+
+// Edges, in octant point order
+static int octModelEdges_[12][2]
+{
+    {0, 1}, // 0
+    {1, 3},
+    {2, 3}, // 2
+    {0, 2},
+    {4, 5}, // 4
+    {5, 7},
+    {6, 7}, // 6
+    {4, 6},
+    {0, 4}, // 8
+    {1, 5},
+    {3, 7}, // 10
+    {2, 6}
+};
+
+
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 const Foam::faceList& Foam::boundBox::hexFaces()
@@ -68,39 +182,117 @@ const Foam::faceList& Foam::boundBox::hexFaces()
 }
 
 
+const Foam::faceList& Foam::boundBox::octFaces()
+{
+    static std::unique_ptr<Foam::faceList> ptr(nullptr);
+
+    if (!ptr)
+    {
+        ptr.reset(new Foam::faceList(boundBox::nFaces()));
+
+        int facei = 0;
+        for (auto& f : *ptr)
+        {
+            f.resize(4);
+            f[0] = octModelFaces_[facei][0];
+            f[1] = octModelFaces_[facei][1];
+            f[2] = octModelFaces_[facei][2];
+            f[3] = octModelFaces_[facei][3];
+            ++facei;
+        }
+    }
+
+    return *ptr;
+}
+
+
+const Foam::edgeList& Foam::boundBox::octEdges()
+{
+    static std::unique_ptr<Foam::edgeList> ptr(nullptr);
+
+    if (!ptr)
+    {
+        ptr.reset(new Foam::edgeList(boundBox::nEdges()));
+
+        int edgei = 0;
+        for (auto& e : *ptr)
+        {
+            e[0] = octModelEdges_[edgei][0];
+            e[1] = octModelEdges_[edgei][1];
+            ++edgei;
+        }
+    }
+
+    return *ptr;
+}
+
+
+
+int Foam::boundBox::distanceCmp
+(
+    const boundBox& a,
+    const boundBox& b,
+    const point& refPoint
+)
+{
+    // Distances (squared) from point to nearest/furthest away vertex
+    Pair<scalar> distA = a.distSqr(refPoint);
+    Pair<scalar> distB = b.distSqr(refPoint);
+
+    // Categorize
+    if (distA.second() < distB.first())
+    {
+        // All vertices of 'A' are nearer to point than any vertex of 'B'
+        return -2;
+    }
+    else if (distB.second() < distA.first())
+    {
+        // All vertices of 'B' are nearer to point than any vertex of 'A'
+        return 2;
+    }
+    else
+    {
+        // Mixed: lexicographic compare (min, then max) as tie-breaker
+        if (distA < distB) return -1;
+        if (distB < distA) return 1;
+        return 0;
+    }
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::boundBox::boundBox(const boundBox& bb, bool doReduce)
+Foam::boundBox::boundBox(const boundBox& bb, bool syncPar)
 :
     boundBox(bb)
 {
-    if (doReduce)
+    if (syncPar)
     {
         this->reduce(UPstream::worldComm);
     }
 }
 
 
-Foam::boundBox::boundBox(const UList<point>& points, bool doReduce)
+Foam::boundBox::boundBox(const UList<point>& points, bool syncPar)
 :
     boundBox()
 {
     add(points);
 
-    if (doReduce)
+    if (syncPar)
     {
         this->reduce(UPstream::worldComm);
     }
 }
 
 
-Foam::boundBox::boundBox(const tmp<pointField>& tpoints, bool doReduce)
+Foam::boundBox::boundBox(const tmp<pointField>& tpoints, bool syncPar)
 :
     boundBox()
 {
     add(tpoints);
 
-    if (doReduce)
+    if (syncPar)
     {
         this->reduce(UPstream::worldComm);
     }
@@ -111,14 +303,14 @@ Foam::boundBox::boundBox
 (
     const UList<point>& points,
     const labelUList& indices,
-    bool doReduce
+    bool syncPar
 )
 :
     boundBox()
 {
     add(points, indices);
 
-    if (doReduce)
+    if (syncPar)
     {
         this->reduce(UPstream::worldComm);
     }
@@ -148,11 +340,40 @@ void Foam::boundBox::hexCorners(UList<point>& output) const
 }
 
 
-Foam::tmp<Foam::pointField> Foam::boundBox::hexCorners() const
+void Foam::boundBox::octCorners(UList<point>& output) const
 {
-    auto tpoints = tmp<pointField>::New(boundBox::nPoints());
-    hexCorners(tpoints.ref());
-    return tpoints;
+    if (output.size() < boundBox::nPoints())
+    {
+        FatalErrorInFunction
+            << "Cannot copy 8 corner points into a list of size "
+            << output.size() << nl
+            << abort(FatalError);
+    }
+
+    output[0] = octCorner<0>();
+    output[1] = octCorner<1>();
+    output[2] = octCorner<2>();
+    output[3] = octCorner<3>();
+    output[4] = octCorner<4>();
+    output[5] = octCorner<5>();
+    output[6] = octCorner<6>();
+    output[7] = octCorner<7>();
+}
+
+
+Foam::pointField Foam::boundBox::hexCorners() const
+{
+    pointField pts(boundBox::nPoints());
+    hexCorners(pts);
+    return pts;
+}
+
+
+Foam::pointField Foam::boundBox::octCorners() const
+{
+    pointField pts(boundBox::nPoints());
+    octCorners(pts);
+    return pts;
 }
 
 
@@ -173,15 +394,15 @@ void Foam::boundBox::faceCentres(UList<point>& output) const
 }
 
 
-Foam::tmp<Foam::pointField> Foam::boundBox::faceCentres() const
+Foam::pointField Foam::boundBox::faceCentres() const
 {
-    auto tpoints = tmp<pointField>::New(boundBox::nFaces());
-    faceCentres(tpoints.ref());
-    return tpoints;
+    pointField pts(boundBox::nFaces());
+    faceCentres(pts);
+    return pts;
 }
 
 
-Foam::point Foam::boundBox::faceCentre(const direction facei) const
+Foam::point Foam::boundBox::faceCentre(direction facei) const
 {
     point pt = boundBox::centre();
 
@@ -207,35 +428,61 @@ Foam::point Foam::boundBox::faceCentre(const direction facei) const
 
 void Foam::boundBox::reduce(int communicator)
 {
+    if (communicator < 0) communicator = UPstream::worldComm;
+
     const auto tag = UPstream::msgType();  // irrelevant (is_contiguous)
     Foam::reduce(min_, minOp<point>(), tag, communicator);
     Foam::reduce(max_, maxOp<point>(), tag, communicator);
 }
 
 
-void Foam::boundBox::reduce()
-{
-    this->reduce(UPstream::worldComm);
-}
-
-
-Foam::boundBox Foam::boundBox::returnReduce
+void Foam::boundBox::reduce
 (
-    const boundBox& bb,
+    boundBox bbs[],
+    label count,
     int communicator
 )
 {
-    boundBox work(bb);
-    work.reduce(communicator);
-    return work;
+    reduceBoxes_impl(bbs, count, communicator);
 }
 
 
-Foam::boundBox Foam::boundBox::returnReduce(const boundBox& bb)
+void Foam::boundBox::reduce
+(
+    treeBoundBox bbs[],
+    label count,
+    int communicator
+)
 {
-    boundBox work(bb);
-    work.reduce(UPstream::worldComm);
-    return work;
+    reduceBoxes_impl(bbs, count, communicator);
+}
+
+
+void Foam::boundBox::broadcast(int communicator)
+{
+    broadcastBoxes_impl(this, 1, communicator);
+}
+
+
+void Foam::boundBox::broadcast
+(
+    boundBox bbs[],
+    label count,
+    int communicator
+)
+{
+    broadcastBoxes_impl(bbs, count, communicator);
+}
+
+
+void Foam::boundBox::broadcast
+(
+    treeBoundBox bbs[],
+    label count,
+    int communicator
+)
+{
+    broadcastBoxes_impl(bbs, count, communicator);
 }
 
 
@@ -412,6 +659,12 @@ bool Foam::boundBox::intersects(const triPointRef& tri) const
 }
 
 
+bool Foam::boundBox::intersects(const point& from, const point& to) const
+{
+    return treeBoundBox::intersects(*this, from, to);
+}
+
+
 bool Foam::boundBox::contains(const UList<point>& points) const
 {
     if (points.empty())
@@ -455,39 +708,102 @@ Foam::point Foam::boundBox::nearest(const point& p) const
     // Clip the point to the range of the bounding box
     return point
     (
-        Foam::min(Foam::max(p.x(), min_.x()), max_.x()),
-        Foam::min(Foam::max(p.y(), min_.y()), max_.y()),
-        Foam::min(Foam::max(p.z(), min_.z()), max_.z())
+        std::min(std::max(p.x(), min_.x()), max_.x()),
+        std::min(std::max(p.y(), min_.y()), max_.y()),
+        std::min(std::max(p.z(), min_.z()), max_.z())
     );
 }
 
 
-void Foam::boundBox::inflate(Random& rndGen, const scalar factor)
+void Foam::boundBox::inflate(Random& rndGen, scalar factor)
 {
     vector newSpan(span());
 
     // Make 3D
-    const scalar minSpan = factor * Foam::mag(newSpan);
+    const scalar minSpan = factor*mag();
 
     for (direction dir = 0; dir < vector::nComponents; ++dir)
     {
-        newSpan[dir] = Foam::max(newSpan[dir], minSpan);
+        newSpan[dir] = std::max(newSpan[dir], minSpan);
     }
 
     min_ -= cmptMultiply(factor*rndGen.sample01<vector>(), newSpan);
     max_ += cmptMultiply(factor*rndGen.sample01<vector>(), newSpan);
+
+    // May still need extra handling for zero-sized boxes.
+    // Eg, use inflate with the extra delta (ie, grow)
 }
 
 
 void Foam::boundBox::inflate
 (
     Random& rndGen,
-    const scalar factor,
-    const scalar delta
+    scalar factor,
+    scalar delta
 )
 {
     inflate(rndGen, factor);
     grow(delta);
+}
+
+
+void Foam::boundBox::inflate_random(label seedValue, scalar factor)
+{
+    Random rndGen(seedValue);
+    inflate(rndGen, factor);
+}
+
+
+void Foam::boundBox::inflate_random
+(
+    label seedValue,
+    scalar factor,
+    scalar delta
+)
+{
+    Random rndGen(seedValue);
+    inflate(rndGen, factor, delta);
+}
+
+
+void Foam::boundBox::writeOBJ
+(
+    Ostream& os,
+    label& vertIndex,
+    const bool writeLinesOnly
+) const
+{
+    // Annotate with '#box' which can be grep'd for later
+    os  << "#box: " << min_ << ' ' << max_ << nl;
+
+    for (direction oct = 0; oct < 8; ++oct)
+    {
+        point p = corner(oct);
+        os  << "v " << p.x() << ' ' << p.y() << ' ' << p.z() << nl;
+    }
+
+    if (writeLinesOnly)
+    {
+        for (const auto& e : boundBox::octEdges())
+        {
+            os  << "l " << e.first() + vertIndex + 1
+                << ' ' << e.second() + vertIndex + 1 << nl;
+        }
+    }
+    else
+    {
+        for (const auto& f : boundBox::octFaces())
+        {
+            os  << 'f';
+            for (label fpi : f)
+            {
+                os  << ' ' << fpi + vertIndex + 1;
+            }
+            os  << nl;
+        }
+    }
+
+    vertIndex += 8;
 }
 
 

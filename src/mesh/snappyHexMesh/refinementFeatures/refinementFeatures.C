@@ -295,15 +295,15 @@ void Foam::refinementFeatures::buildTrees(const label featI)
     const pointField& points = eMesh.points();
     const edgeList& edges = eMesh.edges();
 
+    // Random number generator. Bit dodgy since not exactly random ;-)
+    constexpr label rand_seed = 65431;
+
     // Calculate bb of all points
     treeBoundBox bb(points);
 
-    // Random number generator. Bit dodgy since not exactly random ;-)
-    Random rndGen(65431);
-
     // Slightly extended bb. Slightly off-centred just so on symmetric
     // geometry there are less face/edge aligned items.
-    bb.inflate(rndGen, 1e-4, ROOTVSMALL);
+    bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
     edgeTrees_.set
     (
@@ -430,15 +430,15 @@ Foam::refinementFeatures::regionEdgeTrees() const
             const pointField& points = eMesh.points();
             const edgeList& edges = eMesh.edges();
 
+            // Random number generator. Bit dodgy since not exactly random ;-)
+            constexpr label rand_seed = 65431;
+
             // Calculate bb of all points
             treeBoundBox bb(points);
 
-            // Random number generator. Bit dodgy since not exactly random ;-)
-            Random rndGen(65431);
-
             // Slightly extended bb. Slightly off-centred just so on symmetric
             // geometry there are less face/edge aligned items.
-            bb.inflate(rndGen, 1e-4, ROOTVSMALL);
+            bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
             trees.set
             (

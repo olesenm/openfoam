@@ -596,16 +596,14 @@ const Foam::treeBoundBox& Foam::meshSearch::dataBoundBox() const
 {
     if (!overallBbPtr_)
     {
-        Random rndGen(261782);
-        overallBbPtr_.reset
-        (
-            new treeBoundBox(mesh_.points())
-        );
+        constexpr label rand_seed = 261782;
 
-        treeBoundBox& overallBb = overallBbPtr_();
+        overallBbPtr_.reset(new treeBoundBox(mesh_.points()));
+
+        auto& bb = overallBbPtr_();
 
         // Extend slightly and make 3D
-        overallBb.inflate(rndGen, 1e-4, ROOTVSMALL);
+        bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
     }
 
     return *overallBbPtr_;
