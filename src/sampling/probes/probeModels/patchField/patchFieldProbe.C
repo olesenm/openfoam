@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,7 +28,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "patchFieldProbe.H"
-#include "mappedPatchBase.H"
 #include "treeBoundBox.H"
 #include "treeDataFace.H"
 #include "addToRunTimeSelectionTable.H"
@@ -43,49 +43,49 @@ namespace Foam
 
 void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
 {
+    const auto myProci = UPstream::myProcNo();
+
     (void)mesh.tetBasePtIs();
 
     const polyBoundaryMesh& bm = mesh.boundaryMesh();
 
-    // All the info for nearest. Construct to miss
-    List<mappedPatchBase::nearInfo> nearest(this->size());
+    // Nearest selection: (sqr(distance), (rank, facei))
+    List<Tuple2<scalar, labelPair>> nearest
+    (
+        this->size(),
+        { Foam::sqr(GREAT), {-1, -1} }
+    );
+
+    // Initialize all hit points as point::max
+    pointField hitPoints(this->size(), point::max);
 
     patchIDs_ = bm.patchSet(patchNames_).sortedToc();
 
-    label nFaces = 0;
-    forAll(patchIDs_, i)
+    // Boundary faces only
+    const label bndFaceOffset = mesh.nInternalFaces();
+    bitSet bndFaces;
+    treeBoundBox overallBb;
+
+    // Collect faces and bounding box
+    for (label patchi : patchIDs_)
     {
-        nFaces += bm[patchIDs_[i]].size();
+        if (const polyPatch& pp = bm[patchi]; pp.size())
+        {
+            bndFaces.set(pp.offset_range());
+            overallBb.add(pp.box());
+        }
     }
 
-    if (nFaces > 0)
+    if (bndFaces.any())
     {
-        // Collect mesh faces and bounding box
-        labelList bndFaces(nFaces);
-        treeBoundBox overallBb;
-
-        nFaces = 0;
-        forAll(patchIDs_, i)
-        {
-            const polyPatch& pp = bm[patchIDs_[i]];
-            forAll(pp, i)
-            {
-                bndFaces[nFaces++] = pp.start()+i;
-                const face& f = pp[i];
-
-                // Without reduction.
-                overallBb.add(pp.points(), f);
-            }
-        }
-
         constexpr label rand_seed = 123456;
 
         overallBb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
 
-
         const indexedOctree<treeDataFace> boundaryTree
         (
-            treeDataFace(mesh, bndFaces),  // patch faces only
+            // Boundary faces only
+            treeDataFace(mesh, std::move(bndFaces), bndFaceOffset),
 
             overallBb,      // overall search domain
             8,              // maxLevel
@@ -93,124 +93,152 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
             3.0             // duplicity
         );
 
-        forAll(probeLocations(), probei)
+        const auto& treeData = boundaryTree.shapes();
+
+        const auto& samples = probeLocations();
+
+        forAll(samples, probei)
         {
-            const auto& treeData = boundaryTree.shapes();
-            const point sample = probeLocations()[probei];
+            const point& sample = samples[probei];
+            auto& near = nearest[probei];
+            auto& hitAt = hitPoints[probei];
 
-            pointIndexHit info = boundaryTree.findNearest
-            (
-                sample,
-                Foam::sqr(boundaryTree.bb().mag())
-            );
+            pointIndexHit pHit =
+                boundaryTree.findNearest(sample, boundaryTree.bb().magSqr());
 
-            if (!info.hit())
+            if (!pHit.hit())
             {
-                info = boundaryTree.findNearest(sample, Foam::sqr(GREAT));
+                pHit = boundaryTree.findNearest(sample, Foam::sqr(GREAT));
             }
 
-            const label facei = treeData.objectIndex(info.index());
-
-            const label patchi = bm.whichPatch(facei);
-
-            if (isA<emptyPolyPatch>(bm[patchi]))
+            if (const point& p = pHit.point(); pHit.hit())
             {
-                WarningInFunction
-                    << " The sample point: " << sample
-                    << " belongs to " << patchi
-                    << " which is an empty patch. This is not permitted. "
-                    << " This sample will not be included "
-                    << endl;
-            }
-            else if (info.hit())
-            {
-                // Note: do we store the face centre or the actual nearest?
-                // We interpolate using the faceI only though (no
-                // interpolation) so it does not actually matter much, just for
-                // the location written to the header.
+                const label facei = treeData.objectIndex(pHit.index());
 
-                //const point& facePt = mesh.faceCentres()[faceI];
-                const point& facePt = info.point();
+                const label patchi = bm.whichPatch(facei);
 
-                mappedPatchBase::nearInfo sampleInfo;
-
-                sampleInfo.first() = pointIndexHit(true, facePt, facei);
-
-                sampleInfo.second().first() = facePt.distSqr(sample);
-                sampleInfo.second().second() = Pstream::myProcNo();
-
-                nearest[probei] = sampleInfo;
+                if (isA<emptyPolyPatch>(bm[patchi]))
+                {
+                    WarningInFunction
+                        << " The sample point: " << sample
+                        << " belongs to " << patchi
+                        << " which is an empty patch. This is not permitted. "
+                        << " This sample will not be included "
+                        << endl;
+                }
+                else
+                {
+                    hitAt = p;
+                    near = { sample.distSqr(p), {myProci, facei} };
+                }
             }
         }
     }
 
 
     // Find nearest - globally consistent
-    Pstream::listCombineReduce(nearest, mappedPatchBase::nearestEqOp());
+    Pstream::listCombineReduce(nearest, minFirstEqOp{});
 
-    oldPoints_.resize(this->size());
-
-    pointField& probeLocations = this->probeLocations();
-    // Update actual probe locations and store old ones
-    forAll(nearest, samplei)
+    // Update hitPoints, with extra sanity
+    forAll(nearest, i)
     {
-        oldPoints_[samplei] = probeLocations[samplei];
-        probeLocations[samplei] = nearest[samplei].first().point();
+        const auto proci = nearest[i].second().first();
+        const point& sample = probeLocations()[i];
+
+        if (proci < 0)
+        {
+            // No hit anywhere, preserve original sample point
+            hitPoints[i] = sample;
+        }
+        else if (proci != myProci)
+        {
+            // No hit on my proc
+            hitPoints[i] = point::max;
+        }
     }
+
+    // Selects the best point, the original sample or point::max
+    Foam::reduce
+    (
+        hitPoints.data(),
+        hitPoints.size(),
+        minOp<point>(),
+        UPstream::msgType(),
+        UPstream::worldComm
+    );
 
     if (debug)
     {
         InfoInFunction << nl;
+
+        const auto& samples = probeLocations();
+
         forAll(nearest, samplei)
         {
-            label proci = nearest[samplei].second().second();
-            label locali = nearest[samplei].first().index();
+            const auto& [proci, facei] = nearest[samplei].second();
+            const point& sample = samples[samplei];
 
-            Info<< "    " << samplei << " coord:"<< probeLocations[samplei]
+            Info<< "    " << samplei << " coord:" << sample
                 << " found on processor:" << proci
-                << " in local face:" << locali
-                << " with location:" << nearest[samplei].first().point()
+                << " in local face:" << facei
+                << " with location:" << hitPoints[samplei]
                 << endl;
         }
+    }
+
+    // Update actual probe locations and store old ones
+    {
+        pointField& locations = this->probeLocations();
+
+        oldPoints_ = locations;
+        locations = std::move(hitPoints);
     }
 
     // Extract any local faces to sample:
     // - operator[] : actual point to sample (=nearest point on patch)
     // - oldPoints_ : original provided point (might be anywhere in the mesh)
     // - cellIds_   : cells, not used
-    // - faceIds_      : faces (now patch faces)
-    // - patchIds_   : patch corresponding to faceList
-    // - procIds_     : processor
-    cellIds_.resize_nocopy(nearest.size());
-    cellIds_ = -1;
+    // - faceIds_   : mesh face id
+    // - patchIds_  : patch corresponding to faceList
+    // - procIds_   : processor
 
-    faceIds_.resize_nocopy(nearest.size());
-    faceIds_ = -1;
+    cellIds_.resize_fill(nearest.size(), -1);
+    faceIds_.resize_fill(nearest.size(), -1);
+    procIds_.resize_fill(nearest.size(), -1);
+    patchIds_.resize_fill(nearest.size(), -1);
 
-    procIds_.resize_nocopy(nearest.size());
-    procIds_ = -1;
-
-    patchIds_.resize_nocopy(nearest.size());
-    patchIds_ = -1;
-
-    forAll(nearest, sampleI)
+    forAll(nearest, samplei)
     {
-        procIds_[sampleI] = nearest[sampleI].second().second();
+        const auto& [proci, facei] = nearest[samplei].second();
 
-        if (nearest[sampleI].second().second() == Pstream::myProcNo())
+        // Valid (local) face to sample?
+        if (proci == myProci && facei >= 0)
         {
-            // Store the face to sample
-            faceIds_[sampleI] = nearest[sampleI].first().index();
-            const label facei = faceIds_[sampleI];
-            if (facei != -1)
-            {
-                procIds_[sampleI] = Pstream::myProcNo();
-                patchIds_[sampleI] = bm.whichPatch(facei);
-            }
+            faceIds_[samplei] = facei;
+            procIds_[samplei] = proci;
+            patchIds_[samplei] = bm.whichPatch(facei);
         }
-        reduce(procIds_[sampleI], maxOp<label>());
-        reduce(patchIds_[sampleI], maxOp<label>());
     }
+
+    // NB: do not reduce faceIds_ : they are processor-local
+
+    Foam::reduce
+    (
+        procIds_.data(),
+        procIds_.size(),
+        maxOp<label>(),
+        UPstream::msgType(),
+        UPstream::worldComm
+    );
+
+    Foam::reduce
+    (
+        patchIds_.data(),
+        patchIds_.size(),
+        maxOp<label>(),
+        UPstream::msgType(),
+        UPstream::worldComm
+    );
 }
 
 

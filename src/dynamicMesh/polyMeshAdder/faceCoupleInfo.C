@@ -1001,7 +1001,7 @@ void Foam::faceCoupleInfo::findSlavesCoveringMaster
         (
             mesh0,
             // boundary faces only
-            identity(mesh0.nBoundaryFaces(), mesh0.nInternalFaces())
+            labelRange(mesh0.nInternalFaces(), mesh0.nBoundaryFaces())
         ),
 
         overallBb,  // overall search domain

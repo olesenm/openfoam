@@ -432,14 +432,14 @@ Foam::mappedPatchBase::findLocalSamples
 
             if (!pp.empty())
             {
-                treeBoundBox patchBb(pp.points(), pp.meshPoints());
+                treeBoundBox patchBb(pp.box());
 
                 // Inflate by 0.1% and clamp with min size
                 patchBb.inflate_random(rand_seed, 1e-3, ROOTVSMALL);
 
                 const indexedOctree<treeDataFace> boundaryTree
                 (
-                    treeDataFace(mesh, pp.range()),  // Patch faces
+                    treeDataFace(pp),  // Patch faces
 
                     patchBb,        // overall search domain
                     8,              // maxLevel
