@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -57,7 +58,59 @@ void Foam::lduPrimitiveMeshAssembly::update
 
             if (fvp.useImplicit())
             {
-                if (pp.masterImplicit())
+                const bool master = pp.masterImplicit();
+                const label nbrId = pp.neighbPolyPatchID();
+                const label meshNrbId = findNbrMeshId(pp, i);
+
+                if (meshNrbId == -1)
+                {
+                    FatalErrorInFunction
+                        << "Patch " << pp.name() << " of region "
+                        << psis[i].mesh().name() << " is coupled implicitly"
+                        << " but its neighbour region "
+                        << pp.neighbRegionID() << " is not in the assembly"
+                        << exit(FatalError);
+                }
+
+                const polyPatch& nbrPp =
+                    psis[meshNrbId].mesh().boundaryMesh()[nbrId];
+
+                if (!psis[meshNrbId].boundaryField()[nbrId].useImplicit())
+                {
+                    FatalErrorInFunction
+                        << "Patch " << pp.name() << " of region "
+                        << psis[i].mesh().name() << " is coupled implicitly"
+                        << " but " << nbrPp.name() << " of region "
+                        << psis[meshNrbId].mesh().name() << " is not"
+                        << exit(FatalError);
+                }
+
+                if (master == nbrPp.masterImplicit())
+                {
+                    FatalErrorInFunction
+                        << "Patch " << pp.name() << " of region "
+                        << psis[i].mesh().name() << " and " << nbrPp.name()
+                        << " of region " << psis[meshNrbId].mesh().name()
+                        << " have no single implicit master"
+                        << exit(FatalError);
+                }
+
+                if
+                (
+                    nbrPp.neighbPolyPatchID() != patchI
+                 || findNbrMeshId(nbrPp, meshNrbId) != i
+                )
+                {
+                    FatalErrorInFunction
+                        << "Patch " << pp.name() << " of region "
+                        << psis[i].mesh().name() << " couples to "
+                        << nbrPp.name() << " of region "
+                        << psis[meshNrbId].mesh().name()
+                        << " but that patch couples elsewhere"
+                        << exit(FatalError);
+                }
+
+                if (master)
                 {
                     label newFacesPatch(0);
                     label newFacesProcPatch(0);
@@ -82,9 +135,6 @@ void Foam::lduPrimitiveMeshAssembly::update
                     cellBoundMap_[i][patchI].setSize(newFacesPatch, -1);
                     facePatchFaceMap_[i][patchI].setSize(newFacesPatch, -1);
                     faceBoundMap_[i][patchI].setSize(newFacesPatch, -1);
-
-                    const label nbrId = pp.neighbPolyPatchID();
-                    const label meshNrbId = findNbrMeshId(pp, i);
 
                     cellBoundMap_[meshNrbId][nbrId].setSize
                     (
