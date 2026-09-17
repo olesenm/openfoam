@@ -2038,7 +2038,17 @@ public:
         static void reduceAnd
         (
             bool& value,
-            const int communicator = UPstream::worldComm
+            int communicator = UPstream::worldComm
+        );
+
+        //- Logical (and) reduction (MPI_AllReduce) of multiple values
+        //- (same count on all ranks!)
+        //  For \b non-parallel : do nothing
+        static void reduceAnd
+        (
+            bool values[],
+            label count,
+            int communicator = UPstream::worldComm
         );
 
         //- Logical (or) reduction (MPI_AllReduce)
@@ -2046,7 +2056,35 @@ public:
         static void reduceOr
         (
             bool& value,
-            const int communicator = UPstream::worldComm
+            int communicator = UPstream::worldComm
+        );
+
+        //- Logical (or) reduction (MPI_AllReduce) of multiple values
+        //- (same count on all ranks!)
+        //  For \b non-parallel : do nothing
+        static void reduceOr
+        (
+            bool values[],
+            label count,
+            int communicator = UPstream::worldComm
+        );
+
+        //- MPI_Reduce with logical (and). Result only valid on root.
+        //  For \b non-parallel : do nothing
+        static void mpiReduceAnd
+        (
+            bool values[],
+            label count,
+            int communicator = UPstream::worldComm
+        );
+
+        //- MPI_Reduce with logical (or). Result only valid on root.
+        //  For \b non-parallel : do nothing
+        static void mpiReduceOr
+        (
+            bool values[],
+            label count,
+            int communicator = UPstream::worldComm
         );
 
         //- Locate the first rank for which the \p condition is true,

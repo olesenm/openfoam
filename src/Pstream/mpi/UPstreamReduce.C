@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,23 +31,56 @@ License
 #include "UPstreamWrapping.H"
 
 #include <cinttypes>
+#include <utility>
 
-// * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-// Special reductions for bool
+// Avoid issues with missing/broken in-place handling.
+// Use a local buffer to send the data from.
+// - probably not thread-safe
 
-void Foam::UPstream::reduceAnd(bool& value, const int communicator)
+// The work buffer, managed as an "unsigned long" element type to
+// ensure nice alignment.
+// Avoiding aligned allocator since that can still be fragile.
+// For example, on mingw compilations (SEPT-2026).
+
+static std::unique_ptr<unsigned long[]> workBufferPtr;
+
+// Get/resize the work buffer as needed for the given data type/count
+// combination. Return {pointer, num_bytes} like a std::span
+static inline std::pair<void*, int>
+getWorkBuffer(MPI_Datatype datatype, int count)
 {
-    PstreamDetail::allReduce(&value, 1, MPI_C_BOOL, MPI_LAND, communicator);
+    // Min length (in blocks) to avoid many initial re-allocations
+    constexpr int min_nblocks = 32;
+
+    // Number of allocated blocks
+    static int nblocks(0);
+
+    using block_type = decltype(workBufferPtr)::element_type;
+
+    const int num_bytes = [datatype,count]()
+    {
+        int size;
+        MPI_Type_size(datatype, &size);
+        return (size * count);
+    }();
+
+    // Number of blocks needed to cover num_bytes
+    if
+    (
+        int needs = (num_bytes + sizeof(block_type) - 1) / sizeof(block_type);
+        (nblocks < needs)
+    )
+    {
+        nblocks = std::max(min_nblocks, needs);
+
+        workBufferPtr.reset();
+        workBufferPtr = std::make_unique<block_type[]>(nblocks);
+    }
+
+    return { workBufferPtr.get(), num_bytes };
 }
-
-
-void Foam::UPstream::reduceOr(bool& value, const int communicator)
-{
-    PstreamDetail::allReduce(&value, 1, MPI_C_BOOL, MPI_LOR, communicator);
-}
-
-
 
 
 // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
@@ -173,25 +207,7 @@ void Foam::UPstream::mpi_reduce
     // - probably not thread-safe
 
     #ifndef Foam_vendor_supports_INPLACE_REDUCE
-    static std::unique_ptr<char[]> work;
-    static int work_len(0);
-
-    const int num_bytes = [datatype,count]()
-    {
-        int size = 1;
-        MPI_Type_size(datatype, &size);
-        return (size * count);
-    }();
-
-    if (work_len < num_bytes)
-    {
-        // Min length to avoid many initial re-allocations
-        work_len = std::max(256, num_bytes);
-        work.reset();
-        work = std::make_unique<char[]>(work_len);
-    }
-    void* send_buffer = work.get();
-
+    auto [send_buffer, num_bytes] = getWorkBuffer(datatype, count);
     std::memcpy(send_buffer, values, num_bytes);
     #else
     void* send_buffer = values;  // ie, in-place
@@ -265,6 +281,50 @@ void Foam::UPstream::mpi_reduce
             optype,
             communicator,
             req
+        );
+    }
+}
+
+
+// Dedicated bool version of mpi_reduce since we don't have a typeCode
+// for bool at the moment
+
+static void mpiReduce_bool
+(
+    void* values,                          // Type checking done by caller
+    int count,
+    MPI_Datatype datatype,                 // always MPI_C_BOOL
+    MPI_Op optype,                         // bool (and | or | xor)
+    const int communicator                 // Index into MPICommunicators_
+)
+{
+    if (!count || !UPstream::is_parallel(communicator))
+    {
+        // Nothing to do - ignore
+        return;
+    }
+
+    // Workaround for missing/broken in-place handling.
+    // Use a local buffer to send the data from.
+    // - probably not thread-safe
+
+    #ifndef Foam_vendor_supports_INPLACE_REDUCE
+    auto [send_buffer, num_bytes] = getWorkBuffer(datatype, count);
+    std::memcpy(send_buffer, values, num_bytes);
+    #else
+    void* send_buffer = values;  // ie, in-place
+    #endif
+
+    // Regular reduce
+    {
+        PstreamDetail::reduce
+        (
+            send_buffer,
+            values,
+            count,
+            datatype,
+            optype,
+            communicator
         );
     }
 }
@@ -455,25 +515,7 @@ void Foam::UPstream::mpi_scan_reduce
     // Use a local buffer to send the data from.
     // - probably not thread-safe
 
-    static std::unique_ptr<char[]> work;
-    static int work_len(0);
-
-    const int num_bytes = [datatype,count]()
-    {
-        int size = 1;
-        MPI_Type_size(datatype, &size);
-        return (size * count);
-    }();
-
-    if (work_len < num_bytes)
-    {
-        // Min length to avoid many initial re-allocations
-        work_len = std::max(256, num_bytes);
-        work.reset();
-        work = std::make_unique<char[]>(work_len);
-    }
-    void* send_buffer = work.get();
-
+    auto [send_buffer, num_bytes] = getWorkBuffer(datatype, count);
     std::memcpy(send_buffer, values, num_bytes);
 
     PstreamDetail::scanReduce
@@ -497,6 +539,52 @@ void Foam::UPstream::mpi_scan_reduce
     {
         std::memcpy(values, send_buffer, num_bytes);
     }
+}
+
+
+// * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
+
+// Special reductions for bool
+
+void Foam::UPstream::reduceAnd(bool& value, int communicator)
+{
+    PstreamDetail::allReduce(&value, 1, MPI_C_BOOL, MPI_LAND, communicator);
+}
+
+
+void Foam::UPstream::reduceAnd(bool values[], label count, int communicator)
+{
+    PstreamDetail::allReduce
+    (
+        values, int(count), MPI_C_BOOL, MPI_LAND, communicator
+    );
+}
+
+
+void Foam::UPstream::reduceOr(bool& value, int communicator)
+{
+    PstreamDetail::allReduce(&value, 1, MPI_C_BOOL, MPI_LOR, communicator);
+}
+
+
+void Foam::UPstream::reduceOr(bool values[], label count, int communicator)
+{
+    PstreamDetail::allReduce
+    (
+        values, int(count), MPI_C_BOOL, MPI_LOR, communicator
+    );
+}
+
+
+void Foam::UPstream::mpiReduceAnd(bool values[], label count, int communicator)
+{
+    mpiReduce_bool(values, int(count), MPI_C_BOOL, MPI_LAND, communicator);
+}
+
+
+void Foam::UPstream::mpiReduceOr(bool values[], label count, int communicator)
+{
+    mpiReduce_bool(values, int(count), MPI_C_BOOL, MPI_LOR, communicator);
 }
 
 

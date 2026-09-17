@@ -236,6 +236,36 @@ inline void reduce
 }
 
 
+//- Logical (and) inplace reduction of multiple values
+//- (same count on all ranks!). Uses UPstream::reduceAnd
+inline void reduce
+(
+    bool values[],
+    const label count,
+    Foam::andOp<bool>,
+    [[maybe_unused]] const int tag = UPstream::msgType(),  /*!< (ignored) */
+    const int communicator = UPstream::worldComm
+)
+{
+    UPstream::reduceAnd(values, count, communicator);
+}
+
+
+//- Logical (or) inplace reduction of multiple values
+//- (same count on all ranks!). Uses UPstream::reduceOr
+inline void reduce
+(
+    bool values[],
+    const label count,
+    Foam::orOp<bool>,
+    [[maybe_unused]] const int tag = UPstream::msgType(),  /*!< (ignored) */
+    const int communicator = UPstream::worldComm
+)
+{
+    UPstream::reduceOr(values, count, communicator);
+}
+
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 // Special reductions for MinMax
