@@ -5652,7 +5652,7 @@ void Foam::snappyLayerDriver::addLayers
             (
                 layerParams.dict(),
                 motionDict,
-                nAllowableErrors,
+                0,	// nAllowableErrors,
                 cellNLayers
             );
         }
