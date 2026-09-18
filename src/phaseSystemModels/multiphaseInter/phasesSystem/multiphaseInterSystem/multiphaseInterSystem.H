@@ -519,11 +519,11 @@ public:
 
         //- Effective thermal turbulent diffusivity for temperature
         //  of mixture [J/m/s/K]
-        tmp<volScalarField> kappaEff() const;
+        virtual tmp<volScalarField> kappaEff() const;
 
         //- Effective thermal turbulent diffusivity for temperature
         //  of mixture for patch [J/m/s/K]
-        tmp<scalarField> kappaEff(const label patchi) const;
+        virtual tmp<scalarField> kappaEff(const label patchi) const;
 
         //- Effective thermal turbulent diffusivity of mixture [kg/m/s]
         tmp<volScalarField> alphaEff() const;

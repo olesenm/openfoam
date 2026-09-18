@@ -570,6 +570,22 @@ public:
                 const label patchi
             ) const = 0;
 
+            //- Effective thermal diffusivity for temperature of mixture
+            //  for patch [J/m/s/K]. Default: laminar kappa (no turbulent
+            //  contribution); overridden by mixtures that carry turbulence.
+            virtual tmp<scalarField> kappaEff(const label patchi) const
+            {
+                return kappa(patchi);
+            }
+
+            //- Effective thermal diffusivity for temperature of mixture
+            //  [J/m/s/K]. Default: laminar kappa (no turbulent contribution);
+            //  overridden by mixtures that carry turbulence.
+            virtual tmp<volScalarField> kappaEff() const
+            {
+                return kappa();
+            }
+
             //- Effective thermal diffusivity of mixture [kg/m/s]
             virtual tmp<volScalarField> alphaEff
             (

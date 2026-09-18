@@ -27,7 +27,7 @@ License
 
 #include "multiphaseInterHtcModel.H"
 #include "heatTransferCoeffModel.H"
-#include "multiphaseInterSystem.H"
+#include "basicThermo.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -78,7 +78,7 @@ Foam::functionObjects::multiphaseInterHtcModel::q() const
     }
 
     const auto* fluidPtr =
-        mesh.cfindObject<multiphaseInterSystem>("phaseProperties");
+        mesh.cfindObject<basicThermo>("phaseProperties");
 
     if (!fluidPtr)
     {
@@ -87,7 +87,7 @@ Foam::functionObjects::multiphaseInterHtcModel::q() const
             << exit(FatalError);
     }
 
-    const multiphaseInterSystem& fluid = *fluidPtr;
+    const auto& fluid = *fluidPtr;
 
     for (const label patchi : htcModelPtr_->patchIDs())
     {
