@@ -1126,7 +1126,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
         if (ptf.size())
         {
             const labelUList& pa = lduAddr().patchAddr(patchi);
-            Field<Type>& iCoeffs = internalCoeffs_[patchi];
+            const Field<Type>& iCoeffs = internalCoeffs_[patchi];
 
             if (ptf.coupled())
             {
@@ -1221,7 +1221,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
         if (ptf.size())
         {
             const labelUList& pa = lduAddr().patchAddr(patchi);
-            Field<Type>& iCoeffs = internalCoeffs_[patchi];
+            const Field<Type>& iCoeffs = internalCoeffs_[patchi];
 
             if (ptf.coupled())
             {
