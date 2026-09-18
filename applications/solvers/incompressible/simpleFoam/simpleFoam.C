@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -98,6 +99,10 @@ int main(int argc, char *argv[])
     while (simple.loop())
     {
         Info<< "Time = " << runTime.timeName() << nl << endl;
+        if (simple.frozenFlow())
+        {
+            continue;
+        }
 
         // Do any mesh changes
         mesh.controlledUpdate();
