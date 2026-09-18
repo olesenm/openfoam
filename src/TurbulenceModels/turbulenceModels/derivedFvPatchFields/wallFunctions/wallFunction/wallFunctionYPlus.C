@@ -37,7 +37,8 @@ Foam::tmp<Foam::scalarField> Foam::wallFunctionYPlus
 (
     const turbulenceModel& turbModel,
     const label patchi,
-    const bool useWallFunction
+    const bool useWallFunction,
+    const word& UName
 )
 {
     tmp<volScalarField> tnut = turbModel.nut();
@@ -66,9 +67,20 @@ Foam::tmp<Foam::scalarField> Foam::wallFunctionYPlus
     const tmp<scalarField> tnu = turbModel.nu(patchi);
     const scalarField& nu = tnu.cref();
 
-    const fvPatchVectorField& U = turbModel.U().boundaryField()[patchi];
+    const auto* Uptr = turbModel.mesh().cfindObject<volVectorField>(UName);
+    if (!Uptr)
+    {
+        WarningInFunction
+            << "Unable to find velocity field " << UName
+            << "; using " << turbModel.U().name() << " from the "
+            << turbulenceModel::propertiesName << " turbulence model"
+            << endl;
 
-    return y*sqrt(nuEff*mag(U.snGrad()))/nu;
+        Uptr = &turbModel.U();
+    }
+    const fvPatchVectorField& UBf = Uptr->boundaryField()[patchi];
+
+    return y*sqrt(nuEff*mag(UBf.snGrad()))/nu;
 }
 
 

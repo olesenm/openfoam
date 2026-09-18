@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -53,6 +54,7 @@ Usage
         // Optional entries
         useWallFunction <bool>;
         writeFields     <bool>;
+        field           <word>;
 
         // Inherited entries
         ...
@@ -68,7 +70,8 @@ Usage
                       --> the selected nut wall function to compute yPlus, <!--
                       --> otherwise directly compute yPlus from flow field <!--
                       -->                             | bool | no    | true
-      writeFields | Flag to write yPlus field         | bool |  no   | true
+      writeFields | Flag to write yPlus field         | bool | no    | true
+      field       | Name of the velocity field        | word | no    | U
     \endtable
 
     The inherited entries are elaborated in:
@@ -110,6 +113,9 @@ class yPlus
     public writeFile
 {
     // Private Data
+
+        //- Name of the velocity field
+        word UName_;
 
         //- Use the wall function expressions to compute yPlus ?
         bool useWallFunction_;
