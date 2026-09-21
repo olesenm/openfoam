@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,6 +31,7 @@ License
 #include "globalIndex.H"
 #include "globalMeshData.H"
 #include "syncTools.H"
+#include "bitSet.H"
 #include "faceSet.H"
 #include "regionSplit.H"
 #include "localPointRegion.H"
@@ -151,6 +153,228 @@ const Foam::dictionary& Foam::decompositionMethod::optionalRegionDict
 {
     const auto* dictptr = cfindRegionDict(decompDict, regionName);
     return (dictptr ? *dictptr : dictionary::null);
+}
+
+
+// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+
+void Foam::decompositionMethod::sanitizeWeights
+(
+    const label targetCount,
+    List<scalar>& weights,
+    const bool report
+)
+{
+    if (targetCount <= 1 || weights.empty())
+    {
+        weights.clear();
+        return;
+    }
+
+    // Report size mismatch
+    if (report && (targetCount != weights.size()))
+    {
+        WarningInFunction
+            << "Number of weights (" << weights.size()
+            << ") != number expected (" << targetCount << ")\n";
+    }
+
+    // Extend or truncate
+    weights.resize(targetCount, 0);
+
+    bool uniform = false;
+    label nNonZero = 0;
+    scalar firstValue = -1;
+    double totalWeight = 0;
+
+    for (auto& val : weights)
+    {
+        if (val > ROOTVSMALL)
+        {
+            ++nNonZero;
+            totalWeight += val;
+
+            if (firstValue < 0)
+            {
+                firstValue = val;
+                uniform = true;
+            }
+            else if (uniform && !equal(firstValue, val))
+            {
+                uniform = false;
+            }
+        }
+        else
+        {
+            // Treat small and -ve values like zero
+            val = 0;
+        }
+    }
+
+    if
+    (
+        (nNonZero == 0)
+     || (uniform && (nNonZero == targetCount))
+     || (totalWeight <= doubleScalarSMALL)
+    )
+    {
+        // Identical weights everywhere,
+        // or degenerate case of zero weights everywhere
+        weights.clear();
+        return;
+    }
+
+    // Appears to have valid and non-uniform weights
+    // Nothing further to do
+}
+
+
+void Foam::decompositionMethod::copyWeights
+(
+    const label targetCount,
+    const labelUList& inputWeights,
+    List<scalar>& weights,
+    const bool report
+)
+{
+    if (targetCount <= 1 || inputWeights.empty())
+    {
+        weights.clear();
+        return;
+    }
+
+    // Report size mismatch
+    if (report && (targetCount != inputWeights.size()))
+    {
+        WarningInFunction
+            << "Number of weights (" << inputWeights.size()
+            << ") != number expected (" << targetCount << ")\n";
+    }
+
+
+    // Silently adjust range
+    const label overlap = Foam::min(targetCount, inputWeights.size());
+
+    bool uniform = false;
+    label nNonZero = 0;
+    label firstValue = -1;
+    double totalWeight = 0;
+
+    for (label i = 0; i < overlap; ++i)
+    {
+        if (label val = inputWeights[i]; val > 0)
+        {
+            ++nNonZero;
+            totalWeight += val;
+
+            if (firstValue < 0)
+            {
+                firstValue = val;
+                uniform = true;
+            }
+            else if (uniform && (firstValue != val))
+            {
+                uniform = false;
+            }
+        }
+    }
+
+    if
+    (
+        (nNonZero == 0)
+     || (uniform && (nNonZero == targetCount))
+     || (totalWeight <= doubleScalarSMALL)
+    )
+    {
+        // Identical weights everywhere,
+        // or degenerate case of zero weights everywhere
+        weights.clear();
+        return;
+    }
+
+    // Appears to have valid and non-uniform weights.
+    // Copy label -> scalar, leave as non-normalized value
+
+    weights.resize_fill(targetCount, 0);
+
+    for (label i = 0; i < overlap; ++i)
+    {
+        if (label val = inputWeights[i]; val > 0)
+        {
+            weights[i] = val;
+        }
+    }
+}
+
+
+namespace
+{
+
+template<class BoolListType, class ScalarListType>
+void selectWeights_impl
+(
+    const Foam::label targetCount,
+    const BoolListType& selection,
+    ScalarListType& weights
+)
+{
+    using namespace Foam;
+
+    if (targetCount <= 1)
+    {
+        weights.clear();
+        return;
+    }
+
+    weights.resize_fill(targetCount, 0);
+
+    // Can walk the full targetCount since .test() is failsafe for out-of-range
+
+    label nNonZero = 0;
+
+    for (label i = 0; i < targetCount; ++i)
+    {
+        if (selection.test(i))
+        {
+            ++nNonZero;
+            weights[i] = 1;
+        }
+    }
+
+    if ((nNonZero == 0) || (nNonZero == targetCount))
+    {
+        // Identical weights everywhere,
+        // or degenerate case of zero weights everywhere
+        weights.clear();
+        return;
+    }
+
+    // Appears to have valid and non-uniform weights
+    // Nothing further to do
+}
+
+} // End anonymous namespace
+
+
+void Foam::decompositionMethod::selectWeights
+(
+    const label targetCount,
+    const bitSet& selection,
+    List<scalar>& weights
+)
+{
+    selectWeights_impl(targetCount, selection, weights);
+}
+
+
+void Foam::decompositionMethod::selectWeights
+(
+    const label targetCount,
+    const boolUList& selection,
+    List<scalar>& weights
+)
+{
+    selectWeights_impl(targetCount, selection, weights);
 }
 
 

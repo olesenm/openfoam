@@ -70,92 +70,8 @@ namespace Foam
 namespace Foam
 {
 
-// Adjust procWeights, negative values are treated like 0.
-// Leaves weights unnormalized.
-static void correct_weights
-(
-    const label numDomains,
-    List<scalar>& procWeights,
-    const bool verbose = false
-)
-{
-    if (numDomains <= 1 || procWeights.empty())
-    {
-        procWeights.clear();
-        return;
-    }
-
-    // Report size mismatch
-    if (verbose && (numDomains != procWeights.size()))
-    {
-        WarningInFunction
-            << "processorWeights (" << procWeights.size()
-            << ") != number of domains (" << numDomains << ")" << nl;
-    }
-
-    // Extend or truncate
-    procWeights.resize(numDomains, 0);
-
-    bool uniform = false;
-    label nWeights = 0;
-    scalar firstValue = -1;
-    double totalWeight = 0;
-
-    for (auto& val : procWeights)
-    {
-        if (val > 0)
-        {
-            ++nWeights;
-            totalWeight += val;
-
-            if (firstValue < 0)
-            {
-                firstValue = val;
-                uniform = true;
-            }
-            else if (uniform && !equal(firstValue, val))
-            {
-                uniform = false;
-            }
-        }
-        else
-        {
-            // Treat -ve values like zero
-            val = 0;
-        }
-    }
-
-    if
-    (
-        (nWeights == 0)
-     || (uniform && (nWeights == numDomains))
-     || (totalWeight <= doubleScalarSMALL)
-    )
-    {
-        // Identical weights everywhere,
-        // or degenerate case of zero weights everywhere
-        procWeights.clear();
-    }
-    else
-    {
-        // Non-uniform weights
-        // - can leave in non-normalized state
-
-        #ifdef FULLDEBUG
-        // Normalized values (eg, for debugging)
-        const double scaling = 1/totalWeight;
-
-        for (auto& val : procWeights)
-        {
-            val *= scaling;
-        }
-        #endif
-    }
-}
-
-
 // Copy integral weights as scalar weights, treat -ve values like 0.
-// Leaves weights non-normalized.
+// Leaves weights unnormalized (except in fulldebug)
 static void copy_weights
 (
     const label numDomains,
@@ -230,7 +146,7 @@ static void copy_weights
 
 
 // Processor weights based on boolean selection.
-// Leaves weights non-normalized.
+// Leaves weights unnormalized (always)
 template<class BoolListType>
 static void select_weights
 (
@@ -271,7 +187,6 @@ static void select_weights
         // - can leave in non-normalized state
     }
 }
-
 
 } // End namespace Foam
 
@@ -536,23 +451,36 @@ void Foam::treeDecomp::readCoeffs(const dictionary& coeffs)
         csys_.clear();  // Reset to identity
     }
 
-    procWeights_.clear();
     if
     (
         coeffs.readIfPresent("processorWeights", procWeights_)
-     && !procWeights_.empty()
+     && (procWeights_.size() > 1)
     )
     {
-        if (procWeights_.size() != nDomains_)
+        if (procWeights_.size() < nDomains_)
+        {
+            FatalIOErrorInFunction(coeffs)
+                << "processorWeights (" << procWeights_.size()
+                << ") less than numberOfSubdomains (" << nDomains_
+                << ")\n"
+                << exit(FatalIOError);
+        }
+        else if (procWeights_.size() > nDomains_)
         {
             WarningInFunction
                 << "processorWeights (" << procWeights_.size()
-                << ") != number of domains (" << nDomains_ << ")" << nl;
+                << ") greater than numberOfSubdomains (" << nDomains_
+                << ") ... truncating" << endl;
 
             procWeights_.resize(nDomains_, 0);
         }
 
-        correct_weights(nDomains_, procWeights_);
+        sanitizeWeights(nDomains_, procWeights_);
+    }
+    else
+    {
+        // Also treat size 1 like uniform weighted
+        procWeights_.clear();
     }
 }
 
@@ -628,7 +556,7 @@ Foam::labelList Foam::treeDecomp::treeDecompose
             );
         }
     }
-    else if (!UPstream::parRun())
+    else if (!UPstream::parRun())  // OR if (UPstream::is_rank(communicator))
     {
         finalDecomp = treeDecompose_impl(numDomains, rotatedPoints, weights);
     }
@@ -649,15 +577,7 @@ Foam::treeDecomp::treeDecomp(label numDomains, const labelUList& weights)
 :
     decompositionMethod(numDomains)
 {
-    copy_weights(numDomains, weights, procWeights_);
-}
-
-
-Foam::treeDecomp::treeDecomp(label numDomains, const boolUList& selection)
-:
-    decompositionMethod(numDomains)
-{
-    select_weights(numDomains, selection, procWeights_);
+    copyWeights(numDomains, weights, procWeights_);
 }
 
 
@@ -665,7 +585,15 @@ Foam::treeDecomp::treeDecomp(label numDomains, const bitSet& selection)
 :
     decompositionMethod(numDomains)
 {
-    select_weights(numDomains, selection, procWeights_);
+    selectWeights(numDomains, selection, procWeights_);
+}
+
+
+Foam::treeDecomp::treeDecomp(label numDomains, const boolUList& selection)
+:
+    decompositionMethod(numDomains)
+{
+    selectWeights(numDomains, selection, procWeights_);
 }
 
 
@@ -689,6 +617,29 @@ Foam::treeDecomp::treeDecomp
     const dictionary& coeffs = findCoeffsDict(typeName + "Coeffs", select);
 
     readCoeffs(coeffs);
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::treeDecomp::setWeights(const labelUList& weights)
+{
+    procWeights_.clear();
+    copy_weights(nDomains_, weights, procWeights_);
+}
+
+
+void Foam::treeDecomp::setWeights(const bitSet& selection)
+{
+    procWeights_.clear();
+    selectWeights(nDomains_, selection, procWeights_);
+}
+
+
+void Foam::treeDecomp::setWeights(const boolUList& selection)
+{
+    procWeights_.clear();
+    selectWeights(nDomains_, selection, procWeights_);
 }
 
 

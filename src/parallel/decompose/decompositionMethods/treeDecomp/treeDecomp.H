@@ -65,9 +65,6 @@ SourceFiles
 namespace Foam
 {
 
-// Forward Declarations
-class bitSet;
-
 /*---------------------------------------------------------------------------*\
                          Class treeDecomp Declaration
 \*---------------------------------------------------------------------------*/
@@ -155,10 +152,10 @@ public:
         treeDecomp(label numDomains, const labelUList& weights);
 
         //- Construct with number of domains and specified domain selection
-        treeDecomp(label numDomains, const boolUList& selection);
+        treeDecomp(label numDomains, const bitSet& selection);
 
         //- Construct with number of domains and specified domain selection
-        treeDecomp(label numDomains, const bitSet& selection);
+        treeDecomp(label numDomains, const boolUList& selection);
 
         //- Construct with number of domains and coordinate transformation,
         //- no coefficients or constraints
@@ -179,14 +176,32 @@ public:
 
     // Member Functions
 
-        //- The target load per domain (non-normalized)
-        const UList<scalar>& weights() const noexcept { return procWeights_; }
-
         //- Purely geometric methods
         virtual bool geometric() const { return true; }
 
         //- Sends all points to the master for decomposition
         virtual bool parallelAware() const { return true; }
+
+
+    // Domain Weighting
+
+        //- Has processor/domain weights?
+        bool hasWeights() const noexcept { return !procWeights_.empty(); }
+
+        //- The target load per domain (non-normalized)
+        const UList<scalar>& weights() const noexcept { return procWeights_; }
+
+        //- Remove processor/domain weighting
+        void clearWeights() { procWeights_.clear(); }
+
+        //- Set/reset the processor/domain weighting
+        void setWeights(const labelUList& weights);
+
+        //- Set/reset the processor/domain selection (weighting)
+        void setWeights(const bitSet& selection);
+
+        //- Set/reset the processor/domain selection (weighting)
+        void setWeights(const boolUList& selection);
 
 
     // Member Functions

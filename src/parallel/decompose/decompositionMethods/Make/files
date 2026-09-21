@@ -6,9 +6,9 @@ manualDecomp/manualDecomp.C
 multiLevelDecomp/multiLevelDecomp.C
 metisLikeDecomp/metisLikeDecomp.C
 structuredDecomp/structuredDecomp.C
-randomDecomp/randomDecomp.C
+randomDecomp/randomDecomp.cxx
 treeDecomp/treeDecomp.cxx
-noDecomp/noDecomp.C
+noDecomp/noDecomp.cxx
 
 
 constraints = decompositionConstraints

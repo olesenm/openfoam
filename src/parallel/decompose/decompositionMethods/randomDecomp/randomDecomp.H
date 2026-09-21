@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -40,7 +41,7 @@ Description
     \endtable
 
 SourceFiles
-    randomDecomp.C
+    randomDecomp.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -66,11 +67,6 @@ class randomDecomp
         label agglom_;
 
 
-    // Private Member Functions
-
-        //- Random distribution on the 0-nCells interval
-        labelList randomMap(const label nCells) const;
-
 public:
 
     // Generated Methods
@@ -89,7 +85,7 @@ public:
     // Constructors
 
         //- Construct with number of domains (no coefficients or constraints)
-        explicit randomDecomp(const label numDomains);
+        explicit randomDecomp(label numDomains);
 
         //- Construct for decomposition dictionary and optional region name
         explicit randomDecomp
@@ -106,11 +102,11 @@ public:
 
     // Member Functions
 
+        //- Can masquerade as a purely geometric method
+        virtual bool geometric() const { return true; }
+
         //- Does not care about proc boundaries
-        virtual bool parallelAware() const
-        {
-            return true;
-        }
+        virtual bool parallelAware() const { return true; }
 
         //- Return for every coordinate the wanted processor number.
         virtual labelList decompose

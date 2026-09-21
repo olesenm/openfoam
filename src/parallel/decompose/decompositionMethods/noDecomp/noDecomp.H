@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2015 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -33,7 +34,7 @@ Description
     Method coefficients: \a none
 
 SourceFiles
-    noDecomp.C
+    noDecomp.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -71,7 +72,7 @@ public:
     // Constructors
 
         //- Construct with number of domains (ignored)
-        explicit noDecomp(const label numDomains);
+        explicit noDecomp(label numDomains);
 
         //- Construct given decomposition dictionary and optional region name
         explicit noDecomp
@@ -87,11 +88,11 @@ public:
 
     // Member Functions
 
+        //- Can masquerade as a purely geometric method
+        virtual bool geometric() const { return true; }
+
         //- Does not care about proc boundaries
-        virtual bool parallelAware() const
-        {
-            return true;
-        }
+        virtual bool parallelAware() const { return true; }
 
         //- Return for every coordinate the wanted processor number.
         virtual labelList decompose

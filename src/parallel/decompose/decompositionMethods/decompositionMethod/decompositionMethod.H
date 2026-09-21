@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,6 +45,9 @@ SourceFiles
 
 namespace Foam
 {
+
+// Forward Declarations
+class bitSet;
 
 /*---------------------------------------------------------------------------*\
                      Class decompositionMethod Declaration
@@ -131,6 +135,60 @@ protected:
             const word& coeffsName,
             int select = selectionType::DEFAULT
         ) const;
+
+
+        //- Sanitize the \p weights to remove small and negative values.
+        //- Extends or truncates to the \p targetCount.
+        //- If the weights correspond to uniform weighting, the \p weights
+        //- parameter is cleared (allows the caller to treat as unweighted).
+        //
+        //  No normalization is performed.
+        static void sanitizeWeights
+        (
+            const label targetCount,
+            List<scalar>& weights,
+            //! Report size mismatch between targetCount and weights
+            const bool report = false
+        );
+
+        //- Copy integral weights to scalar weights, with negative values
+        //- treated like 0. Extends or truncates to the \p targetCount.
+        //- If the weights correspond to uniform weighting, the \p weights
+        //- parameter is cleared (allows the caller to treat as unweighted).
+        //
+        //  No normalization is performed.
+        static void copyWeights
+        (
+            const label targetCount,
+            const labelUList& inputWeights,
+            List<scalar>& weights,
+            //! Report size mismatch between targetCount and inputWeights
+            const bool report = false
+        );
+
+        //- Define scalar weights (0 or 1) based on a boolean selection.
+        //- If the weights correspond to uniform weighting, the \p weights
+        //- parameter is cleared (allows the caller to treat as unweighted).
+        //
+        //  No normalization is performed.
+        static void selectWeights
+        (
+            const label targetCount,
+            const bitSet& selection,
+            List<scalar>& weights
+        );
+
+        //- Define scalar weights (0 or 1) based on a boolean selection.
+        //- If the weights correspond to uniform weighting, the \p weights
+        //- parameter is cleared (allows the caller to treat as unweighted).
+        //
+        //  No normalization is performed.
+        static void selectWeights
+        (
+            const label targetCount,
+            const boolUList& selection,
+            List<scalar>& weights
+        );
 
 
     // Constructors

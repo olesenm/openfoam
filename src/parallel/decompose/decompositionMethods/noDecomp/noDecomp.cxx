@@ -5,7 +5,8 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2012 OpenFOAM Foundation
+    Copyright (C) 2017-2023 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,129 +26,84 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "randomDecomp.H"
-#include "Random.H"
+#include "noDecomp.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
 namespace Foam
 {
-    defineTypeName(randomDecomp);
-    addToRunTimeSelectionTable
+    defineTypeName(noDecomp);
+    addNamedToRunTimeSelectionTable
     (
         decompositionMethod,
-        randomDecomp,
-        dictionary
+        noDecomp,
+        dictionary,
+        none
     );
-}
-
-
-// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
-
-Foam::labelList Foam::randomDecomp::randomMap(const label nCells) const
-{
-    Random rndGen(0);
-
-    labelList finalDecomp(nCells);
-
-    if (agglom_ > 1)
-    {
-        label cached = 0;
-        label repeat = 0;
-
-        for (label& val : finalDecomp)
-        {
-            if (!repeat)
-            {
-                cached = rndGen.position<label>(0, nDomains_ - 1);
-                repeat = agglom_;
-            }
-            --repeat;
-
-            val = cached;
-        }
-    }
-    else
-    {
-        for (label& val : finalDecomp)
-        {
-            val = rndGen.position<label>(0, nDomains_ - 1);
-        }
-    }
-
-    return finalDecomp;
 }
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::randomDecomp::randomDecomp(const label numDomains)
+Foam::noDecomp::noDecomp(label numDomains)
 :
-    decompositionMethod(numDomains),
-    agglom_(0)
+    decompositionMethod(numDomains)
 {}
 
 
-Foam::randomDecomp::randomDecomp
+Foam::noDecomp::noDecomp
 (
     const dictionary& decompDict,
-    const word& regionName,
-    int select
+    const word& regionName
 )
 :
-    decompositionMethod(decompDict, regionName),
-    agglom_(0)
-{
-    const dictionary& coeffs = findCoeffsDict(typeName + "Coeffs", select);
-
-    // No sanity check needed here (done in randomMap routine)
-    coeffs.readIfPresent("agglom", agglom_);
-}
+    decompositionMethod(decompDict, regionName)
+{}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::labelList Foam::randomDecomp::decompose
+Foam::labelList Foam::noDecomp::decompose
 (
     const pointField& points,
     const scalarField&
 ) const
 {
-    return randomMap(points.size());
+    return labelList(points.size(), UPstream::myProcNo());
 }
 
 
-Foam::labelList Foam::randomDecomp::decompose
+Foam::labelList Foam::noDecomp::decompose
 (
     const polyMesh& mesh,
     const pointField&,
     const scalarField&
 ) const
 {
-    return randomMap(mesh.nCells());
+    return labelList(mesh.nCells(), UPstream::myProcNo());
 }
 
 
-Foam::labelList Foam::randomDecomp::decompose
+Foam::labelList Foam::noDecomp::decompose
 (
     const CompactListList<label>& globalCellCells,
     const pointField&,
     const scalarField&
 ) const
 {
-    return randomMap(globalCellCells.size());
+    return labelList(globalCellCells.size(), UPstream::myProcNo());
 }
 
 
-Foam::labelList Foam::randomDecomp::decompose
+Foam::labelList Foam::noDecomp::decompose
 (
     const labelListList& globalCellCells,
     const pointField&,
     const scalarField&
 ) const
 {
-    return randomMap(globalCellCells.size());
+    return labelList(globalCellCells.size(), UPstream::myProcNo());
 }
 
 
