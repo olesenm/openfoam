@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,8 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "findRefCell.H"
+#include "indexedOctree.H"
+#include "treeDataCell.H"
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
@@ -42,21 +45,42 @@ bool Foam::setRefCell
 {
     if (fieldRef.needReference() || forceReference)
     {
+        const auto& mesh = field.mesh();
+
         const word refCellName = field.name() + "RefCell";
         const word refPointName = field.name() + "RefPoint";
         const word refValueName = field.name() + "RefValue";
 
-        if (dict.found(refCellName))
-        {
-            if (Pstream::master())
-            {
-                dict.readEntry(refCellName, refCelli);
+        const entry* refCellFnd = dict.findEntry(refCellName);
+        const entry* refPointFnd = dict.findEntry(refPointName);
 
-                if (refCelli < 0 || refCelli >= field.mesh().nCells())
+        label n = 0;
+        if (refCellFnd) n++;
+        if (refPointFnd) n++;
+        if (n != 1)
+        {
+            FatalIOErrorInFunction(dict)
+                << "Unable to set reference cell for field " << field.name()
+                << nl
+                << "    Please supply either " << refPointName
+                << " or " << refCellName << nl << exit(FatalIOError);
+        }
+
+
+        if (refCellFnd)
+        {
+            if (Pstream::master(mesh.comm()))
+            {
+                refCellFnd->stream() >> refCelli;
+
+                if (refCelli < 0 || refCelli >= mesh.nCells())
                 {
                     FatalIOErrorInFunction(dict)
                         << "Illegal master cellID " << refCelli
-                        << ". Should be 0.." << field.mesh().nCells()
+                        << ". Should be 0.." << mesh.nCells()
+                        << nl
+                        << "    Preferentially use "
+                        << refPointName << " to supply a location instead" << nl
                         << exit(FatalIOError);
                 }
             }
@@ -65,43 +89,100 @@ bool Foam::setRefCell
                 refCelli = -1;
             }
         }
-        else if (dict.found(refPointName))
-        {
-            point refPointi(dict.get<point>(refPointName));
-
-            // Try fast approximate search avoiding octree construction
-            refCelli = field.mesh().findCell(refPointi, polyMesh::FACE_PLANES);
-
-            label hasRef = (refCelli >= 0 ? 1 : 0);
-            label sumHasRef = returnReduce<label>(hasRef, sumOp<label>());
-
-            // If reference cell not found, use octree search
-            // with cell tet-decompositoin
-            if (sumHasRef != 1)
-            {
-                refCelli = field.mesh().findCell(refPointi);
-
-                hasRef = (refCelli >= 0 ? 1 : 0);
-                sumHasRef = returnReduce<label>(hasRef, sumOp<label>());
-            }
-
-            if (sumHasRef != 1)
-            {
-                FatalIOErrorInFunction(dict)
-                    << "Unable to set reference cell for field " << field.name()
-                    << nl << "    Reference point " << refPointName
-                    << " " << refPointi
-                    << " found on " << sumHasRef << " domains (should be one)"
-                    << nl << exit(FatalIOError);
-            }
-        }
         else
         {
-            FatalIOErrorInFunction(dict)
-                << "Unable to set reference cell for field " << field.name()
-                << nl
-                << "    Please supply either " << refCellName
-                << " or " << refPointName << nl << exit(FatalIOError);
+            const point refPt(refPointFnd->stream());
+
+            // Try fast approximate search avoiding octree construction
+            refCelli = mesh.findCell(refPt, polyMesh::FACE_PLANES);
+
+            const label communicator = field.mesh().comm();
+
+            label ranking = UPstream::find_first((refCelli >= 0), communicator);
+            if (ranking < 0)
+            {
+                // Nobody found it - try with cell tet-decompositon
+                refCelli = field.mesh().findCell(refPt);
+                ranking = UPstream::find_first((refCelli >= 0), communicator);
+            }
+
+            // Lowest rank takes the lead
+            if (ranking != UPstream::myProcNo(communicator))
+            {
+                refCelli = -1;
+            }
+            // But also possible that nobody found it
+            if (ranking < 0)
+            {
+                // Nobody found it - try nearest
+
+                const auto& globalCells =
+                    mesh.globalData().globalMeshCellAddr();
+
+                // Find the nearest cell to the reference point
+                pointIndexHit nearInfo =
+                    mesh.cellTree().findNearest(refPt, Foam::sqr(GREAT));
+
+                // Convert the cell to global numbering
+                if (nearInfo.hit())
+                {
+                    nearInfo.setIndex(globalCells.toGlobal(nearInfo.index()));
+                }
+
+                // Reduce to find the globally nearest cell
+                Foam::reduce
+                (
+                    nearInfo,
+                    [&refPt](pointIndexHit& a, const pointIndexHit& b) -> auto
+                    {
+                        if (!a.hit())
+                        {
+                            if (b.hit())
+                            {
+                                return b;
+                            }
+                        }
+                        else if
+                        (
+                            b.hit()
+                        && magSqr(refPt - a.point()) > magSqr(refPt - b.point())
+                        )
+                        {
+                            return b;
+                        }
+                        return a;
+                    },
+                    UPstream::msgType(),
+                    mesh.comm()
+                );
+
+                if (!nearInfo.hit())
+                {
+                    // Give up
+                    FatalIOErrorInFunction(dict)
+                        << "Reference point " << refPointName
+                        << " not found in any cell on this domain" << nl
+                        << exit(FatalIOError);
+                }
+                else
+                {
+                    IOWarningInFunction(dict)
+                        << "Reference point " << refPointName
+                        << " not found in any cell on any domain" << nl
+                        << "    Reverting to nearest cell at "
+                        << nearInfo.point() << nl;
+
+                    // Set ref cell on the domain that holds it
+                    if (globalCells.isLocal(nearInfo.index()))
+                    {
+                        refCelli = globalCells.toLocal(nearInfo.index());
+                    }
+                    else
+                    {
+                        refCelli = -1;
+                    }
+                }
+            }
         }
 
         dict.readEntry(refValueName, refValue);
