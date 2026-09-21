@@ -28,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "geomDecomp.H"
+#include "bitSet.H"
 #include "specifiedRotation.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
@@ -85,41 +86,36 @@ void Foam::geomDecomp::readCoeffs()
     }
     setOrder();
 
-
-    procWeights_.clear();
     if
     (
         coeffsDict_.readIfPresent("processorWeights", procWeights_)
-     && !procWeights_.empty()
+     && (procWeights_.size() > 1)
     )
     {
-        if (procWeights_.size() != nDomains_)
+        if (procWeights_.size() < nDomains_)
         {
             FatalIOErrorInFunction(coeffsDict_)
                 << "processorWeights (" << procWeights_.size()
-                << ") != number of domains (" << nDomains_ << ")" << nl
+                << ") less than numberOfSubdomains (" << nDomains_
+                << ")\n"
                 << exit(FatalIOError);
         }
-
-        scalar sumW = 0; scalar minW = 0;
-        for (auto& w : procWeights_)
+        else if (procWeights_.size() > nDomains_)
         {
-            sumW += w;
-            minW = Foam::min(w, minW);
+            WarningInFunction
+                << "processorWeights (" << procWeights_.size()
+                << ") greater than numberOfSubdomains (" << nDomains_
+                << ") ... truncating" << endl;
+
+            procWeights_.resize(nDomains_, 0);
         }
 
-        if (!std::isfinite(sumW) || sumW <= SMALL || minW < 0)
-        {
-            FatalIOErrorInFunction(coeffsDict_)
-                << "Invalid processorWeights " << procWeights_ << nl
-                << "(sum:" << sumW << ", min:" << minW << ")."
-                << exit(FatalIOError);
-        }
-
-        for (auto& w : procWeights_)
-        {
-            w /= sumW;
-        }
+        sanitizeWeights(nDomains_, procWeights_);
+    }
+    else
+    {
+        // Also treat size 1 like uniform weighted
+        procWeights_.clear();
     }
 
     // Optional (cartesian) coordinate system transform
@@ -127,7 +123,7 @@ void Foam::geomDecomp::readCoeffs()
 
     if (csysPtr)
     {
-        csys_ = csysPtr();
+        csys_ = *csysPtr;
     }
     else if (equal(delta_, 0))
     {
@@ -153,6 +149,7 @@ void Foam::geomDecomp::readCoeffs()
         csys_ = coordinateSystem(coordinateRotations::specified(rot));
     }
 }
+
 
 // * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
 
@@ -225,6 +222,7 @@ Foam::scalarList Foam::geomDecomp::binWeightFractions
 
     if (total > SMALL)
     {
+        // Normalize the fraction
         for (auto& fraction : fractions)
         {
             fraction /= total;
@@ -280,6 +278,7 @@ Foam::scalarList Foam::geomDecomp::axisWeightFractions
 
     if (total > SMALL)
     {
+        // Normalize the fraction
         for (auto& fraction : fractions)
         {
             fraction /= total;
@@ -341,6 +340,29 @@ Foam::geomDecomp::geomDecomp
     coeffsDict_(findCoeffsDict(derivedType + "Coeffs", select))
 {
     readCoeffs();
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::geomDecomp::setWeights(const labelUList& weights)
+{
+    procWeights_.clear();
+    copyWeights(nDomains_, weights, procWeights_);
+}
+
+
+void Foam::geomDecomp::setWeights(const bitSet& selection)
+{
+    procWeights_.clear();
+    selectWeights(nDomains_, selection, procWeights_);
+}
+
+
+void Foam::geomDecomp::setWeights(const boolUList& selection)
+{
+    procWeights_.clear();
+    selectWeights(nDomains_, selection, procWeights_);
 }
 
 
