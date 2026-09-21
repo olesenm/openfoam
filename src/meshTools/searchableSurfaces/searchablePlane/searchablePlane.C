@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -159,13 +160,17 @@ void Foam::searchablePlane::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(samples.size());
+    info.resize(samples.size());
+
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
     forAll(samples, i)
     {
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
         info[i].setPoint(nearestPoint(samples[i]));
 
-        if (info[i].point().distSqr(samples[i]) > nearestDistSqr[i])
+        if (info[i].point().distSqr(samples[i]) > maxDistSqr)
         {
             info[i].setIndex(-1);
             info[i].setMiss();

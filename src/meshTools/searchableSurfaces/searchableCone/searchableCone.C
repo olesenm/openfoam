@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -767,12 +768,16 @@ void Foam::searchableCone::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(samples.size());
+    info.resize(samples.size());
+
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
     forAll(samples, i)
     {
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
         vector normal;
-        findNearestAndNormal(samples[i], nearestDistSqr[i], info[i], normal);
+        findNearestAndNormal(samples[i], maxDistSqr, info[i], normal);
     }
 }
 

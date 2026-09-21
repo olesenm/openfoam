@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -134,6 +135,15 @@ public:
         };
 
 
+    // Properties
+
+        //- The default max search distance squared
+        static constexpr scalar defaultMaxDistSqr() noexcept
+        {
+            return Foam::sqr(GREAT);
+        }
+
+
     // Constructors
 
         searchableSurface(const IOobject& io);
@@ -206,6 +216,22 @@ public:
         virtual label globalSize() const
         {
             return size();
+        }
+
+        //- The number of the points that define the surface.
+        //  \note the base implementation just gets it value from points(),
+        //        but subclasses should override with a more efficient
+        //        calculation whenever possible
+        virtual label nPoints() const
+        {
+            if (auto tpts = points(); tpts.good())
+            {
+                return tpts.get()->size();
+            }
+            else
+            {
+                return 0;
+            }
         }
 
         //- Get representative set of element coordinates

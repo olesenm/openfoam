@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -964,13 +965,26 @@ void Foam::triSurfaceMesh::findNearest
 {
     if (debug)
     {
+        scalar maxRadius = 0;
+        if (!samples.empty())
+        {
+            if (nearestDistSqr.empty())
+            {
+                maxRadius = searchableSurface::defaultMaxDistSqr();
+            }
+            else
+            {
+                maxRadius = max(nearestDistSqr);
+            }
+            maxRadius = std::sqrt(maxRadius);
+        }
+
         Pout<< "triSurfaceMesh::findNearest :"
             << " surface:" << searchableSurface::name()
             << " trying to find nearest for " << samples.size()
-            << " samples with max sphere "
-            << (samples.size() ? Foam::sqrt(max(nearestDistSqr)) : Zero)
-            << endl;
+            << " samples with max sphere " << maxRadius << endl;
     }
+
     triSurfaceSearch::findNearest(samples, nearestDistSqr, info);
     if (debug)
     {
@@ -991,13 +1005,26 @@ void Foam::triSurfaceMesh::findNearest
 {
     if (debug)
     {
+        scalar maxRadius = 0;
+        if (!samples.empty())
+        {
+            if (nearestDistSqr.empty())
+            {
+                maxRadius = searchableSurface::defaultMaxDistSqr();
+            }
+            else
+            {
+                maxRadius = max(nearestDistSqr);
+            }
+            maxRadius = std::sqrt(maxRadius);
+        }
+
         Pout<< "triSurfaceMesh::findNearest :"
             << " surface:" << searchableSurface::name()
             << " trying to find nearest and region for " << samples.size()
-            << " samples with max sphere "
-            << (samples.size() ? Foam::sqrt(max(nearestDistSqr)) : Zero)
-            << endl;
+            << " samples with max sphere " << maxRadius << endl;
     }
+
     triSurfaceRegionSearch::findNearest
     (
         samples,
@@ -1005,6 +1032,7 @@ void Foam::triSurfaceMesh::findNearest
         regionIndices,
         info
     );
+
     if (debug)
     {
         Pout<< "triSurfaceMesh::findNearest :"

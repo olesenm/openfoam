@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "triSurfaceSearch.H"
 #include "triSurface.H"
+#include "searchableSurface.H"
 #include "PatchTools.H"
 #include "volumeType.H"
 
@@ -318,16 +320,15 @@ void Foam::triSurfaceSearch::findNearest
 
     const treeDataTriSurface::findNearestOp fOp(octree);
 
-    info.setSize(samples.size());
+    info.resize(samples.size());
+
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
     forAll(samples, i)
     {
-        info[i] = octree.findNearest
-        (
-            samples[i],
-            nearestDistSqr[i],
-            fOp
-        );
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
+        info[i] = octree.findNearest(samples[i], maxDistSqr, fOp);
     }
 
     indexedOctree<treeDataTriSurface>::perturbTol(oldTol);

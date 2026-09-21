@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -138,6 +139,7 @@ public:
         {
             return true;
         }
+
         //- What is type of points outside bounds
         virtual volumeType outsideVolumeType() const
         {
@@ -147,7 +149,13 @@ public:
         //- Range of local indices that can be returned.
         virtual label size() const
         {
-            return 6;
+            return treeBoundBox::nFaces();
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
+        {
+            return treeBoundBox::nPoints();
         }
 
         //- Get representative set of element coordinates

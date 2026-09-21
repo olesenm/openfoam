@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -50,8 +51,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableExtrudedCircle_H
-#define searchableExtrudedCircle_H
+#ifndef Foam_searchableExtrudedCircle_H
+#define Foam_searchableExtrudedCircle_H
 
 #include "treeBoundBox.H"
 #include "searchableSurface.H"
@@ -137,6 +138,9 @@ public:
 
         //- Range of local indices that can be returned.
         virtual label size() const;
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const;
 
         //- Get representative set of element coordinates
         //  Usually the element centres (should be of length size()).

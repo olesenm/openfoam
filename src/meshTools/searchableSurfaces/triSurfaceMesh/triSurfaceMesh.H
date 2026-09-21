@@ -51,8 +51,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef triSurfaceMesh_H
-#define triSurfaceMesh_H
+#ifndef Foam_triSurfaceMesh_H
+#define Foam_triSurfaceMesh_H
 
 #include "searchableSurface.H"
 #include "treeBoundBox.H"
@@ -214,6 +214,13 @@ public:
             virtual label size() const
             {
                 return triSurface::size();
+            }
+
+            //- The number of the points that define the surface.
+            virtual label nPoints() const
+            {
+                // NB: points().size() to avoid any meshPoints...
+                return triSurface::points().size();
             }
 
             //- Flip triangles, outsideVolumeType and all cached inside/outside.

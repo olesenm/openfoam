@@ -7,6 +7,8 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2020 Victor Olesen
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -508,10 +510,17 @@ static scalar distanceToEllipsoid
 } // End namespace Foam
 
 
-// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::searchableSphere::componentOrder
-Foam::searchableSphere::getOrdering(const vector& radii)
+inline Foam::searchableSphere::componentOrder::componentOrder
+(
+    const vector& radii
+)
+:
+    minor(0),
+    mezzo(1),
+    major(2),
+    shape(shapeType::GENERAL)
 {
     #ifdef FULLDEBUG
     for (direction cmpt = 0; cmpt < vector::nComponents; ++cmpt)
@@ -527,31 +536,29 @@ Foam::searchableSphere::getOrdering(const vector& radii)
 
     std::array<uint8_t, 3> idx{0, 1, 2};
 
-    // Reverse sort by magnitude (largest first...)
+    // Sort by magnitude
     // Radii are positive (checked above, or just always true)
     std::stable_sort
     (
         idx.begin(),
         idx.end(),
-        [&](uint8_t a, uint8_t b){ return radii[a] > radii[b]; }
+        [&radii](uint8_t a, uint8_t b){ return radii[a] < radii[b]; }
     );
 
-    componentOrder order{idx[0], idx[1], idx[2], shapeType::GENERAL};
+    minor = idx[0]; mezzo = idx[1]; major = idx[2];
 
-    if (equal(radii[order.major], radii[order.minor]))
+    if (equal(radii[major], radii[minor]))
     {
-        order.shape = shapeType::SPHERE;
+        shape = shapeType::SPHERE;
     }
-    else if (equal(radii[order.major], radii[order.mezzo]))
+    else if (equal(radii[major], radii[mezzo]))
     {
-        order.shape = shapeType::OBLATE;
+        shape = shapeType::OBLATE;
     }
-    else if (equal(radii[order.mezzo], radii[order.minor]))
+    else if (equal(radii[mezzo], radii[minor]))
     {
-        order.shape = shapeType::PROLATE;
+        shape = shapeType::PROLATE;
     }
-
-    return order;
 }
 
 
@@ -797,7 +804,7 @@ Foam::searchableSphere::searchableSphere
     searchableSurface(io),
     origin_(origin),
     radii_(radii),
-    order_(getOrdering(radii_))  // NB: use () not {} for copy initialization
+    order_(radii_)
 {
     bounds().min() = (centre() - radii_);
     bounds().max() = (centre() + radii_);
@@ -942,9 +949,13 @@ void Foam::searchableSphere::findNearest
 {
     info.resize(samples.size());
 
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
+
     forAll(samples, i)
     {
-        info[i] = findNearest(samples[i], nearestDistSqr[i]);
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
+        info[i] = findNearest(samples[i], maxDistSqr);
     }
 }
 

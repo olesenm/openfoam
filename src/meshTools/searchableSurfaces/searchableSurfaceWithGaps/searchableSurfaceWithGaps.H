@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -63,8 +64,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableSurfaceWithGaps_H
-#define searchableSurfaceWithGaps_H
+#ifndef Foam_searchableSurfaceWithGaps_H
+#define Foam_searchableSurfaceWithGaps_H
 
 #include "searchableSurface.H"
 #include "UPtrList.H"
@@ -176,6 +177,12 @@ public:
         virtual label size() const
         {
             return surface().size();
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
+        {
+            return surface().nPoints();
         }
 
         //- Get representative set of element coordinates

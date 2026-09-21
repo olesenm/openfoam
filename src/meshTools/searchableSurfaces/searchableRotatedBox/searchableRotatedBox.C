@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -263,11 +264,15 @@ void Foam::searchableRotatedBox::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(samples.size());
+    info.resize(samples.size());
+
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
     forAll(samples, i)
     {
-        info[i] = findNearest(samples[i], nearestDistSqr[i]);
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
+        info[i] = findNearest(samples[i], maxDistSqr);
     }
 }
 

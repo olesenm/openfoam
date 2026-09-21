@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014 OpenFOAM Foundation
     Copyright (C) 2015-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -61,8 +62,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableRotatedBox_H
-#define searchableRotatedBox_H
+#ifndef Foam_searchableRotatedBox_H
+#define Foam_searchableRotatedBox_H
 
 #include "searchableSurface.H"
 #include "searchableBox.H"
@@ -150,7 +151,13 @@ public:
         //- Range of local indices that can be returned.
         virtual label size() const
         {
-            return 6;
+            return treeBoundBox::nFaces();
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
+        {
+            return treeBoundBox::nPoints();
         }
 
         //- Get representative set of element coordinates

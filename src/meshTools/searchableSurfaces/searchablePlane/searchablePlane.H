@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -46,8 +47,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchablePlane_H
-#define searchablePlane_H
+#ifndef Foam_searchablePlane_H
+#define Foam_searchablePlane_H
 
 #include "searchableSurface.H"
 #include "plane.H"
@@ -66,8 +67,6 @@ class searchablePlane
     public searchableSurface,
     public plane
 {
-private:
-
     // Private Member Data
 
         //- Names of regions
@@ -139,6 +138,12 @@ public:
 
         //- Range of local indices that can be returned.
         virtual label size() const
+        {
+            return 1;
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
         {
             return 1;
         }
@@ -234,7 +239,6 @@ public:
                 NotImplemented;
                 return false;
             }
-
 };
 
 

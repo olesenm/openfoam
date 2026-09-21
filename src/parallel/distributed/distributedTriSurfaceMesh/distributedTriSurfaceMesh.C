@@ -4060,12 +4060,24 @@ void Foam::distributedTriSurfaceMesh::findNearest
 
     if (debug)
     {
+        scalar maxRadius = 0;
+        if (!samples.empty())
+        {
+            if (nearestDistSqr.empty())
+            {
+                maxRadius = searchableSurface::defaultMaxDistSqr();
+            }
+            else
+            {
+                maxRadius = max(nearestDistSqr);
+            }
+            maxRadius = std::sqrt(maxRadius);
+        }
+
         Pout<< "distributedTriSurfaceMesh::findNearest :"
             << " surface " << searchableSurface::name()
             << " trying to find nearest for " << samples.size()
-            << " samples with max sphere "
-            << (samples.size() ? Foam::sqrt(max(nearestDistSqr)) : Zero)
-            << endl;
+            << " samples with max sphere " << maxRadius << endl;
     }
 
     if (distType_ == NODEMASTER)
@@ -6124,7 +6136,7 @@ void Foam::distributedTriSurfaceMesh::distribute
                     faceSendMap[proci].end(),
                     0
                 );
-                pointSendMap[proci].setSize(points()().size());
+                pointSendMap[proci].setSize(nPoints());
                 std::iota
                 (
                     pointSendMap[proci].begin(),

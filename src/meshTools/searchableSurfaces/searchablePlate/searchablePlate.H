@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -56,8 +57,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchablePlate_H
-#define searchablePlate_H
+#ifndef Foam_searchablePlate_H
+#define Foam_searchablePlate_H
 
 #include "searchableSurface.H"
 #include "treeBoundBox.H"
@@ -172,6 +173,12 @@ public:
         virtual label size() const
         {
             return 1;
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
+        {
+            return 4;
         }
 
         //- Get representative set of element coordinates

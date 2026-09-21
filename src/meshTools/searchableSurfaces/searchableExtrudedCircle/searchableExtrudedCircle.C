@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -135,6 +136,12 @@ const Foam::wordList& Foam::searchableExtrudedCircle::regions() const
 
 
 Foam::label Foam::searchableExtrudedCircle::size() const
+{
+    return eMeshPtr_().points().size();
+}
+
+
+Foam::label Foam::searchableExtrudedCircle::nPoints() const
 {
     return eMeshPtr_().points().size();
 }

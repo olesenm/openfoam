@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -542,9 +543,13 @@ void Foam::searchableCylinder::findNearest
 {
     info.setSize(samples.size());
 
+    scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
+
     forAll(samples, i)
     {
-        info[i] = findNearest(samples[i], nearestDistSqr[i]);
+        if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
+
+        info[i] = findNearest(samples[i], maxDistSqr);
     }
 }
 

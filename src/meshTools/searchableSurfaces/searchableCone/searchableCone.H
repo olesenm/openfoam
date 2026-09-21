@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -52,8 +53,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableCone_H
-#define searchableCone_H
+#ifndef Foam_searchableCone_H
+#define Foam_searchableCone_H
 
 #include "searchableSurface.H"
 
@@ -201,6 +202,12 @@ public:
         virtual label size() const
         {
             return 1;
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
+        {
+            return 2;
         }
 
         //- Get representative set of element coordinates

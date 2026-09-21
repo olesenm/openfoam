@@ -878,11 +878,10 @@ void Foam::searchableSurfaces::writeStats
 
         Info<< "        type      : " << s.type() << nl
             << "        size      : " << s.globalSize() << nl;
-        if (isA<triSurfaceMesh>(s))
+        if (const auto* ts = isA<triSurfaceMesh>(s))
         {
-            const triSurfaceMesh& ts = dynamic_cast<const triSurfaceMesh&>(s);
-            Info<< "        edges     : " << ts.nEdges() << nl
-                << "        points    : " << ts.points()().size() << nl;
+            Info<< "        edges     : " << ts->nEdges() << nl
+                << "        points    : " << ts->nPoints() << nl;
         }
         Info<< "        bounds    : " << s.bounds() << nl
             << "        closed    : " << Switch(s.hasVolumeType()) << endl;

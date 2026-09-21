@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -325,6 +326,18 @@ Foam::label Foam::searchableSurfaceCollection::size() const
 }
 
 
+Foam::label
+Foam::searchableSurfaceCollection::nPoints() const
+{
+    label total = 0;
+    for (const auto& geo : subGeom_)
+    {
+        total += geo.nPoints();
+    }
+    return total;
+}
+
+
 Foam::tmp<Foam::pointField>
 Foam::searchableSurfaceCollection::coordinates() const
 {
@@ -398,9 +411,9 @@ Foam::searchableSurfaceCollection::points() const
     // Get overall size
     label nPoints = 0;
 
-    forAll(subGeom_, surfI)
+    for (const auto& geo : subGeom_)
     {
-        nPoints += subGeom_[surfI].points()().size();
+        nPoints += geo.nPoints();
     }
 
     auto tpts = tmp<pointField>::New(nPoints);

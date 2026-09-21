@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2017 OpenFOAM Foundation
     Copyright (C) 2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,8 +50,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableDisk_H
-#define searchableDisk_H
+#ifndef Foam_searchableDisk_H
+#define Foam_searchableDisk_H
 
 #include "plane.H"
 #include "MinMax.H"
@@ -156,6 +157,12 @@ public:
 
         //- Range of local indices that can be returned.
         virtual label size() const
+        {
+            return 1;
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
         {
             return 1;
         }

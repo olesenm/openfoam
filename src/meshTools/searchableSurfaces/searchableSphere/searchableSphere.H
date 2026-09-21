@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -50,8 +51,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableSphere_H
-#define searchableSphere_H
+#ifndef Foam_searchableSphere_H
+#define Foam_searchableSphere_H
 
 #include "treeBoundBox.H"
 #include "searchableSurface.H"
@@ -87,13 +88,17 @@ private:
 
     // Private Types
 
-        //- Component order (largest to smallest)
+        //- Component order (smallest to largest)
         struct componentOrder
         {
-            uint8_t major;      //!< Component with major radius
-            uint8_t mezzo;      //!< Component with intermediate radius
             uint8_t minor;      //!< Component with minor radius
+            uint8_t mezzo;      //!< Component with intermediate radius
+            uint8_t major;      //!< Component with major radius
             shapeType shape;    //!< The type of shape
+
+            //- Construct from the radius values.
+            //- Determine sorted order and classify the shape.
+            inline explicit componentOrder(const vector& radii);
         };
 
 
@@ -113,9 +118,6 @@ private:
 
 
     // Private Member Functions
-
-        //- Determine sorted order and classify the shape
-        inline static componentOrder getOrdering(const vector& radii);
 
         //- Shift point relative to origin
         //- and scale relative to spheroid dimensions
@@ -262,6 +264,12 @@ public:
 
         //- Range of local indices that can be returned.
         virtual label size() const
+        {
+            return 1;
+        }
+
+        //- The number of the points that define the surface.
+        virtual label nPoints() const
         {
             return 1;
         }
