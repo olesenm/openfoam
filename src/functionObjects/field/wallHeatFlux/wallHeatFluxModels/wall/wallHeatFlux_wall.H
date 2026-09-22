@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -102,6 +103,9 @@ class wall
         //- Wall patches to process (optionally filtered by name)
         labelList patchIDs_;
 
+        //- Set once the anisotropic-solid warning has been given
+        bool warnedAnisotropic_;
+
 
     // Private Member Functions
 
@@ -111,8 +115,8 @@ class wall
         //- Calculate the wall heat-flux
         void calcHeatFlux
         (
-            const volScalarField& alpha,
-            const volScalarField& he,
+            const volScalarField& gamma,
+            const volScalarField& vf,
             volScalarField& wallHeatFlux
         );
 

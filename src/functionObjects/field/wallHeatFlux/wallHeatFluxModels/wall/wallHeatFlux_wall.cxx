@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Patrick Wilhelm, Data Lab Hell
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -70,20 +71,20 @@ void Foam::wallHeatFluxModels::wall::writeFileHeader(Ostream& os)
 
 void Foam::wallHeatFluxModels::wall::calcHeatFlux
 (
-    const volScalarField& alpha,
-    const volScalarField& he,
+    const volScalarField& gamma,
+    const volScalarField& vf,
     volScalarField& wallHeatFlux
 )
 {
     volScalarField::Boundary& wallHeatFluxBf = wallHeatFlux.boundaryFieldRef();
 
-    const auto& heBf = he.boundaryField();
+    const auto& vfBf = vf.boundaryField();
 
-    const auto& alphaBf = alpha.boundaryField();
+    const auto& gammaBf = gamma.boundaryField();
 
     for (const label patchi : patchIDs_)
     {
-        wallHeatFluxBf[patchi] = alphaBf[patchi]*heBf[patchi].snGrad();
+        wallHeatFluxBf[patchi] = gammaBf[patchi]*vfBf[patchi].snGrad();
     }
 
 
@@ -110,7 +111,8 @@ Foam::wallHeatFluxModels::wall::wall
     functionObjects::stateFunctionObject& state
 )
 :
-    wallHeatFluxModel(dict, mesh, name, objName, state)
+    wallHeatFluxModel(dict, mesh, name, objName, state),
+    warnedAnisotropic_(false)
 {
     auto* wallHeatFluxPtr
     (
@@ -233,24 +235,39 @@ bool Foam::wallHeatFluxModels::wall::execute()
     }
     else if
     (
+        // Ahead of fluidThermo: solidThermo derives from it, so the fluid
+        // branch would otherwise take every solid region
         const auto* ptr
-      = mesh().cfindObject<fluidThermo>(fluidThermo::dictName);
+      = mesh().cfindObject<solidThermo>(solidThermo::dictName);
         ptr
     )
     {
         const auto& thermo = *ptr;
 
-        calcHeatFlux
-        (
-            thermo.alpha(),
-            thermo.he(),
-            wallHeatFlux
-        );
+        if (thermo.isZoneMixture() && thermo.isotropic())
+        {
+            // at convergence heatDiffusion reduces to laplacian(kappa, T)
+            calcHeatFlux(thermo.kappa()(), thermo.T(), wallHeatFlux);
+        }
+        else
+        {
+            if (!thermo.isotropic() && !warnedAnisotropic_)
+            {
+                warnedAnisotropic_ = true;
+
+                WarningInFunction
+                    << "Region " << mesh().name() << " is anisotropic: "
+                    << "reported flux uses mag(kappa) for n & kappa & n"
+                    << endl;
+            }
+
+            calcHeatFlux(thermo.alpha(), thermo.he(), wallHeatFlux);
+        }
     }
     else if
     (
         const auto* ptr
-      = mesh().cfindObject<solidThermo>(solidThermo::dictName);
+      = mesh().cfindObject<fluidThermo>(fluidThermo::dictName);
         ptr
     )
     {
