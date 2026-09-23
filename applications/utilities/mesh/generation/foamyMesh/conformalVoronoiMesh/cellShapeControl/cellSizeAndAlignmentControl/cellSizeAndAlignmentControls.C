@@ -27,6 +27,7 @@ License
 
 #include "cellSizeAndAlignmentControls.H"
 #include "searchableSurfaceControl.H"
+#include "SortableList.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 

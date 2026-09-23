@@ -33,6 +33,7 @@ License
 #include "searchableBox.H"
 #include "vectorTools.H"
 #include "quaternion.H"
+#include "SortableList.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 

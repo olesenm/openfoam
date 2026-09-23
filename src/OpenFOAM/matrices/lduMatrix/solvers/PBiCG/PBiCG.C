@@ -96,7 +96,7 @@ Foam::solverPerformance Foam::PBiCG::solve
     // --- Calculate initial residual field
     ConstPrecisionAdaptor<solveScalar, scalar> tsource(source);
     solveScalarField rA(tsource() - wA);
-    solveScalar* __restrict__ rAPtr = rA.begin();
+    //solveScalar* __restrict__ rAPtr = rA.begin();
 
     matrix().setResidualField
     (
@@ -127,17 +127,17 @@ Foam::solverPerformance Foam::PBiCG::solve
     )
     {
         solveScalarField pT(nCells, 0);
-        solveScalar* __restrict__ pTPtr = pT.begin();
+        //solveScalar* __restrict__ pTPtr = pT.begin();
 
         solveScalarField wT(nCells);
-        solveScalar* __restrict__ wTPtr = wT.begin();
+        //gsolveScalar* __restrict__ wTPtr = wT.begin();
 
         // --- Calculate T.psi
         matrix_.Tmul(wT, psi, interfaceIntCoeffs_, interfaces_, cmpt);
 
         // --- Calculate initial transpose residual field
         solveScalarField rT(tsource() - wT);
-        solveScalar* __restrict__ rTPtr = rT.begin();
+        //solveScalar* __restrict__ rTPtr = rT.begin();
 
         // --- Initial value not used
         solveScalar wArT = 0;

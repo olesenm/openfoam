@@ -43,6 +43,7 @@ License
 #include "localPointRegion.H"
 #include "IOmanip.H"
 #include "labelVector.H"
+#include "SortableList.H"
 #include "profiling.H"
 #include "searchableSurfaces.H"
 #include "fvMeshSubset.H"

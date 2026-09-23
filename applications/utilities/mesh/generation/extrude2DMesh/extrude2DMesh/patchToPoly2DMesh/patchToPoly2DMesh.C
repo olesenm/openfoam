@@ -28,6 +28,7 @@ License
 
 #include "patchToPoly2DMesh.H"
 #include "PatchTools.H"
+#include "SortableList.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
