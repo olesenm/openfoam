@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "surfZoneIdentifier.H"
 #include "dictionary.H"
+#include "Pair.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -64,6 +66,18 @@ Foam::surfZoneIdentifier::surfZoneIdentifier
     name_(name),
     index_(index),
     geometricType_(geometricType)
+{}
+
+
+Foam::surfZoneIdentifier::surfZoneIdentifier
+(
+    label index,
+    const Pair<word>& name_type
+)
+:
+    name_(name_type.first()),
+    index_(index),
+    geometricType_(name_type.second())
 {}
 
 

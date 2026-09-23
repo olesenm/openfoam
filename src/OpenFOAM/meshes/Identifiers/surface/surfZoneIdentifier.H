@@ -52,6 +52,7 @@ namespace Foam
 
 // Forward Declarations
 class dictionary;
+template<class T> class Pair;
 
 /*---------------------------------------------------------------------------*\
                      Class surfZoneIdentifier Declaration
@@ -125,6 +126,9 @@ public:
             const label index,
             const word& geometricType
         );
+
+        //- Construct from index and (name type) tuple
+        surfZoneIdentifier(label index, const Pair<word>& name_type);
 
         //- Construct from dictionary
         surfZoneIdentifier

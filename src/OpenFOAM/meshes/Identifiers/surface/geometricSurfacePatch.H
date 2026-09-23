@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -138,6 +139,9 @@ public:
             const label index,
             const word& geometricType
         );
+
+        //- Construct from index and (name type) tuple
+        geometricSurfacePatch(label index, const Pair<word>& name_type);
 
         //- Construct from dictionary
         geometricSurfacePatch

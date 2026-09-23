@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "geometricSurfacePatch.H"
 #include "dictionary.H"
+#include "Pair.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -66,6 +68,18 @@ Foam::geometricSurfacePatch::geometricSurfacePatch
     name_(name),
     index_(index),
     geometricType_(geometricType)
+{}
+
+
+Foam::geometricSurfacePatch::geometricSurfacePatch
+(
+    label index,
+    const Pair<word>& name_type
+)
+:
+    name_(name_type.first()),
+    index_(index),
+    geometricType_(name_type.second())
 {}
 
 
@@ -151,16 +165,6 @@ Foam::Ostream& Foam::operator<<(Ostream& os, const geometricSurfacePatch& obj)
 
     os.writeQuoted(obj.name(), obj.name().empty()) << token::SPACE;
     os.writeQuoted(obj.geometricType(), obj.geometricType().empty());
-
-    // Equivalent for OpenFOAM-1912 and earlier:
-    // if (obj.geometricType().empty())
-    // {
-    //     os << emptyType;
-    // }
-    // else
-    // {
-    //     os << obj.geometricType();
-    // }
 
     os.check(FUNCTION_NAME);
     return os;

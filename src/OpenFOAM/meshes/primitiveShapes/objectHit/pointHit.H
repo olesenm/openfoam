@@ -132,6 +132,9 @@ public:
         //- Is there a hit
         constexpr bool hit() const noexcept { return hit_; }
 
+        //- Not hit
+        constexpr bool not_hit() const noexcept { return !hit_; }
+
         //- Is this an eligible miss
         constexpr bool eligibleMiss() const noexcept { return eligibleMiss_; }
 

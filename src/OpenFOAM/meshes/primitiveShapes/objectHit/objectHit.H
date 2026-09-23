@@ -98,6 +98,9 @@ public:
         //- Is there a hit?
         constexpr bool hit() const noexcept { return hit_; }
 
+        //- Not hit
+        constexpr bool not_hit() const noexcept { return !hit_; }
+
         //- Considered \em "bad" if the index is equal to bad_index()
         constexpr bool bad() const noexcept { return index_ == bad_index(); }
 
