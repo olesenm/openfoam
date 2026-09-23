@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -123,17 +124,65 @@ private:
         //- Write to Ostream
         void writeOstream(Ostream& os) const;
 
-
-        //- Return a new surface using specified pointMap and faceMap
-        //
-        //  \param[in] pointMap from subsetMeshMap
-        //  \param[in] faceMap from subsetMeshMap
-        UnsortedMeshedSurface subsetMeshImpl
+        //- New subset surface using specified pointMap and faceMap.
+        //  Retains zone information.
+        UnsortedMeshedSurface subsetMesh_impl
         (
-            const labelList& pointMap,
-            const labelList& faceMap
+            //! From new to old localPoints (eg, from subsetMeshMap)
+            const labelUList& pointMap,
+            //! From new to old localFaces (eg, from subsetMeshMap)
+            const labelUList& faceMap
         ) const;
 
+        //- New subset surface,
+        //- returning the pointMap and faceMap information.
+        //  Retains zone information.
+        template<class BoolListType>
+        UnsortedMeshedSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection,
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
+
+        //- New subset surface,
+        //- discarding the pointMap and faceMap information.
+        //  Retains zone information.
+        template<class BoolListType>
+        UnsortedMeshedSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection
+        ) const
+        {
+            labelList pointMap, faceMap;
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
+
+        //- New subset surface by using the specified sample faces,
+        //- returning the pointMap and faceMap information.
+        UnsortedMeshedSurface subSampleMesh_impl
+        (
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [in,out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::sampleMapFaces(*this, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
 
 protected:
 
@@ -366,57 +415,6 @@ public:
         //- Clear all storage
         virtual void clear();
 
-        //- Create mappings for a sub-surface
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        template<class BoolListType>
-        void subsetMeshMap
-        (
-            const BoolListType& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const
-        {
-            PatchTools::subsetMap(*this, include, pointMap, faceMap);
-        }
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        UnsortedMeshedSurface subsetMesh
-        (
-            const UList<bool>& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        UnsortedMeshedSurface subsetMesh
-        (
-            const bitSet& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        UnsortedMeshedSurface subsetMesh(const UList<bool>& include) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        UnsortedMeshedSurface subsetMesh(const bitSet& include) const;
-
-
         //- Swap contents - disabled
         void swap(MeshedSurface<Face>& surf) = delete;
 
@@ -431,6 +429,97 @@ public:
 
         //- Release (clear) stored zoneIds and return for reuse
         autoPtr<labelList> releaseZoneIds();
+
+
+    // Mesh subsetting
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        UnsortedMeshedSurface subsetMesh
+        (
+            const bitSet& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        UnsortedMeshedSurface subsetMesh
+        (
+            const UList<bool>& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        UnsortedMeshedSurface subsetMesh(const bitSet& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        UnsortedMeshedSurface subsetMesh(const UList<bool>& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        UnsortedMeshedSurface subSampleMesh
+        (
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        UnsortedMeshedSurface subSampleMesh(labelList& faceMap) const
+        {
+            labelList pointMap;  // discarded
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Create mappings for a sub-surface
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        //
+        // Simple forward to PatchTools::subsetMap()
+        template<class BoolListType>
+        void subsetMeshMap
+        (
+            const BoolListType& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::subsetMap(*this, faceSelection, pointMap, faceMap);
+        }
 
 
     // Read

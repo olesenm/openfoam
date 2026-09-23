@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -644,15 +645,37 @@ void Foam::MeshedSurface<Face>::cleanup(const bool verbose)
 
 
 template<class Face>
-void Foam::MeshedSurface<Face>::compactPoints(labelList& pointMap)
+void Foam::MeshedSurface<Face>::compactPoints(labelList* pointMap)
 {
+    if (pointMap)
+    {
+        pointMap->clear();
+    }
+
+    const label nOldPoints = this->points().size();
+
+    if (PatchTools::checkCompactPoints(*this))
+    {
+        // Already compact, can skip everything else...
+
+        if (pointMap)
+        {
+            auto& map = *pointMap;
+            map.resize_nocopy(nOldPoints);
+            Foam::identity(map);
+        }
+
+        return;
+    }
+
+
     this->clearOut();   // Topology changes
 
     // Remove unused points while walking and renumbering faces
     // in visit order - walk order as per localFaces()
 
-    labelList oldToCompact(this->points().size(), -1);
-    DynamicList<label> compactPointMap(oldToCompact.size());
+    labelList oldToCompact(nOldPoints, -1);
+    DynamicList<label> compactPointMap(nOldPoints);
 
     for (auto& f : this->storedFaces())
     {
@@ -663,23 +686,28 @@ void Foam::MeshedSurface<Face>::compactPoints(labelList& pointMap)
             {
                 compacti = compactPointMap.size();
                 oldToCompact[pointi] = compacti;
-                compactPointMap.append(pointi);
+                compactPointMap.push_back(pointi);
             }
             pointi = compacti;
         }
     }
 
-    pointField newPoints
-    (
-        UIndirectList<point>(this->points(), compactPointMap)
-    );
+    // Use the new compact walk order to extract new points
 
+    pointField newPoints(this->points(), compactPointMap);
     this->swapPoints(newPoints);
 
-    if (notNull(pointMap))
+    if (pointMap)
     {
-        pointMap.transfer(compactPointMap);
+        pointMap->transfer(compactPointMap);
     }
+}
+
+
+template<class Face>
+void Foam::MeshedSurface<Face>::compactPoints(labelList& pointMap)
+{
+    this->compactPoints(&pointMap);
 }
 
 
@@ -714,10 +742,10 @@ bool Foam::MeshedSurface<Face>::stitchFaces
     label newFacei = 0;
     forAll(faceLst, facei)
     {
-        Face& f = faceLst[facei];
-        for (label& vert : f)
+        auto& f = faceLst[facei];
+        for (label& pointi : f)
         {
-            vert = pointMap[vert];
+            pointi = pointMap[pointi];
         }
 
         // For extra safety: collapse face as well
@@ -790,7 +818,7 @@ bool Foam::MeshedSurface<Face>::checkFaces
     // Detect badly labelled faces and mark degenerate faces
     forAll(faceLst, facei)
     {
-        Face& f = faceLst[facei];
+        auto& f = faceLst[facei];
 
         // Avoid degenerate faces
         if (f.collapse() >= 3)
@@ -837,7 +865,7 @@ bool Foam::MeshedSurface<Face>::checkFaces
             continue;
         }
 
-        const Face& f = faceLst[facei];
+        const auto& f = faceLst[facei];
 
         // Duplicate face check
         bool okay = true;
@@ -854,7 +882,7 @@ bool Foam::MeshedSurface<Face>::checkFaces
                 continue;
             }
 
-            const Face& nei = faceLst[neiFacei];
+            const auto& nei = faceLst[neiFacei];
 
             if (f == nei)
             {
@@ -1077,7 +1105,7 @@ Foam::label Foam::MeshedSurface<Face>::triangulate
         nTri = 0;
         forAll(faceLst, facei)
         {
-            const Face& f = faceLst[facei];
+            const auto& f = faceLst[facei];
 
             for (label fp = 1; fp < f.size() - 1; ++fp)
             {
@@ -1129,37 +1157,17 @@ Foam::label Foam::MeshedSurface<Face>::triangulate
 
 template<class Face>
 Foam::MeshedSurface<Face>
-Foam::MeshedSurface<Face>::subsetMeshImpl
+Foam::MeshedSurface<Face>::subsetMesh_impl
 (
-    const labelList& pointMap,
-    const labelList& faceMap
+    const labelUList& pointMap,
+    const labelUList& faceMap
 ) const
 {
-    const pointField& locPoints = this->localPoints();
-    const List<Face>& locFaces  = this->localFaces();
+    // Subset of points (compact) and faces
+    pointField newPoints;
+    List<Face> newFaces;
+    PatchTools::copyLocalSubset(*this, newFaces, newPoints, pointMap, faceMap);
 
-    // Subset of points (compact)
-    pointField newPoints(UIndirectList<point>(locPoints, pointMap));
-
-    // Inverse point mapping - same as ListOps invert() without checks
-    labelList oldToNew(locPoints.size(), -1);
-    forAll(pointMap, pointi)
-    {
-        oldToNew[pointMap[pointi]] = pointi;
-    }
-
-    // Subset of faces
-    List<Face> newFaces(UIndirectList<Face>(locFaces, faceMap));
-
-    // Renumber face node labels
-    for (auto& f : newFaces)
-    {
-        for (label& vert : f)
-        {
-            vert = oldToNew[vert];
-        }
-    }
-    oldToNew.clear();
 
     // Deep copy of zones, leave start/size intact!!
     surfZoneList newZones(zones_);
@@ -1197,7 +1205,7 @@ Foam::MeshedSurface<Face>::subsetMeshImpl
     labelList newFaceIds;
     if (faceIds_.size())
     {
-        newFaceIds = labelUIndList(faceIds_, faceMap);
+        newFaceIds = UIndirectList<label>(faceIds_, faceMap);
     }
 
     // Construct the sub-surface
@@ -1215,62 +1223,11 @@ template<class Face>
 Foam::MeshedSurface<Face>
 Foam::MeshedSurface<Face>::subsetMesh
 (
-    const UList<bool>& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::MeshedSurface<Face>
-Foam::MeshedSurface<Face>::subsetMesh
-(
-    const bitSet& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::MeshedSurface<Face>
-Foam::MeshedSurface<Face>::subsetMesh
-(
-    const UList<bool>& include
-) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::MeshedSurface<Face>
-Foam::MeshedSurface<Face>::subsetMesh
-(
-    const bitSet& include
-) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::MeshedSurface<Face> Foam::MeshedSurface<Face>::subsetMesh
-(
     const wordRes& includeNames,
     const wordRes& excludeNames
 ) const
 {
-    bitSet include(this->size());
+    bitSet faceSelection(this->size());
 
     for
     (
@@ -1283,10 +1240,10 @@ Foam::MeshedSurface<Face> Foam::MeshedSurface<Face>::subsetMesh
         )
     )
     {
-        include.set(zones_[zonei].range());
+        faceSelection.set(zones_[zonei].range());
     }
 
-    return this->subsetMesh(include);
+    return this->subsetMesh(faceSelection);
 }
 
 

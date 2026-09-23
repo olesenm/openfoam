@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -559,8 +560,8 @@ Foam::surfZoneList Foam::UnsortedMeshedSurface<Face>::sortedZones
 
         // increment the start for the next zone
         // and save the (zoneId => zoneI) mapping
-        start += iter();
-        iter() = zonei++;
+        start += iter.val();
+        iter.val() = zonei++;
     }
 
 
@@ -580,37 +581,17 @@ Foam::surfZoneList Foam::UnsortedMeshedSurface<Face>::sortedZones
 
 template<class Face>
 Foam::UnsortedMeshedSurface<Face>
-Foam::UnsortedMeshedSurface<Face>::subsetMeshImpl
+Foam::UnsortedMeshedSurface<Face>::subsetMesh_impl
 (
-    const labelList& pointMap,
-    const labelList& faceMap
+    const labelUList& pointMap,
+    const labelUList& faceMap
 ) const
 {
-    const pointField& locPoints = this->localPoints();
-    const List<Face>& locFaces  = this->localFaces();
+    // Subset of points (compact) and faces
+    pointField newPoints;
+    List<Face> newFaces;
+    PatchTools::copyLocalSubset(*this, newFaces, newPoints, pointMap, faceMap);
 
-    // Subset of points (compact)
-    pointField newPoints(UIndirectList<point>(locPoints, pointMap));
-
-    // Inverse point mapping - same as ListOps invert() without checks
-    labelList oldToNew(locPoints.size(), -1);
-    forAll(pointMap, pointi)
-    {
-        oldToNew[pointMap[pointi]] = pointi;
-    }
-
-    // Subset of faces
-    List<Face> newFaces(UIndirectList<Face>(locFaces, faceMap));
-
-    // Renumber face node labels
-    for (auto& f : newFaces)
-    {
-        for (label& vert : f)
-        {
-            vert = oldToNew[vert];
-        }
-    }
-    oldToNew.clear();
 
     // Subset of zones
     List<label> newZones(UIndirectList<label>(zoneIds_, faceMap));
@@ -626,58 +607,6 @@ Foam::UnsortedMeshedSurface<Face>::subsetMeshImpl
         std::move(newZones),
         std::move(subToc)
     );
-}
-
-
-template<class Face>
-Foam::UnsortedMeshedSurface<Face>
-Foam::UnsortedMeshedSurface<Face>::subsetMesh
-(
-    const UList<bool>& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::UnsortedMeshedSurface<Face>
-Foam::UnsortedMeshedSurface<Face>::subsetMesh
-(
-    const bitSet& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::UnsortedMeshedSurface<Face>
-Foam::UnsortedMeshedSurface<Face>::subsetMesh
-(
-    const UList<bool>& include
-) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
-}
-
-
-template<class Face>
-Foam::UnsortedMeshedSurface<Face>
-Foam::UnsortedMeshedSurface<Face>::subsetMesh
-(
-    const bitSet& include
-) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
 }
 
 

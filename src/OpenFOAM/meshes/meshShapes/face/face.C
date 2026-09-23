@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2021-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,6 +32,7 @@ License
 #include "triangle.H"
 #include "mathematicalConstants.H"
 #include "Circulator.H"
+#include <algorithm>
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -470,6 +472,36 @@ unsigned Foam::face::symmhash_code(const UList<label>& f, unsigned seed)
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+Foam::label Foam::face::find_min() const
+{
+    if (labelList::empty())
+    {
+        return -1;
+    }
+
+    return static_cast<label>
+    (
+        std::min_element(labelList::begin(), labelList::end())
+      - labelList::begin()
+    );
+}
+
+
+Foam::label Foam::face::find_max() const
+{
+    if (labelList::empty())
+    {
+        return -1;
+    }
+
+    return static_cast<label>
+    (
+        std::max_element(labelList::begin(), labelList::end())
+      - labelList::begin()
+    );
+}
+
 
 Foam::label Foam::face::collapse()
 {
