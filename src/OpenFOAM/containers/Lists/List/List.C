@@ -554,26 +554,18 @@ void Foam::List<T>::operator=(DynamicField<T, SizeMin>&& list)
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
-template<class T>
-Foam::labelList Foam::sortedOrder
-(
-    const UList<T>& list
-)
-{
-    labelList order;
-    Foam::sortedOrder(list, order, typename UList<T>::less(list));
-    return order;
-}
-
-
-template<class T>
+template<class ListComparePredicate>
 void Foam::sortedOrder
 (
-    const UList<T>& list,
-    labelList& order
+    const label length,
+    labelList& order,
+    const ListComparePredicate& comp
 )
 {
-    Foam::sortedOrder(list, order, typename UList<T>::less(list));
+    // Indices must match the input length
+    order.resize_nocopy(length);
+    Foam::identity(order, 0);
+    Foam::stableSort(order, comp);
 }
 
 
@@ -585,11 +577,23 @@ void Foam::sortedOrder
     const ListComparePredicate& comp
 )
 {
-    // List lengths must be identical. Old content is overwritten
-    order.resize_nocopy(list.size());
+    Foam::sortedOrder(list.size(), order, comp);
+}
 
-    Foam::identity(order, 0);
-    Foam::stableSort(order, comp);
+
+template<class T>
+void Foam::sortedOrder(const UList<T>& list, labelList& order)
+{
+    Foam::sortedOrder(list.size(), order, ListOps::less(list));
+}
+
+
+template<class T>
+Foam::labelList Foam::sortedOrder(const UList<T>& list)
+{
+    labelList order;
+    Foam::sortedOrder(list.size(), order, ListOps::less(list));
+    return order;
 }
 
 

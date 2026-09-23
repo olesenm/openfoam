@@ -691,6 +691,7 @@ struct tuple_element<I, Foam::FixedList<T, N>> { using type = T; };
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+#include "UList.H"
 #include "FixedListI.H"
 
 // * * * * * * * * * * * * * * * Implementations * * * * * * * * * * * * * * //
@@ -701,6 +702,91 @@ struct tuple_element<I, Foam::FixedList<T, N>> { using type = T; };
 // :
 //     UList<T>(const_cast<T*>(list.cdata()), list.size())
 // {}
+
+
+// * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+
+//- Fill an identity map with (map[i] == i), works like std::iota().
+//  Optionally with an alternative start index, so that (map[i] == i+start)
+template<unsigned N>
+void identity(FixedList<int32_t, N>& map, int32_t start = 0)
+{
+    for (unsigned i = 0; i < N; ++i, ++start)
+    {
+        map[i] = start;
+    }
+}
+
+//- Fill an identity map with (map[i] == i), works like std::iota().
+//  Optionally with an alternative start index, so that (map[i] == i+start)
+template<unsigned N>
+void identity(FixedList<int64_t, N>& map, int64_t start = 0)
+{
+    for (unsigned i = 0; i < N; ++i, ++start)
+    {
+        map[i] = start;
+    }
+}
+
+
+//- Sort the FixedList
+template<class T, unsigned N>
+void sort(FixedList<T, N>& list)
+{
+    std::sort(list.begin(), list.end());
+}
+
+//- Sort the list with the specified comparator
+template<class T, unsigned N, class Compare>
+void sort(FixedList<T, N>& list, const Compare& comp)
+{
+    std::sort(list.begin(), list.end(), comp);
+}
+
+//- Stable sort the FixedList
+template<class T, unsigned N>
+void stableSort(FixedList<T, N>& list)
+{
+    std::stable_sort(list.begin(), list.end());
+}
+
+//- Stable sort the FixedList with the specified comparator
+template<class T, unsigned N, class Compare>
+void stableSort(FixedList<T, N>& list, const Compare& comp)
+{
+    std::stable_sort(list.begin(), list.end(), comp);
+}
+
+//- Determine the sort order for the given input,
+//- using the ListOps::less wrapper for the comparator
+template<class T, unsigned N>
+void sortedOrder
+(
+    const FixedList<T, N>& input,
+    FixedList<label, N>& order
+)
+{
+    Foam::identity(order, 0);
+    std::stable_sort(order.begin(), order.end(), ListOps::less(input));
+}
+
+// FUTURE?
+// ~~~~~~
+// //- Return the sort order for the given input,
+// //- using the ListOps::less wrapper for the comparator
+// template<class T, unsigned N>
+// FixedList<label, N> sortedOrder(const FixedList<T, N>& list)
+// {
+//     FixedList<label, N> order;
+//     Foam::identity(order, 0);
+//     std::stable_sort(order.begin(), order.end(), ListOps::less(list));
+//     return order;
+// }
+
+} // End namespace Foam
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

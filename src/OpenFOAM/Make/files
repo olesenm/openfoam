@@ -236,7 +236,7 @@ containers/Bits/PackedList/PackedListCore.C
 containers/HashTables/HashOps/HashOps.C
 containers/HashTables/HashSet/hashSets.C
 containers/HashTables/HashTable/HashTableCore.C
-containers/Lists/SortableList/ParSortableListName.C
+containers/Lists/SortableList/ParSortableList.cxx
 containers/Lists/ListOps/ListOps.C
 containers/LinkedLists/linkTypes/SLListBase/SLListBase.C
 containers/LinkedLists/linkTypes/DLListBase/DLListBase.C

@@ -200,12 +200,11 @@ public:
         {
             const UList<T>& values;
 
-            less(const UList<T>& list)
-            :
-                values(list)
-            {}
+            //- Capture reference to a list of value
+            constexpr less(const UList<T>& list) : values(list) {}
 
-            bool operator()(const label a, const label b) const
+            //- Compare values at two indices into the list
+            bool operator()(label a, label b) const
             {
                 return (values[a] < values[b]);
             }
@@ -216,12 +215,11 @@ public:
         {
             const UList<T>& values;
 
-            greater(const UList<T>& list)
-            :
-                values(list)
-            {}
+            //- Capture reference to a list of value
+            constexpr greater(const UList<T>& list) : values(list) {}
 
-            bool operator()(const label a, const label b) const
+            //- Compare values at two indices into the list
+            bool operator()(label a, label b) const
             {
                 return (values[b] < values[a]);
             }
@@ -791,6 +789,41 @@ void identity(UList<int32_t>& map, int32_t start = 0);
 //- Fill an identity map with (map[i] == i), works like std::iota().
 //  Optionally with an alternative start index, so that (map[i] == i+start)
 void identity(UList<int64_t>& map, int64_t start = 0);
+
+namespace ListOps
+{
+
+//- A list compare binary predicate for normal sort
+template<class ListType>
+struct less
+{
+    //- Captured reference to a list of values
+    const ListType& values;
+
+    //- Capture reference to a list of values
+    constexpr less(const ListType& list) : values(list) {}
+
+    //- Compare values at two indices into the list
+    bool operator()(label a, label b) const { return (values[a] < values[b]); }
+};
+
+
+//- A list compare binary predicate for reverse sort
+template<class ListType>
+struct greater
+{
+    //- Captured reference to a list of values
+    const ListType& values;
+
+    //- Capture reference to a list of values
+    constexpr greater(const ListType& list) : values(list) {}
+
+    //- Compare values at two indices into the list
+    bool operator()(label a, label b) const { return (values[b] < values[a]); }
+};
+
+} // End namespace ListOps
+
 
 //- Sort the list
 template<class T>

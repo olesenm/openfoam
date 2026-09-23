@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -433,17 +434,15 @@ inline void Foam::CircularBuffer<T>::pop_back(label n)
 
 
 template<class T>
-inline Foam::label Foam::CircularBuffer<T>::push_uniq(const T& val)
+inline bool Foam::CircularBuffer<T>::push_uniq(const T& val)
 {
-    if (this->contains(val))
-    {
-        return 0;
-    }
-    else
+    if (!this->contains(val))
     {
         this->push_back(val);
-        return 1;  // Increased list length by one
+        return true;
     }
+
+    return false;
 }
 
 

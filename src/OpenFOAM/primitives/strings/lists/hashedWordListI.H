@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -97,15 +98,15 @@ inline void Foam::hashedWordList::clear()
 }
 
 
-inline Foam::label Foam::hashedWordList::push_uniq(const word& val)
+inline bool Foam::hashedWordList::push_uniq(const word& val)
 {
     if (lookup_.insert(val, size()))
     {
         wordList::push_back(val);
-        return 1;  // Increased list length by one
+        return true;
     }
 
-    return 0;  // No change
+    return false;
 }
 
 

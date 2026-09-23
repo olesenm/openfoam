@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,45 +29,51 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(const label size)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(label len)
 :
-    List<T>(size)
+    List<T>(len)
 {}
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(const label size, Foam::zero)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(label len, Foam::zero)
 :
-    List<T>(size, Foam::zero{})
+    List<T>(len, Foam::zero{})
 {}
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(const label size, const T& val)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(label len, const T& val)
 :
-    List<T>(size, val)
+    List<T>(len, val)
 {}
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(const SortableList<T>& lst)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(const SortableList<T, Forward>& lst)
 :
     List<T>(lst),
     indices_(lst.indices())
 {}
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(SortableList<T>&& lst)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(SortableList<T, Forward>&& lst)
 :
     List<T>(std::move(lst)),
     indices_(std::move(lst.indices_))
 {}
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(const UList<T>& values)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(const UList<T>& values)
 :
     List<T>(values)
 {
@@ -74,8 +81,9 @@ inline Foam::SortableList<T>::SortableList(const UList<T>& values)
 }
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(List<T>&& values)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(List<T>&& values)
 :
     List<T>(std::move(values))
 {
@@ -83,8 +91,9 @@ inline Foam::SortableList<T>::SortableList(List<T>&& values)
 }
 
 
-template<class T>
-inline Foam::SortableList<T>::SortableList(std::initializer_list<T> values)
+template<class T, bool Forward>
+inline Foam::SortableList<T, Forward>::
+SortableList(std::initializer_list<T> values)
 :
     List<T>(values)
 {
@@ -94,55 +103,65 @@ inline Foam::SortableList<T>::SortableList(std::initializer_list<T> values)
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-template<class T>
-inline void Foam::SortableList<T>::clear()
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::clear()
 {
     List<T>::clear();
     indices_.clear();
 }
 
 
-template<class T>
-inline Foam::List<T>& Foam::SortableList<T>::shrink()
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::shrink_to_fit()
+{
+    indices_.clear();
+}
+
+
+template<class T, bool Forward>
+inline Foam::List<T>&
+Foam::SortableList<T, Forward>::shrink()
 {
     indices_.clear();
     return static_cast<List<T>&>(*this);
 }
 
 
-template<class T>
-void Foam::SortableList<T>::sort()
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<class T, bool Forward>
+void Foam::SortableList<T, Forward>::sort()
 {
-    Foam::sortedOrder(*this, indices_, typename UList<T>::less(*this));
+    Foam::sortedOrder(*this, indices_, normalCompareOp());
 
     List<T> list(*this, indices_); // Copy with indices for mapping
     List<T>::transfer(list);
 }
 
 
-template<class T>
-void Foam::SortableList<T>::reverseSort()
+template<class T, bool Forward>
+void Foam::SortableList<T, Forward>::reverseSort()
 {
-    Foam::sortedOrder(*this, indices_, typename UList<T>::greater(*this));
+    Foam::sortedOrder(*this, indices_, inverseCompareOp());
 
     List<T> list(*this, indices_); // Copy with indices for mapping
     List<T>::transfer(list);
 }
 
 
-template<class T>
-void Foam::SortableList<T>::partialSort(label n, label start)
+template<class T, bool Forward>
+void Foam::SortableList<T, Forward>::partialSort(label n, label start)
 {
     indices_.resize_nocopy(this->size());
     Foam::identity(indices_, 0);
 
-    // Forward partial sort of indices
+    // Partial sort of the indices
     std::partial_sort
     (
         indices_.begin() + start,
         indices_.begin() + start + n,
         indices_.end(),
-        typename UList<T>::less(*this)
+        normalCompareOp()
     );
 
     List<T> list(*this, indices_); // Copy with indices for mapping
@@ -150,28 +169,8 @@ void Foam::SortableList<T>::partialSort(label n, label start)
 }
 
 
-template<class T>
-void Foam::SortableList<T>::partialReverseSort(label n, label start)
-{
-    indices_.resize_nocopy(this->size());
-    Foam::identity(indices_, 0);
-
-    // Reverse partial sort of indices
-    std::partial_sort
-    (
-        indices_.begin() + start,
-        indices_.begin() + start + n,
-        indices_.end(),
-        typename UList<T>::greater(*this)
-    );
-
-    List<T> list(*this, indices_); // Copy with indices for mapping
-    List<T>::transfer(list);
-}
-
-
-template<class T>
-void Foam::SortableList<T>::swap(SortableList<T>& other)
+template<class T, bool Forward>
+void Foam::SortableList<T, Forward>::swap(SortableList<T, Forward>& other)
 {
     if (this == &other)
     {
@@ -185,24 +184,27 @@ void Foam::SortableList<T>::swap(SortableList<T>& other)
 
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(const T& val)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(const T& val)
 {
     indices_.clear();
     UList<T>::operator=(val);
 }
 
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(const UList<T>& lst)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(const UList<T>& lst)
 {
     indices_.clear();
     List<T>::operator=(lst);
 }
 
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(const SortableList<T>& lst)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(const SortableList<T, Forward>& lst)
 {
     if (this == &lst)
     {
@@ -214,16 +216,18 @@ inline void Foam::SortableList<T>::operator=(const SortableList<T>& lst)
 }
 
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(List<T>&& lst)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(List<T>&& lst)
 {
     indices_.clear();
     List<T>::transfer(lst);
 }
 
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(SortableList<T>&& lst)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(SortableList<T, Forward>&& lst)
 {
     if (this == &lst)
     {
@@ -235,8 +239,9 @@ inline void Foam::SortableList<T>::operator=(SortableList<T>&& lst)
 }
 
 
-template<class T>
-inline void Foam::SortableList<T>::operator=(std::initializer_list<T> lst)
+template<class T, bool Forward>
+inline void Foam::SortableList<T, Forward>::
+operator=(std::initializer_list<T> lst)
 {
     List<T>::operator=(lst);
     sort();

@@ -127,9 +127,7 @@ void Foam::ParSortableList<Type>::checkAndSend
 template<class Type>
 Foam::ParSortableList<Type>::ParSortableList(const UList<Type>& values)
 :
-    List<Type>(values),
-    indices_(0),
-    procs_(0)
+    List<Type>(values)
 {
     sort();
 }
@@ -138,9 +136,7 @@ Foam::ParSortableList<Type>::ParSortableList(const UList<Type>& values)
 template<class Type>
 Foam::ParSortableList<Type>::ParSortableList(const label size)
 :
-    List<Type>(size),
-    indices_(0),
-    procs_(0)
+    List<Type>(size)
 {}
 
 

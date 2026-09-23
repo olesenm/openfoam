@@ -671,12 +671,7 @@ protected:
             using key_type = this_type::key_type;
 
             //- The object type being addressed
-            using mapped_type = std::conditional_t
-            <
-                Const,
-                const this_type::mapped_type,
-                this_type::mapped_type
-            >;
+            using mapped_type = this_type::mapped_type;
 
 
         protected:
@@ -854,8 +849,8 @@ public:
 
             using node_type   = this_type::node_type;
             using key_type    = this_type::key_type;
-            using mapped_type = const this_type::mapped_type;
-            using value_type  = const this_type::value_type;
+            using mapped_type = this_type::mapped_type;
+            using value_type  = this_type::value_type;
             using pointer     = this_type::const_pointer;
             using reference   = this_type::const_reference;
 

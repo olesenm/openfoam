@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -152,6 +153,7 @@ public:
         class Searcher
         {
         public:
+
             friend dictionary;
 
             //- The const/non-const type for the context and sub-dictionaries
@@ -159,8 +161,11 @@ public:
                 std::conditional_t<Const, const dictionary, dictionary>;
 
             //- The const/non-const type for entries
-            using value_type =
+            using entry_type =
                 std::conditional_t<Const, const entry, entry>;
+
+            //- The value type for entries (always the remove_cv base type)
+            using value_type = entry;
 
             //- A pointer to a const/non-const dictionary
             using dict_pointer = dict_type*;
@@ -169,10 +174,10 @@ public:
             using dict_reference = dict_type&;
 
             //- A pointer to a const/non-const entry
-            using pointer = value_type*;
+            using pointer = entry_type*;
 
             //- A reference to a const/non-const entry
-            using reference = value_type&;
+            using reference = entry_type&;
 
 
         protected:
