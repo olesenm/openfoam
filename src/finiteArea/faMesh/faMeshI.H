@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 Wikki Ltd
     Copyright (C) 2021-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -103,6 +104,14 @@ inline const Foam::labelList& Foam::faMesh::edgeNeighbour() const noexcept
 inline const Foam::labelList& Foam::faMesh::faceLabels() const noexcept
 {
     return faceLabels_;
+}
+
+
+// Unlike polyMesh, just grab the box from the patch representation
+// directly without going through faBoundaryMesh
+inline Foam::Pair<Foam::point> Foam::faMesh::box() const
+{
+    return this->patch().box();
 }
 
 

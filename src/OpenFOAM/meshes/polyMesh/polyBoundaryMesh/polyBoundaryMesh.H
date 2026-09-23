@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -249,6 +250,9 @@ public:
         //- given predicate.
         template<class UnaryPredicate>
         label nFaces_if(UnaryPredicate pred) const;
+
+        //- The enclosing (bounding) box for the boundary patches
+        Pair<point> box() const;
 
         //- The face range for all boundary faces
         //  Spans [nInternalFaces, nFaces) of the underlying mesh

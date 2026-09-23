@@ -755,6 +755,26 @@ Foam::label Foam::polyBoundaryMesh::nFaces() const noexcept
 }
 
 
+Foam::Pair<Foam::point>
+Foam::polyBoundaryMesh::box() const
+{
+    Pair<point> bb
+    (
+        point::uniform(ROOTVGREAT),
+        point::uniform(-ROOTVGREAT)
+    );
+
+    for (const polyPatch& p : static_cast<const polyPatchList&>(*this))
+    {
+        Pair<point> pbox = p.box();
+        bb.first()  = Foam::min(bb.first(), pbox.first());
+        bb.second() = Foam::max(bb.second(), pbox.second());
+    }
+
+    return bb;
+}
+
+
 Foam::labelRange
 Foam::polyBoundaryMesh::range() const noexcept
 {

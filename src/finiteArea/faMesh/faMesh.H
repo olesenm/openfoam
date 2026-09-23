@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 Wikki Ltd
     Copyright (C) 2021-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -868,6 +869,9 @@ public:
         //- True if the internalEdges use an ordering that does not
         //- correspond 1-to-1 with the patch internalEdges.
         inline bool hasInternalEdgeLabels() const noexcept;
+
+        //- The local enclosing (bounding) box
+        inline Pair<point> box() const;
 
 
     // Database

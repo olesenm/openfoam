@@ -478,11 +478,11 @@ public:
                 return boundary_;
             }
 
-            //- Return mesh bounding box
-            const boundBox& bounds() const noexcept
-            {
-                return bounds_;
-            }
+            //- The mesh bounding box (globally reduced)
+            const boundBox& bounds() const noexcept { return bounds_; }
+
+            //- The local enclosing (bounding) box
+            Pair<point> box() const { return boundary_.box(); }
 
             //- Return the vector of geometric directions in mesh.
             //  Defined according to the presence of empty and wedge patches.
