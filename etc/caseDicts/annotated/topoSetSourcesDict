@@ -525,9 +525,9 @@ pointSet_doc
     }
 
 
-    //- Cell centres within a searchableSurface
+    //- Points within a searchableSurface
     {
-        source       searchableSurfaceToCell;
+        source       searchableSurfaceToPoint;
         surfaceType  triSurfaceMesh;  // Type of surface
         surfaceName  blob.obj;        // Name for surface object
         // See boxToCell for optional transformation of the points
