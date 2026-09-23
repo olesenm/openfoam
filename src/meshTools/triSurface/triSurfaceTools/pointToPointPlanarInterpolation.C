@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,6 @@ License
 #include "pointToPointPlanarInterpolation.H"
 #include "treeBoundBox.H"
 #include "Random.H"
-#include "vector2D.H"
 #include "triSurface.H"
 #include "triSurfaceTools.H"
 #include "OBJstream.H"
@@ -145,8 +145,8 @@ void Foam::pointToPointPlanarInterpolation::calcWeights
         (
             destPoints,
             sourcePoints,
-            scalarField(destPoints.size(), GREAT),
-            true,       // verbose
+            GREAT,      // match distance (uniform)
+            true,       // verbose = true
             destToSource
         );
 
@@ -221,14 +221,7 @@ void Foam::pointToPointPlanarInterpolation::calcWeights
         }
 
         // Determine triangulation
-        List<vector2D> localVertices2D(localVertices.size());
-        forAll(localVertices, i)
-        {
-            localVertices2D[i][0] = localVertices[i][0];
-            localVertices2D[i][1] = localVertices[i][1];
-        }
-
-        triSurface s(triSurfaceTools::delaunay2D(localVertices2D));
+        triSurface s(triSurfaceTools::delaunay2D(localVertices));
 
         auto tlocalFaceCentres = referenceCS_.localPosition(destPoints);
         const pointField& localFaceCentres = tlocalFaceCentres();

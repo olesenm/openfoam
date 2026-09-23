@@ -481,18 +481,11 @@ Foam::booleanSurface::booleanSurface
     //
 
     // Mark edges on intersection
-    const labelList& int1Edges = cutSurf1.intersectionEdges();
-
-    boolList isIntersectionEdge1(cutSurf1.nEdges(), false);
-    forAll(int1Edges, intEdgeI)
-    {
-        label edgeI = int1Edges[intEdgeI];
-        isIntersectionEdge1[edgeI] = true;
-    }
-
     labelList faceZone1;
-    cutSurf1.markZones(isIntersectionEdge1, faceZone1);
-
+    {
+        bitSet borderEdge(cutSurf1.intersectionEdges());
+        PatchTools::markZones(cutSurf1, borderEdge, faceZone1);
+    }
 
     // Check whether at least one of sides of intersection has been marked.
     checkIncluded(cutSurf1, faceZone1, cutSurf1Facei);
@@ -529,18 +522,11 @@ Foam::booleanSurface::booleanSurface
     //
 
     // Mark edges and points on intersection
-    const labelList& int2Edges = cutSurf2.intersectionEdges();
-
-    boolList isIntersectionEdge2(cutSurf2.nEdges(), false);
-    forAll(int2Edges, intEdgeI)
-    {
-        label edgeI = int2Edges[intEdgeI];
-        isIntersectionEdge2[edgeI] = true;
-    }
-
     labelList faceZone2;
-    cutSurf2.markZones(isIntersectionEdge2, faceZone2);
-
+    {
+        bitSet borderEdge(cutSurf2.intersectionEdges());
+        PatchTools::markZones(cutSurf2, borderEdge, faceZone2);
+    }
 
     // Check whether at least one of sides of intersection has been marked.
     checkIncluded(cutSurf2, faceZone2, cutSurf2Facei);

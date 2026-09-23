@@ -1017,7 +1017,7 @@ void calcEdgeCutsBitsCGAL
     labelList zone1;
     {
         labelHashSet orientationEdge(surf1.size()/1000);
-        PatchTools::checkOrientation(surf1, false, &orientationEdge);
+        PatchTools::checkOrientation(surf1, orientationEdge);
         nZones1 = PatchTools::markZones(surf1, orientationEdge, zone1);
 
         Info<< "Surface triangles " << surf1.size()
@@ -1029,7 +1029,7 @@ void calcEdgeCutsBitsCGAL
     labelList zone2;
     {
         labelHashSet orientationEdge(surf2.size()/1000);
-        PatchTools::checkOrientation(surf2, false, &orientationEdge);
+        PatchTools::checkOrientation(surf2, orientationEdge);
         nZones2 = PatchTools::markZones(surf2, orientationEdge, zone2);
 
         Info<< "Surface triangles " << surf2.size()
