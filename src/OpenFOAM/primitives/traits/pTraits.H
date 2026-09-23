@@ -41,22 +41,12 @@ Description
 #define Foam_pTraits_H
 
 #include "direction.H"
-#include <memory>       // For addressof
-#include <type_traits>  // For std::integral_constant, std::void_t
-#include <utility>      // For declval
+#include "stdFoam.H"  // includes <memory>, <type_traits>, <utility> ...
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
-
-/*---------------------------------------------------------------------------*\
-                          Class zero_one Declaration
-\*---------------------------------------------------------------------------*/
-
-//- Represents 0/1 range or concept. Used for tagged dispatch or clamping
-class zero_one {};
-
 
 /*---------------------------------------------------------------------------*\
                            Class pTraits Declaration

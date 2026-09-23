@@ -36,7 +36,7 @@ Description
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>  // for std::begin, std::end, ...
-#include <memory>
+#include <memory>    // for addressof etc
 #include <numeric>   // for std::iota, std::reduce, ...
 #include <type_traits>
 #include <utility>
@@ -120,6 +120,30 @@ struct identityOp
         return std::forward<T>(val);
     }
 };
+
+
+// Dispatch tags
+
+//- Dispatch tag type, the opposite of piecewise_construct
+struct direct_construct_t { explicit direct_construct_t() = default; };
+
+//- Dispatch tag type
+struct identity_construct_t { explicit identity_construct_t() = default; };
+
+//- Dispatch tag type (eg, for tuple types)
+struct piecewise_construct_t { explicit piecewise_construct_t() = default; };
+
+//- Dispatch tag for direct construct
+constexpr direct_construct_t direct_construct{};
+
+//- Dispatch tag for identity construct
+constexpr identity_construct_t identity_construct{};
+
+//- Dispatch tag for piecewise construct
+constexpr piecewise_construct_t piecewise_construct{};
+
+//- Represents 0/1 range or concept. Used for tagged dispatch or clamping
+class zero_one {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
