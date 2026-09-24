@@ -1,0 +1,25 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+runApplication blockMesh
+
+runApplication decomposePar
+
+# Generate single timestep to generate some non-uniform fields
+runParallel icoFoam
+
+# Combine some patches
+runParallel createPatch
+
+# Run a bit more
+runParallel -s combined icoFoam
+
+# Uncombine patches
+runParallel -s undo createPatch -undo
+
+# Run a bit more
+runParallel -s undo icoFoam
+
+#------------------------------------------------------------------------------

@@ -1,0 +1,40 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+runApplication blockMesh
+
+# Generate single timestep to generate some non-uniform fields
+runApplication icoFoam
+
+# Combine some patches
+runApplication createPatch
+
+# Run a bit more
+runApplication -s combined icoFoam
+
+# Uncombine patches
+runApplication -s undo createPatch -undo
+
+# Run a bit more
+runApplication -s undo icoFoam
+
+# Using sets
+# ~~~~~~~~~~
+
+runApplication -s faceSet topoSet
+
+# Create from set
+runApplication -s faceSet createPatch -dict system/createPatchDict.faceSet
+
+# Run a bit more
+runApplication -s faceSet icoFoam
+
+# Uncombine patches
+runApplication -s faceSet_undo createPatch -undo
+
+# Run a bit more
+runApplication -s faceSet_undo icoFoam
+
+#------------------------------------------------------------------------------

@@ -3,8 +3,6 @@ cd "${0%/*}" || exit                                # Run from this directory
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
 #------------------------------------------------------------------------------
 
-restore0Dir
-
 if [ ! -d constant/polyMesh ]
 then
     runApplication blockMesh
@@ -17,6 +15,8 @@ then
 
     runApplication checkMesh -allTopology -allGeometry -constant
 fi
+
+restore0Dir
 
 setup=${PWD##*/}
 

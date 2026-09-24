@@ -7,6 +7,6 @@ runApplication blockMesh
 
 runApplication topoSet
 
-runApplication createPatch -overwrite
+runApplication createPatch -overwrite -no-fields
 
 #------------------------------------------------------------------------------

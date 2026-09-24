@@ -7,7 +7,8 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
--------------------------------------------------------------------------------
+    Copyright (C) 2026 Keysight Technologies
+    -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
 
@@ -40,6 +41,67 @@ Description
     - synchronises points on coupled boundaries
     - remove patches with 0 faces in them
 
+    Mapping fields:
+    - always : map within a patch (default)
+    - if possible : map from old patch to new patch (if we're just renaming
+      patches)
+    - if combining patches : apply the same mapping as the patch faces
+    - if splitting patches : reverse the mapping used to combine the patches
+
+    Combining/splitting patches:
+    If used to merge patches into a single patch ('constructFrom patches'), it:
+    - creates faceZones from patches-to-merge
+    - takes over patchGroup info into faceZoneGroup
+    - creates faceZoneGroup 'createPatch:<patchName>' to hold all original
+      patch/faceZones
+    - maps (in faceZone order) the original patch contents into the new
+      patch.
+
+    It can be run in reverse by supplying the -undo option which will
+    split the patch back into original components (by using the faceZone)
+    information.
+
+    OK - have option to avoid creating faceZones
+       'allowUndo true;'
+    OK - if constructFromSet : clone patch from min patch in set. Map fields
+      as if constructFromPatches.
+    - if constructFromSet : allow undoing. Any set can only contain boundary
+      faces so we can always construct a equivalent set of (partial) patches
+      to map from.
+
+        createPatchDict:
+            name            combined_patch;
+            allowUndo       true;
+            constructFrom   set;
+            name            some_boundary_faces;
+
+        with faceSet 'some_boundary_faces' containing faces from patches A, B, C
+
+      So:
+      - createPatch will create a new patch 'combined_patch' with the selected
+        faces from A, B, C
+      - if allowUndo:
+        - createPatch will create a faceZone for each of A, B, C
+        - createPatch will create a faceZoneGroup 'createPatch:combined_patch'
+          containing the faceZones for A, B, C
+      - if the A,B,C become empty then they will be removed from the mesh
+      - if actuallly -undo
+        - use the 'combined_patch' faceZoneGroup to find out the original patch
+          names A,B,C
+        - recreate the patches A, B, C (if not present)
+        - move the faces from the faceZones given by 'combined_patch'
+          back into patches A, B, C
+    - if 'patchFields' present warn that no undoing is possible. Or only warn
+      if -undo actually used.
+    OK - the number - index of patch seems missing for patches which don't have
+      faces on processor0 (eg on motorBike it says
+      'Mapping fields on patch motorBike_rr-wh-rim:005%5 from patches ()')
+    OK - the -undo operation will need -lib libturbulenceModels.so
+      since wallFunctions are not known to createPatch.
+    - undo still check against allowUndo in createPatchDict.
+      Not undo if allowUndo false.
+    - patchInfo seems to trigger getting calculated bcs which then conflict
+      with existing bcs.
 \*---------------------------------------------------------------------------*/
 
 #include "argList.H"
@@ -60,6 +122,7 @@ Description
 #include "faceAreaWeightAMI2D.H"
 #include "fvMeshTools.H"
 #include "ReadFields.H"
+#include "fvFieldReconstructor.H"
 
 using namespace Foam;
 
@@ -349,55 +412,66 @@ void changePatchID
     const fvMesh& mesh,
     const label faceID,
     const label patchID,
+    const label zoneID,     // Optional additional zone
+    const bool addZone,
     polyTopoChange& meshMod
 )
 {
-    const label zoneID = mesh.faceZones().whichZone(faceID);
+    const auto& faceZones = mesh.faceZones();
 
-    bool zoneFlip = false;
+    DynamicList<label> zoneIDs;
+    DynamicList<bool> zoneFlips;
 
-    if (zoneID >= 0)
+    faceZones.whichZones(faceID, zoneIDs);
+    for (const label zonei : zoneIDs)
     {
-        const faceZone& fZone = mesh.faceZones()[zoneID];
-
-        zoneFlip = fZone.flipMap()[fZone.whichFace(faceID)];
+        const label index = faceZones[zonei].localID(faceID);
+        zoneFlips.append(faceZones[zonei].flipMap()[index]);
+    }
+    // Optional additional zone
+    if (zoneID != -1)
+    {
+        if (addZone && !zoneIDs.found(zoneID))
+        {
+            zoneIDs.append(zoneID);
+            zoneFlips.append(false);
+        }
+        else if (!addZone && zoneIDs.found(zoneID))
+        {
+            const label index = zoneIDs.find(zoneID);
+            zoneIDs.remove(index);
+            zoneFlips.remove(index);
+        }
     }
 
     if (modify)
     {
-        meshMod.setAction
+        meshMod.modifyFace
         (
-            polyModifyFace
-            (
-                mesh.faces()[faceID],               // face
-                faceID,                             // face ID
-                mesh.faceOwner()[faceID],           // owner
-                -1,                                 // neighbour
-                false,                              // flip flux
-                patchID,                            // patch ID
-                false,                              // remove from zone
-                zoneID,                             // zone ID
-                zoneFlip                            // zone flip
-            )
+            mesh.faces()[faceID],               // face
+            faceID,                             // face ID
+            mesh.faceOwner()[faceID],           // owner
+            -1,                                 // neighbour
+            false,                              // flip flux
+            patchID,                            // patch ID
+            zoneIDs,                            // zone ID
+            zoneFlips                           // zone flip
         );
     }
     else
     {
-        meshMod.setAction
+        meshMod.addFace
         (
-            polyAddFace
-            (
-                mesh.faces()[faceID],       // modified face
-                mesh.faceOwner()[faceID],   // owner
-                -1,                         // neighbour
-                -1,                         // master point
-                -1,                         // master edge
-                faceID,                     // master face
-                false,                      // face flip
-                patchID,                    // patch for face
-                zoneID,                     // zone for face
-                zoneFlip                    // face flip in zone
-            )
+            mesh.faces()[faceID],       // modified face
+            mesh.faceOwner()[faceID],   // owner
+            -1,                         // neighbour
+            -1,                         // master point
+            -1,                         // master edge
+            faceID,                     // master face
+            false,                      // face flip
+            patchID,                    // patch for face
+            zoneIDs,                    // zone for face
+            zoneFlips                   // face flip in zone
         );
     }
 }
@@ -406,8 +480,10 @@ void changePatchID
 void changePatchID
 (
     const fvMesh& mesh,
-    const labelList& faceLabels,
+    const labelUList& faceLabels,
     const label patchID,
+    const label zoneID,
+    const bool addZone,
     bitSet& isRepatchedBoundary,
     polyTopoChange& meshMod
 )
@@ -446,7 +522,74 @@ void changePatchID
             nWarnings++;
         }
 
-        changePatchID(isFirst, mesh, facei, patchID, meshMod);
+        changePatchID(isFirst, mesh, facei, patchID, zoneID, addZone, meshMod);
+    }
+}
+
+
+void changePatchID
+(
+    const bool allowUndo,
+    const fvMesh& mesh,
+    const labelList& sortedFaceLabels,
+    const label destPatchi,
+    bitSet& isRepatchedBoundary,
+    polyTopoChange& meshMod
+)
+{
+    const auto& patches = mesh.boundaryMesh();
+    const auto& fzs = mesh.faceZones();
+
+    if (sortedFaceLabels.empty())
+    {
+        return;
+    }
+
+    label patchStart = 0;
+    const label facei = sortedFaceLabels[0];
+    label curPatchi = patches.whichPatch(facei);
+    forAll(sortedFaceLabels, i)
+    {
+        const label facei = sortedFaceLabels[i];
+        const label patchi = patches.whichPatch(facei);
+        if
+        (
+            patchi != curPatchi
+         || i == sortedFaceLabels.size()-1
+        )
+        {
+            // Change of patch or last face. Change all faces from patchStart
+            // to i-1
+
+            // Add to optional backup faceZone
+            const label zonei =
+            (
+                allowUndo
+              ? fzs.findZoneID(patches[curPatchi].name())
+              : -1
+            );
+            const label nFaces =
+            (
+                i == sortedFaceLabels.size()-1
+              ? i-patchStart+1
+              : i-patchStart
+            );
+
+            const SubList<label> slice(sortedFaceLabels, nFaces, patchStart);
+
+            changePatchID
+            (
+                mesh,
+                slice,
+                destPatchi,
+                zonei,  // backup faceZone
+                true,   // preserve faceZones
+                isRepatchedBoundary,
+                meshMod
+            );
+            curPatchi = patchi;
+            patchStart = i;
+        }
     }
 }
 
@@ -732,6 +875,177 @@ void syncPoints
 }
 
 
+Foam::label createPatch
+(
+    fvMesh& mesh,
+    const word& patchName,
+    const label sourcePatchi,    // -1 or index of patch to clone
+    const dictionary& patchDict, // If not cloning, dict with patch definition
+    const word& groupName        // Optional group for new patch (for undoing)
+)
+{
+    const polyBoundaryMesh& patches = mesh.boundaryMesh();
+
+    label newPatchi = patches.findPatchID(patchName);
+    if (newPatchi == -1)
+    {
+        autoPtr<polyPatch> ppPtr;
+        if (sourcePatchi != -1)
+        {
+            Info<< "Creating new patch " << patchName
+                << " by cloning "
+                << patches[sourcePatchi].name() << endl;
+            ppPtr = patches[sourcePatchi].clone(patches);
+            ppPtr->name() = patchName;
+        }
+        else
+        {
+            Info<< "Creating new patch " << patchName
+                << " from " << patchDict
+                << endl;
+
+            dictionary allDict(patchDict);
+            allDict.set("nFaces", 0);
+            allDict.set("startFace", 0);
+            ppPtr = polyPatch::New
+            (
+                patchName,
+                allDict,
+                0,          // index, overwritten
+                patches
+            );
+        }
+        // Put new patch in combined group for undoing.
+        if (!groupName.empty() && !ppPtr().inGroups().found(groupName))
+        {
+            ppPtr().inGroups().append(groupName);
+        }
+        // Add patch to mesh & fields
+        newPatchi = fvMeshTools::addPatch
+        (
+            mesh,
+            ppPtr(),
+            patchDict.subOrEmptyDict("patchFields"),
+            fvPatchFieldBase::calculatedType(),
+            true,
+            sourcePatchi    // source patch to clone fields from
+        );
+    }
+    return newPatchi;
+}
+
+
+template<class GeoField>
+void storeBFields
+(
+    const PtrList<fvMesh>& meshes,
+    const List<PtrList<GeoField>>& flds,
+    List<PtrList<typename GeoField::Boundary>>& savedFlds
+)
+{
+    savedFlds.setSize(flds.size());
+    forAll(meshes, meshi)
+    {
+        auto& savedBflds = savedFlds[meshi];
+        savedBflds.setSize(flds[meshi].size());
+        forAll(flds[meshi], fldi)
+        {
+            const auto& fld = flds[meshi][fldi];
+            Info<< "Saving boundary field of " << fld.name()
+                << endl;
+            const auto& ifld = fld.internalField();
+            const auto& bfld = fld.boundaryField();
+            savedBflds.set(fldi, new typename GeoField::Boundary(ifld, bfld));
+        }
+    }
+}
+
+
+template<class GeoField>
+void mapBFields
+(
+    const label patchi,
+    const DynamicList<label>& oldPatchIDs,
+    const labelListList& newPatchFaces,
+    const PtrList<typename GeoField::Boundary>& oldBflds,
+    PtrList<GeoField>& flds
+)
+{
+    // Combine old patch fields. Like reconstructPar / fvFieldReconstructor.
+    // newPatchFaces : for each old patch, each old patch face, the face in
+    // the new patch. (so usable in rmap)
+
+    if (oldPatchIDs.empty())
+    {
+        return;
+    }
+
+    forAll(oldBflds, fldi)
+    {
+        const auto& oldBfld = oldBflds[fldi];
+        typename GeoField::Boundary& bfld = flds[fldi].boundaryFieldRef();
+
+        if (!bfld.set(patchi))
+        {
+            // Construct new patchField. Type and size only. See
+            // fvFieldReconstructor.txx
+            bfld.set
+            (
+                patchi,
+                GeoField::Patch::New
+                (
+                    oldBfld[oldPatchIDs[0]],
+                    bfld[patchi].patch(),
+                    bfld[patchi].internalField(),
+                    fvFieldReconstructor::fvPatchFieldReconstructor
+                    (
+                        bfld[patchi].patch().size()
+                    )
+                )
+            );
+        }
+
+        // Now we either have a new patchField or an existing one.
+        auto& newPfld = bfld[patchi];
+
+        for (const label oldPatchi : oldPatchIDs)
+        {
+            const auto& oldPfld = oldBfld[oldPatchi];
+
+            // Pout<< "Mapping patch field " << flds[fldi].name()
+            //     << " for patch " << newPfld.patch().name()
+            //     << " on combined patch:" << patchi
+            //     << " from old patch " << oldPatchi
+            //     << " old type:" << oldBfld[oldPatchi].type()
+            //     << " old values:" << oldPfld
+            //     << nl
+            //     << " with map:" << flatOutput(newPatchFaces[oldPatchi]) << endl;
+
+            if (oldPfld.type() != newPfld.type())
+            {
+                WarningInFunction
+                    << "For field " << flds[fldi].name()
+                    << " when trying to combine patches " << oldPatchIDs
+                    << " into single patch " << newPfld.patch().name()
+                    << " the original field type " << oldPfld.type()
+                    << " differs from the new type " << newPfld.type()
+                    << " so we cannot map the patch fields."
+                    << endl;
+            }
+            else
+            {
+                // Use rmap for mapping. This requires the map to be the
+                // size as the source field and have -1 for any unused source
+                // value.
+                const auto& map = newPatchFaces[oldPatchi];
+                labelList expandedMap(oldPfld.size(), -1);
+                SubList<label>(expandedMap, map.size()) = map;
+                newPfld.rmap(oldPfld, expandedMap);
+            }
+        }
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -747,14 +1061,21 @@ int main(int argc, char *argv[])
     argList::addOption("dict", "file", "Alternative createPatchDict");
     argList::addBoolOption
     (
+        "undo",
+        "Undo the last createPatch operation"
+        " (split patches back into original components)"
+    );
+    argList::addBoolOption
+    (
         "writeObj",
         "Write obj files showing the cyclic matching process"
     );
     argList::addBoolOption
     (
-        "fields",
-        "Read, map and write fields after repatching"
+        "no-fields",
+        "Suppress conversion of fields (volume, finite-area, lagrangian)"
     );
+
 
     argList::noFunctionObjects();  // Never use function objects
 
@@ -766,9 +1087,9 @@ int main(int argc, char *argv[])
 
     #include "createNamedMeshes.H"
 
-    // Read/write fields even in the absence of the "patchFields" entry
-    const bool writeFields = args.found("fields");
-
+    // Disable reading/writing fields. Not compatible with patchFields entries
+    const bool noFields = args.found("no-fields");
+    const bool undo = args.found("undo");
     const bool writeObj = args.found("writeObj");
 
 
@@ -818,8 +1139,9 @@ int main(int argc, char *argv[])
             patchInfoDicts[meshi].set
             (
                 sourcei,
-                new dictionary(pDict.subDict("patchInfo"))
+                new dictionary(pDict.subOrEmptyDict("patchInfo"))
             );
+
             dictionary& patchDict = patchInfoDicts[meshi][sourcei];
             if (patchDict.found("AMIMethod"))
             {
@@ -829,11 +1151,40 @@ int main(int argc, char *argv[])
                 patchDict.add("requireMatch", false);
             }
 
-            wordRes matchNames;
-            if (pDict.readIfPresent("patches", matchNames, keyType::LITERAL))
+            wordRes matchNms;
+            if (!undo)
             {
-                matchPatchIDs[meshi][sourcei] =
-                    patches.patchSet(matchNames).sortedToc();
+                if (pDict.readIfPresent("patches", matchNms, keyType::LITERAL))
+                {
+                    matchPatchIDs[meshi][sourcei] =
+                        patches.patchSet(matchNms).sortedToc();
+                }
+                else if (pDict.get<word>("constructFrom") == "set")
+                {
+                    // If constructing from a set use any patch in the set
+                    // to clone the patch from.
+                    const word setName = pDict.get<word>("set");
+                    const faceSet set(mesh, setName);
+
+                    Info<< "Read " << returnReduce(set.size(), sumOp<label>())
+                        << " faces from faceSet " << set.name() << endl;
+                    // label minPatchi = labelMax;
+                    for (const label facei : set)
+                    {
+                        const label patchi = patches.whichPatch(facei);
+                        if (patchi == -1)
+                        {
+                            FatalErrorInFunction
+                                << "Face " << facei
+                                << " is not a boundary face."
+                                << exit(FatalError);
+                        }
+                        // minPatchi = min(minPatchi, patchi);
+                        matchPatchIDs[meshi][sourcei].append(patchi);
+                    }
+                    // minPatchi = returnReduce(minPatchi, minOp<label>());
+                    // matchPatchIDs[meshi][sourcei].setSize(1, minPatchi);
+                }
             }
 
             if (pDict.get<word>("constructFrom") == "autoPatch")
@@ -871,6 +1222,7 @@ int main(int argc, char *argv[])
     DynamicList<labelList> interfacePatch1;
     DynamicList<List<DynamicList<label>>> interfaceFaces1;
     DynamicList<wordList> interfaceNames1;
+    if (!undo)
     {
         // Whether to match to patches in own mesh
         const bool includeOwn = (meshes.size() == 1);
@@ -906,48 +1258,79 @@ int main(int argc, char *argv[])
     List<PtrList<volVectorField>> vvFlds(meshes.size());
     List<PtrList<volSphericalTensorField>> vstFlds(meshes.size());
     List<PtrList<volSymmTensorField>> vsymtFlds(meshes.size());
-    List<PtrList<surfaceScalarField>> ssFlds(meshes.size());
     List<PtrList<volTensorField>> vtFlds(meshes.size());
+
+    List<PtrList<surfaceScalarField>> ssFlds(meshes.size());
     List<PtrList<surfaceVectorField>> svFlds(meshes.size());
     List<PtrList<surfaceSphericalTensorField>> sstFlds(meshes.size());
     List<PtrList<surfaceSymmTensorField>> ssymtFlds(meshes.size());
     List<PtrList<surfaceTensorField>> stFlds(meshes.size());
 
+    forAll(meshes, meshi)
     {
-        forAll(meshes, meshi)
-        {
-            const fvMesh& mesh = meshes[meshi];
+        const fvMesh& mesh = meshes[meshi];
 
-            bool noFields = !writeFields;
+        if (noFields)
+        {
             for (const auto& d : patchInfoDicts[meshi])
             {
                 if (d.found("patchFields"))
                 {
-                    noFields = false;
+                    FatalIOErrorInFunction(dicts[meshi])
+                        << "Cannot read patchFields when no-fields option"
+                        << " is specified."
+                        << exit(FatalIOError);
                 }
             }
+        }
+        if (!noFields)
+        {
+            // Read objects in time directory
+            IOobjectList objects(mesh, runTime.timeName());
 
-            if (!noFields)
-            {
-                // Read objects in time directory
-                IOobjectList objects(mesh, runTime.timeName());
+            // Read volume fields.
+            ReadFields(mesh, objects, vsFlds[meshi]);
+            ReadFields(mesh, objects, vvFlds[meshi]);
+            ReadFields(mesh, objects, vstFlds[meshi]);
+            ReadFields(mesh, objects, vsymtFlds[meshi]);
+            ReadFields(mesh, objects, vtFlds[meshi]);
 
-                // Read volume fields.
-                ReadFields(mesh, objects, vsFlds[meshi]);
-                ReadFields(mesh, objects, vvFlds[meshi]);
-                ReadFields(mesh, objects, vstFlds[meshi]);
-                ReadFields(mesh, objects, vsymtFlds[meshi]);
-                ReadFields(mesh, objects, vtFlds[meshi]);
-
-                // Read surface fields.
-                ReadFields(mesh, objects, ssFlds[meshi]);
-                ReadFields(mesh, objects, svFlds[meshi]);
-                ReadFields(mesh, objects, sstFlds[meshi]);
-                ReadFields(mesh, objects, ssymtFlds[meshi]);
-                ReadFields(mesh, objects, stFlds[meshi]);
-            }
+            // Read surface fields.
+            ReadFields(mesh, objects, ssFlds[meshi]);
+            ReadFields(mesh, objects, svFlds[meshi]);
+            ReadFields(mesh, objects, sstFlds[meshi]);
+            ReadFields(mesh, objects, ssymtFlds[meshi]);
+            ReadFields(mesh, objects, stFlds[meshi]);
         }
     }
+
+
+    const label nMesh = meshes.size();
+
+    // Store old patch fields (used when mapping after topo changes)
+    List<PtrList<volScalarField::Boundary>> oldVss(nMesh);
+    List<PtrList<volVectorField::Boundary>> oldVvs(nMesh);
+    List<PtrList<volSphericalTensorField::Boundary>> oldVsts(nMesh);
+    List<PtrList<volSymmTensorField::Boundary>> oldVsyms(nMesh);
+    List<PtrList<volTensorField::Boundary>> oldVts(nMesh);
+
+    storeBFields(meshes, vsFlds, oldVss);
+    storeBFields(meshes, vvFlds, oldVvs);
+    storeBFields(meshes, vstFlds, oldVsts);
+    storeBFields(meshes, vsymtFlds, oldVsyms);
+    storeBFields(meshes, vtFlds, oldVts);
+
+    List<PtrList<surfaceScalarField::Boundary>> oldSsBflds(nMesh);
+    List<PtrList<surfaceVectorField::Boundary>> oldSvBflds(nMesh);
+    List<PtrList<surfaceSphericalTensorField::Boundary>> oldSstBflds(nMesh);
+    List<PtrList<surfaceSymmTensorField::Boundary>> oldSsymtBflds(nMesh);
+    List<PtrList<surfaceTensorField::Boundary>> oldStBflds(nMesh);
+
+    storeBFields(meshes, ssFlds, oldSsBflds);
+    storeBFields(meshes, svFlds, oldSvBflds);
+    storeBFields(meshes, sstFlds, oldSstBflds);
+    storeBFields(meshes, ssymtFlds, oldSsymtBflds);
+    storeBFields(meshes, stFlds, oldStBflds);
 
 
     // Maintain list of added patches so we exclude them from filtering
@@ -959,6 +1342,7 @@ int main(int argc, char *argv[])
     forAll(meshes, meshi)
     {
         fvMesh& mesh = meshes[meshi];
+        auto& fzs = mesh.faceZones();
 
         Info<< "\n\nAdding patches to mesh " << mesh.name() << nl << endl;
 
@@ -981,25 +1365,24 @@ int main(int argc, char *argv[])
         {
             const dictionary& dict = patchSources[sourcei];
             const word sourceType(dict.get<word>("constructFrom"));
-            const word patchName
-            (
-                dict.getOrDefault<word>
-                (
-                    "name",
-                    word::null,
-                    keyType::LITERAL
-                )
-            );
+            const word& patchName = patchNames[meshi][sourcei];
+            const bool allowUndo = dict.lookupOrDefault("allowUndo", false);
+            const word zoneGroupName("createPatch:" + patchName);
 
-            dictionary patchDict(patchInfoDicts[meshi][sourcei]);
-            patchDict.set("nFaces", 0);
-            patchDict.set("startFace", 0);    // Gets overwritten
+            const dictionary& patchDict(patchInfoDicts[meshi][sourcei]);
 
 
             if (sourceType == "autoPatch")
             {
                 // Special : automatically create the necessary inter-region
                 // coupling patches
+
+                if (undo)
+                {
+                    FatalErrorInFunction
+                        << "Cannot undo autoPatch construction. Aborting."
+                        << exit(FatalError);
+                }
 
                 forAll(interfaceMesh0, inti)
                 {
@@ -1028,26 +1411,15 @@ int main(int argc, char *argv[])
 
                             Info<< "Adding new patch " << patchName
                                 << " from " << allDict << endl;
-
-                            autoPtr<polyPatch> ppPtr
-                            (
-                                polyPatch::New
-                                (
-                                    patchName,
-                                    allDict,
-                                    0,          // overwritten
-                                    patches
-                                )
-                            );
-                            fvMeshTools::addPatch
+                            createPatch
                             (
                                 mesh,
-                                ppPtr(),
-                                patchDict.subOrEmptyDict("patchFields"),
-                                fvPatchFieldBase::calculatedType(),
-                                true
+                                patchName,
+                                -1,
+                                allDict,
+                                word::null
                             );
-                            allAddedPatches[meshi].append(ppPtr->name());
+                            allAddedPatches[meshi].append(patchName);
                         }
                     }
                 }
@@ -1080,62 +1452,130 @@ int main(int argc, char *argv[])
 
                             Info<< "Adding new patch " << patchName
                                 << " from " << allDict << endl;
-
-                            autoPtr<polyPatch> ppPtr
-                            (
-                                polyPatch::New
-                                (
-                                    patchName,
-                                    allDict,
-                                    0,          // overwritten
-                                    patches
-                                )
-                            );
-                            fvMeshTools::addPatch
+                            createPatch
                             (
                                 mesh,
-                                ppPtr(),
-                                patchDict.subOrEmptyDict("patchFields"),
-                                fvPatchFieldBase::calculatedType(),
-                                true
+                                patchName,
+                                -1,
+                                allDict,
+                                word::null
                             );
-                            allAddedPatches[meshi].append(ppPtr->name());
+                            allAddedPatches[meshi].append(patchName);
                         }
                     }
                 }
             }
             else
             {
-                if (patches.findPatchID(patchName) == -1)
+                if (undo)
                 {
-                    Info<< "Adding new patch " << patchName
-                        << " from " << patchDict << endl;
+                    // Note: fvMeshTools::addPatch clears out zoneGroup info
+                    //       so take copy instead of using info directly.
+                    const auto patchSources = fzs.groupZoneIDs()[zoneGroupName];
 
-                    autoPtr<polyPatch> ppPtr
-                    (
-                        polyPatch::New
+                    // Ignore any patchInfo overrides. TBD.
+                    Info<< "Splitting patch " << patchName << endl;
+                    const label patchi = patches.findPatchID(patchName, false);
+                    for (const label zonei : patchSources)
+                    {
+                        const auto& fz = fzs[zonei];
+                        const label newPatchi = createPatch
                         (
+                            mesh,
+                            fz.name(),
+                            patchi,             // patch to clone
+                            patchDict,          // optional patch fields
+                            word::null
+                        );
+
+                        const polyPatch& pp = patches[newPatchi];
+                        wordList& gNames = const_cast<wordList&>(pp.inGroups());
+
+                        // Append faceZone groups to patch groups
+                        for (const word& groupName : fz.inGroups())
+                        {
+                            if
+                            (
+                                groupName != zoneGroupName
+                            && !gNames.found(groupName)
+                            )
+                            {
+                                gNames.append(groupName);
+                            }
+                        }
+                        allAddedPatches[meshi].append(pp.name());
+                    }
+                }
+                else
+                {
+                    const labelList& patchSources =
+                        matchPatchIDs[meshi][sourcei];
+
+                    // If in patch-combine mode add old patches as faceZones
+                    if (allowUndo)
+                    {
+                        fzs.clearAddressing();
+
+                        for (const label patchi : patchSources)
+                        {
+                            const polyPatch& pp = patches[patchi];
+                            if (fzs.findZoneID(pp.name()) == -1)
+                            {
+                                const label index = fzs.size();
+                                Info<< "Adding faceZone " << pp.name()
+                                    << " to store original faces of patch "
+                                    << pp.name() << endl;
+                                fzs.append(new faceZone(pp.name(), index, fzs));
+
+                                wordList& gNames = fzs.last().inGroups();
+                                // Append pp groups to faceZone groups
+                                fzs.clearAddressing();
+                                forAll(pp.inGroups(), i)
+                                {
+                                    const word& groupName = pp.inGroups()[i];
+                                    if (!gNames.found(groupName))
+                                    {
+                                        gNames.append(groupName);
+                                    }
+                                }
+                                // Put new faceZone in combined group for
+                                // undoing.
+                                if (!gNames.found(zoneGroupName))
+                                {
+                                    gNames.append(zoneGroupName);
+                                }
+                            }
+                        }
+                    }
+
+                    if (patches.findPatchID(patchName) == -1)
+                    {
+                        createPatch
+                        (
+                            mesh,
                             patchName,
+                            (
+                                (
+                                    patchInfoDicts[meshi][sourcei].empty()
+                                 && patchSources.size()
+                                )
+                              ? patchSources[0]
+                              : -1
+                            ),
                             patchDict,
-                            0,          // overwritten
-                            patches
-                        )
-                    );
-                    fvMeshTools::addPatch
-                    (
-                        mesh,
-                        ppPtr(),
-                        patchDict.subOrEmptyDict("patchFields"),
-                        fvPatchFieldBase::calculatedType(),
-                        true
-                    );
-                    allAddedPatches[meshi].append(ppPtr->name());
+                            word::null      // zoneGroupName
+                        );
+                        allAddedPatches[meshi].append(patchName);
+                    }
                 }
             }
         }
 
         Info<< endl;
     }
+
+    // Patch indices have changed so clear the matchPatchIDs.
+    matchPatchIDs.clear();
 
 
     // 2. Repatch faces
@@ -1144,6 +1584,7 @@ int main(int argc, char *argv[])
     forAll(meshes, meshi)
     {
         fvMesh& mesh = meshes[meshi];
+        auto& fzs = mesh.faceZones();
 
         Info<< "\n\nRepatching mesh " << mesh.name() << nl << endl;
 
@@ -1152,13 +1593,15 @@ int main(int argc, char *argv[])
         const dictionary& dict = dicts[meshi];
 
         // Whether to synchronise points
-        const bool pointSync(dict.get<bool>("pointSync"));
+        const bool pointSync(dict.getOrDefault<bool>("pointSync", false));
+
 
         // Read patch construct info from dictionary
         PtrList<dictionary> patchSources(dict.lookup("patches"));
 
 
         polyTopoChange meshMod(mesh);
+
 
         // Mark all repatched faces. This makes sure that the faces to repatch
         // do not overlap
@@ -1167,16 +1610,10 @@ int main(int argc, char *argv[])
         forAll(patchSources, sourcei)
         {
             const dictionary& dict = patchSources[sourcei];
-            const word patchName
-            (
-                dict.getOrDefault<word>
-                (
-                    "name",
-                    word::null,
-                    keyType::LITERAL
-                )
-            );
+            const word& patchName = patchNames[meshi][sourcei];
+            const word zoneGroupName("createPatch:" + patchName);
             const word sourceType(dict.get<word>("constructFrom"));
+            const bool allowUndo = dict.lookupOrDefault("allowUndo", false);
 
             if (sourceType == "autoPatch")
             {
@@ -1212,6 +1649,8 @@ int main(int argc, char *argv[])
                             mesh,
                             allFaces0[sourcei],
                             destPatchi,
+                            -1,
+                            true,   // optionally add to backup faceZone
                             isRepatchedBoundary,
                             meshMod
                         );
@@ -1238,33 +1677,86 @@ int main(int argc, char *argv[])
                             mesh,
                             allFaces1[sourcei],
                             destPatchi,
+                            -1,
+                            true,   // optionally add to backup faceZone
                             isRepatchedBoundary,
                             meshMod
                         );
                     }
                 }
             }
+            else if (undo)
+            {
+                // Undoing : only undoes patching. Does not restore
+                // faceZones or faceSets.
+                const auto patchSources = fzs.groupZoneIDs()[zoneGroupName];
+                wordList sourcePatchNames(patchSources.size());
+                forAll(patchSources, i)
+                {
+                    sourcePatchNames[i] = fzs[patchSources[i]].name();
+                }
+
+                Info<< "Splitting patch " << patchName
+                    << " into " << flatOutput(sourcePatchNames) << endl;
+                for (const label zonei : patchSources)
+                {
+                    const auto& fz = fzs[zonei];
+                    const label patchi = patches.findPatchID(fz.name(), false);
+                    changePatchID
+                    (
+                        mesh,
+                        fz.addressing(),
+                        patchi,
+                        zonei,   // backup faceZone
+                        false,   // remove from backup faceZone
+                        isRepatchedBoundary,
+                        meshMod
+                    );
+                }
+            }
             else if (sourceType == "patches")
             {
                 const label destPatchi = patches.findPatchID(patchName, false);
-                labelHashSet patchSources
+
+                // Could use the faceZoneGroup to find which patches to
+                // combine to have more consistent ordering (if allowUndo)
+                // const auto& patchSources =
+                //     fzs.groupZoneIDs()[zoneGroupName];
+                const labelList patchSources
                 (
-                    patches.patchSet(dict.get<wordRes>("patches"))
+                    patches.patchSet
+                    (
+                        dict.get<wordRes>("patches")
+                    ).sortedToc()
                 );
+                wordList sourcePatchNames(patchSources.size());
+                forAll(patchSources, i)
+                {
+                    sourcePatchNames[i] = patches[patchSources[i]].name();
+                }
+                Info<< "Moving faces into " << patchName
+                    << " from patches " << flatOutput(sourcePatchNames)
+                    << endl;
 
                 // Repatch faces of the patches.
                 for (const label patchi : patchSources)
                 {
                     const polyPatch& pp = patches[patchi];
 
-                    Info<< "Moving faces from patch " << pp.name()
-                        << " to patch " << destPatchi << endl;
-
+                    // Add to optional backup faceZone
+                    const label zonei =
+                    (
+                        allowUndo
+                        ? fzs.findZoneID(pp.name())
+                        : -1
+                    );
                     changePatchID
                     (
                         mesh,
                         pp.start()+identity(pp.size()),
                         destPatchi,
+                        zonei,  // backup faceZone
+                        true,   // add to backup faceZone
                         isRepatchedBoundary,
                         meshMod
                     );
@@ -1275,16 +1767,40 @@ int main(int argc, char *argv[])
                 const label destPatchi = patches.findPatchID(patchName, false);
                 const word setName(dict.get<word>("set"));
 
-                faceSet set(mesh, setName);
+                const faceSet set(mesh, setName);
 
                 Info<< "Read " << returnReduce(set.size(), sumOp<label>())
                     << " faces from faceSet " << set.name() << endl;
 
                 // Sort (since faceSet contains faces in arbitrary order)
-                labelList faceLabels(set.sortedToc());
+                const labelList faceLabels(set.sortedToc());
 
                 changePatchID
                 (
+                    allowUndo,
+                    mesh,
+                    faceLabels,
+                    destPatchi,
+                    isRepatchedBoundary,
+                    meshMod
+                );
+            }
+            else if (sourceType == "zone")
+            {
+                const label destPatchi = patches.findPatchID(patchName, false);
+                const word zoneName(dict.get<word>("zone"));
+
+                const auto& set = fzs[zoneName];
+
+                Info<< "Read " << returnReduce(set.size(), sumOp<label>())
+                    << " faces from faceZone " << set.name() << endl;
+
+                labelList faceLabels(set.addressing());
+                sort(faceLabels);
+
+                changePatchID
+                (
+                    allowUndo,
                     mesh,
                     faceLabels,
                     destPatchi,
@@ -1317,9 +1833,198 @@ int main(int argc, char *argv[])
             mesh.movePoints(pointField(mesh.points()));
         }
 
-
-        // Update fields
+        // Update fields (only map within patch)
         mesh.updateMesh(map());
+
+
+        // Update faceZones if undoing
+        if (undo)
+        {
+            forAll(patchSources, sourcei)
+            {
+                const word& patchName = patchNames[meshi][sourcei];
+                const word zoneGroupName("createPatch:" + patchName);
+
+                // Get the patch ordering from the faceZoneGroup
+                const auto patchSources = fzs.groupZoneIDs()[zoneGroupName];
+
+                DynamicList<word> removeFaceZones;
+                for (const label zonei : patchSources)
+                {
+                    const auto& fz = fzs[zonei];
+
+                    // Remove combined group for undoing.
+                    wordList& gNames = const_cast<wordList&>(fz.inGroups());
+                    fzs.clearAddressing();
+                    const label gIndex = gNames.find(zoneGroupName);
+                    if (gIndex != -1)
+                    {
+                        std::swap(gNames[gIndex], gNames.last());
+                        gNames.pop_back();
+                    }
+                    // Clear out any empty faceZones.
+                    if (returnReduce(fz.size(), sumOp<label>()) == 0)
+                    {
+                        removeFaceZones.append(fz.name());
+                    }
+                }
+                for (const word& fzName : removeFaceZones)
+                {
+                    const label zonei = fzs.findZoneID(fzName);
+                    if (zonei != -1)
+                    {
+                        Info<< "Removing empty faceZone " << fzName << endl;
+                        labelList oldToNew(identity(fzs.size()));
+                        std::swap(oldToNew[zonei], oldToNew.last());
+                        fzs.reorder(oldToNew);
+                        fzs.clearAddressing();
+                        fzs.setSize(fzs.size()-1);
+                    }
+                }
+            }
+        }
+
+        // E.g. new patch 6 gets constructed (through constructFrom 'set') from
+        // face 12 in patch 2, face 5 in patch 0, face 3 in patch 2 etc.
+        // We now want to construct:
+        //   - oldPatchIDs: (2 0)
+        //   - patchFaceMap[0] = (5)
+        //   - patchFaceMap[2] = (12 3)
+        // and then use that to
+        //   - construct patch field on patch 6 from patch 1 for faces (5)
+        //     and from patch 0 for faces (12 3)
+        {
+            const auto& faceMap = map().faceMap();
+            const auto& oldPatchStarts = map().oldPatchStarts();
+            const auto& oldPatchSizes = map().oldPatchSizes();
+
+            // Detect which patches completely originate from a subset of other
+            // patches
+            for (const auto& ppName : allAddedPatches[meshi])
+            {
+                const label patchi = patches.findIndex(ppName);
+                const auto& pp = patches[patchi];
+
+                labelListList patchFaceMap(oldPatchStarts.size());
+
+                label maxOldPatchi = -1;
+                forAll(pp, i)
+                {
+                    const label facei = pp.start()+i;
+                    const label oldFacei = faceMap[facei];
+                    const label oldPatchi =
+                        findLower(oldPatchStarts, oldFacei+1);
+                    maxOldPatchi = Foam::max(maxOldPatchi, oldPatchi);
+                    // Make sure enough space. Nop for further invocations.
+                    patchFaceMap[oldPatchi].setSize
+                    (
+                        oldPatchSizes[oldPatchi],
+                        -1
+                    );
+                    const label localFacei = oldFacei-oldPatchStarts[oldPatchi];
+                    patchFaceMap[oldPatchi][localFacei] = i;
+                }
+                reduce(maxOldPatchi, maxOp<label>());
+
+
+                // Collect any non-zero sized patches
+                DynamicList<label> oldPatchIDs(patches.size());
+                for (label i = 0; i <= maxOldPatchi; i++)
+                {
+                    if (returnReduceOr(patchFaceMap[i].size()))
+                    {
+                        oldPatchIDs.append(i);
+                    }
+                }
+
+                Info<< "Mapping fields on patch " << ppName
+                    << " from patches " << flatOutput(oldPatchIDs) << endl;
+
+                // Overwrite patch field with mapped one
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldVss[meshi],
+                    vsFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldVvs[meshi],
+                    vvFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldVsts[meshi],
+                    vstFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldVsyms[meshi],
+                    vsymtFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldVts[meshi],
+                    vtFlds[meshi]
+                );
+
+                // Surface fields
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldSsBflds[meshi],
+                    ssFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldSvBflds[meshi],
+                    svFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldSstBflds[meshi],
+                    sstFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldSsymtBflds[meshi],
+                    ssymtFlds[meshi]
+                );
+                mapBFields
+                (
+                    patchi,
+                    oldPatchIDs,
+                    patchFaceMap,
+                    oldStBflds[meshi],
+                    stFlds[meshi]
+                );
+            }
+        }
 
 
         // Update numbering pointing to meshi
@@ -1519,27 +2224,24 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (writeFields)
+        const word& fieldInst = runTime.timeName();
+        auto setInstance = [&fieldInst](auto& flds)
         {
-            const word& fieldInst = runTime.timeName();
-            auto setInstance = [&fieldInst](auto& flds)
-            {
-                for (auto& fld : flds) { fld.instance() = fieldInst; }
-            };
-            // Volume fields.
-            setInstance(vsFlds[meshi]);
-            setInstance(vvFlds[meshi]);
-            setInstance(vstFlds[meshi]);
-            setInstance(vsymtFlds[meshi]);
-            setInstance(vtFlds[meshi]);
+            for (auto& fld : flds) { fld.instance() = fieldInst; }
+        };
+        // Volume fields.
+        setInstance(vsFlds[meshi]);
+        setInstance(vvFlds[meshi]);
+        setInstance(vstFlds[meshi]);
+        setInstance(vsymtFlds[meshi]);
+        setInstance(vtFlds[meshi]);
 
-            // Surface fields.
-            setInstance(ssFlds[meshi]);
-            setInstance(svFlds[meshi]);
-            setInstance(sstFlds[meshi]);
-            setInstance(ssymtFlds[meshi]);
-            setInstance(stFlds[meshi]);
-        }
+        // Surface fields.
+        setInstance(ssFlds[meshi]);
+        setInstance(svFlds[meshi]);
+        setInstance(sstFlds[meshi]);
+        setInstance(ssymtFlds[meshi]);
+        setInstance(stFlds[meshi]);
 
         Info<< "\n\nWriting repatched mesh " << mesh.name()
             << " to " << runTime.timeName() << nl << endl;

@@ -65,7 +65,8 @@ class fvMeshTools
         fvMesh&,
         const dictionary& patchFieldDict,
         const word& defaultPatchFieldType,
-        const typename GeoField::value_type& defaultPatchValue
+        const typename GeoField::value_type& defaultPatchValue,
+        const label sourcePatchi = -1
     );
 
     //- Set patchFields according to dictionary
@@ -126,7 +127,8 @@ public:
         const polyPatch& patch,
         const dictionary& patchFieldDict,
         const word& defaultPatchFieldType,
-        const bool validBoundary
+        const bool validBoundary,
+        const label sourcePatchi = -1
     );
 
     //- Change patchField on registered fields according to dictionary

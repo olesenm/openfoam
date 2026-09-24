@@ -9,11 +9,11 @@ runApplication transformPoints -scale '(1.6666 1 1)'
 runApplication -s xplane mirrorMesh -dict system/mirrorMeshDict.X -overwrite
 runApplication -s yplane mirrorMesh -dict system/mirrorMeshDict.Y -overwrite
 
-restore0Dir
-
 runApplication topoSet
 
 runApplication createPatch -overwrite
+
+restore0Dir
 
 runApplication surfaceMeshExtract \
     -patches hole ppGeometry.vtp -constant -time none

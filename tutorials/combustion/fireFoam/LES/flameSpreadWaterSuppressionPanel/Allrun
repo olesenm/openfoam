@@ -3,8 +3,6 @@ cd "${0%/*}" || exit                                # Run from this directory
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
 #------------------------------------------------------------------------------
 
-restore0Dir
-
 # create the underlying block mesh
 runApplication blockMesh
 
@@ -13,6 +11,9 @@ runApplication topoSet
 
 # create burner inlet
 runApplication createPatch -overwrite
+
+# Put initial and boundary conditions
+restore0Dir
 
 # extrude Film
 runApplication extrudeToRegionMesh -dict system/extrudeToRegionMeshDictFilm -overwrite
@@ -29,6 +30,9 @@ runApplication -s filmRegion topoSet -region filmRegion
 
 # create actual patches
 runApplication -s filmRegion createPatch -region filmRegion -overwrite
+
+# Put initial and boundary conditions
+restore0Dir
 
 # Run
 runApplication $(getApplication)

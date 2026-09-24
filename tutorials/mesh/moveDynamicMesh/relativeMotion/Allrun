@@ -10,7 +10,7 @@ cd "${0%/*}" || exit                                # Run from this directory
     runApplication blockMesh
     runApplication snappyHexMesh -overwrite
     runApplication renumberMesh -overwrite
-    runApplication createPatch -overwrite
+    runApplication createPatch -overwrite -no-fields
 )
 
 # Make a 2D mesh by extruding a patch and solve to steady state.

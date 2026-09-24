@@ -47,7 +47,8 @@ Foam::label Foam::fvMeshTools::addPatch
     const polyPatch& patch,
     const dictionary& patchFieldDict,
     const word& defaultPatchFieldType,
-    const bool validBoundary
+    const bool validBoundary,
+    const label sourcePatchi    // Index of patch to clone, or -1 to not clone
 )
 {
     auto& polyPatches = const_cast<polyBoundaryMesh&>(mesh.boundaryMesh());
@@ -122,7 +123,8 @@ Foam::label Foam::fvMeshTools::addPatch
         {                                                             \
             addPatchFields<FieldType>                                 \
             (                                                         \
-                mesh, patchFieldDict, defaultPatchFieldType, Zero     \
+                mesh, patchFieldDict, defaultPatchFieldType, Zero,    \
+                sourcePatchi                                          \
             );                                                        \
         }
 
