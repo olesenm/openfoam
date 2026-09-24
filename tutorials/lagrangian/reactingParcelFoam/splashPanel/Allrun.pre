@@ -3,8 +3,6 @@ cd "${0%/*}" || exit                                # Run from this directory
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
 #------------------------------------------------------------------------------
 
-restore0Dir
-
 runApplication blockMesh
 
 #If using batch mode
@@ -28,5 +26,7 @@ runApplication -s createWallFilmRegionPatches \
             -dict system/createWallFilmRegionPatches.topoSet
 
 runApplication createPatch -region wallFilmRegion -overwrite
+
+restore0Dir
 
 #------------------------------------------------------------------------------

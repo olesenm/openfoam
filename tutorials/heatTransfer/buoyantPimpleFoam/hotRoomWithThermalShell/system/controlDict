@@ -14,6 +14,8 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+libs            (radiationModels regionFaModels);
+
 application     buoyantPimpleFoam;
 
 startFrom       startTime;

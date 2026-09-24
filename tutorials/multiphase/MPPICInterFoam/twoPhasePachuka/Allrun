@@ -3,8 +3,6 @@ cd "${0%/*}" || exit                                # Run from this directory
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
 #------------------------------------------------------------------------------
 
-restore0Dir
-
 # Create the mesh
 m4 system/blockMeshDict.m4 > system/blockMeshDict
 runApplication blockMesh
@@ -14,6 +12,8 @@ runApplication topoSet
 
 # Create burner inlet
 runApplication createPatch -overwrite
+
+restore0Dir
 
 # Set alpha.water
 runApplication setFields

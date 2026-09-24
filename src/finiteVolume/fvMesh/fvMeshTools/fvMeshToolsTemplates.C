@@ -29,6 +29,7 @@ License
 #include "fvMeshTools.H"
 #include "volFields.H"
 #include "surfaceFields.H"
+#include "directFvPatchFieldMapper.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -38,7 +39,8 @@ void Foam::fvMeshTools::addPatchFields
     fvMesh& mesh,
     const dictionary& patchFieldDict,
     const word& defaultPatchFieldType,
-    const typename GeoField::value_type& defaultPatchValue
+    const typename GeoField::value_type& defaultPatchValue,
+    const label sourcePatchi
 )
 {
     for (GeoField& fld : mesh.objectRegistry::sorted<GeoField>())
@@ -48,34 +50,52 @@ void Foam::fvMeshTools::addPatchFields
         const label newPatchi = bfld.size();
         bfld.resize(newPatchi+1);
 
-        const dictionary* dict = patchFieldDict.findDict(fld.name());
-
-        if (dict)
+        if (sourcePatchi != -1)
         {
+            const auto& pp = mesh.boundary()[newPatchi];
             bfld.set
             (
                 newPatchi,
                 GeoField::Patch::New
                 (
-                    mesh.boundary()[newPatchi],
+                    bfld[sourcePatchi],
+                    pp,
                     fld.internalField(),
-                    *dict
+                    directFvPatchFieldMapper(identity(pp.size()))
                 )
             );
         }
         else
         {
-            bfld.set
-            (
-                newPatchi,
-                GeoField::Patch::New
+            const dictionary* dict = patchFieldDict.findDict(fld.name());
+
+            if (dict)
+            {
+                bfld.set
                 (
-                    defaultPatchFieldType,
-                    mesh.boundary()[newPatchi],
-                    fld.internalField()
-                )
-            );
-            bfld[newPatchi] == defaultPatchValue;
+                    newPatchi,
+                    GeoField::Patch::New
+                    (
+                        mesh.boundary()[newPatchi],
+                        fld.internalField(),
+                        *dict
+                    )
+                );
+            }
+            else
+            {
+                bfld.set
+                (
+                    newPatchi,
+                    GeoField::Patch::New
+                    (
+                        defaultPatchFieldType,
+                        mesh.boundary()[newPatchi],
+                        fld.internalField()
+                    )
+                );
+                bfld[newPatchi] == defaultPatchValue;
+            }
         }
     }
 }

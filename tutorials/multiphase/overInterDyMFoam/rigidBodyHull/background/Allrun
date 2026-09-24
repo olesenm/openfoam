@@ -5,8 +5,6 @@ cd "${0%/*}" || exit                                # Run from this directory
 
 ./Allrun.pre
 
-restore0Dir
-
 runApplication -s 1 \
     mergeMeshes . ../overset-1 -overwrite
 
@@ -14,6 +12,8 @@ runApplication -s 2 \
     mergeMeshes  . ../overset-2 -overwrite
 
 runApplication createPatch -overwrite
+
+restore0Dir
 
 runApplication -s 1 topoSet
 
