@@ -126,6 +126,12 @@ protected:
         //- Cell restriction addressing array.
         //  Maps from the finer to the coarser level.
         PtrList<labelField> restrictAddressing_;
+        #ifdef FOAM_OFFLOAD
+        // Mapping from coarse to fine level
+        PtrList<labelField> restrictSortAddressing_;
+        PtrList<labelField> restrictTargetAddressing_;
+        PtrList<labelField> restrictTargetStartAddressing_;
+        #endif
 
         //- The number of (coarse) faces in each level.
         //  max(faceRestrictAddressing)+1.
@@ -138,6 +144,12 @@ protected:
         //  Negative indices map the finer faces which are internal to the
         //  coarser cells to minus the corresponding coarser cell index minus 1.
         PtrList<labelList> faceRestrictAddressing_;
+        #ifdef FOAM_OFFLOAD
+        // Mapping from coarse to fine level
+        PtrList<labelList> faceRestrictSortAddressing_;
+        PtrList<labelList> faceRestrictTargetAddressing_;
+        PtrList<labelList> faceRestrictTargetStartAddressing_;
+        #endif
 
         //- Face flip: for faces mapped to internal faces stores whether
         //  the face is reversed or not. This is used to avoid having
@@ -152,6 +164,12 @@ protected:
         //  Maps from the finer to the coarser level. Always positive.
         //  Extracted from GAMGInterfaces after agglomeration.
         PtrList<labelListList> patchFaceRestrictAddressing_;
+        #ifdef FOAM_OFFLOAD
+        // Mapping from coarse to fine level
+        PtrList<labelListList> patchFaceRestrictSortAddressing_;
+        PtrList<labelListList> patchFaceRestrictTargetAddressing_;
+        PtrList<labelListList> patchFaceRestrictTargetStartAddressing_;
+        #endif
 
         //- Hierarchy of mesh addressing
         PtrList<lduPrimitiveMesh> meshLevels_;
@@ -220,6 +238,14 @@ protected:
         //- Print level overview
         void printLevels() const;
 
+        #ifdef FOAM_OFFLOAD
+        // Generate coarse to fine mapping
+        void buildFullRestrictAddr(const labelList&, const label);
+        void buildFullFaceRestrictAddr(const labelList&, const label);
+        void buildFullPatchFaceRestrictAddr(const labelListList&, const label);
+
+        void buildFullAddressing();
+        #endif
 
         // Processor agglomeration
 
@@ -266,6 +292,21 @@ public:
     //- Runtime type information
     TypeName("GAMGAgglomeration");
 
+    #ifdef FOAM_OFFLOAD
+    static void createSort
+    (
+        const labelList& list, 
+        labelList& sort
+    );
+
+    static void createTarget
+    (
+        const labelList& list,
+        const labelList& sort,
+        labelList& target,
+        labelList& targetStart
+    );
+    #endif
 
     // Declare run-time constructor selection tables
 
@@ -395,17 +436,83 @@ public:
                 return restrictAddressing_[leveli];
             }
 
+            #ifdef FOAM_OFFLOAD
+            const labelField& restrictSortAddressing(const label leveli) const
+            {
+                return restrictSortAddressing_[leveli];
+            }
+
+            const labelField& restrictTargetAddressing(const label leveli) const
+            {
+                return restrictTargetAddressing_[leveli];
+            }
+
+            const labelField& restrictTargetStartAddressing(const label leveli)
+            const
+            {
+                return restrictTargetStartAddressing_[leveli];
+            }
+            #endif
+
             //- Return face restrict addressing of given level
             const labelList& faceRestrictAddressing(const label leveli) const
             {
                 return faceRestrictAddressing_[leveli];
             }
 
+            #ifdef FOAM_OFFLOAD
+            const labelList& faceRestrictSortAddressing(const label leveli)
+            const
+            {
+                return faceRestrictSortAddressing_[leveli];
+            }
+
+            const labelList& faceRestrictTargetAddressing(const label leveli)
+            const
+            {
+                return faceRestrictTargetAddressing_[leveli];
+            }
+
+            const labelList& faceRestrictTargetStartAddressing
+            (
+                const label leveli
+            ) const
+            {
+                return faceRestrictTargetStartAddressing_[leveli];
+            }
+            #endif
+
             const labelListList& patchFaceRestrictAddressing(const label leveli)
             const
             {
                 return patchFaceRestrictAddressing_[leveli];
             }
+
+            #ifdef FOAM_OFFLOAD
+            const labelListList& patchFaceRestrictSortAddressing
+            (
+                const label leveli
+            ) const
+            {
+                return patchFaceRestrictSortAddressing_[leveli];
+            }
+
+            const labelListList& patchFaceRestrictTargetAddressing
+            (
+                const label leveli
+            ) const
+            {
+                return patchFaceRestrictTargetAddressing_[leveli];
+            }
+
+            const labelListList& patchFaceRestrictTargetStartAddressing
+            (
+                const label leveli
+            ) const
+            {
+                return patchFaceRestrictTargetStartAddressing_[leveli];
+            }
+            #endif
 
             //- Return face flip map of given level
             const boolList& faceFlipMap(const label leveli) const
@@ -444,6 +551,18 @@ public:
                 const label fineLevelIndex,
                 const bool procAgglom
             ) const;
+
+            #ifdef FOAM_OFFLOAD
+            template<class Type>
+            void restrictField
+            (
+                Field<Type>& cf,
+                const Field<Type>& ff,
+                const labelList& sort,
+                const labelList& target,
+                const labelList& targetStart
+            ) const;
+            #endif
 
             //- Restrict (integrate by summation) face field
             template<class Type>

@@ -54,16 +54,22 @@ Foam::diagonalPreconditioner::diagonalPreconditioner
     lduMatrix::preconditioner(sol),
     rD(sol.matrix().diag().size())
 {
-    solveScalar* __restrict__ rDPtr = rD.begin();
-    const scalar* __restrict__ DPtr = solver_.matrix().diag().begin();
+    const auto& diag = solver_.matrix().diag();
 
-    const label nCells = rD.size();
-
-    // Generate reciprocal diagonal
-    for (label cell=0; cell<nCells; cell++)
+    apply_policy(static_cast<std::size_t>(diag.size()), [&](auto policy)
     {
-        rDPtr[cell] = 1.0/DPtr[cell];
-    }
+        std::transform
+        (
+            policy,
+            diag.cbegin(),
+            diag.cend(),
+            rD.begin(),
+            [](const solveScalar value)
+            {
+                return solveScalar(1)/value;
+            }
+        );
+    });
 }
 
 
@@ -76,16 +82,21 @@ void Foam::diagonalPreconditioner::precondition
     const direction
 ) const
 {
-    solveScalar* __restrict__ wAPtr = wA.begin();
-    const solveScalar* __restrict__ rAPtr = rA.begin();
-    const solveScalar* __restrict__ rDPtr = rD.begin();
-
-    const label nCells = wA.size();
-
-    for (label cell=0; cell<nCells; cell++)
+    apply_policy(static_cast<std::size_t>(rD.size()), [&](auto policy)
     {
-        wAPtr[cell] = rDPtr[cell]*rAPtr[cell];
-    }
+        std::transform
+        (
+            policy,
+            rD.cbegin(),
+            rD.cend(),
+            rA.cbegin(),
+            wA.begin(),
+            [](const solveScalar dValue, const solveScalar aValue)
+            {
+                return dValue*aValue;
+            }
+        );
+    });
 }
 
 

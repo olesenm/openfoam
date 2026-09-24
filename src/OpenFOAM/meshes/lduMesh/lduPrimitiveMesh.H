@@ -207,6 +207,11 @@ public:
                 return *this;
             }
 
+            virtual label nPatches() const
+            {
+                return interfaces_.size();
+            }
+
             //- Return a list of pointers for each patch
             //- with only those pointing to interfaces being set
             virtual lduInterfacePtrsList interfaces() const
@@ -269,6 +274,11 @@ public:
             virtual const labelUList& patchAddr(const label i) const
             {
                 return interfaces_[i].faceCells();
+            }
+
+            virtual bool patchAvailable(const label i) const
+            {
+                return interfaces_.set(i);
             }
 
             //- Return patch evaluation schedule

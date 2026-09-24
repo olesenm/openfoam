@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2026 UKRI-STFC.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -24,6 +25,9 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
+
 Description
     Multiply a given vector (second argument) by the matrix or its transpose
     and return the result in the first argument.
@@ -32,7 +36,110 @@ Description
 
 #include "lduMatrix.H"
 
+#ifdef FOAM_OFFLOAD
+#include "lduMatrixFunctors.H"
+#include "lduAddressingFunctors.H"
+#endif
+
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#ifdef FOAM_OFFLOAD
+
+namespace Foam
+{
+
+template<int nUnroll>
+struct matrixMultiplyFunctor
+{
+    const solveScalarField& psi_;
+    const scalarField& diag_;
+    const scalarField& lower_;
+    const scalarField& upper_;
+
+    const labelUList& own_;
+    const labelUList& nei_;
+    const labelUList& ownStart_;
+    const labelUList& losortStart_;
+    const labelUList& losort_;
+
+    matrixMultiplyFunctor
+    (
+        const solveScalarField& psi,
+        const scalarField& diag,
+        const scalarField& lower,
+        const scalarField& upper,
+        const labelUList& own,
+        const labelUList& nei,
+        const labelUList& ownStart,
+        const labelUList& losortStart,
+        const labelUList& losort
+    )
+    :
+        psi_(psi),
+        diag_(diag),
+        lower_(lower),
+        upper_(upper),
+        own_(own),
+        nei_(nei),
+        ownStart_(ownStart),
+        losortStart_(losortStart),
+        losort_(losort)
+    {}
+
+    solveScalar operator()(const label celli) const
+    {
+        solveScalar tmpSum[2*nUnroll] = {Zero};
+        solveScalar nbrSum = Zero;
+
+        const label ownStart = ownStart_[celli];
+        const label ownSize = ownStart_[celli + 1] - ownStart;
+
+        const label neiStart = losortStart_[celli];
+        const label neiSize = losortStart_[celli + 1] - neiStart;
+
+        solveScalar result = diag_[celli]*psi_[celli];
+
+        for (label i = 0; i < nUnroll; ++i)
+        {
+            if (i < ownSize)
+            {
+                const label facei = ownStart + i;
+                tmpSum[i] = upper_[facei]*psi_[nei_[facei]];
+            }
+        }
+
+        for (label i = 0; i < nUnroll; ++i)
+        {
+            if (i < neiSize)
+            {
+                const label facei = losort_[neiStart + i];
+                tmpSum[i + nUnroll] = lower_[facei]*psi_[own_[facei]];
+            }
+        }
+
+        for (label i = 0; i < 2*nUnroll; ++i)
+        {
+            result += tmpSum[i];
+        }
+
+        for (label i = nUnroll; i < ownSize; ++i)
+        {
+            const label facei = ownStart + i;
+            result += upper_[facei]*psi_[nei_[facei]];
+        }
+
+        for (label i = nUnroll; i < neiSize; ++i)
+        {
+            const label facei = losort_[neiStart + i];
+            nbrSum += lower_[facei]*psi_[own_[facei]];
+        }
+
+        return result + nbrSum;
+    }
+};
+
+} // namespace Foam
+#endif
 
 void Foam::lduMatrix::Amul
 (
@@ -89,38 +196,75 @@ void Foam::lduMatrix::Amul
         //       so is handling symmetric()
         const scalar* const __restrict__ lowercsrPtr = lowerCSR().begin();
 
-        for (label cell=0; cell<nCells; cell++)
+        const labelRange cellIndices(nCells);
+
+        apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
         {
-            auto& val = ApsiPtr[cell];
-
-            val = diagPtr[cell]*psiPtr[cell];
-
-            // Add lower contributions
-            {
-                const label start = loStartPtr[cell];
-                const label end = loStartPtr[cell+1];
-
-                for (label i = start; i < end; i++)
+            std::for_each
+            (
+                policy,
+                cellIndices.begin(),
+                cellIndices.end(),
+                [&](const label cell)
                 {
-                    const label nbrCell = lcsrPtr[i];
-                    val += lowercsrPtr[i]*psiPtr[nbrCell];
-                }
-            }
-            // Add upper contributions
-            {
-                const label start = oStartPtr[cell];
-                const label end = oStartPtr[cell+1];
+                    auto& val = ApsiPtr[cell];
 
-                for (label i = start; i < end; i++)
-                {
-                    const label nbrCell = uPtr[i];
-                    val += upperPtr[i]*psiPtr[nbrCell];
+                    val = diagPtr[cell]*psiPtr[cell];
+
+                    // Add lower contributions
+                    {
+                        const label start = loStartPtr[cell];
+                        const label end = loStartPtr[cell+1];
+
+                        for (label i = start; i < end; i++)
+                        {
+                            const label nbrCell = lcsrPtr[i];
+                            val += lowercsrPtr[i]*psiPtr[nbrCell];
+                        }
+                    }
+                    // Add upper contributions
+                    {
+                        const label start = oStartPtr[cell];
+                        const label end = oStartPtr[cell+1];
+
+                        for (label i = start; i < end; i++)
+                        {
+                            const label nbrCell = uPtr[i];
+                            val += upperPtr[i]*psiPtr[nbrCell];
+                        }
+                    }
                 }
-            }
-        }
+            );
+        });
     }
     else
     {
+        #ifdef FOAM_OFFLOAD
+        const labelRange indices(psi.size());
+
+        apply_policy(static_cast<std::size_t>(psi.size()), [&](auto policy)
+        {
+            std::transform
+            (
+                policy,
+                indices.begin(),
+                indices.end(),
+                Apsi.begin(),
+                matrixMultiplyFunctor<3>
+                (
+                    tpsi,
+                    diag(),
+                    lower(),
+                    upper(),
+                    lduAddr().lowerAddr(),
+                    lduAddr().upperAddr(),
+                    lduAddr().ownerStartAddr(),
+                    lduAddr().losortStartAddr(),
+                    lduAddr().losortAddr()
+                )
+            );
+        });
+        #else
         for (label cell=0; cell<nCells; cell++)
         {
             ApsiPtr[cell] = diagPtr[cell]*psiPtr[cell];
@@ -134,6 +278,7 @@ void Foam::lduMatrix::Amul
             ApsiPtr[uPtr[face]] += lowerPtr[face]*psiPtr[lPtr[face]];
             ApsiPtr[lPtr[face]] += upperPtr[face]*psiPtr[uPtr[face]];
         }
+        #endif
     }
 
     // Update interface interfaces
@@ -236,6 +381,24 @@ void Foam::lduMatrix::sumA
     const label nCells = diag().size();
     const label nFaces = upper().size();
 
+    #ifdef FOAM_OFFLOAD
+    matrixOperation
+    (
+        diag().begin(),
+        sumA,
+        lduAddr(),
+        matrixCoeffsFunctor<scalar, unityOp<scalar>>
+        (
+            upper(),
+            unityOp<scalar>()
+        ),
+        matrixCoeffsFunctor<scalar, unityOp<scalar>>
+        (
+            lower(),
+            unityOp<scalar>()
+        )
+    );
+    #else
     for (label cell=0; cell<nCells; cell++)
     {
         sumAPtr[cell] = diagPtr[cell];
@@ -246,6 +409,7 @@ void Foam::lduMatrix::sumA
         sumAPtr[uPtr[face]] += lowerPtr[face];
         sumAPtr[lPtr[face]] += upperPtr[face];
     }
+    #endif
 
     // Add the interface internal coefficients to diagonal
     // and the interface boundary coefficients to the sum-off-diagonal
@@ -256,10 +420,21 @@ void Foam::lduMatrix::sumA
             const labelUList& pa = lduAddr().patchAddr(patchi);
             const scalarField& pCoeffs = interfaceBouCoeffs[patchi];
 
-            forAll(pa, face)
+            const labelRange faceIndices(pa.size());
+
+            apply_policy(static_cast<std::size_t>(pa.size()), [&](auto policy)
             {
-                sumAPtr[pa[face]] -= pCoeffs[face];
-            }
+                std::for_each
+                (
+                    policy,
+                    faceIndices.begin(),
+                    faceIndices.end(),
+                    [&](const auto& face)
+                    {
+                        sumAPtr[pa[face]] -= pCoeffs[face];
+                    }
+                );
+            });
         }
     }
 }
@@ -312,6 +487,49 @@ void Foam::lduMatrix::residual
     );
 
     const label nCells = diag().size();
+
+    #ifdef FOAM_OFFLOAD
+    const labelRange cellIndices(psi.size());
+
+    apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
+    {
+        std::transform
+        (
+            policy,
+            cellIndices.begin(),
+            cellIndices.end(),
+            rAPtr,
+            [&](const label i)
+            {
+                return source[i] - diagPtr[i]*psi[i];
+            }
+        );
+    });
+
+    //const label nFaces = upper().size();
+    matrixOperation
+    (
+        rA.begin(),
+        rA,
+        lduAddr(),
+        matrixCoeffsMultiplyFunctor<solveScalar, scalar,
+        negateUnaryOperatorFunctor<solveScalar, scalar>>
+        (
+            psi,
+            upper(),
+            lduAddr().upperAddr(),
+            negateUnaryOperatorFunctor<solveScalar,scalar>()
+        ),
+        matrixCoeffsMultiplyFunctor<solveScalar, scalar,
+        negateUnaryOperatorFunctor<solveScalar, scalar>>
+        (
+            psi,
+            lower(),
+            lduAddr().lowerAddr(),
+            negateUnaryOperatorFunctor<solveScalar,scalar>()
+        )
+    );
+    #else
     for (label cell=0; cell<nCells; cell++)
     {
         rAPtr[cell] = sourcePtr[cell] - diagPtr[cell]*psiPtr[cell];
@@ -325,6 +543,7 @@ void Foam::lduMatrix::residual
         rAPtr[uPtr[face]] -= lowerPtr[face]*psiPtr[lPtr[face]];
         rAPtr[lPtr[face]] -= upperPtr[face]*psiPtr[uPtr[face]];
     }
+    #endif
 
     // Update interface interfaces
     updateMatrixInterfaces
@@ -371,11 +590,32 @@ Foam::tmp<Foam::scalarField> Foam::lduMatrix::H1() const
 
         const label nFaces = upper().size();
 
+        #ifdef FOAM_OFFLOAD
+        matrixOperation
+        (
+            H1Ptr,
+            tH1.ref(),
+            lduAddr(),
+            matrixCoeffsFunctor<scalar, negateUnaryOperatorFunctor<scalar,
+                scalar>>
+            (
+                upper(),
+                negateUnaryOperatorFunctor<scalar, scalar>()
+            ),
+            matrixCoeffsFunctor<scalar, negateUnaryOperatorFunctor<scalar,
+                scalar>>
+            (
+                lower(),
+                negateUnaryOperatorFunctor<scalar, scalar>()
+            )
+        );
+        #else
         for (label face=0; face<nFaces; face++)
         {
             H1Ptr[uPtr[face]] -= lowerPtr[face];
             H1Ptr[lPtr[face]] -= upperPtr[face];
         }
+        #endif
     }
 
     return tH1;

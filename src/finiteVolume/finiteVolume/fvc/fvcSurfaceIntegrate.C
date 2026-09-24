@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 UKRI-STFC.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -23,6 +24,9 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
+
 \*---------------------------------------------------------------------------*/
 
 #include "fvcSurfaceIntegrate.H"
@@ -39,8 +43,6 @@ namespace Foam
 namespace fvc
 {
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
 template<class Type>
 void surfaceIntegrate
 (
@@ -50,16 +52,60 @@ void surfaceIntegrate
 {
     const fvMesh& mesh = ssf.mesh();
 
+    const Field<Type>& issf = ssf;
+
+    #ifdef FOAM_OFFLOAD
+    const lduAddressing& addr = mesh.lduAddr();
+
+    const labelUList& ownStart = addr.ownerStartAddr();
+    const labelUList& neiStart = addr.losortStartAddr();
+    const labelUList& losort = addr.losortAddr();
+
+    auto faceOp = [&](const label, const label facei)
+    {
+        return issf[facei];
+    };
+
+    labelRange cellRange(0, ivf.size());
+
+    apply_policy(cellRange.size(), [&](auto policy)
+    {
+        std::transform
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            ivf.begin(),
+            cellReduceFunctor
+            <
+                Type,
+                decltype(faceOp),
+                decltype(faceOp),
+                plusEqOp<Type>,
+                minusEqOp<Type>
+            >
+            (
+                pTraits<Type>::zero,
+                ownStart,
+                neiStart,
+                losort,
+                faceOp,
+                faceOp,
+                plusEqOp<Type>(),
+                minusEqOp<Type>()
+            )
+        );
+    });
+    #else
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
-
-    const Field<Type>& issf = ssf;
 
     forAll(owner, facei)
     {
         ivf[owner[facei]] += issf[facei];
         ivf[neighbour[facei]] -= issf[facei];
     }
+    #endif
 
     forAll(mesh.boundary(), patchi)
     {
@@ -68,10 +114,48 @@ void surfaceIntegrate
 
         const fvsPatchField<Type>& pssf = ssf.boundaryField()[patchi];
 
+        #ifdef FOAM_OFFLOAD
+        const labelUList& patchCells = mesh.lduAddr().patchSortCells(patchi);
+        const labelUList& neiStart = mesh.lduAddr().patchSortStartAddr(patchi);
+        const labelUList& losort = mesh.lduAddr().patchSortAddr(patchi);
+
+        labelRange indices(patchCells.size());
+
+        auto neiFun = [&pssf](const label, const label facei)
+        {
+            return pssf[facei];
+        };
+
+        auto neiOp = [](Type& result, const Type& value)
+        {
+            result += value;
+        };
+
+        apply_policy(indices.size(), [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                indices.begin(),
+                indices.end(),
+                patchCellReduceFunctor<Type, decltype(neiFun),
+                    decltype(neiOp)>
+                (
+                    ivf,
+                    neiStart,
+                    losort,
+                    patchCells,
+                    neiFun,
+                    neiOp
+                )
+            );
+        });
+        #else
         forAll(mesh.boundary()[patchi], facei)
         {
             ivf[pFaceCells[facei]] += pssf[facei];
         }
+        #endif
     }
 
     ivf /= mesh.Vsc();
@@ -157,6 +241,49 @@ surfaceSum
     );
     GeometricField<Type, fvPatchField, volMesh>& vf = tvf.ref();
 
+    #ifdef FOAM_OFFLOAD
+    const lduAddressing& addr = mesh.lduAddr();
+
+    const labelUList& ownStart = addr.ownerStartAddr();
+    const labelUList& neiStart = addr.losortStartAddr();
+    const labelUList& losort = addr.losortAddr();
+
+    auto faceOp = [&](const label, const label facei)
+    {
+        return ssf[facei];
+    };
+
+    labelRange cellRange(0, vf.size());
+
+    apply_policy(cellRange.size(), [&](auto policy)
+    {
+        std::transform
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            vf.begin(),
+            cellReduceFunctor
+            <
+                Type,
+                decltype(faceOp),
+                decltype(faceOp),
+                plusEqOp<Type>,
+                plusEqOp<Type>
+            >
+            (
+                pTraits<Type>::zero,
+                ownStart,
+                neiStart,
+                losort,
+                faceOp,
+                faceOp,
+                plusEqOp<Type>(),
+                plusEqOp<Type>()
+            )
+        );
+    });
+    #else
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
 
@@ -165,6 +292,7 @@ surfaceSum
         vf[owner[facei]] += ssf[facei];
         vf[neighbour[facei]] += ssf[facei];
     }
+    #endif
 
     forAll(mesh.boundary(), patchi)
     {
@@ -173,10 +301,53 @@ surfaceSum
 
         const fvsPatchField<Type>& pssf = ssf.boundaryField()[patchi];
 
+        #ifdef FOAM_OFFLOAD
+        const labelUList& patchCells =
+            mesh.lduAddr().patchSortCells(patchi);
+
+        const labelUList& neiStart =
+            mesh.lduAddr().patchSortStartAddr(patchi);
+
+        const labelUList& losort =
+            mesh.lduAddr().patchSortAddr(patchi);
+
+        auto neiFun = [&pssf](const label, const label facei)
+        {
+            return pssf[facei];
+        };
+
+        auto neiOp = [](Type& result, const Type& value)
+        {
+            result += value;
+        };
+
+        labelRange indices(patchCells.size());
+
+        apply_policy(indices.size(), [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                indices.begin(),
+                indices.end(),
+                patchCellReduceFunctor<Type, decltype(neiFun),
+                    decltype(neiOp)>
+                (
+                    vf,
+                    neiStart,
+                    losort,
+                    patchCells,
+                    neiFun,
+                    neiOp
+                )
+            );
+        });
+        #else
         forAll(mesh.boundary()[patchi], facei)
         {
             vf[pFaceCells[facei]] += pssf[facei];
         }
+        #endif
     }
 
     vf.correctBoundaryConditions();

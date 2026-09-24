@@ -124,6 +124,17 @@ public:
             return patchAddr_[patchi];
         }
 
+        //- Return number of patches
+        virtual label nPatches() const
+        {
+            return patchAddr_.size();
+        }
+
+        virtual bool patchAvailable(const label i) const
+        {
+            return patchAddr_.set(i);
+        }
+
         //- Return patch field evaluation schedule
         const lduSchedule& patchSchedule() const noexcept
         {

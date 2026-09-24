@@ -43,17 +43,28 @@ void Foam::lduAddressing::map
 
     vals.resize_nocopy(faceVals.size());
 
-    for (label celli = 0; celli < n; celli++)
-    {
-        const label start = offsets[celli];
-        const label end = offsets[celli+1];
+    const labelRange cellIndices(n);
 
-        for (label i = start; i < end; i++)
-        {
-            const label facei = indexToFace[i];
-            vals[i] = faceVals[facei];
-        }
-    }
+    apply_policy(static_cast<std::size_t>(n), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            cellIndices.begin(),
+            cellIndices.end(),
+            [&](const label celli)
+            {
+                const label start = offsets[celli];
+                const label end = offsets[celli+1];
+
+                for (label i = start; i < end; i++)
+                {
+                    const label facei = indexToFace[i];
+                    vals[i] = faceVals[facei];
+                }
+            }
+        );
+    });
 }
 
 

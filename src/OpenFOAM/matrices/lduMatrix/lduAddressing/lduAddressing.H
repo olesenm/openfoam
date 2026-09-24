@@ -138,6 +138,12 @@ class lduAddressing
         //- Lower addressing
         mutable std::unique_ptr<labelList> lowerCSRAddrPtr_;
 
+        //- cell-based addressing for patches
+        mutable PtrList<const labelList> patchSortCells_;
+
+        mutable PtrList<const labelList> patchSortAddr_;
+
+        mutable PtrList<const labelList> patchSortStartAddr_;
 
     // Private Member Functions
 
@@ -152,6 +158,12 @@ class lduAddressing
 
         //- Calculate CSR lower addressing
         void calcLoCSR() const;
+
+        //- Calculate patch sort
+        void calcPatchSort() const;
+
+        //- Calculate patch sort
+        void calcPatchSortStart() const;
 
 
 public:
@@ -197,6 +209,29 @@ public:
         (
             const label patchNo
         ) const = 0;
+
+        //- Additional addressing on patches
+        virtual label nPatches() const = 0;
+
+        virtual bool patchAvailable
+        (
+            const label patchNo
+        ) const = 0;
+
+        const labelUList& patchSortCells
+        (
+            const label patchNo
+        ) const;
+
+        const labelUList& patchSortAddr
+        (
+            const label patchNo
+        ) const;
+
+        const labelUList& patchSortStartAddr
+        (
+            const label patchNo
+        ) const;
 
         //- Return patch field evaluation schedule
         virtual const lduSchedule& patchSchedule() const = 0;

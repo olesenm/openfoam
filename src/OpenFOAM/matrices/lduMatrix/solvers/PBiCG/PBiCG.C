@@ -84,14 +84,11 @@ Foam::solverPerformance Foam::PBiCG::solve
     );
 
     const label nCells = psi.size();
-
-    solveScalar* __restrict__ psiPtr = psi.begin();
+    const labelRange cellRange(0, nCells);
 
     solveScalarField pA(nCells);
-    solveScalar* __restrict__ pAPtr = pA.begin();
 
     solveScalarField wA(nCells);
-    solveScalar* __restrict__ wAPtr = wA.begin();
 
     // --- Calculate A.psi
     matrix_.Amul(wA, psi, interfaceBouCoeffs_, interfaces_, cmpt);
@@ -170,21 +167,39 @@ Foam::solverPerformance Foam::PBiCG::solve
 
             if (solverPerf.nIterations() == 0)
             {
-                for (label cell=0; cell<nCells; cell++)
+                apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
                 {
-                    pAPtr[cell] = wAPtr[cell];
-                    pTPtr[cell] = wTPtr[cell];
-                }
+                    std::for_each
+                    (
+                        policy,
+                        cellRange.begin(),
+                        cellRange.end(),
+                        [&](const label cell)
+                        {
+                            pA[cell] = wA[cell];
+                            pT[cell] = wT[cell];
+                        }
+                    );
+                });
             }
             else
             {
                 const solveScalar beta = wArT/wArTold;
 
-                for (label cell=0; cell<nCells; cell++)
+                apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
                 {
-                    pAPtr[cell] = wAPtr[cell] + beta*pAPtr[cell];
-                    pTPtr[cell] = wTPtr[cell] + beta*pTPtr[cell];
-                }
+                    std::for_each
+                    (
+                        policy,
+                        cellRange.begin(),
+                        cellRange.end(),
+                        [&](const label cell)
+                        {
+                            pA[cell] = wA[cell] + beta*pA[cell];
+                            pT[cell] = wT[cell] + beta*pT[cell];
+                        }
+                    );
+                });
             }
 
 
@@ -205,12 +220,21 @@ Foam::solverPerformance Foam::PBiCG::solve
 
             const solveScalar alpha = wArT/wApT;
 
-            for (label cell=0; cell<nCells; cell++)
+            apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
             {
-                psiPtr[cell] += alpha*pAPtr[cell];
-                rAPtr[cell] -= alpha*wAPtr[cell];
-                rTPtr[cell] -= alpha*wTPtr[cell];
-            }
+                std::for_each
+                (
+                    policy,
+                    cellRange.begin(),
+                    cellRange.end(),
+                    [&](const label cell)
+                    {
+                        psi[cell] += alpha*pA[cell];
+                        rA[cell] -= alpha*wA[cell];
+                        rT[cell] -= alpha*wT[cell];
+                    }
+                );
+            });
 
             solverPerf.finalResidual() =
                 gSumMag(rA, matrix().mesh().comm())

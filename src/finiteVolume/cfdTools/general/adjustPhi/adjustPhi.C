@@ -24,6 +24,8 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
 \*---------------------------------------------------------------------------*/
 
 #include "adjustPhi.H"
@@ -58,6 +60,39 @@ bool Foam::adjustPhi
             {
                 if (Up.fixesValue() && !isA<inletOutletFvPatchVectorField>(Up))
                 {
+                    #ifdef FOAM_OFFLOAD
+                    apply_policy(phip.size(), [&](auto policy)
+                    { 
+                        massIn =  std::transform_reduce
+                        (
+                            policy,
+                            phip.begin(),
+                            phip.end(),
+                            0.0, // initial value
+                            std::plus<scalar>(),
+                            [](const scalar& val)
+                            {
+                                return val < 0 ? -val : 0;
+                            }
+                        );
+                    });
+                    
+                    apply_policy(phip.size(), [&](auto policy)
+                    {  
+                        fixedMassOut = std::transform_reduce
+                        (
+                            policy,
+                            phip.begin(),
+                            phip.end(),
+                            0.0, // initial value
+                            std::plus<scalar>(),
+                            [](const scalar& val)
+                            {
+                                return val > 0 ? val : 0;
+                            }
+                        );
+                    });
+                    #else
                     forAll(phip, i)
                     {
                         if (phip[i] < 0.0)
@@ -69,9 +104,43 @@ bool Foam::adjustPhi
                             fixedMassOut += phip[i];
                         }
                     }
+                    #endif
                 }
                 else
                 {
+                    #ifdef FOAM_OFFLOAD
+                    apply_policy(phip.size(), [&](auto policy)
+                    { 
+                        massIn =  std::transform_reduce
+                        (
+                            policy,
+                            phip.begin(),
+                            phip.end(),
+                            0.0, // initial value
+                            std::plus<scalar>(),
+                            [](const scalar& val)
+                            {
+                                return val < 0 ? -val : 0;
+                            }
+                        );
+                    });
+
+                    apply_policy(phip.size(), [&](auto policy)
+                    {
+                        adjustableMassOut = std::transform_reduce
+                        (
+                            policy,
+                            phip.begin(),
+                            phip.end(),
+                            0.0, // initial value
+                            std::plus<scalar>(), // sum operation
+                            [](const scalar& val)
+                            {
+                                return val > 0 ? val : 0;
+                            }
+                        ); 
+                    });
+                    #else
                     forAll(phip, i)
                     {
                         if (phip[i] < 0.0)
@@ -83,6 +152,7 @@ bool Foam::adjustPhi
                             adjustableMassOut += phip[i];
                         }
                     }
+                    #endif
                 }
             }
         }
@@ -131,6 +201,22 @@ bool Foam::adjustPhi
                  || isA<inletOutletFvPatchVectorField>(Up)
                 )
                 {
+                    #ifdef FOAM_OFFLOAD
+                    apply_policy(phip.size(), [&](auto policy)
+                    {
+                        std::transform
+                        (   
+                            policy,
+                            phip.begin(),
+                            phip.end(),
+                            phip.begin(),
+                            [massCorr](const scalar& phi)
+                            {
+                                return phi > scalar(0) ? phi*massCorr : phi;
+                            }
+                        );
+                    });
+                    #else
                     forAll(phip, i)
                     {
                         if (phip[i] > 0.0)
@@ -138,6 +224,7 @@ bool Foam::adjustPhi
                             phip[i] *= massCorr;
                         }
                     }
+                    #endif
                 }
             }
         }

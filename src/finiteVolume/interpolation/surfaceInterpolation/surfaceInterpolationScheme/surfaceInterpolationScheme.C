@@ -167,12 +167,24 @@ Foam::surfaceInterpolationScheme<Type>::interpolate
     GeometricField<Type, fvsPatchField, surfaceMesh>& sf = tsf.ref();
 
     Field<Type>& sfi = sf.primitiveFieldRef();
+    
+    labelRange faceRange(P.size());
 
-    for (label fi=0; fi<P.size(); fi++)
+    apply_policy(P.size(), [&](auto policy)
     {
-        sfi[fi] = lambda[fi]*vfi[P[fi]] + y[fi]*vfi[N[fi]];
-    }
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label fi)
+            {
+                sfi[fi] = lambda[fi]*vfi[P[fi]] + y[fi]*vfi[N[fi]];
+            }
+        );
+    });
 
+   
 
     // Interpolate across coupled patches using given lambdas and ys
     typename GeometricField<Type, fvsPatchField, surfaceMesh>::
@@ -262,13 +274,25 @@ Foam::surfaceInterpolationScheme<Type>::dotInterpolate
 
     const typename SFType::Internal& Sfi = Sf.internalField();
 
-    for (label fi=0; fi<P.size(); fi++)
+    labelRange faceRange(P.size());
+
+    apply_policy(P.size(), [&](auto policy)
     {
         // Same as:
         // sfi[fi] = Sfi[fi] & lerp(vfi[N[fi]], vfi[P[fi]], lambda[fi]);
         // but maybe the compiler notices the fused multiply add form
-        sfi[fi] = Sfi[fi] & (lambda[fi]*(vfi[P[fi]] - vfi[N[fi]]) + vfi[N[fi]]);
-    }
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label fi)
+            {
+                sfi[fi] = Sfi[fi] & (lambda[fi]*(vfi[P[fi]] - vfi[N[fi]])
+                    + vfi[N[fi]]);
+            }
+        );
+    });
 
     // Interpolate across coupled patches using given lambdas
 

@@ -684,34 +684,103 @@ void Foam::Field<Type>::clamp_max(const Type& upper)
 template<class Type>
 void Foam::Field<Type>::clamp_min(const UList<Type>& lower)
 {
-    // Use free function max() [sic] to impose component-wise clamp_min
-    std::transform
-    (
-        // Can use (std::execution::par_unseq | std::execution::unseq)
-        this->begin(),
-        // this->end() but with some extra range safety
-        this->begin(lower.size()),
-        lower.begin(),
-        this->begin(),
-        maxOp<Type>()
-    );
+    #ifdef FOAM_OFFLOAD
+    const label n = min(this->size(), lower.size());
+
+    // TEMPORARY BUFFER is required!
+    Foam::Field<Type> tmp(n);
+
+    apply_policy(n, [&](auto policy)
+    {
+        std::transform
+        (
+            policy,     // parallel + SIMD
+            this->begin(),
+            this->begin() + n,
+            lower.begin(),
+            tmp.begin(),
+            maxOp<Type>()                  // clamp_min = max(a, lower)
+        );
+    });
+
+    // Copy back (safe for overlapping ranges)
+    apply_policy(n, [&](auto policy)
+    {
+        std::copy
+        (
+            policy,
+            tmp.begin(),
+            tmp.end(),
+            this->begin()
+        );
+    });
+    #else
+    {
+        // Use free function max() [sic] to impose component-wise clamp_min
+        std::transform
+        (
+            // Can use (std::execution::par_unseq | std::execution::unseq)
+            this->begin(),
+            // this->end() but with some extra range safety
+            this->begin(lower.size()),
+            lower.begin(),
+            this->begin(),
+            maxOp<Type>()
+        );
+    }
+    #endif
+
 }
 
 
 template<class Type>
 void Foam::Field<Type>::clamp_max(const UList<Type>& upper)
 {
-    // Use free function min() [sic] to impose component-wise clamp_max
-    std::transform
-    (
-        // Can use (std::execution::par_unseq | std::execution::unseq)
-        this->begin(),
-        // this->end() but with some extra range safety
-        this->begin(upper.size()),
-        upper.begin(),
-        this->begin(),
-        minOp<Type>()
-    );
+    #ifdef FOAM_OFFLOAD
+    const label n = min(this->size(), upper.size());
+
+    // TEMPORARY BUFFER is required!
+    Foam::Field<Type> tmp(n);
+
+    apply_policy(n, [&](auto policy)
+    {
+        std::transform
+        (
+            policy,     // parallel + SIMD
+            this->begin(),
+            this->begin() + n,
+            upper.begin(),
+            tmp.begin(),
+            minOp<Type>()                  // clamp_max = min(a, upper)
+        );
+    });
+
+    // Write back (safe)
+    apply_policy(n, [&](auto policy)
+    {
+        std::copy
+        (
+            policy,
+            tmp.begin(),
+            tmp.end(),
+            this->begin()
+        );
+    });
+    #else
+    {
+        // Use free function min() [sic] to impose component-wise clamp_max
+        std::transform
+        (
+            // Can use (std::execution::par_unseq | std::execution::unseq)
+            this->begin(),
+            // this->end() but with some extra range safety
+            this->begin(upper.size()),
+            upper.begin(),
+            this->begin(),
+            minOp<Type>()
+        );
+    }
+    #endif
 }
 
 
@@ -812,6 +881,8 @@ template<class Type>
 template<class Form, class Cmpt, Foam::direction nCmpt>
 void Foam::Field<Type>::operator=(const VectorSpace<Form,Cmpt,nCmpt>& vs)
 {
+    typedef VectorSpace<Form,Cmpt,nCmpt> VSType;
+
     TFOR_ALL_F_OP_S(Type, *this, =, VSType, vs)
 }
 

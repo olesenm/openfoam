@@ -24,6 +24,9 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
+
 \*---------------------------------------------------------------------------*/
 
 #define TEMPLATE template<class Type>
@@ -36,7 +39,149 @@ License
 namespace Foam
 {
 
+template<class T>
+inline T deviceZero()
+{
+    #ifdef FOAM_OFFLOAD
+
+    if constexpr (std::is_arithmetic_v<T>)
+    {
+        return T(0);
+    }
+    else
+    {
+        T t;
+        for (direction d = 0; d < pTraits<T>::nComponents; ++d)
+        {
+            t[d] = typename pTraits<T>::cmptType(0);
+        }
+        return t;
+    }
+
+    #else
+
+    return pTraits<T>::zero;
+
+    #endif
+}
+
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
+
+#ifdef FOAM_OFFLOAD
+
+template<class Type, class OwnFun, class NeiFun, class OwnOp, class NeiOp>
+struct cellReduceFunctor
+{
+    Type zero_;
+
+    const labelUList& ownStart_;
+    const labelUList& neiStart_;
+    const labelUList& losort_;
+
+    OwnFun ownFun_;
+    NeiFun neiFun_;
+    OwnOp ownOp_;
+    NeiOp neiOp_;
+
+    cellReduceFunctor
+    (
+        const Type& zero,
+        const labelUList& ownStart,
+        const labelUList& neiStart,
+        const labelUList& losort,
+        const OwnFun& ownFun,
+        const NeiFun& neiFun,
+        const OwnOp& ownOp,
+        const NeiOp& neiOp
+    )
+    :
+        zero_(zero),
+        ownStart_(ownStart),
+        neiStart_(neiStart),
+        losort_(losort),
+        ownFun_(ownFun),
+        neiFun_(neiFun),
+        ownOp_(ownOp),
+        neiOp_(neiOp)
+    {}
+
+    Type operator()(const label celli) const
+    {
+        Type result(zero_);
+
+        const label ownStart = ownStart_[celli];
+        const label ownSize = ownStart_[celli + 1] - ownStart;
+
+        for (label i = 0; i < ownSize; ++i)
+        {
+            const label facei = ownStart + i;
+            ownOp_(result, ownFun_(celli, facei));
+        }
+
+        const label neiStart = neiStart_[celli];
+        const label neiSize = neiStart_[celli + 1] - neiStart;
+
+        for (label i = 0; i < neiSize; ++i)
+        {
+            const label facei = losort_[neiStart + i];
+            neiOp_(result, neiFun_(celli, facei));
+        }
+
+        return result;
+    }
+};
+
+template<class Type, class NeiFun, class NeiOp>
+struct patchCellReduceFunctor
+{
+    Field<Type>& field_;
+
+    const labelUList& neiStart_;
+    const labelUList& losort_;
+    const labelUList& patchCells_;
+
+    NeiFun neiFun_;
+    NeiOp neiOp_;
+
+    patchCellReduceFunctor
+    (
+        Field<Type>& field,
+        const labelUList& neiStart,
+        const labelUList& losort,
+        const labelUList& patchCells,
+        const NeiFun& neiFun,
+        const NeiOp& neiOp
+    )
+    :
+        field_(field),
+        neiStart_(neiStart),
+        losort_(losort),
+        patchCells_(patchCells),
+        neiFun_(neiFun),
+        neiOp_(neiOp)
+    {}
+
+    bool operator()(const label id) const
+    {
+        const label celli = patchCells_[id];
+
+        Type result(field_[celli]);
+
+        const label neiStart = neiStart_[id];
+        const label neiSize = neiStart_[id + 1] - neiStart;
+
+        for (label i = 0; i < neiSize; ++i)
+        {
+            const label facei = losort_[neiStart + i];
+            neiOp_(result, neiFun_(id, facei));
+        }
+
+        field_[celli] = result;
+
+        return true;
+    }
+};
+#endif
 
 template<class Type>
 void component

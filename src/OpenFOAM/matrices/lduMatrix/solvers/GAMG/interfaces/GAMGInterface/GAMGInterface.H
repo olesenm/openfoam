@@ -68,9 +68,21 @@ protected:
 
         //- Face-cell addressing
         labelList faceCells_;
+        #ifdef FOAM_OFFLOAD
+        labelList sortCells_;
+        labelList cellFaces_;
+        labelList cellFacesStart_;
+        #endif
 
         //- Face restrict addressing
         labelList faceRestrictAddressing_;
+        #ifdef FOAM_OFFLOAD
+        labelList faceRestrictSortAddressing_;
+        labelList faceRestrictTargetAddressing_;
+        labelList faceRestrictTargetStartAddressing_;
+        
+        void updateAddressing();
+        #endif
 
 
     // Protected Member Functions

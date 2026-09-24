@@ -65,11 +65,39 @@ void Foam::GAMGSolver::interpolate
     );
 
     const label nFaces = m.upper().size();
+    #ifdef FOAM_OFFLOAD
+    auto rfun = [](const scalar x)
+    {
+        return x;
+    };
+
+    matrixOperation
+    (
+        Apsi.begin(),
+        Apsi,
+        m.lduAddr(),
+        matrixCoeffsMultiplyFunctor<solveScalar, scalar, decltype(rfun)>
+        (
+            psi,
+            m.upper(),
+            m.lduAddr().upperAddr(),
+            rfun
+        ),
+        matrixCoeffsMultiplyFunctor<solveScalar, scalar, decltype(rfun)>
+        (
+            psi,
+            m.lower(),
+            m.lduAddr().lowerAddr(),
+            rfun
+        )
+    );
+    #else
     for (label face=0; face<nFaces; face++)
     {
         ApsiPtr[uPtr[face]] += lowerPtr[face]*psiPtr[lPtr[face]];
         ApsiPtr[lPtr[face]] += upperPtr[face]*psiPtr[uPtr[face]];
     }
+    #endif
 
     m.updateMatrixInterfaces
     (
@@ -83,10 +111,22 @@ void Foam::GAMGSolver::interpolate
     );
 
     const label nCells = m.diag().size();
-    for (label celli=0; celli<nCells; celli++)
+
+    const labelRange cellRange(nCells);
+
+    apply_policy(nCells, [&](auto policy)
     {
-        psiPtr[celli] = -ApsiPtr[celli]/(diagPtr[celli]);
-    }
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            [&](const label celli)
+            {
+                psiPtr[celli] = -ApsiPtr[celli]/(diagPtr[celli]);
+            }
+        );
+    });
 }
 
 
@@ -98,6 +138,11 @@ void Foam::GAMGSolver::interpolate
     const FieldField<Field, scalar>& interfaceBouCoeffs,
     const lduInterfaceFieldPtrsList& interfaces,
     const labelList& restrictAddressing,
+    #ifdef FOAM_OFFLOAD
+    const labelList& restrictSortAddressing,
+    const labelList& restrictTargetAddressing,
+    const labelList& restrictTargetStartAddressing,
+    #endif
     const solveScalarField& psiC,
     const direction cmpt
 ) const
@@ -125,6 +170,77 @@ void Foam::GAMGSolver::interpolate
     solveScalarField diagC(nCCells, 0);
     solveScalar* __restrict__ diagCPtr = diagC.begin();
 
+    #ifdef FOAM_OFFLOAD
+    const label nTargets = restrictTargetStartAddressing.size() - 1;
+
+    const labelRange fineCellRange(nTargets);
+
+    apply_policy(nTargets, [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            fineCellRange.begin(),
+            fineCellRange.end(),
+            [&](const label i)
+            {
+                const label ccelli = restrictTargetAddressing[i];
+
+                solveScalar corr = Zero;
+                solveScalar diag = Zero;
+
+                const label start = restrictTargetStartAddressing[i];
+                const label end = restrictTargetStartAddressing[i+1];
+
+                for (label j = start; j < end; ++j)
+                {
+                    const label celli = restrictSortAddressing[j];
+
+                    corr += diagPtr[celli]*psiPtr[celli];
+                    diag += diagPtr[celli];
+                }
+
+                corrCPtr[ccelli] = corr;
+                diagCPtr[ccelli] = diag;
+            }
+        );
+    });
+
+
+    const labelRange coarseCellRange(nCCells);
+
+    apply_policy(nCCells, [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            coarseCellRange.begin(),
+            coarseCellRange.end(),
+            [&](const label ccelli)
+            {
+                corrCPtr[ccelli] =
+                    psiCPtr[ccelli] - corrCPtr[ccelli]/diagCPtr[ccelli];
+            }
+        );
+    });
+
+
+    apply_policy(nCells, [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            fineCellRange.begin(),
+            fineCellRange.end(),
+            [&](const label celli)
+            {
+                const label ccelli = restrictTargetAddressing[celli];
+
+                psiPtr[celli] += corrCPtr[ccelli];
+            }
+        );
+    });
+    #else
     for (label celli=0; celli<nCells; celli++)
     {
         corrCPtr[restrictAddressing[celli]] += diagPtr[celli]*psiPtr[celli];
@@ -140,6 +256,7 @@ void Foam::GAMGSolver::interpolate
     {
         psiPtr[celli] += corrCPtr[restrictAddressing[celli]];
     }
+    #endif
 }
 
 

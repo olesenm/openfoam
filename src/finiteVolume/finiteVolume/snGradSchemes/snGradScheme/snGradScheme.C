@@ -125,11 +125,22 @@ snGradScheme<Type>::snGrad
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
 
-    forAll(owner, facei)
+    labelRange faceRange(0, owner.size());
+
+    apply_policy(static_cast<std::size_t>(owner.size()), [&](auto policy)
     {
-        ssf[facei] =
-            deltaCoeffs[facei]*(vf[neighbour[facei]] - vf[owner[facei]]);
-    }
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label facei)
+            {
+                ssf[facei] =
+                   deltaCoeffs[facei]*(vf[neighbour[facei]] - vf[owner[facei]]);
+            }
+        );
+    });
 
     typename GeometricField<Type, fvsPatchField, surfaceMesh>::
         Boundary& ssfbf = ssf.boundaryFieldRef();

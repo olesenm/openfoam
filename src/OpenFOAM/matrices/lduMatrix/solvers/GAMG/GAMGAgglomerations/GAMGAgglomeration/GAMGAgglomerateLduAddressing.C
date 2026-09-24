@@ -34,6 +34,284 @@ License
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+#ifdef FOAM_OFFLOAD
+void Foam::GAMGAgglomeration::createSort
+(
+    const labelList& list,
+    labelList& sort
+)
+{
+    sort.setSize(list.size());
+
+    const label n = list.size();
+
+    labelRange range(n);
+
+    // Initialize:
+    // sort[i] = i
+    apply_policy(n, [&](auto policy)
+    {
+        std::copy
+        (
+            policy,
+            range.begin(),
+            range.end(),
+            sort.begin()
+        );
+    });
+
+    // Copy keys
+    labelList listTmp(list);
+
+    // Sort keys and permute indices together
+    apply_policy(n, [&](auto policy)
+    {
+        std::stable_sort
+        (
+            policy,
+            sort.begin(),
+            sort.end(),
+            [&](const label a, const label b)
+            {
+                return listTmp[a] < listTmp[b];
+            }
+        );
+    });
+}
+
+
+void Foam::GAMGAgglomeration::createTarget
+(
+    const labelList& list,
+    const labelList& sort,
+    labelList& target,
+    labelList& targetStart
+)
+{
+    const label n = list.size();
+    if (!n)
+    {
+        target.clear();
+        targetStart.resize_nocopy(1);
+        targetStart[0] = 0;
+        return;
+    }
+
+    labelList listSort(n);
+    labelList flags(n);
+    labelList offsets(n);
+    labelRange range(n);
+
+    //  Sort list
+    apply_policy(n, [&](auto policy)
+    {
+        std::transform
+        (
+            policy,
+            range.begin(),
+            range.end(),
+            listSort.begin(),
+            [&](const label i)
+            {
+                return list[sort[i]];
+            }
+        );
+    });
+
+    // Mark the first entry of every unique target group
+    apply_policy(n, [&](auto policy)
+    {
+        std::transform
+        (
+            policy,
+            range.begin(),
+            range.end(),
+            flags.begin(),
+            [&](const label i)
+            {
+                return (i == 0 || listSort[i] != listSort[i - 1]) ? 1 : 0;
+            }
+        );
+    });
+
+    // find total flags to get target size and offsets for scatter
+    label targetSize = 0;
+    apply_policy(n, [&](auto policy)
+    {
+        targetSize = std::reduce
+        (
+            policy,
+            flags.begin(),
+            flags.end(),
+            label(0)
+        );
+    });
+
+    // offsets[i] gives the compressed target index for group starts
+    apply_policy(n, [&](auto policy)
+    {
+        std::exclusive_scan
+        (
+            policy,
+            flags.begin(),
+            flags.end(),
+            offsets.begin(),
+            label(0)
+        );
+    });
+
+    target.setSize(targetSize);
+    targetStart.setSize(targetSize + 1);
+
+    // Scatter unique target values and their start offsets
+    apply_policy(n, [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            range.begin(),
+            range.end(),
+            [&](const label i)
+            {
+                if (flags[i])
+                {
+                    const label compacti = offsets[i];
+                    target[compacti] = listSort[i];
+                    targetStart[compacti] = i;
+                }
+            }
+        );
+    });
+    targetStart[targetSize] = n;
+ }
+
+
+void Foam::GAMGAgglomeration::buildFullRestrictAddr
+(
+    const labelList& addr,
+    const label level
+)
+{
+    restrictSortAddressing_.set(level, new labelField(addr.size()));
+    restrictTargetAddressing_.set(level, new labelField());
+    restrictTargetStartAddressing_.set(level, new labelField());
+
+    createSort
+    (
+        addr,
+        restrictSortAddressing_[level]
+    );
+
+    createTarget
+    (
+        addr,
+        restrictSortAddressing_[level],
+        restrictTargetAddressing_[level],
+        restrictTargetStartAddressing_[level]
+    );
+}
+
+
+void Foam::GAMGAgglomeration::buildFullFaceRestrictAddr
+(
+    const labelList& addr,
+    const label level
+)
+{
+    faceRestrictSortAddressing_.set(level, new labelList(addr.size()));
+    faceRestrictTargetAddressing_.set(level, new labelList());
+    faceRestrictTargetStartAddressing_.set(level, new labelList());
+
+    createSort
+    (
+        addr,
+        faceRestrictSortAddressing_[level]
+    );
+
+    createTarget
+    (
+        addr,
+        faceRestrictSortAddressing_[level],
+        faceRestrictTargetAddressing_[level],
+        faceRestrictTargetStartAddressing_[level]
+    );
+}
+
+
+void Foam::GAMGAgglomeration::buildFullPatchFaceRestrictAddr
+(
+    const labelListList& addr,
+    const label level
+)
+{
+    patchFaceRestrictSortAddressing_.set
+    (
+        level,
+        new labelListList(addr.size())
+    );
+    patchFaceRestrictTargetAddressing_.set
+    (
+        level,
+        new labelListList(addr.size())
+    );
+    patchFaceRestrictTargetStartAddressing_.set
+    (
+        level,
+        new labelListList(addr.size())
+    );
+
+    labelListList& patchFineToCoarseSortDevice =
+        patchFaceRestrictSortAddressing_[level];
+    labelListList& patchFineToCoarseTargetDevice =
+        patchFaceRestrictTargetAddressing_[level];
+    labelListList& patchFineToCoarseTargetStartDevice =
+        patchFaceRestrictTargetStartAddressing_[level];
+
+    forAll(addr, patchi)
+    {
+        createSort
+        (
+            addr[patchi],
+            patchFineToCoarseSortDevice[patchi]
+        );
+
+        createTarget
+        (
+            addr[patchi],
+            patchFineToCoarseSortDevice[patchi],
+            patchFineToCoarseTargetDevice[patchi],
+            patchFineToCoarseTargetStartDevice[patchi]
+        );
+    }
+}
+
+
+void Foam::GAMGAgglomeration::buildFullAddressing()
+{
+    if (restrictSortAddressing_.size())
+    {
+        return;
+    }
+
+    forAll(restrictAddressing_, leveli)
+    {
+        buildFullRestrictAddr(restrictAddressing_[leveli], leveli);
+    }
+
+    forAll(faceRestrictAddressing_, leveli)
+    {
+        buildFullFaceRestrictAddr(faceRestrictAddressing_[leveli], leveli);
+    }
+
+    forAll(patchFaceRestrictAddressing_, leveli)
+    {
+        buildFullPatchFaceRestrictAddr(patchFaceRestrictAddressing_[leveli],
+            leveli);
+    }
+}
+#endif
+
+
 void Foam::GAMGAgglomeration::agglomerateLduAddressing
 (
     const label fineLevelIndex
@@ -407,6 +685,22 @@ void Foam::GAMGAgglomeration::agglomerateLduAddressing
         )
     );
 
+    #ifdef FOAM_OFFLOAD
+    // faceFlipMap_.set(fineLevelIndex, new boolList(faceFlipMap));
+    labelList faceRestrictAddressingTmp(faceRestrictAddr);
+    buildFullFaceRestrictAddr(faceRestrictAddressingTmp, fineLevelIndex);
+
+    labelListList patchFaceRestrictAddressingTmp(patchFineToCoarse.size());
+    forAll(patchFineToCoarse, patchi)
+    {
+        patchFaceRestrictAddressingTmp[patchi] = patchFineToCoarse[patchi];
+    }
+    buildFullPatchFaceRestrictAddr
+    (
+        patchFaceRestrictAddressingTmp,
+        fineLevelIndex
+    );
+    #endif
 
     if (debug & 2)
     {
@@ -690,9 +984,38 @@ void Foam::GAMGAgglomeration::combineLevels(const label curLevel)
         }
     }
 
+    #ifdef FOAM_OFFLOAD
+    faceRestrictSortAddressing_.set(curLevel, nullptr);
+    faceRestrictTargetAddressing_.set(curLevel, nullptr);
+    faceRestrictTargetStartAddressing_.set(curLevel, nullptr);
+
+    labelList restrictAddressingTmp(prevResAddr);
+    // faceFlipMap_[prevLevel] = prevFaceFlipMap;
+    restrictSortAddressing_.set(prevLevel, new labelField(prevResAddr.size()));
+
+    createSort
+    (
+        restrictAddressingTmp,
+        restrictSortAddressing_[prevLevel]
+    );
+
+    createTarget
+    (
+        restrictAddressingTmp,
+        restrictSortAddressing_[prevLevel],
+        restrictTargetAddressing_[prevLevel],
+        restrictTargetStartAddressing_[prevLevel]
+    );
+    #endif
+
     // Delete the restrictAddressing for the coarser level
     faceRestrictAddressing_.set(curLevel, nullptr);
     faceFlipMap_.set(curLevel, nullptr);
+    #ifdef FOAM_OFFLOAD
+    restrictSortAddressing_.set(curLevel, nullptr);
+    restrictTargetAddressing_.set(curLevel, nullptr);
+    restrictTargetStartAddressing_.set(curLevel, nullptr);
+    #endif
 
     forAll(prevResAddr, i)
     {
@@ -713,6 +1036,24 @@ void Foam::GAMGAgglomeration::combineLevels(const label curLevel)
             label fineFacei = prevResAddr[i];
             prevResAddr[i] = curResAddr[fineFacei];
         }
+
+        #ifdef FOAM_OFFLOAD
+        labelList patchFaceRestrictAddressingTmp(prevResAddr);
+
+        createSort
+        (
+            patchFaceRestrictAddressingTmp,
+            patchFaceRestrictSortAddressing_[prevLevel][inti]
+        );
+
+        createTarget
+        (
+            patchFaceRestrictAddressingTmp,
+            patchFaceRestrictSortAddressing_[prevLevel][inti],
+            patchFaceRestrictTargetAddressing_[prevLevel][inti],
+            patchFaceRestrictTargetStartAddressing_[prevLevel][inti]
+        );
+        #endif
     }
 
     // Delete the restrictAddressing for the coarser level

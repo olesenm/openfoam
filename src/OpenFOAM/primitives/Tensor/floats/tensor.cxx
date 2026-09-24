@@ -29,12 +29,15 @@ License
 #include "tensor.H"
 #include "cubicEqn.H"
 #include "mathematicalConstants.H"
+
+#ifndef FOAM_OFFLOAD
 #include "SVD.H"
+#endif
 
 using namespace Foam::constant::mathematical;
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
+#ifdef FOAM_OFFLOAD
 Foam::Vector<Foam::complex> Foam::eigenValues(const tensor& T)
 {
     // Return diagonal if T is effectively diagonal tensor
@@ -301,6 +304,7 @@ Foam::Tensor<Foam::complex> Foam::eigenVectors(const tensor& T)
     return eigenVectors(T, eVals);
 }
 
+#else
 
 Foam::tensor Foam::pinv(const tensor& t)
 {
@@ -315,5 +319,6 @@ Foam::tensor Foam::pinv(const tensor& t)
     return Foam::inv(t, detval);
 }
 
+#endif // FOAM_OFFLOAD
 
 // ************************************************************************* //

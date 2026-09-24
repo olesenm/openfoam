@@ -67,7 +67,7 @@ export WM_PROJECT_VERSION=v2606
 export WM_COMPILER_TYPE=system
 
 # [WM_COMPILER] - Compiler:
-# = Gcc | Clang | Icc | Icx | Amd | Arm | Cray | Fujitsu | Mingw | Nvidia |
+# = Gcc | Clang | Icc | Icx | Amd | Arm | Cray | Fujitsu | Mingw | Nvidia | Nvidia-gpu | Amd-gpu |
 #   Gcc<digits> | Clang<digits>
 export WM_COMPILER=Gcc
 

@@ -167,7 +167,7 @@ public:
         typedef Field<ActualType> FieldType;
         auto& bfld = fld.boundaryFieldRef();
         const label n = bfld.size();
-#if defined(__STDPAR__)
+#if defined(FOAM_OFFLOAD)
         constexpr bool foam_offload = true;
 #else
         constexpr bool foam_offload = false;

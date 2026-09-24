@@ -113,7 +113,19 @@ void Foam::UList<T>::deepCopy(const UList<T>& list)
         // Can dispatch with
         // - std::execution::par_unseq
         // - std::execution::unseq
-        std::copy(list.cbegin(), list.cend(), this->v_);
+        #ifdef FOAM_OFFLOAD
+        if constexpr (is_contiguous_v<T>)
+        {
+            apply_policy(this->size_, [&](auto policy)
+            {
+                std::copy(policy, list.cbegin(), list.cend(), this->v_);
+            });
+        }
+        else
+        #endif
+        {
+            std::copy(list.cbegin(), list.cend(), this->v_);
+        }
     }
 }
 
