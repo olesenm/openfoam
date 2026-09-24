@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 UKRI-STFC.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -24,9 +25,14 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
 \*---------------------------------------------------------------------------*/
 
 #include "GAMGInterface.H"
+#ifdef FOAM_OFFLOAD
+#include "GAMGAgglomeration.H"
+#endif
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -56,6 +62,42 @@ Foam::GAMGInterface::GAMGInterface
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+#ifdef FOAM_OFFLOAD
+void Foam::GAMGInterface::updateAddressing()
+{
+    labelList restrictTmp(faceRestrictAddressing_);
+
+    GAMGAgglomeration::createSort
+    (
+        restrictTmp,
+        faceRestrictSortAddressing_
+    );
+
+    GAMGAgglomeration::createTarget
+    (
+        restrictTmp,
+        faceRestrictSortAddressing_,
+        faceRestrictTargetAddressing_,
+        faceRestrictTargetStartAddressing_
+    );
+
+    labelList sort(faceCells_.size());
+    GAMGAgglomeration::createSort
+    (
+        faceCells_,
+        cellFaces_
+    );
+
+    GAMGAgglomeration::createTarget
+    (
+        faceCells_,
+        cellFaces_,
+        sortCells_,
+        cellFacesStart_
+    );
+}
+#endif
+
 void Foam::GAMGInterface::combine(const GAMGInterface& coarseGi)
 {
     const labelList& coarseFra = coarseGi.faceRestrictAddressing_;
@@ -66,6 +108,10 @@ void Foam::GAMGInterface::combine(const GAMGInterface& coarseGi)
     }
 
     faceCells_ = coarseGi.faceCells_;
+
+    #ifdef FOAM_OFFLOAD
+    updateAddressing();
+    #endif
 }
 
 
@@ -113,10 +159,45 @@ Foam::tmp<Foam::scalarField> Foam::GAMGInterface::agglomerateCoeffs
             << abort(FatalError);
     }
 
+    #ifdef FOAM_OFFLOAD
+    labelRange coarseFaceRange(faceRestrictTargetStartAddressing_.size() - 1);
+
+    apply_policy(coarseFaceRange.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            coarseFaceRange.begin(),
+            coarseFaceRange.end(),
+            [&](const label coarseFacei)
+            {
+                const label start =
+                    faceRestrictTargetStartAddressing_[coarseFacei];
+                const label end =
+                    faceRestrictTargetStartAddressing_[coarseFacei + 1];
+
+                auto sum = 0.0;
+
+                for (label i = start; i < end; ++i)
+                {
+                    const label fineFacei = faceRestrictSortAddressing_[i];
+
+                    sum += fineCoeffs[fineFacei];
+                }
+
+                const label targetFacei =
+                    faceRestrictTargetAddressing_[coarseFacei];
+
+                coarseCoeffs[targetFacei] = sum;
+            }
+        );
+    });
+    #else
     forAll(faceRestrictAddressing_, ffi)
     {
         coarseCoeffs[faceRestrictAddressing_[ffi]] += fineCoeffs[ffi];
     }
+    #endif
 
     return tcoarseCoeffs;
 }

@@ -295,7 +295,7 @@ public:
                     value_type value_type;
                 typedef Field<value_type> FieldType;
 
-#if defined(__STDPAR__)
+#if defined(FOAM_OFFLOAD)
                 constexpr bool foam_offload = true;
 #else
                 constexpr bool foam_offload = false;

@@ -54,17 +54,30 @@ void Foam::nearWallDistNoSearch::doAll()
             const fvsPatchScalarField& magApatch
                 = mesh_.magSf().boundaryField()[patchi];
 
-            forAll(patchCentres, facei)
+            const label len = faceCells.size();
+
+            labelRange faceRange(0, len);
+
+            apply_policy(static_cast<std::size_t>(len), [&](auto policy)
             {
-                ypatch[facei] =
+                std::for_each
                 (
-                    Apatch[facei] &
-                    (
-                        patchCentres[facei]
-                      - cellCentres[faceCells[facei]]
-                    )
-                )/magApatch[facei];
-            }
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(),
+                    [&](const label facei)
+                    {
+                        ypatch[facei] =
+                        (
+                            Apatch[facei] &
+                            (
+                                patchCentres[facei]
+                              - cellCentres[faceCells[facei]]
+                            )
+                        )/magApatch[facei];
+                    }
+                );
+            });
         }
         else
         {

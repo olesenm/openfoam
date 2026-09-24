@@ -56,6 +56,7 @@ SourceFiles
 #include "Hash.H"
 #include "ListPolicy.H"  // Also includes "contiguous"
 
+#include <iterator>
 #include <vector>  // i.e, std::vector
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -64,6 +65,11 @@ namespace Foam
 {
 
 // Forward Declarations
+template <typename Func>
+void apply_policy(size_t loop_length, Func&& f);
+
+class labelRange;
+
 template<class T> class List;
 template<class T> class SubList;
 template<class T> class UList;

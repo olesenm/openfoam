@@ -401,9 +401,9 @@ inline Foam::SymmTensor<Cmpt> Foam::SymmTensor<Cmpt>::safeInv() const
         {
             SymmTensor<Cmpt> work(*this);
 
-            if (small_xx) { work.xx() += pTraits<Cmpt>::one; }
-            if (small_yy) { work.yy() += pTraits<Cmpt>::one; }
-            if (small_zz) { work.zz() += pTraits<Cmpt>::one; }
+            if (small_xx) { work.xx() += 1.0; }
+            if (small_yy) { work.yy() += 1.0; }
+            if (small_zz) { work.zz() += 1.0; }
 
             const Cmpt detval = work.det();
 
@@ -415,9 +415,9 @@ inline Foam::SymmTensor<Cmpt> Foam::SymmTensor<Cmpt>::safeInv() const
 
             work = work.adjunct()/detval;
 
-            if (small_xx) { work.xx() -= pTraits<Cmpt>::one; }
-            if (small_yy) { work.yy() -= pTraits<Cmpt>::one; }
-            if (small_zz) { work.zz() -= pTraits<Cmpt>::one; }
+            if (small_xx) { work.xx() -= 1.0; }
+            if (small_yy) { work.yy() -= 1.0; }
+            if (small_zz) { work.zz() -= 1.0; }
 
             return work;
         }
@@ -923,6 +923,194 @@ public:
     typedef SymmTensor<Cmpt> type;
 };
 
+#ifdef FOAM_OFFLOAD
+
+// GPU/stdpar-safe: no SVD
+inline SymmTensor<scalar> pinv(const SymmTensor<scalar>& st)
+{
+    const scalar detval = st.det();
+
+    // If invertible enough -> exact inverse
+    if (mag(detval) >= ROOTVSMALL)
+    {
+        return inv(st, detval);
+    }
+
+    // Near-singular fallback: diagonal regularization (Tikhonov-like)
+    // This is not Moore–Penrose, but is GPU-safe and robust.
+    const scalar eps = ROOTVSMALL;  // you can tune to SMALL if needed
+
+    SymmTensor<scalar> reg(st);
+    reg.xx() += eps;
+    reg.yy() += eps;
+    reg.zz() += eps;
+
+    const scalar det2 = reg.det();
+    if (mag(det2) < ROOTVSMALL)
+    {
+        return SymmTensor<scalar>(Zero);
+    }
+
+    return inv(reg, det2);
+}
+
+inline void sort3Ascending(scalar& a, scalar& b, scalar& c)
+{
+    if (a > b) { scalar t=a; a=b; b=t; }
+    if (b > c) { scalar t=b; b=c; c=t; }
+    if (a > b) { scalar t=a; a=b; b=t; }
+}
+
+inline Vector<scalar> eigenValues(const SymmTensor<scalar>& T)
+{
+    const scalar a11 = T.xx();
+    const scalar a22 = T.yy();
+    const scalar a33 = T.zz();
+    const scalar a12 = T.xy();
+    const scalar a13 = T.xz();
+    const scalar a23 = T.yz();
+
+    const scalar off2 = sqr(a12) + sqr(a13) + sqr(a23);
+    if (off2 < ROOTSMALL)
+    {
+        scalar l1=a11, l2=a22, l3=a33;
+        sort3Ascending(l1, l2, l3);
+        return Vector<scalar>(l1, l2, l3);
+    }
+
+    // Analytic eigensolver for symmetric 3x3
+    const scalar m = (a11 + a22 + a33) / scalar(3);
+
+    const scalar b11 = a11 - m;
+    const scalar b22 = a22 - m;
+    const scalar b33 = a33 - m;
+
+    const scalar p2 =
+        (b11*b11 + b22*b22 + b33*b33
+      + scalar(2)*(a12*a12 + a13*a13 + a23*a23)) / scalar(6);
+
+    if (p2 < VSMALL)
+    {
+        return Vector<scalar>(m, m, m);
+    }
+
+    const scalar p = Foam::sqrt(p2);
+
+    const scalar detB =
+          b11*(b22*b33 - a23*a23)
+        - a12*(a12*b33 - a13*a23)
+        + a13*(a12*a23 - a13*b22);
+
+    scalar r = detB / (scalar(2) * p*p*p);
+    if (r < scalar(-1)) r = scalar(-1);
+    if (r > scalar( 1)) r = scalar( 1);
+
+    const scalar phi = Foam::acos(r) / scalar(3);
+
+    const scalar twoPiOver3  = scalar(2.0943951023931954923);
+    const scalar fourPiOver3 = scalar(4.1887902047863909846);
+
+    scalar l1 = m + scalar(2)*p*Foam::cos(phi);
+    scalar l2 = m + scalar(2)*p*Foam::cos(phi + twoPiOver3);
+    scalar l3 = m + scalar(2)*p*Foam::cos(phi + fourPiOver3);
+
+    sort3Ascending(l1, l2, l3);
+    return Vector<scalar>(l1, l2, l3);
+}
+
+inline Vector<scalar> safeNormalize(const Vector<scalar>& v, const Vector<scalar>& fallback)
+{
+    const scalar mv = mag(v);
+    return (mv > SMALL) ? (v/mv) : fallback;
+}
+
+inline Vector<scalar> eigenVector
+(
+    const SymmTensor<scalar>& T,
+    const scalar eVal,
+    const Vector<scalar>& standardBasis1,
+    const Vector<scalar>& standardBasis2
+)
+{
+    // A = T - eVal*I
+    const scalar Axx = T.xx() - eVal;
+    const scalar Ayy = T.yy() - eVal;
+    const scalar Azz = T.zz() - eVal;
+
+    const scalar Axy = T.xy();
+    const scalar Axz = T.xz();
+    const scalar Ayz = T.yz();
+
+    const scalar sd0 = Ayy*Azz - Ayz*Ayz;
+    const scalar sd1 = Azz*Axx - Axz*Axz;
+    const scalar sd2 = Axx*Ayy - Axy*Axy;
+
+    const scalar magSd0 = mag(sd0);
+    const scalar magSd1 = mag(sd1);
+    const scalar magSd2 = mag(sd2);
+
+    const Vector<scalar> fallback =
+        safeNormalize(standardBasis1 ^ standardBasis2, standardBasis1);
+
+    if (magSd0 >= magSd1 && magSd0 >= magSd2 && magSd0 > SMALL)
+    {
+        const Vector<scalar> eVec
+        (
+            1,
+            (Ayz*Axz - Azz*Axy)/sd0,
+            (Ayz*Axy - Ayy*Axz)/sd0
+        );
+        return safeNormalize(eVec, fallback);
+    }
+    else if (magSd1 >= magSd2 && magSd1 > SMALL)
+    {
+        const Vector<scalar> eVec
+        (
+            (Axz*Ayz - Azz*Axy)/sd1,
+            1,
+            (Axz*Axy - Axx*Ayz)/sd1
+        );
+        return safeNormalize(eVec, fallback);
+    }
+    else if (magSd2 > SMALL)
+    {
+        const Vector<scalar> eVec
+        (
+            (Axy*Ayz - Ayy*Axz)/sd2,
+            (Axy*Axz - Axx*Ayz)/sd2,
+            1
+        );
+        return safeNormalize(eVec, fallback);
+    }
+
+    // repeated eigenvalue fallback
+    return fallback;
+}
+
+inline Tensor<scalar> eigenVectors(const SymmTensor<scalar>& T, const Vector<scalar>& eVals)
+{
+    Vector<scalar> Ux(1,0,0), Uy(0,1,0), Uz(0,0,1);
+
+    Ux = eigenVector(T, eVals.x(), Uy, Uz);
+    Uy = eigenVector(T, eVals.y(), Uz, Ux);
+
+    // orthogonalize Uy against Ux for stability
+    Uy -= (Uy & Ux)*Ux;
+    Uy = safeNormalize(Uy, safeNormalize(Ux ^ Uz, Vector<scalar>(0,1,0)));
+
+    Uz = Ux ^ Uy;
+    Uz = safeNormalize(Uz, Vector<scalar>(0,0,1));
+
+    return Tensor<scalar>(Ux, Uy, Uz);
+}
+
+inline Tensor<scalar> eigenVectors(const SymmTensor<scalar>& T)
+{
+    const Vector<scalar> eVals(eigenValues(T));
+    return eigenVectors(T, eVals);
+}
+
+#endif // FOAM_OFFLOAD
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

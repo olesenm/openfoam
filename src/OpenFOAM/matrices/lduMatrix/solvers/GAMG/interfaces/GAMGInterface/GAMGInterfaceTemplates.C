@@ -51,11 +51,20 @@ Foam::tmp<Foam::Field<Type>> Foam::GAMGInterface::interfaceInternalField
 {
     auto tresult = tmp<Field<Type>>::New(faceCells.size());
     auto& result = tresult.ref();
-
-    forAll(result, elemi)
+    apply_policy(faceCells.size(), [&](auto policy)
     {
-        result[elemi] = iF[faceCells[elemi]];
-    }
+        std::transform
+        (
+            policy,
+            faceCells.begin(),
+            faceCells.end(),
+            result.begin(),
+            [&](const auto& faceCellIndex) 
+            {
+                return iF[faceCellIndex];
+            }
+        );
+    });
     return tresult;
 }
 
@@ -69,10 +78,20 @@ void Foam::GAMGInterface::interfaceInternalField
 {
     result.resize(size());
 
-    forAll(result, elemi)
+    apply_policy(faceCells_.size(), [&](auto policy)
     {
-        result[elemi] = iF[faceCells_[elemi]];
-    }
+        std::transform
+        (
+            policy,
+            faceCells_.begin(),
+            faceCells_.end(),
+            result.begin(),
+            [&](const auto& faceCellIndex) 
+            {
+                return iF[faceCellIndex];
+            }
+        );
+    });
 }
 
 

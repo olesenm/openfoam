@@ -627,9 +627,9 @@ inline Foam::Tensor<Cmpt> Foam::Tensor<Cmpt>::safeInv() const
         {
             Tensor<Cmpt> work(*this);
 
-            if (small_xx) { work.xx() += pTraits<Cmpt>::one; }
-            if (small_yy) { work.yy() += pTraits<Cmpt>::one; }
-            if (small_zz) { work.zz() += pTraits<Cmpt>::one; }
+            if (small_xx) { work.xx() += 1.0; }
+            if (small_yy) { work.yy() += 1.0; }
+            if (small_zz) { work.zz() += 1.0; }
 
             const Cmpt detval = work.det();
 
@@ -641,9 +641,9 @@ inline Foam::Tensor<Cmpt> Foam::Tensor<Cmpt>::safeInv() const
 
             work = work.adjunct()/detval;
 
-            if (small_xx) { work.xx() -= pTraits<Cmpt>::one; }
-            if (small_yy) { work.yy() -= pTraits<Cmpt>::one; }
-            if (small_zz) { work.zz() -= pTraits<Cmpt>::one; }
+            if (small_xx) { work.xx() -= 1.0; }
+            if (small_yy) { work.yy() -= 1.0; }
+            if (small_zz) { work.zz() -= 1.0; }
 
             return work;
         }
@@ -1366,6 +1366,34 @@ public:
     typedef Tensor<Cmpt> type;
 };
 
+#ifdef FOAM_OFFLOAD
+
+// GPU/stdpar-safe: no SVD
+inline Tensor<scalar> pinv(const Tensor<scalar>& t)
+{
+    const scalar detval = t.det();
+
+    if (mag(detval) >= ROOTVSMALL)
+    {
+        return inv(t, detval);
+    }
+
+    const scalar eps = ROOTVSMALL;
+    Tensor<scalar> reg(t);
+    reg.xx() += eps;
+    reg.yy() += eps;
+    reg.zz() += eps;
+
+    const scalar det2 = reg.det();
+    if (mag(det2) < ROOTVSMALL)
+    {
+        return Tensor<scalar>(Zero);
+    }
+
+    return inv(reg, det2);
+}
+
+#endif // FOAM_OFFLOAD
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

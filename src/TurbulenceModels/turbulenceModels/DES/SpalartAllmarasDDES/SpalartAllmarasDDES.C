@@ -59,7 +59,17 @@ tmp<volScalarField> SpalartAllmarasDDES<BasicTurbulenceModel>::fd
 {
     const volScalarField r(this->r(this->nuEff(), magGradU, this->y_));
 
-    tmp<volScalarField> tfd = 1 - tanh(pow(Cd1_*r, Cd2_));
+    auto powCd2 = [this](const tmp<volScalarField>& tx)
+    {
+        if (mag(Cd2_.value() - scalar(3)) < SMALL)
+        {
+            return pow3(tx);
+        }
+
+        return pow(tx, Cd2_);
+    };
+
+    tmp<volScalarField> tfd = 1 - tanh(powCd2(Cd1_*r));
 
     switch (shielding_)
     {
@@ -83,7 +93,10 @@ tmp<volScalarField> SpalartAllmarasDDES<BasicTurbulenceModel>::fd
               / (maxEps(magGradU, SMALL)*this->kappa_*this->y_)
             );
 
-            volScalarField fdGnuTilda(1 - tanh(pow(Cd1_*GnuTilda, Cd2_)));
+            volScalarField fdGnuTilda
+            (
+                1 - tanh(powCd2(Cd1_*GnuTilda))
+            );
             const volScalarField GOmega
             (
               - (fvc::grad(mag(fvc::curl(this->U_))) & n)
@@ -103,7 +116,7 @@ tmp<volScalarField> SpalartAllmarasDDES<BasicTurbulenceModel>::fd
             if (usefP2_)
             {
                 fdGnuTilda *=
-                    (1.0 - tanh(pow(Cd1_*betaZDES_*r, Cd2_)))
+                    (1.0 - tanh(powCd2(Cd1_*betaZDES_*r)))
 		          / maxEps(fdStd, SMALL);
             }
 

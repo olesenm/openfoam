@@ -63,22 +63,33 @@ void Foam::LimitedScheme<Type, Limiter, LimitFunc>::calcLimiter
 
     scalarField& pLim = limiterField.primitiveFieldRef();
 
-    forAll(pLim, face)
-    {
-        label own = owner[face];
-        label nei = neighbour[face];
+    labelRange faceRange(pLim.size());
 
-        pLim[face] = Limiter::limiter
+    apply_policy(pLim.size(), [&](auto policy)
+    {
+        std::for_each
         (
-            CDweights[face],
-            this->faceFlux_[face],
-            lPhi[own],
-            lPhi[nei],
-            gradc[own],
-            gradc[nei],
-            C[nei] - C[own]
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label face)
+            {
+                const label own = owner[face];
+                const label nei = neighbour[face];
+
+                pLim[face] = Limiter::limiter
+                (
+                    CDweights[face],
+                    this->faceFlux_[face],
+                    lPhi[own],
+                    lPhi[nei],
+                    gradc[own],
+                    gradc[nei],
+                    C[nei] - C[own]
+                );
+            }
         );
-    }
+    });
 
     surfaceScalarField::Boundary& bLim = limiterField.boundaryFieldRef();
 
@@ -112,19 +123,30 @@ void Foam::LimitedScheme<Type, Limiter, LimitFunc>::calcLimiter
             // Build the d-vectors
             vectorField pd(CDweights.boundaryField()[patchi].patch().delta());
 
-            forAll(pLim, face)
+            labelRange faceRange(pLim.size());
+
+            apply_policy(pLim.size(), [&](auto policy)
             {
-                pLim[face] = Limiter::limiter
+                std::for_each
                 (
-                    pCDweights[face],
-                    pFaceFlux[face],
-                    plPhiP[face],
-                    plPhiN[face],
-                    pGradcP[face],
-                    pGradcN[face],
-                    pd[face]
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(),
+                    [&](const label face)
+                    {
+                        pLim[face] = Limiter::limiter
+                        (
+                            pCDweights[face],
+                            pFaceFlux[face],
+                            plPhiP[face],
+                            plPhiN[face],
+                            pGradcP[face],
+                            pGradcN[face],
+                            pd[face]
+                        );
+                    }
                 );
-            }
+            });
         }
         else
         {

@@ -189,7 +189,11 @@ protected:
         template<class Type2>
         void addToInternalField
         (
-            const labelUList& addr,
+            const labelUList& sortAddr,
+            #ifdef FOAM_OFFLOAD
+            const labelUList& sort,
+            const labelUList& sortStart,
+            #endif 
             const Field<Type2>& pf,
             Field<Type2>& intf
         ) const;
@@ -197,7 +201,11 @@ protected:
         template<class Type2>
         void addToInternalField
         (
-            const labelUList& addr,
+            const labelUList& sortAddr,
+            #ifdef FOAM_OFFLOAD
+            const labelUList& sort,
+            const labelUList& sortStart,
+            #endif
             const tmp<Field<Type2>>& tpf,
             Field<Type2>& intf
         ) const;
@@ -207,6 +215,10 @@ protected:
         void subtractFromInternalField
         (
             const labelUList& addr,
+            #ifdef FOAM_OFFLOAD
+            const labelUList& sort,
+            const labelUList& sortStart,
+            #endif
             const Field<Type2>& pf,
             Field<Type2>& intf
         ) const;
@@ -215,6 +227,10 @@ protected:
         void subtractFromInternalField
         (
             const labelUList& addr,
+            #ifdef FOAM_OFFLOAD
+            const labelUList& sort,
+            const labelUList& sortStart,
+            #endif
             const tmp<Field<Type2>>& tpf,
             Field<Type2>& intf
         ) const;

@@ -29,7 +29,10 @@ License
 #include "symmTensor.H"
 #include "cubicEqn.H"
 #include "mathematicalConstants.H"
+
+#ifndef FOAM_OFFLOAD
 #include "SVD.H"
+#endif
 
 using namespace Foam::constant::mathematical;
 
@@ -113,6 +116,7 @@ defineTraits(Foam::scalar, );
 
 #undef defineTraits
 
+#ifndef FOAM_OFFLOAD
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -381,5 +385,6 @@ Foam::symmTensor Foam::pinv(const symmTensor& st)
     return Foam::inv(st, detval);
 }
 
+#endif // not FOAM_OFFLOAD
 
 // ************************************************************************* //

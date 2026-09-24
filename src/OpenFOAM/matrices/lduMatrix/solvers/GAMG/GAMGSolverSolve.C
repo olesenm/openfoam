@@ -379,6 +379,11 @@ void Foam::GAMGSolver::Vcycle
                     interfaceLevelsBouCoeffs_[leveli],
                     interfaceLevels_[leveli],
                     agglomeration_.restrictAddressing(leveli + 1),
+                    #ifdef FOAM_OFFLOAD
+                    agglomeration_.restrictSortAddressing(leveli + 1),
+                    agglomeration_.restrictTargetAddressing(leveli + 1),
+                    agglomeration_.restrictTargetStartAddressing(leveli + 1),
+                    #endif
                     cf,
                     cmpt
                 );
@@ -444,6 +449,11 @@ void Foam::GAMGSolver::Vcycle
             interfaceBouCoeffs_,
             interfaces_,
             agglomeration_.restrictAddressing(0),
+            #ifdef FOAM_OFFLOAD
+            agglomeration_.restrictSortAddressing(0),
+            agglomeration_.restrictTargetAddressing(0),
+            agglomeration_.restrictTargetStartAddressing(0),
+            #endif
             coarseCorrFields[0],
             cmpt
         );
@@ -464,10 +474,21 @@ void Foam::GAMGSolver::Vcycle
         );
     }
 
-    forAll(psi, i)
+    labelRange cellRange(psi.size());
+
+    apply_policy(cellRange.size(), [&](auto policy)
     {
-        psi[i] += finestCorrection[i];
-    }
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            [&](const auto& i)
+            {
+                psi[i] += finestCorrection[i];
+            }
+        );
+    });
 
     smoothers[0].smooth
     (

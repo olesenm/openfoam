@@ -96,12 +96,17 @@ tmp<scalarField> stabilise(const tmp<scalarField>& tsf, const scalar s)
 template<>
 float sumProd(const UList<float>& f1, const UList<float>& f2)
 {
-    float result = 0.0;
+    float result = 0.0f;
+
     if (f1.size() && (f1.size() == f2.size()))
     {
-        // std::inner_product
+        #ifdef FOAM_OFFLOAD
+        result = sumProdScalarOffload(f1, f2);
+        #else
         TFOR_ALL_S_OP_F_OP_F(float, result, +=, float, f1, *, float, f2)
+        #endif
     }
+
     return result;
 }
 
@@ -110,11 +115,16 @@ template<>
 double sumProd(const UList<double>& f1, const UList<double>& f2)
 {
     double result = 0.0;
+
     if (f1.size() && (f1.size() == f2.size()))
     {
-        // std::inner_product
+        #ifdef FOAM_OFFLOAD
+        result = sumProdScalarOffload(f1, f2);
+        #else
         TFOR_ALL_S_OP_F_OP_F(double, result, +=, double, f1, *, double, f2)
+        #endif
     }
+
     return result;
 }
 
@@ -172,17 +182,19 @@ UNARY_FUNCTION(scalar, scalar, atanh)
 UNARY_FUNCTION(scalar, scalar, erf)
 UNARY_FUNCTION(scalar, scalar, erfc)
 UNARY_FUNCTION(scalar, scalar, lgamma)
+#ifndef FOAM_OFFLOAD
 UNARY_FUNCTION(scalar, scalar, j0)
 UNARY_FUNCTION(scalar, scalar, j1)
 UNARY_FUNCTION(scalar, scalar, y0)
 UNARY_FUNCTION(scalar, scalar, y1)
-
+#endif
 UNARY_FUNCTION(scalar, scalar, degToRad)
 UNARY_FUNCTION(scalar, scalar, radToDeg)
 UNARY_FUNCTION(scalar, scalar, atmToPa)
-UNARY_FUNCTION(scalar, scalar, barToPa)
 UNARY_FUNCTION(scalar, scalar, paToAtm)
+#ifndef FOAM_OFFLOAD
 UNARY_FUNCTION(scalar, scalar, paToBar)
+#endif
 
 
 #define BesselFunc(func)                                                       \
@@ -206,8 +218,10 @@ tmp<scalarField> func(const int n, const tmp<scalarField>& tsf)                \
     return tresult;                                                            \
 }
 
+#ifndef FOAM_OFFLOAD
 BesselFunc(jn)
 BesselFunc(yn)
+#endif
 
 #undef BesselFunc
 

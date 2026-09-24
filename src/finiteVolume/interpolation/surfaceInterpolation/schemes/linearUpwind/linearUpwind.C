@@ -83,14 +83,25 @@ Foam::linearUpwind<Type>::correction
 
         const volVectorField& gradVf = tgradVf();
 
-        forAll(faceFlux, facei)
-        {
-            const label celli =
-                (faceFlux[facei] > 0) ? owner[facei] : neighbour[facei];
+        labelRange faceRange(faceFlux.size());
 
-            setComponent(sfCorr[facei], cmpt) =
-                (Cf[facei] - C[celli]) & gradVf[celli];
-        }
+        apply_policy(faceFlux.size(), [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                faceRange.begin(),
+                faceRange.end(),
+                [&](size_t facei)
+                {
+                    const label celli =
+                        (faceFlux[facei] > 0) ? owner[facei] : neighbour[facei];
+
+                    setComponent(sfCorr[facei], cmpt) =
+                        (Cf[facei] - C[celli]) & gradVf[celli];
+                }
+            );
+        });
 
         typename GeometricField<Type, fvsPatchField, surfaceMesh>::
             Boundary& bSfCorr = sfCorr.boundaryFieldRef();
@@ -116,23 +127,34 @@ Foam::linearUpwind<Type>::correction
                     Cf.boundaryField()[patchi].patch().delta()
                 );
 
-                forAll(pOwner, facei)
-                {
-                    label own = pOwner[facei];
+                labelRange faceRange(pOwner.size());
 
-                    if (pFaceFlux[facei] > 0)
-                    {
-                        setComponent(pSfCorr[facei], cmpt) =
-                            (pCf[facei] - C[own])
-                          & gradVf[own];
-                    }
-                    else
-                    {
-                        setComponent(pSfCorr[facei], cmpt) =
-                            (pCf[facei] - pd[facei] - C[own])
-                          & pGradVfNei[facei];
-                    }
-                }
+                apply_policy(pOwner.size(), [&](auto policy)
+                {
+                    std::for_each
+                    (
+                        policy,
+                        faceRange.begin(),
+                        faceRange.end(),
+                        [&](size_t facei)
+                        {
+                            label own = pOwner[facei];
+
+                            if (pFaceFlux[facei] > 0)
+                            {
+                                setComponent(pSfCorr[facei], cmpt) =
+                                    (pCf[facei] - C[own])
+                                  & gradVf[own];
+                            }
+                            else
+                            {
+                                setComponent(pSfCorr[facei], cmpt) =
+                                    (pCf[facei] - pd[facei] - C[own])
+                                  & pGradVfNei[facei];
+                            }
+                        }
+                    );
+                });
             }
         }
     }
@@ -190,12 +212,23 @@ Foam::linearUpwind<Foam::vector>::correction
     tmp<volTensorField> tgradVf = gradScheme_().grad(vf, gradSchemeName_);
     const volTensorField& gradVf = tgradVf();
 
-    forAll(faceFlux, facei)
+    labelRange faceRange(faceFlux.size());
+
+    apply_policy(faceFlux.size(), [&](auto policy)
     {
-        const label celli =
-            (faceFlux[facei] > 0) ? owner[facei] : neighbour[facei];
-        sfCorr[facei] = (Cf[facei] - C[celli]) & gradVf[celli];
-    }
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](size_t facei)
+            {
+                const label celli =
+                    (faceFlux[facei] > 0) ? owner[facei] : neighbour[facei];
+                sfCorr[facei] = (Cf[facei] - C[celli]) & gradVf[celli];
+            }
+        );
+    });
 
 
     typename surfaceVectorField::Boundary& bSfCorr = sfCorr.boundaryFieldRef();
@@ -218,20 +251,34 @@ Foam::linearUpwind<Foam::vector>::correction
             // Build the d-vectors
             vectorField pd(Cf.boundaryField()[patchi].patch().delta());
 
-            forAll(pOwner, facei)
-            {
-                label own = pOwner[facei];
+            labelRange faceRange(pOwner.size());
 
-                if (pFaceFlux[facei] > 0)
-                {
-                    pSfCorr[facei] = (pCf[facei] - C[own]) & gradVf[own];
-                }
-                else
-                {
-                    pSfCorr[facei] =
-                        (pCf[facei] - pd[facei] - C[own]) & pGradVfNei[facei];
-                }
-            }
+            apply_policy(pOwner.size(), [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(),
+                    [&](size_t facei)
+                    {
+                        label own = pOwner[facei];
+
+                        if (pFaceFlux[facei] > 0)
+                        {
+                            pSfCorr[facei] =
+                                (pCf[facei] - C[own])
+                              & gradVf[own];
+                        }
+                        else
+                        {
+                            pSfCorr[facei] =
+                                (pCf[facei] - pd[facei] - C[own])
+                              & pGradVfNei[facei];
+                        }
+                    }
+                );
+            });
         }
     }
 

@@ -211,6 +211,13 @@ void Foam::pairGAMGAgglomeration::agglomerate
         {
             nCells_[nCreatedLevels] = nCoarseCells;
             restrictAddressing_.set(nCreatedLevels, finalAgglomPtr);
+            #ifdef FOAM_OFFLOAD
+            const labelList restrictAddressingTmp
+            (
+                restrictAddressing_[nCreatedLevels]
+            );
+            buildFullRestrictAddr(restrictAddressingTmp, nCreatedLevels);
+            #endif
         }
         else
         {
@@ -298,8 +305,8 @@ void Foam::pairGAMGAgglomeration::agglomerate
             const labelList oldToNew(invert(newToOld.size(), newToOld));
 
             // Apply new coarse-cell numbering to the restrict map at this level
-            labelField& restrict = restrictAddressing_[leveli];
-            restrict = UIndirectList<label>(oldToNew, restrict)();
+            labelField& restrictAddr = restrictAddressing_[leveli];
+            restrictAddr = UIndirectList<label>(oldToNew, restrictAddr)();
 
             // Permute the next level's restrict map so its domain indices
             // match the new coarse-cell ordering of this level

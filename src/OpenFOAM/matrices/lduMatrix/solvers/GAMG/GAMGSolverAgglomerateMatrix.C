@@ -30,6 +30,9 @@ License
 #include "GAMGInterfaceField.H"
 #include "processorLduInterfaceField.H"
 #include "processorGAMGInterfaceField.H"
+#ifdef FOAM_OFFLOAD
+#include "GAMGSolverAgglomerateMatrixF.H"
+#endif
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -129,6 +132,14 @@ void Foam::GAMGSolver::agglomerateMatrix
             agglomeration_.faceRestrictAddressing(fineLevelIndex);
         const boolList& faceFlipMap =
             agglomeration_.faceFlipMap(fineLevelIndex);
+        #ifdef FOAM_OFFLOAD
+        const labelList& faceRestrictSortAddr =
+            agglomeration_.faceRestrictSortAddressing(fineLevelIndex); 
+        const labelList& faceRestrictTargetAddr = 
+            agglomeration_.faceRestrictTargetAddressing(fineLevelIndex);
+        const labelList& faceRestrictTargetStartAddr = 
+            agglomeration_.faceRestrictTargetStartAddressing(fineLevelIndex);
+        #endif
 
         // Check if matrix is asymmetric and if so agglomerate both upper
         // and lower coefficients ...
@@ -142,6 +153,49 @@ void Foam::GAMGSolver::agglomerateMatrix
             scalarField& coarseUpper = coarseMatrix.upper(nCoarseFaces);
             scalarField& coarseLower = coarseMatrix.lower(nCoarseFaces);
 
+            #ifdef FOAM_OFFLOAD
+            labelRange faceRange(0, faceRestrictTargetAddr.size());
+
+            apply_policy(faceRange.size(), [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(), 
+                    GAMG::asymAgglomerate
+                    (
+                        coarseUpper,
+                        coarseLower,
+                        fineUpper,
+                        fineLower,
+                        faceFlipMap,
+                        faceRestrictSortAddr,
+                        faceRestrictTargetAddr,
+                        faceRestrictTargetStartAddr
+                    )
+                );
+            });
+
+            apply_policy(faceRange.size(), [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(), 
+                    GAMG::diagAsymAgglomerate
+                    (
+                        coarseDiag,
+                        fineUpper,
+                        fineLower,
+                        faceRestrictSortAddr,
+                        faceRestrictTargetAddr,
+                        faceRestrictTargetStartAddr
+                    )
+                );
+            });
+            #else
             forAll(faceRestrictAddr, fineFacei)
             {
                 label cFace = faceRestrictAddr[fineFacei];
@@ -168,6 +222,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                         fineUpper[fineFacei] + fineLower[fineFacei];
                 }
             }
+            #endif
         }
         else // ... Otherwise it is symmetric so agglomerate just the upper
         {
@@ -177,6 +232,45 @@ void Foam::GAMGSolver::agglomerateMatrix
             // Coarse matrix upper coefficients
             scalarField& coarseUpper = coarseMatrix.upper(nCoarseFaces);
 
+            #ifdef FOAM_OFFLOAD
+            labelRange faceRange(0, faceRestrictTargetAddr.size());
+
+            apply_policy(faceRange.size(), [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(), 
+                    GAMG::symAgglomerate
+                    (
+                        coarseUpper,
+                        fineUpper,
+                        faceRestrictSortAddr,
+                        faceRestrictTargetAddr,
+                        faceRestrictTargetStartAddr
+                    )
+                );
+            });
+
+            apply_policy(faceRange.size(), [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(), 
+                    GAMG::diagSymAgglomerate
+                    (
+                        coarseDiag,
+                        fineUpper,
+                        faceRestrictSortAddr,
+                        faceRestrictTargetAddr,
+                        faceRestrictTargetStartAddr
+                    )
+                );
+            });
+            #else
             forAll(faceRestrictAddr, fineFacei)
             {
                 label cFace = faceRestrictAddr[fineFacei];
@@ -191,6 +285,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                     coarseDiag[-1 - cFace] += 2*fineUpper[fineFacei];
                 }
             }
+            #endif
         }
     }
 }
@@ -258,24 +353,65 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
                 inti,
                 new scalarField(nPatchFaces[inti], Zero)
             );
+            #ifdef FOAM_OFFLOAD
+            const labelListList& fToCSort =
+                agglomeration_.patchFaceRestrictSortAddressing(fineLevelIndex);
+            const labelListList& fToCTarget =
+                agglomeration_.patchFaceRestrictTargetAddressing
+                (
+                    fineLevelIndex
+                );
+            const labelListList& fToCTargetStart =
+                agglomeration_.patchFaceRestrictTargetStartAddressing
+                (
+                    fineLevelIndex
+                );
+
+            const labelList& faceRestrictSortAddressing = fToCSort[inti];
+            const labelList& faceRestrictTargetAddressing = fToCTarget[inti];
+            const labelList& faceRestrictTargetStartAddressing =
+                fToCTargetStart[inti];
+
+            agglomeration_.restrictField
+            (
+                coarseInterfaceBouCoeffs[inti],
+                fineInterfaceBouCoeffs[inti],
+                faceRestrictSortAddressing,
+                faceRestrictTargetAddressing,
+                faceRestrictTargetStartAddressing
+            );
+            #else
             agglomeration_.restrictField
             (
                 coarseInterfaceBouCoeffs[inti],
                 fineInterfaceBouCoeffs[inti],
                 faceRestrictAddressing
             );
+            #endif
 
             coarseInterfaceIntCoeffs.set
             (
                 inti,
                 new scalarField(nPatchFaces[inti], Zero)
             );
+
+            #ifdef FOAM_OFFLOAD
+            agglomeration_.restrictField
+            (
+                coarseInterfaceIntCoeffs[inti],
+                fineInterfaceIntCoeffs[inti],
+                faceRestrictSortAddressing,
+                faceRestrictTargetAddressing,
+                faceRestrictTargetStartAddressing
+            );
+            #else
             agglomeration_.restrictField
             (
                 coarseInterfaceIntCoeffs[inti],
                 fineInterfaceIntCoeffs[inti],
                 faceRestrictAddressing
             );
+            #endif
         }
     }
 }

@@ -29,8 +29,46 @@ License
 #include "GAMGAgglomeration.H"
 #include "mapDistribute.H"
 #include "globalIndex.H"
+#ifdef FOAM_OFFLOAD
+#include "GAMGAgglomerationF.H"
+#endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+#ifdef FOAM_OFFLOAD
+template<class Type>
+void Foam::GAMGAgglomeration::restrictField
+(
+    Field<Type>& cf,
+    const Field<Type>& ff,
+    const labelList& sort,
+    const labelList& target,
+    const labelList& targetStart
+) const
+{
+    cf = pTraits<Type>::zero;
+
+    labelRange cellRange(targetStart.size()-1);
+
+    apply_policy(cellRange.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            GAMG::restrictT<Type, false>
+            (
+                cf,
+                ff,
+                sort,
+                target,
+                targetStart
+            )
+        );
+    });
+}
+#endif
 
 template<class Type>
 void Foam::GAMGAgglomeration::restrictField
@@ -72,7 +110,16 @@ void Foam::GAMGAgglomeration::restrictField
     // By processor agglomeration the cf might be left zero size. Make sure
     // it is large enough.
     cf.resize_nocopy(nCells_[fineLevelIndex]);
+    #ifdef FOAM_OFFLOAD
+    const labelList& sort = restrictSortAddressing_[fineLevelIndex];
+    const labelList& target = restrictTargetAddressing_[fineLevelIndex];
+    const labelList& targetStart =
+        restrictTargetStartAddressing_[fineLevelIndex];
+
+    restrictField(cf, ff, sort, target, targetStart);
+    #else
     restrictField(cf, ff, fineToCoarse);
+    #endif
 
     const label coarseLevelIndex = fineLevelIndex+1;
 
@@ -118,6 +165,32 @@ void Foam::GAMGAgglomeration::restrictFaceField
 
     cf = Zero;
 
+    #ifdef FOAM_OFFLOAD
+    const labelList& sort = faceRestrictSortAddressing_[fineLevelIndex];
+    const labelList& target = faceRestrictTargetAddressing_[fineLevelIndex];
+    const labelList& targetStart =
+        faceRestrictTargetStartAddressing_[fineLevelIndex];
+
+    labelRange cellRange(targetStart.size()-1);
+
+    apply_policy(cellRange.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            GAMG::restrictT<Type, true>
+            (
+                cf,
+                ff,
+                sort,
+                target,
+                targetStart
+            )
+        );
+    });
+    #else
     forAll(fineToCoarse, ffacei)
     {
         label cFace = fineToCoarse[ffacei];
@@ -127,6 +200,7 @@ void Foam::GAMGAgglomeration::restrictFaceField
             cf[cFace] += ff[ffacei];
         }
     }
+    #endif
 }
 
 
@@ -165,17 +239,39 @@ void Foam::GAMGAgglomeration::prolongField
             UPstream::commsTypes::nonBlocking
         );
 
-        forAll(fineToCoarse, i)
+        labelRange cellRange(fineToCoarse.size());
+
+        apply_policy(cellRange.size(), [&](auto policy)
         {
-            ff[i] = allCf[fineToCoarse[i]];
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [&](const auto& i)
+                {
+                    ff[i] = allCf[fineToCoarse[i]];
+                }
+            );
+        });
     }
     else
     {
-        forAll(fineToCoarse, i)
+        labelRange cellRange(fineToCoarse.size());
+
+        apply_policy(cellRange.size(), [&](auto policy)
         {
-            ff[i] = cf[fineToCoarse[i]];
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [&](const auto& i)
+                {
+                    ff[i] = cf[fineToCoarse[i]];
+                }
+            );
+        });
     }
 }
 
@@ -215,18 +311,40 @@ const Foam::Field<Type>& Foam::GAMGAgglomeration::prolongField
             UPstream::commsTypes::nonBlocking
         );
 
-        forAll(fineToCoarse, i)
+        labelRange cellRange(fineToCoarse.size());
+
+        apply_policy(cellRange.size(), [&](auto policy)
         {
-            ff[i] = allCf[fineToCoarse[i]];
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [&](const auto& i)
+                {
+                    ff[i] = allCf[fineToCoarse[i]];
+                }
+            );
+        });
         return allCf;
     }
     else
     {
-        forAll(fineToCoarse, i)
+        labelRange cellRange(fineToCoarse.size());
+
+        apply_policy(cellRange.size(), [&](auto policy)
         {
-            ff[i] = cf[fineToCoarse[i]];
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [&](const auto& i)
+                {
+                    ff[i] = cf[fineToCoarse[i]];
+                }
+            );
+        });
         return cf;
     }
 }

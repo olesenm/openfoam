@@ -251,6 +251,11 @@ class GAMGSolver
             const FieldField<Field, scalar>& interfaceBouCoeffs,
             const lduInterfaceFieldPtrsList& interfaces,
             const labelList& restrictAddressing,
+            #ifdef FOAM_OFFLOAD
+            const labelList& restrictSortAddressing,
+            const labelList& restrictTargetAddressing,
+            const labelList& restrictTargetStartAddressing,
+            #endif
             const solveScalarField& psiC,
             const direction cmpt
         ) const;

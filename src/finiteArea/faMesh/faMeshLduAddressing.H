@@ -133,6 +133,11 @@ public:
         {
             return patchAddr_[patchi];
         }
+        
+        virtual bool patchAvailable(const label i) const
+        {
+            return patchAddr_.set(i);
+        }
 
         //- Return patch field evaluation schedule
         virtual const lduSchedule& patchSchedule() const noexcept

@@ -46,15 +46,42 @@ inline void Foam::List<T>::copyList(const ListType& list)
 {
     // NB: operator[] for list read access (eg, an indirect list)
     // cannot necessarily replace with std::copy
-
+ 
     const label len = this->size_;
-
-    auto iter = this->v_;
-
-    for (label i = 0; i < len; (void)++i, (void)++iter)
+ 
+    // For noncontiguous element types or std::string, use sequential loop
+    #ifdef FOAM_OFFLOAD
+    if constexpr (!is_contiguous_v<T>)
+    #endif
     {
-        *iter = list[i];
+        auto iter = this->v_;
+
+        for (label i = 0; i < len; (void)++i, (void)++iter)
+        {
+            *iter = list[i];
+        }
     }
+    #ifdef FOAM_OFFLOAD
+    else
+    {
+        T* dst = this->v_;
+
+        apply_policy(len, [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                dst,
+                dst + len,
+                [&, base = dst](T& x)
+                {
+                    const label idx = &x - base;
+                    x = list[idx];
+                }
+            );
+        });
+    }
+    #endif
 }
 
 
@@ -66,19 +93,47 @@ inline void Foam::List<T>::copyList
     const ListIndices& indices
 )
 {
-    // NB: operator[] for list read access (eg, an indirect list)
-    // cannot necessarily replace with std::copy
-
-    const label len = this->size_;
-
-    auto iter = this->v_;
-
-    for (label i = 0; i < len; (void)++i, (void)++iter)
+    const label n = this->size_;
+    if (n == 0) return;
+ 
+ 
+    T* dst = this->v_;
+ 
+    // For noncontiguous element types or std::string, use sequential loop
+    #ifdef FOAM_OFFLOAD
+    if constexpr (!is_contiguous_v<T>)
+    #endif
     {
-        *iter = list[indices[i]];
+        for (label i = 0; i < n; ++i)
+        {
+            dst[i] = list[indices[i]];
+        }
+        return;
     }
-}
+    #ifdef FOAM_OFFLOAD
+    else
+    {
+        labelList addr(n);
+        std::iota(addr.begin(), addr.end(), label(0));
 
+        apply_policy(n, [&](auto policy)
+        {
+            std::transform
+            (
+                policy,
+                addr.begin(),
+                addr.end(),
+                dst,
+                [&](const label i)
+                {
+                    return list[indices[i]];
+                }
+            );
+        });
+    }
+    #endif
+}
+ 
 
 template<class T>
 template<class InputIterator>

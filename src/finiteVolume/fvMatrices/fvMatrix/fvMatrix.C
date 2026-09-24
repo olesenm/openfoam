@@ -24,6 +24,9 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
+    Some parts here added have been inspired by the work done at the following
+    repository https://github.com/SimFlowCFD/RapidCFD-dev
+
 \*---------------------------------------------------------------------------*/
 
 #include "volFields.H"
@@ -47,10 +50,54 @@ template<class Type2>
 void Foam::fvMatrix<Type>::addToInternalField
 (
     const labelUList& addr,
+    #ifdef FOAM_OFFLOAD
+    const labelUList& sort,
+    const labelUList& sortStart,
+    #endif
     const Field<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
+    #ifdef FOAM_OFFLOAD
+    if (sort.size() != pf.size())
+    {
+        FatalErrorInFunction
+            << "addressing (" << sort.size()
+            << ") and field (" << pf.size() << ") are different sizes" << endl
+            << abort(FatalError);
+    }
+
+    labelRange indices(sortStart.size() - 1);
+
+    auto neiFun = [&pf](const label, const label facei)
+    {
+        return pf[facei];
+    };
+
+    auto neiOp = [](Type2& result, const Type2& value)
+    {
+        result += value;
+    };
+
+    apply_policy(indices.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            indices.begin(),
+            indices.end(),
+            patchCellReduceFunctor<Type2, decltype(neiFun), decltype(neiOp)>
+            (
+                intf,
+                sortStart,
+                sort,
+                addr,
+                neiFun,
+                neiOp
+            )
+        );
+    });
+    #else
     if (addr.size() != pf.size())
     {
         FatalErrorInFunction
@@ -63,9 +110,26 @@ void Foam::fvMatrix<Type>::addToInternalField
     {
         intf[addr[facei]] += pf[facei];
     }
+    #endif
 }
 
 
+#ifdef FOAM_OFFLOAD
+template<class Type>
+template<class Type2>
+void Foam::fvMatrix<Type>::addToInternalField
+(
+    const labelUList& addr,
+    const labelUList& sort,
+    const labelUList& sortStart,
+    const tmp<Field<Type2>>& tpf,
+    Field<Type2>& intf
+) const
+{
+    addToInternalField(addr, sort, sortStart, tpf(), intf);
+    tpf.clear();
+}
+#else
 template<class Type>
 template<class Type2>
 void Foam::fvMatrix<Type>::addToInternalField
@@ -78,17 +142,61 @@ void Foam::fvMatrix<Type>::addToInternalField
     addToInternalField(addr, tpf(), intf);
     tpf.clear();
 }
-
+#endif
 
 template<class Type>
 template<class Type2>
 void Foam::fvMatrix<Type>::subtractFromInternalField
 (
     const labelUList& addr,
+    #ifdef FOAM_OFFLOAD
+    const labelUList& sort,
+    const labelUList& sortStart,
+    #endif
     const Field<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
+    #ifdef FOAM_OFFLOAD
+    if (sort.size() != pf.size())
+    {
+        FatalErrorInFunction
+            << "addressing (" << sort.size()
+            << ") and field (" << pf.size() << ") are different sizes" << endl
+            << abort(FatalError);
+    }
+
+    auto neiFun = [&pf](const label, const label facei)
+    {
+        return pf[facei];
+    };
+
+    auto neiOp = [](Type2& result, const Type2& value)
+    {
+        result -= value;
+    };
+
+    labelRange indices(pf.size());
+
+    apply_policy(pf.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            indices.begin(),
+            indices.end(),
+            patchCellReduceFunctor<Type2, decltype(neiFun), decltype(neiOp)>
+            (
+                intf,
+                sortStart,
+                sort,
+                addr,
+                neiFun,
+                neiOp
+            )
+        );
+    });
+    #else
     if (addr.size() != pf.size())
     {
         FatalErrorInFunction
@@ -101,9 +209,26 @@ void Foam::fvMatrix<Type>::subtractFromInternalField
     {
         intf[addr[facei]] -= pf[facei];
     }
+    #endif
 }
 
 
+#ifdef FOAM_OFFLOAD
+template<class Type>
+template<class Type2>
+void Foam::fvMatrix<Type>::subtractFromInternalField
+(
+    const labelUList& addr,
+    const labelUList& sort,
+    const labelUList& sortStart,
+    const tmp<Field<Type2>>& tpf,
+    Field<Type2>& intf
+) const
+{
+    subtractFromInternalField(addr, sort, sortStart, tpf(), intf);
+    tpf.clear();
+}
+#else
 template<class Type>
 template<class Type2>
 void Foam::fvMatrix<Type>::subtractFromInternalField
@@ -116,7 +241,7 @@ void Foam::fvMatrix<Type>::subtractFromInternalField
     subtractFromInternalField(addr, tpf(), intf);
     tpf.clear();
 }
-
+#endif
 
 template<class Type>
 void Foam::fvMatrix<Type>::addBoundaryDiag
@@ -137,7 +262,13 @@ void Foam::fvMatrix<Type>::addBoundaryDiag
             {
                 addToInternalField
                 (
+                    #ifdef FOAM_OFFLOAD
+                    lduAddr().patchSortCells(patchi),
+                    lduAddr().patchSortAddr(patchi),
+                    lduAddr().patchSortStartAddr(patchi),
+                    #else
                     lduAddr().patchAddr(patchi),
+                    #endif
                     internalCoeffs_[patchi].component(solveCmpt),
                     diag
                 );
@@ -161,7 +292,13 @@ void Foam::fvMatrix<Type>::addCmptAvBoundaryDiag(scalarField& diag) const
             {
                 addToInternalField
                 (
+                    #ifdef FOAM_OFFLOAD
+                    lduAddr().patchSortCells(patchi),
+                    lduAddr().patchSortAddr(patchi),
+                    lduAddr().patchSortStartAddr(patchi),
+                    #else
                     lduAddr().patchAddr(patchi),
+                    #endif
                     cmptAv(internalCoeffs_[patchi]),
                     diag
                 );
@@ -196,7 +333,13 @@ void Foam::fvMatrix<Type>::addBoundarySource
                 {
                     addToInternalField
                     (
+                        #ifdef FOAM_OFFLOAD
+                        lduAddr().patchSortCells(patchi),
+                        lduAddr().patchSortAddr(patchi),
+                        lduAddr().patchSortStartAddr(patchi),
+                        #else
                         lduAddr().patchAddr(patchi),
+                        #endif
                         pbc,
                         source
                     );
@@ -206,6 +349,48 @@ void Foam::fvMatrix<Type>::addBoundarySource
                     const tmp<Field<Type>> tpnf = ptf.patchNeighbourField();
                     const Field<Type>& pnf = tpnf();
 
+                    #ifdef FOAM_OFFLAOD
+                    const labelUList& patchCells =
+                        lduAddr().patchSortCells(patchi);
+
+                    const labelUList& sort =
+                        lduAddr().patchSortAddr(patchi);
+
+                    const labelUList& sortStart =
+                        lduAddr().patchSortStartAddr(patchi);
+
+                    auto neiFun = [&pbc, &pnf](const label, const label facei)
+                    {
+                        return cmptMultiply(pbc[facei], pnf[facei]);
+                    };
+
+                    auto neiOp = [](Type& result, const Type& value)
+                    {
+                        result += value;
+                    };
+
+                    labelRange indices(patchCells.size());
+
+                    apply_policy(indices.size(), [&](auto policy)
+                    {
+                        std::for_each
+                        (
+                            policy,
+                            indices.begin(),
+                            indices.end(),
+                            patchCellReduceFunctor<Type, decltype(neiFun),
+                                decltype(neiOp)>
+                            (
+                                source,
+                                sortStart,
+                                sort,
+                                patchCells,
+                                neiFun,
+                                neiOp
+                            )
+                        );
+                    });
+                    #else
                     const labelUList& addr = lduAddr().patchAddr(patchi);
 
                     forAll(addr, facei)
@@ -213,6 +398,7 @@ void Foam::fvMatrix<Type>::addBoundarySource
                         source[addr[facei]] +=
                             cmptMultiply(pbc[facei], pnf[facei]);
                     }
+                    #endif
                 }
             }
         }
@@ -230,7 +416,6 @@ void Foam::fvMatrix<Type>::setValuesFromList
 {
     const fvMesh& mesh = psi_.mesh();
 
-    const cellList& cells = mesh.cells();
     const labelUList& own = mesh.owner();
     const labelUList& nei = mesh.neighbour();
 
@@ -241,15 +426,229 @@ void Foam::fvMatrix<Type>::setValuesFromList
             GeometricField<Type, fvPatchField, volMesh>&
         >(psi_).primitiveFieldRef();
 
-
     // Following actions:
     // - adjust local field psi
     // - set local matrix to be diagonal (so adjust source)
     //      - cut connections to neighbours
     // - make (on non-adjusted cells) contribution explicit
 
+    #ifdef FOAM_OFFLOAD
+    // Expand values into a full cell-indexed field for O(1) neighbour lookup.
+    // cellMask uses label (not bool) to avoid std::vector<bool> bit-packing
+    // issues under par_unseq / GPU offload.
+    const label nCells = psi_.size();
+    const label nInternalFaces = mesh.nInternalFaces();
+
+    Field<Type>   cellValues(nCells, Zero);
+    List<label>   cellMask(nCells, 0);
+
+    labelRange indices(cellLabels.size());
+
+    apply_policy(cellLabels.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            indices.begin(),
+            indices.end(),
+            [&](const label i)
+            {
+                const label celli = cellLabels[i];
+                cellMask[celli]   = 1;
+                cellValues[celli] = values[i];
+                psi[celli]        = values[i];
+                source_[celli]    = values[i] * Diag[celli];
+            }
+        );
+    });
+
+    // Following actions for the matrix connectivity:
+    // - adjust source on non-fixed cells that neighbour a fixed cell
+    // - zero face coefficients on faces touching any fixed cell
+    // - zero boundary coefficients for patches adjacent to fixed cells
+
     if (symmetric() || asymmetric())
     {
+        // Per-face masks: 1 if that face's owner/neighbour is a fixed cell.
+        // Used to (a) steer the source adjustment and (b) zero coefficients.
+        List<label> ownMask(nInternalFaces, 0);
+        List<label> neiMask(nInternalFaces, 0);
+
+        labelRange faceIndices(nInternalFaces);
+
+        apply_policy(nInternalFaces, [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                faceIndices.begin(),
+                faceIndices.end(),
+                [&](const label facei)
+                {
+                    ownMask[facei] = cellMask[own[facei]];
+                    neiMask[facei] = cellMask[nei[facei]];
+                }
+            );
+        });
+
+        // Adjust source for every non-fixed cell that has at least one
+        // fixed neighbour.  Each cell writes only to source_[celli], so
+        // there are no write races.
+        //
+        // LDU addressing (direct port of the RapidCFD functor):
+        //   ownerStart[celli]   .. ownerStart[celli+1]   - faces where celli
+        //                                                   is the owner; the
+        //                                                   other cell is nei.
+        //   losortStart[celli]  .. losortStart[celli+1]  - faces (via losort)
+        //                                                   where celli is the
+        //                                                   neighbour; other
+        //                                                   cell is own.
+        //
+        //   symmetric:  lower() == upper()
+        //   asymmetric: owner side uses lower, neighbour side uses upper
+
+        const lduAddressing& addr = lduAddr();
+        const labelUList& ownStart    = addr.ownerStartAddr();
+        const labelUList& losortStart = addr.losortStartAddr();
+        const labelUList& losort      = addr.losortAddr();
+
+        const scalarField& Upper = upper();
+        const scalarField& Lower = symmetric() ? upper() : lower();
+
+        labelRange cellIndices(nCells);
+
+        apply_policy(nCells, [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                cellIndices.begin(),
+                cellIndices.end(),
+                [&](const label celli)
+                {
+                    if (cellMask[celli])
+                        return;
+
+                    // Faces where celli is the owner: fixed cell would be nei.
+                    const label oStart = ownStart[celli];
+                    const label oEnd   = ownStart[celli + 1];
+
+                    for (label facei = oStart; facei < oEnd; ++facei)
+                    {
+                        if (neiMask[facei])
+                        {
+                            source_[celli] -=
+                                Lower[facei] * cellValues[nei[facei]];
+                        }
+                    }
+
+                    // Faces where celli is the neighbour: fixed cell is own.
+                    const label nStart = losortStart[celli];
+                    const label nEnd   = losortStart[celli + 1];
+
+                    for (label i = nStart; i < nEnd; ++i)
+                    {
+                        const label facei = losort[i];
+
+                        if (ownMask[facei])
+                        {
+                            source_[celli] -=
+                                Upper[facei] * cellValues[own[facei]];
+                        }
+                    }
+                }
+            );
+        });
+
+        // Zero upper (and lower for asymmetric) on every face that touches
+        // a fixed cell.  Each face has its own slot - no races.
+
+        scalarField& Upper_rw = upper();
+
+        apply_policy(nInternalFaces, [&](auto policy)
+        {
+            std::for_each
+            (
+                policy,
+                faceIndices.begin(),
+                faceIndices.end(),
+                [&](const label facei)
+                {
+                    if (ownMask[facei] || neiMask[facei])
+                    {
+                        Upper_rw[facei] = 0.0;
+                    }
+                }
+            );
+        });
+
+        if (asymmetric())
+        {
+            scalarField& Lower_rw = lower();
+
+            apply_policy(nInternalFaces, [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    faceIndices.begin(),
+                    faceIndices.end(),
+                    [&](const label facei)
+                    {
+                        if (ownMask[facei] || neiMask[facei])
+                        {
+                            Lower_rw[facei] = 0.0;
+                        }
+                    }
+                );
+            });
+        }
+
+        // Boundary patches: zero internalCoeffs / boundaryCoeffs for faces
+        // whose owner cell is in the fixed set.
+
+        forAll(mesh.boundaryMesh(), patchi)
+        {
+            if (!internalCoeffs_[patchi].size())
+                continue;
+
+            const labelUList& pcells = mesh.boundary()[patchi].faceCells();
+            const label nPatchFaces = pcells.size();
+            labelRange patchIndices(nPatchFaces);
+
+            // Resolve the PtrList element references on the host. Indexing
+            // internalCoeffs_[patchi] inside the device lambda would invoke
+            // UPtrList::operator[] -> at() -> FatalError, which nvc++ cannot
+            // compile for the device. Capture raw pointers instead.
+            Type* const intPtr   = internalCoeffs_[patchi].data();
+            Type* const bndPtr   = boundaryCoeffs_[patchi].data();
+            const label* const pcellsPtr = pcells.cdata();
+            const label* const maskPtr   = cellMask.cdata();
+
+            apply_policy(nPatchFaces, [&](auto policy)
+            {
+                std::for_each
+                (
+                    policy,
+                    patchIndices.begin(),
+                    patchIndices.end(),
+                    [=](const label patchFacei)
+                    {
+                        if (maskPtr[pcellsPtr[patchFacei]])
+                        {
+                            intPtr[patchFacei] = Zero;
+                            bndPtr[patchFacei] = Zero;
+                        }
+                    }
+                );
+            });
+        }
+    }
+    #else
+    // Keep cpu code since does not require extra memory.
+    if (symmetric() || asymmetric())
+    {
+        const cellList& cells = mesh.cells();
         forAll(cellLabels, i)
         {
             const label celli = cellLabels[i];
@@ -314,7 +713,9 @@ void Foam::fvMatrix<Type>::setValuesFromList
         psi[celli] = value;
         source_[celli] = value*Diag[celli];
     }
+    #endif
 }
+
 
 
 template<class Type>
@@ -1032,15 +1433,33 @@ void Foam::fvMatrix<Type>::setReferences
 {
     if (forceReference || psi_.needReference())
     {
-        forAll(cellLabels, celli)
+        labelRange cellRange(0, cellLabels.size());
+
+        Field<Type>& src = source();
+        scalarField& d = diag();
+
+        Type* srcPtr = src.begin();
+        scalar* dPtr = d.begin();
+
+        apply_policy(cellLabels.size(), [&](auto policy)
         {
-            const label cellId = cellLabels[celli];
-            if (cellId >= 0)
-            {
-                source()[cellId] += diag()[cellId]*value;
-                diag()[cellId] += diag()[cellId];
-            }
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [=, &cellLabels](const label celli)
+                {
+                    const label cellId = cellLabels[celli];
+
+                    if (cellId >= 0)
+                    {
+                        srcPtr[cellId] += dPtr[cellId]*value;
+                        dPtr[cellId] += dPtr[cellId];
+                    }
+                }
+            );
+        });
     }
 }
 
@@ -1055,15 +1474,35 @@ void Foam::fvMatrix<Type>::setReferences
 {
     if (forceReference || psi_.needReference())
     {
-        forAll(cellLabels, celli)
+        labelRange cellRange(0, cellLabels.size());
+
+        Field<Type>& src = source();
+        scalarField& d = diag();
+
+        Type* srcPtr = src.begin();
+        scalar* dPtr = d.begin();
+
+        const Type* valuesPtr = values.begin();
+
+        apply_policy(cellLabels.size(), [&](auto policy)
         {
-            const label cellId = cellLabels[celli];
-            if (cellId >= 0)
-            {
-                source()[cellId] += diag()[cellId]*values[celli];
-                diag()[cellId] += diag()[cellId];
-            }
-        }
+            std::for_each
+            (
+                policy,
+                cellRange.begin(),
+                cellRange.end(),
+                [=, &cellLabels](const label celli)
+                {
+                    const label cellId = cellLabels[celli];
+
+                    if (cellId >= 0)
+                    {
+                        srcPtr[cellId] += dPtr[cellId]*valuesPtr[celli];
+                        dPtr[cellId] += dPtr[cellId];
+                    }
+                }
+            );
+        });
     }
 }
 
@@ -1125,7 +1564,6 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
         if (ptf.size())
         {
-            const labelUList& pa = lduAddr().patchAddr(patchi);
             const Field<Type>& iCoeffs = internalCoeffs_[patchi];
 
             if (ptf.coupled())
@@ -1134,20 +1572,134 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
                 // For coupled boundaries add the diagonal and
                 // off-diagonal contributions
+                #ifdef FOAM_OFFLOAD
+                const labelUList& patchSortCells =
+                    lduAddr().patchSortCells(patchi);
+
+                const labelUList& patchSortStart =
+                    lduAddr().patchSortStartAddr(patchi);
+
+                const labelUList& patchSort =
+                    lduAddr().patchSortAddr(patchi);
+
+                auto dFun = [&](const label, const label facei)
+                {
+                    return component(iCoeffs[facei], 0);
+                };
+
+                auto sumOffFun = [&](const label, const label facei)
+                {
+                    return mag(component(pCoeffs[facei], 0));
+                };
+
+                labelRange cells(patchSortCells.size());
+
+                apply_policy(cells.size(), [&](auto policy)
+                {
+                    std::for_each
+                    (
+                        policy,
+                        cells.begin(),
+                        cells.end(),
+                        patchCellReduceFunctor
+                        <
+                            scalar,
+                            decltype(dFun),
+                            plusEqOp<scalar>
+                        >
+                        (
+                            D,
+                            patchSortStart,
+                            patchSort,
+                            patchSortCells,
+                            dFun,
+                            plusEqOp<scalar>()
+                        )
+                    );
+
+                    std::for_each
+                    (
+                        policy,
+                        cells.begin(),
+                        cells.end(),
+                        patchCellReduceFunctor
+                        <
+                            scalar,
+                            decltype(sumOffFun),
+                            plusEqOp<scalar>
+                        >
+                        (
+                            sumOff,
+                            patchSortStart,
+                            patchSort,
+                            patchSortCells,
+                            sumOffFun,
+                            plusEqOp<scalar>()
+                        )
+                    );
+                });
+                #else
+                const labelUList& pa = lduAddr().patchAddr(patchi);
+
                 forAll(pa, face)
                 {
                     D[pa[face]] += component(iCoeffs[face], 0);
                     sumOff[pa[face]] += mag(component(pCoeffs[face], 0));
                 }
+                #endif
             }
             else
             {
                 // For non-coupled boundaries add the maximum magnitude diagonal
                 // contribution to ensure stability
+                #ifdef FOAM_OFFLOAD
+                const labelUList& patchSortCells =
+                    lduAddr().patchSortCells(patchi);
+
+                const labelUList& patchSortStart =
+                    lduAddr().patchSortStartAddr(patchi);
+
+                const labelUList& patchSort =
+                    lduAddr().patchSortAddr(patchi);
+
+                auto faceOp = [&](const label, const label facei)
+                {
+                    return cmptMax(cmptMag(iCoeffs[facei]));
+                };
+
+                labelRange cells(patchSortCells.size());
+
+                apply_policy(cells.size(), [&](auto policy)
+                {
+                    std::for_each
+                    (
+                        policy,
+                        cells.begin(),
+                        cells.end(),
+                        patchCellReduceFunctor
+                        <
+                            scalar,
+                            decltype(faceOp),
+                            plusEqOp<scalar>
+                        >
+                        (
+                            D,
+                            patchSortStart,
+                            patchSort,
+                            patchSortCells,
+                            faceOp,
+                            plusEqOp<scalar>()
+                        )
+                    );
+                });
+                #else
+                const labelUList& pa = lduAddr().patchAddr(patchi);
+
                 forAll(pa, face)
                 {
                     D[pa[face]] += cmptMax(cmptMag(iCoeffs[face]));
                 }
+                #endif
             }
         }
     }
@@ -1205,10 +1757,21 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
     // Ensure the matrix is diagonally dominant...
     // Assumes that the central coefficient is positive and ensures it is
-    forAll(D, celli)
+    labelRange cells(D.size());
+
+    apply_policy(cells.size(), [&](auto policy)
     {
-        D[celli] = max(mag(D[celli]), sumOff[celli]);
-    }
+        std::for_each
+        (
+            policy,
+            cells.begin(),
+            cells.end(),
+            [&](const label celli)
+            {
+                D[celli] = max(mag(D[celli]), sumOff[celli]);
+            }
+        );
+    });
 
     // ... then relax
     D /= alpha;
@@ -1220,22 +1783,109 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
         if (ptf.size())
         {
-            const labelUList& pa = lduAddr().patchAddr(patchi);
             const Field<Type>& iCoeffs = internalCoeffs_[patchi];
 
             if (ptf.coupled())
             {
+                #ifdef FOAM_OFFLOAD
+                const labelUList& patchSortCells =
+                    lduAddr().patchSortCells(patchi);
+
+                const labelUList& patchSortStart =
+                    lduAddr().patchSortStartAddr(patchi);
+
+                const labelUList& patchSort =
+                    lduAddr().patchSortAddr(patchi);
+
+                auto faceOp = [&](const label, const label facei)
+                {
+                    return component(iCoeffs[facei], 0);
+                };
+
+                labelRange cells(patchSortCells.size());
+
+                apply_policy(cells.size(), [&](auto policy)
+                {
+                    std::for_each
+                    (
+                        policy,
+                        cells.begin(),
+                        cells.end(),
+                        patchCellReduceFunctor
+                        <
+                            scalar,
+                            decltype(faceOp),
+                            minusEqOp<scalar>
+                        >
+                        (
+                            D,
+                            patchSortStart,
+                            patchSort,
+                            patchSortCells,
+                            faceOp,
+                            minusEqOp<scalar>()
+                        )
+                    );
+                });
+                #else
+                const labelUList& pa = lduAddr().patchAddr(patchi);
+
                 forAll(pa, face)
                 {
                     D[pa[face]] -= component(iCoeffs[face], 0);
                 }
+                #endif
             }
             else
             {
+                #ifdef FOAM_OFFLOAD
+                const labelUList& patchSortCells =
+                    lduAddr().patchSortCells(patchi);
+
+                const labelUList& patchSortStart =
+                    lduAddr().patchSortStartAddr(patchi);
+
+                const labelUList& patchSort =
+                    lduAddr().patchSortAddr(patchi);
+
+                auto faceOp = [&](const label, const label facei)
+                {
+                    return cmptMin(iCoeffs[facei]);
+                };
+
+                labelRange cells(patchSortCells.size());
+
+                apply_policy(cells.size(), [&](auto policy)
+                {
+                    std::for_each
+                    (
+                        policy,
+                        cells.begin(),
+                        cells.end(),
+                        patchCellReduceFunctor
+                        <
+                            scalar,
+                            decltype(faceOp),
+                            minusEqOp<scalar>
+                        >
+                        (
+                            D,
+                            patchSortStart,
+                            patchSort,
+                            patchSortCells,
+                            faceOp,
+                            minusEqOp<scalar>()
+                        )
+                    );
+                });
+                #else
+                const labelUList& pa = lduAddr().patchAddr(patchi);
+
                 forAll(pa, face)
                 {
                     D[pa[face]] -= cmptMin(iCoeffs[face]);
                 }
+                #endif
             }
         }
     }
@@ -1298,7 +1948,13 @@ Foam::tmp<Foam::Field<Type>> Foam::fvMatrix<Type>::DD() const
         {
             addToInternalField
             (
+                #ifdef FOAM_OFFLOAD
+                lduAddr().patchSortCells(patchi),
+                lduAddr().patchSortAddr(patchi),
+                lduAddr().patchSortStartAddr(patchi),
+                #else
                 lduAddr().patchAddr(patchi),
+                #endif
                 internalCoeffs_[patchi],
                 tdiag.ref()
             );
@@ -1402,7 +2058,13 @@ Foam::tmp<Foam::volScalarField> Foam::fvMatrix<Type>::H1() const
         {
             addToInternalField
             (
+                #ifdef FOAM_OFFLOAD
+                lduAddr().patchSortCells(patchi),
+                lduAddr().patchSortAddr(patchi),
+                lduAddr().patchSortStartAddr(patchi),
+                #else
                 lduAddr().patchAddr(patchi),
+                #endif
                 boundaryCoeffs_[patchi].component(0),
                 H1_
             );

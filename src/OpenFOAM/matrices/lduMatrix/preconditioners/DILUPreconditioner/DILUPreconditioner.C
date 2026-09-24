@@ -27,7 +27,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "DILUPreconditioner.H"
-#include <algorithm>
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -53,7 +52,10 @@ Foam::DILUPreconditioner::DILUPreconditioner
     rD_(sol.matrix().diag().size())
 {
     const scalarField& diag = sol.matrix().diag();
-    std::copy(diag.begin(), diag.end(), rD_.begin());
+    apply_policy(diag.size(), [&](auto policy)
+    {
+        std::copy(policy, diag.begin(), diag.end(), rD_.begin());
+    });
 
     calcReciprocalD(rD_, sol.matrix());
 }

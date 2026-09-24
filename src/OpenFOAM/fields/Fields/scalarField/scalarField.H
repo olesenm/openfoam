@@ -85,7 +85,6 @@ float sumProd(const UList<float>& f1, const UList<float>& f2);
 template<>
 double sumProd(const UList<double>& f1, const UList<double>& f2);
 
-
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 BINARY_TYPE_OPERATOR(scalar, scalar, scalar, +, add)

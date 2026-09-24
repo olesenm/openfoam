@@ -87,19 +87,29 @@ Foam::PhiScheme<Type, PhiLimiter>::limiter
 
     scalarField& pLimiter = Limiter.primitiveFieldRef();
 
-    forAll(pLimiter, face)
-    {
-        pLimiter[face] = PhiLimiter::limiter
-        (
-            CDweights[face],
-            Uflux[face],
-            phi[owner[face]],
-            phi[neighbour[face]],
-            Sf[face],
-            magSf[face]
-        );
-    }
+    labelRange faceRange(owner.size());
 
+    apply_policy(owner.size(), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label face)
+            {
+                pLimiter[face] = PhiLimiter::limiter
+                (
+                    CDweights[face],
+                    Uflux[face],
+                    phi[owner[face]],
+                    phi[neighbour[face]],
+                    Sf[face],
+                    magSf[face]
+                );
+            }
+         );
+    });
 
     surfaceScalarField::Boundary& bLimiter =
         Limiter.boundaryFieldRef();
@@ -124,18 +134,29 @@ Foam::PhiScheme<Type, PhiLimiter>::limiter
                 phi.boundaryField()[patchi].patchNeighbourField()
             );
 
-            forAll(pLimiter, face)
+            labelRange faceRange(pLimiter.size());
+
+            apply_policy(pLimiter.size(), [&](auto policy)
             {
-                pLimiter[face] = PhiLimiter::limiter
+                std::for_each
                 (
-                    pCDweights[face],
-                    pFaceFlux[face],
-                    pphiP[face],
-                    pphiN[face],
-                    pSf[face],
-                    pmagSf[face]
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(),
+                    [&](const label face)
+                    {
+                        pLimiter[face] = PhiLimiter::limiter
+                        (
+                            pCDweights[face],
+                            pFaceFlux[face],
+                            pphiP[face],
+                            pphiN[face],
+                            pSf[face],
+                            pmagSf[face]
+                        );
+                    }
                 );
-            }
+            });
         }
         else
         {

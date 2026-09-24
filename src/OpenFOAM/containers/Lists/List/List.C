@@ -378,21 +378,39 @@ template<class T>
 void Foam::List<T>::resize(const label len, const T& val)
 {
     const label oldLen = this->size_;
-
+ 
     if (oldLen == len)
     {
         return;
     }
-
+ 
     resize_copy(oldLen, len);
-
+ 
     // Fill trailing part with new values
     if (oldLen < this->size_)
     {
-        std::fill
-        (
-            (this->v_ + oldLen), (this->v_ + this->size_), val
-        );
+        #ifdef FOAM_OFFLOAD
+        if constexpr (is_contiguous_v<T>)
+        {
+            apply_policy(this->size_ - oldLen, [&](auto policy)
+            {
+                std::fill
+                (
+                    policy,
+                    this->v_ + oldLen,
+                    this->v_ + this->size_,
+                    val
+                );
+            });
+        }
+        else
+        #endif
+        {
+            std::fill
+            (
+                (this->v_ + oldLen), (this->v_ + this->size_), val
+            );
+        }
     }
 }
 

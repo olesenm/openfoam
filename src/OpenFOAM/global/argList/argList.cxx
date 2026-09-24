@@ -2285,6 +2285,15 @@ void Foam::argList::parse
 
 Foam::argList::~argList()
 {
+    #ifdef FOAM_OFFLOAD
+    // Force offloading. Workaround for CPU only utilities that don't
+    // trigger offload. Cuda
+    // runTime will not be initialised and will throw an error when the
+    // destructor is called. Maybe fixed in newer versions? TBD.
+    scalarField dummy(10000, 0.0);
+    dummy.negate();
+    #endif
+
     jobInfo.stop();     // Normal job termination
 
     // Delete file handler to flush any remaining IO

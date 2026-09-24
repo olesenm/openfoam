@@ -57,10 +57,21 @@ void Foam::fvPatch::patchInternalField
     }
     #endif
 
-    for (label i = 0; i < len; ++i)
+    labelRange faceRange(0, len);
+
+    apply_policy(static_cast<std::size_t>(len), [&](auto policy)
     {
-        pfld[i] = internalData[addressing[i]];
-    }
+        std::for_each
+        (
+            policy,
+            faceRange.begin(),
+            faceRange.end(),
+            [&](const label i)
+            {
+                pfld[i] = internalData[addressing[i]];
+            }
+        );
+    });
 }
 
 

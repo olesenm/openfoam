@@ -107,10 +107,10 @@ class fvMeshDistribute
             //- Find existing patch for temporary exposed/processor faces.
             //  Returns -1 if none suitable.
             label findScratchPatch() const;
-            
+
             //- Find or create patch for temporary exposed/processor faces.
             label findOrCreateScratchPatch();
-            
+
             //- Check processor patches are at end of patch list
             void checkProcessorPatchOrder() const;
 

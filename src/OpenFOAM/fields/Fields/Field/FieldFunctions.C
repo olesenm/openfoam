@@ -32,6 +32,10 @@ License
 #define TEMPLATE template<class Type>
 #include "FieldFunctionsM.C"
 
+#ifdef FOAM_OFFLOAD
+#include "FieldOffload.H"
+#endif
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -75,7 +79,7 @@ void pow
     TFOR_ALL_F_OP_FUNC_F_S
     (
         resultType, result, =, pow, Type, f1, resultType,
-        pTraits<resultType>::zero
+        Foam::deviceZero<resultType>()
     )
 }
 
@@ -375,7 +379,11 @@ Type max(const UList<Type>& f1)
     if (f1.size())
     {
         Type result(f1[0]);
+        #ifdef FOAM_OFFLOAD
+        result = maxOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F_S(Type, result, =, max, Type, f1, Type, result)
+        #endif
         return result;
     }
 
@@ -390,7 +398,11 @@ Type min(const UList<Type>& f1)
     if (f1.size())
     {
         Type result(f1[0]);
+        #ifdef FOAM_OFFLOAD
+        result = minOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F_S(Type, result, =, min, Type, f1, Type, result)
+        #endif
         return result;
     }
 
@@ -409,7 +421,11 @@ Type sum(const UList<Type>& f1)
     if (f1.size())
     {
         // Use resultType() as functional cast
+        #ifdef FOAM_OFFLOAD
+        result = Foam::sumOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F(resultType, result, +=, resultType, Type, f1)
+        #endif
     }
 
     return Type(result);
@@ -432,6 +448,9 @@ Type maxMagSqr(const UList<Type>& f1)
     if (f1.size())
     {
         Type result(f1[0]);
+        #ifdef FOAM_OFFLOAD
+        result = maxMagSqrOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F_S
         (
             Type,
@@ -443,6 +462,7 @@ Type maxMagSqr(const UList<Type>& f1)
             Type,
             result
         )
+        #endif
         return result;
     }
 
@@ -457,6 +477,9 @@ Type minMagSqr(const UList<Type>& f1)
     if (f1.size())
     {
         Type result(f1[0]);
+        #ifdef FOAM_OFFLOAD
+        result = minMagSqrOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F_S
         (
             Type,
@@ -468,6 +491,7 @@ Type minMagSqr(const UList<Type>& f1)
             Type,
             result
         )
+        #endif
         return result;
     }
 
@@ -485,7 +509,11 @@ sumProd(const UList<Type>& f1, const UList<Type>& f2)
     resultType result = Zero;
     if (f1.size() && (f1.size() == f2.size()))
     {
+        #ifdef FOAM_OFFLOAD
+        result = sumProdOffload(f1, f2);
+        #else
         TFOR_ALL_S_OP_F_OP_F(resultType, result, +=, Type, f1, &&, Type, f2)
+        #endif
     }
     return result;
 }
@@ -497,6 +525,9 @@ Type sumCmptProd(const UList<Type>& f1, const UList<Type>& f2)
     Type result = Zero;
     if (f1.size() && (f1.size() == f2.size()))
     {
+        #ifdef FOAM_OFFLOAD
+        result = sumCmptProdOffload(f1, f2);
+        #else
         TFOR_ALL_S_OP_FUNC_F_F
         (
             Type,
@@ -508,6 +539,7 @@ Type sumCmptProd(const UList<Type>& f1, const UList<Type>& f2)
             Type,
             f2
         )
+        #endif
     }
     return result;
 }
@@ -522,7 +554,11 @@ sumSqr(const UList<Type>& f1)
     resultType result = Zero;
     if (f1.size())
     {
+        #ifdef FOAM_OFFLOAD
+        result = sumSqrOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F(resultType, result, +=, sqr, Type, f1)
+        #endif
     }
     return result;
 }
@@ -547,7 +583,11 @@ sumMag(const UList<Type>& f1)
     resultType result = Zero;
     if (f1.size())
     {
+        #ifdef FOAM_OFFLOAD
+        result = sumMagOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F(resultType, result, +=, mag, Type, f1)
+        #endif
     }
     return result;
 }
@@ -561,7 +601,11 @@ Type sumCmptMag(const UList<Type>& f1)
     Type result = Zero;
     if (f1.size())
     {
+        #ifdef FOAM_OFFLOAD
+        result = sumCmptMagOffload(f1);
+        #else
         TFOR_ALL_S_OP_FUNC_F(Type, result, +=, cmptMag, Type, f1)
+        #endif
     }
     return result;
 }
@@ -686,13 +730,28 @@ Type gWeightedAverage
 
     const label loopLen = fld.size();
 
-    /* pragmas... */
+    #ifdef FOAM_OFFLOAD
+    if constexpr (is_contiguous_v<Type>)
+    {
+        gWeightedAverageOffload(weights, fld, weight, result);
+    }
+    else
+    {
+        for (label i = 0; i < loopLen; ++i)
+        {
+            const scalar w = Foam::mag(weights[i]);
+            weight += w;
+            result += w*fld[i];
+        }
+    }
+    #else
     for (label i = 0; i < loopLen; ++i)
     {
         const scalar w = Foam::mag(weights[i]);
         weight += w;
         result += w*fld[i];
     }
+    #endif
 
     // Communicator is not disabled
     if (comm >= 0)
@@ -724,11 +783,24 @@ Type gWeightedSum
 
     const label loopLen = fld.size();
 
-    /* pragmas... */
+    #ifdef FOAM_OFFLOAD
+    if constexpr (is_contiguous_v<Type>)
+    {
+        gWeightedSumOffload(weights, fld, result);
+    }
+    else
+    {
+        for (label i = 0; i < loopLen; ++i)
+        {
+            result += Foam::mag(weights[i])*fld[i];
+        }
+    }
+    #else
     for (label i = 0; i < loopLen; ++i)
     {
-        result += Foam::mag(weights[i])*fld[i];
+        result += Foam::mag(weights[i]) * fld[i];
     }
+    #endif
 
     // Communicator is not disabled
     if (comm >= 0)
@@ -761,13 +833,24 @@ void clamp
     }
     else
     {
-        std::transform
-        (
-            f1.cbegin(),
-            f1.cbegin(result.size()),
-            result.begin(),
-            clampOp<Type>(range)
+        #ifdef FOAM_OFFLOAD
+        apply_policy(f1.size(), [&](auto policy)
+        #endif
+        {
+            std::transform
+            (
+                #ifdef FOAM_OFFLOAD
+                policy,
+                #endif
+                f1.cbegin(),
+                f1.cbegin(result.size()),
+                result.begin(),
+                clampOp<Type>(range)
+            );
+        }
+        #ifdef FOAM_OFFLOAD
         );
+        #endif
     }
 }
 
@@ -786,13 +869,24 @@ void clamp
     }
     else
     {
-        std::transform
-        (
-            f1.cbegin(),
-            f1.cbegin(result.size()),
-            result.begin(),
-            clampOp<Type>(Foam::zero_one{})
+        #ifdef FOAM_OFFLOAD
+        apply_policy(f1.size(), [&](auto policy)
+        #endif
+        {
+            std::transform
+            (
+                #ifdef FOAM_OFFLOAD
+                policy,
+                #endif
+                f1.cbegin(),
+                f1.cbegin(result.size()),
+                result.begin(),
+                clampOp<Type>(Foam::zero_one{})
+            );
+        }
+        #ifdef FOAM_OFFLOAD
         );
+        #endif
     }
 }
 

@@ -82,13 +82,9 @@ Foam::solverPerformance Foam::PCG::scalarSolve
 
     label nCells = psi.size();
 
-    solveScalar* __restrict__ psiPtr = psi.begin();
-
     solveScalarField pA(nCells);
-    solveScalar* __restrict__ pAPtr = pA.begin();
 
     solveScalarField wA(nCells);
-    solveScalar* __restrict__ wAPtr = wA.begin();
 
     solveScalar wArA = solverPerf.great_;
     solveScalar wArAold = wArA;
@@ -96,9 +92,23 @@ Foam::solverPerformance Foam::PCG::scalarSolve
     // --- Calculate A.psi
     matrix_.Amul(wA, psi, interfaceBouCoeffs_, interfaces_, cmpt);
 
-    // --- Calculate initial residual field
-    solveScalarField rA(source - wA);
-    solveScalar* __restrict__ rAPtr = rA.begin();
+    const labelRange cellRange(0, source.size());
+
+    solveScalarField rA(source.size());
+
+    apply_policy(static_cast<std::size_t>(source.size()), [&](auto policy)
+    {
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            [&](const label cell)
+            {
+                rA[cell] = source[cell] - wA[cell];
+            }
+        );
+    });
 
     matrix().setResidualField
     (
@@ -152,19 +162,38 @@ Foam::solverPerformance Foam::PCG::scalarSolve
 
             if (solverPerf.nIterations() == 0)
             {
-                for (label cell=0; cell<nCells; cell++)
+                apply_policy(static_cast<std::size_t>(nCells),
+                    [&](auto policy)
                 {
-                    pAPtr[cell] = wAPtr[cell];
-                }
+                    std::for_each
+                    (
+                        policy,
+                        cellRange.begin(),
+                        cellRange.end(),
+                        [&](const label cell)
+                        {
+                            pA[cell] = wA[cell];
+                        }
+                    );
+                });
             }
             else
             {
                 const solveScalar beta = wArA/wArAold;
 
-                for (label cell=0; cell<nCells; cell++)
+                apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
                 {
-                    pAPtr[cell] = wAPtr[cell] + beta*pAPtr[cell];
-                }
+                    std::for_each
+                    (
+                        policy,
+                        cellRange.begin(),
+                        cellRange.end(),
+                        [&](const label cell)
+                        {
+                            pA[cell] = wA[cell] + beta*pA[cell];
+                        }
+                    );
+                });
             }
 
 
@@ -181,11 +210,20 @@ Foam::solverPerformance Foam::PCG::scalarSolve
 
             const solveScalar alpha = wArA/wApA;
 
-            for (label cell=0; cell<nCells; cell++)
+            apply_policy(static_cast<std::size_t>(nCells), [&](auto policy)
             {
-                psiPtr[cell] += alpha*pAPtr[cell];
-                rAPtr[cell] -= alpha*wAPtr[cell];
-            }
+                std::for_each
+                (
+                    policy,
+                    cellRange.begin(),
+                    cellRange.end(),
+                    [&](const label cell)
+                    {
+                        psi[cell] += alpha*pA[cell];
+                        rA[cell] -= alpha*wA[cell];
+                    }
+                );
+            });
 
             solverPerf.finalResidual() =
                 gSumMag(rA, matrix().mesh().comm())

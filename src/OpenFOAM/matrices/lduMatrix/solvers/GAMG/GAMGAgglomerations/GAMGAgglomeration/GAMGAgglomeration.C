@@ -61,6 +61,17 @@ void Foam::GAMGAgglomeration::compactLevels
     faceFlipMap_.setSize(nCreatedLevels);
     nPatchFaces_.setSize(nCreatedLevels);
     patchFaceRestrictAddressing_.setSize(nCreatedLevels);
+    #ifdef FOAM_OFFLOAD
+    restrictSortAddressing_.setSize(nCreatedLevels);
+    restrictTargetAddressing_.setSize(nCreatedLevels);
+    restrictTargetStartAddressing_.setSize(nCreatedLevels);
+    faceRestrictSortAddressing_.setSize(nCreatedLevels);
+    faceRestrictTargetAddressing_.setSize(nCreatedLevels);
+    faceRestrictTargetStartAddressing_.setSize(nCreatedLevels);
+    patchFaceRestrictSortAddressing_.setSize(nCreatedLevels);
+    patchFaceRestrictTargetAddressing_.setSize(nCreatedLevels);
+    patchFaceRestrictTargetStartAddressing_.setSize(nCreatedLevels);
+    #endif
     meshLevels_.setSize(nCreatedLevels);
 
     // Have procCommunicator_ always, even if not procAgglomerating
@@ -285,7 +296,17 @@ Foam::GAMGAgglomeration::GAMGAgglomeration
     faceFlipMap_(maxLevels_),
     nPatchFaces_(maxLevels_),
     patchFaceRestrictAddressing_(maxLevels_),
-
+    #ifdef FOAM_OFFLOAD
+    restrictSortAddressing_(maxLevels_),
+    restrictTargetAddressing_(maxLevels_),
+    restrictTargetStartAddressing_(maxLevels_),
+    faceRestrictSortAddressing_(maxLevels_),
+    faceRestrictTargetAddressing_(maxLevels_),
+    faceRestrictTargetStartAddressing_(maxLevels_),
+    patchFaceRestrictSortAddressing_(maxLevels_),
+    patchFaceRestrictTargetAddressing_(maxLevels_),
+    patchFaceRestrictTargetStartAddressing_(maxLevels_),
+    #endif
     meshLevels_(maxLevels_)
 {
     // Limit the cells in the coarsest level based on the local number of
@@ -596,6 +617,17 @@ void Foam::GAMGAgglomeration::clearLevel(const label i)
             faceFlipMap_.set(i, nullptr);
             nPatchFaces_.set(i, nullptr);
             patchFaceRestrictAddressing_.set(i, nullptr);
+            #ifdef FOAM_OFFLOAD
+            restrictSortAddressing_.set(i, nullptr);
+            restrictTargetAddressing_.set(i, nullptr);
+            restrictTargetStartAddressing_.set(i, nullptr);
+            faceRestrictSortAddressing_.set(i, nullptr);
+            faceRestrictTargetAddressing_.set(i, nullptr);
+            faceRestrictTargetStartAddressing_.set(i, nullptr);
+            patchFaceRestrictSortAddressing_.set(i, nullptr);
+            patchFaceRestrictTargetAddressing_.set(i, nullptr);
+            patchFaceRestrictTargetStartAddressing_.set(i, nullptr);
+            #endif
         }
     }
 }

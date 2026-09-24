@@ -27,7 +27,29 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "error.H"
+#include "ListPolicy.H"
+
+// #ifdef FOAM_OFFLOAD
+#include <execution>
+// #endif
+
 // <algorithm> already included by stdFoam.H
+
+template <typename Func>
+void Foam::apply_policy(size_t loop_length, Func&& f)
+{
+    #ifdef FOAM_OFFLOAD
+    if (ListPolicy::use_offload(loop_length))
+    {
+        f(std::execution::par_unseq);
+    }
+    else
+    #endif
+    {
+        f(std::execution::seq);
+    }
+}
+
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -55,10 +77,24 @@ inline void Foam::UList<T>::fill_uniform(const T& val)
     // Can dispatch with
     // - std::execution::par_unseq
     // - std::execution::unseq
-    std::fill_n
-    (
-        this->v_, this->size_, val
-    );
+    #ifdef FOAM_OFFLOAD
+    if constexpr(is_contiguous_v<T> && !std::is_same_v<T,bool>)
+    {
+        // For arithmetic types, we can use a more efficient fill
+        // operation that avoids the overhead of the generic algorithm.
+        apply_policy(this->size_, [&](auto policy)
+        {
+            std::fill_n(policy, this->v_, this->size_, val);
+        });
+    }
+    else
+    #endif
+    {
+        std::fill_n
+        (
+            this->v_, this->size_, val
+        );
+    }
 }
 
 
@@ -70,20 +106,35 @@ inline void Foam::UList<T>::fill_uniform(Foam::zero)
         // Can dispatch with
         // - std::execution::par_unseq
         // - std::execution::unseq
+        #ifdef FOAM_OFFLOAD
+        apply_policy(this->size_, [&](auto policy)
+        {
+            std::fill_n(policy, this->v_, this->size_, T(0));
+        });
+        #else
         std::fill_n
         (
             this->v_, this->size_, T(0)
         );
+        #endif
+
     }
     else if constexpr (is_contiguous_v<T>)
     {
         // Can dispatch with
         // - std::execution::par_unseq
         // - std::execution::unseq
+        #ifdef FOAM_OFFLOAD
+        apply_policy(this->size_bytes(), [&](auto policy)
+        {
+            std::fill_n(policy, this->data_bytes(), this->size_bytes(), char(0));
+        });
+        #else
         std::fill_n
         (
             this->data_bytes(), this->size_bytes(), char(0)
         );
+        #endif
     }
     else
     {

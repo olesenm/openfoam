@@ -443,6 +443,7 @@ $(lduMatrix)/smoothers/FDIC/FDICSmoother.C
 $(lduMatrix)/smoothers/DICGaussSeidel/DICGaussSeidelSmoother.C
 $(lduMatrix)/smoothers/DILU/DILUSmoother.C
 $(lduMatrix)/smoothers/DILUGaussSeidel/DILUGaussSeidelSmoother.C
+$(lduMatrix)/smoothers/twoStageGaussSeidel/twoStageGaussSeidelSmoother.C
 
 $(lduMatrix)/preconditioners/noPreconditioner/noPreconditioner.C
 $(lduMatrix)/preconditioners/diagonalPreconditioner/diagonalPreconditioner.C
@@ -450,6 +451,8 @@ $(lduMatrix)/preconditioners/DICPreconditioner/DICPreconditioner.C
 $(lduMatrix)/preconditioners/FDICPreconditioner/FDICPreconditioner.C
 $(lduMatrix)/preconditioners/DILUPreconditioner/DILUPreconditioner.C
 $(lduMatrix)/preconditioners/GAMGPreconditioner/GAMGPreconditioner.C
+$(lduMatrix)/preconditioners/aDICPreconditioner/aDICPreconditioner.C
+$(lduMatrix)/preconditioners/aDILUPreconditioner/aDILUPreconditioner.C
 
 lduAddressing = $(lduMatrix)/lduAddressing
 $(lduAddressing)/lduAddressing.C
@@ -747,6 +750,7 @@ fields/cloud/cloud.C
 Fields = fields/Fields
 
 $(Fields)/Field/FieldBase.cxx
+$(Fields)/Field/FieldOffload.C
 $(Fields)/boolField/boolField.C
 $(Fields)/boolField/boolIOField.C
 $(Fields)/labelField/labelField.C

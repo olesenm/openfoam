@@ -34,6 +34,13 @@ Description
 
 #include "error.H"
 #include "ListLoopM.H"  // For list access macros
+#include <type_traits>
+
+#ifdef FOAM_OFFLOAD
+#define FOAM_OFFLOAD_ENABLED 1
+#else
+#define FOAM_OFFLOAD_ENABLED 0
+#endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -163,10 +170,29 @@ void checkFields
     /* Loop: f1 OP FUNC(f2) */                                                 \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>)                                   \
     {                                                                          \
-        (f1P[i]) OP FUNC(f2P[i]);                                              \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+                f1P, f1P + loop_len,                                           \
+                [f1P, f2P] (typeF1& x)                                         \
+                {                                                              \
+                    const std::size_t i =                                      \
+                        static_cast<std::size_t>(&x - f1P);                    \
+                    x OP FUNC(f2P[i]);                                         \
+                });                                                            \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC(f2P[i]);                                          \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -185,10 +211,28 @@ void checkFields
     /* Loop: f1 OP f2.FUNC() */                                                \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>)                                   \
     {                                                                          \
-        (f1P[i]) OP (f2P[i]).FUNC();                                           \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P](typeF1& x)                                              \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP (f2P[i]).FUNC();                                          \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP (f2P[i]).FUNC();                                       \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -208,10 +252,29 @@ void checkFields
     /* Loop: f1 OP FUNC(f2, f3) */                                             \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<typeF3>)                                   \
     {                                                                          \
-        (f1P[i]) OP FUNC((f2P[i]), (f3P[i]));                                  \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, f3P](typeF1& x)                                         \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP FUNC((f2P[i]), (f3P[i]));                                 \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((f2P[i]), (f3P[i]));                              \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -252,10 +315,32 @@ void checkFields
     /* Loop: f1 OP FUNC(f2, s) */                                              \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (f1P[i]) OP FUNC((f2P[i]), (s));                                       \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, s_](typeF1& x)                                          \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP FUNC(f2P[i], s_);                                         \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((f2P[i]), (s));                                   \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -289,13 +374,35 @@ void checkFields
     List_ACCESS(typeF1, f1, f1P);                                              \
     List_CONST_ACCESS(typeF2, f2, f2P);                                        \
                                                                                \
-    /* Loop: f1 OP1 f2 OP2 f3 */                                               \
+    /* Loop: f1 OP FUNC(s, f2) */                                              \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (f1P[i]) OP FUNC((s), (f2P[i]));                                       \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, s_](typeF1& x)                                          \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP FUNC(s_, f2P[i]);                                         \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((s), (f2P[i]));                                   \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -310,10 +417,33 @@ void checkFields
     /* Loop: f1 OP FUNC(s1, s2) */                                             \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using S1Val = std::decay_t<typeS1>;                                        \
+    using S2Val = std::decay_t<typeS2>;                                        \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<S1Val>                                     \
+    && std::is_trivially_copyable_v<S2Val>)                                    \
     {                                                                          \
-        (f1P[i]) OP FUNC((s1), (s2));                                          \
+        const S1Val s1_ = (s1);                                                \
+        const S2Val s2_ = (s2);                                                \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [s1_, s2_](typeF1& x)                                              \
+            {                                                                  \
+                x OP FUNC(s1_, s2_);                                           \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((s1), (s2));                                      \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -332,10 +462,32 @@ void checkFields
     /* Loop: f1 OP f2 FUNC(s) */                                               \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (f1P[i]) OP (f2P[i]) FUNC((s));                                        \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, s_](typeF1& x)                                          \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP f2P[i] FUNC(s_);                                          \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP (f2P[i]) FUNC((s));                                    \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -359,10 +511,30 @@ void checkFields
     /* Loop: f1 OP FUNC(f2, f3, f4) */                                         \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<typeF3>                                    \
+    && std::is_trivially_copyable_v<typeF4>)                                   \
     {                                                                          \
-        (f1P[i]) OP FUNC((f2P[i]), (f3P[i]), (f4P[i]));                        \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, f3P, f4P](typeF1& x)                                    \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP FUNC(f2P[i], f3P[i], f4P[i]);                             \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((f2P[i]), (f3P[i]), (f4P[i]));                    \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -382,10 +554,33 @@ void checkFields
     /* Loop: f1 OP FUNC(f2, f3, s4) */                                         \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using S4Val = std::decay_t<typeS4>;                                        \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<typeF3>                                    \
+    && std::is_trivially_copyable_v<S4Val>)                                    \
     {                                                                          \
-        (f1P[i]) OP FUNC((f2P[i]), (f3P[i]), (s4));                            \
+        const S4Val s4_ = (s4);                                                \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, f3P, s4_](typeF1& x)                                    \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP FUNC(f2P[i], f3P[i], s4_);                                \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP FUNC((f2P[i]), (f3P[i]), (s4));                        \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -407,10 +602,30 @@ void checkFields
     /* Loop: f1 OP1 f2 OP2 f3 */                                               \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<typeF3>)                                   \
     {                                                                          \
-        (f1P[i]) OP1 (f2P[i]) OP2 (f3P[i]);                                    \
+        /* Parallelize over contiguous memory; compute matching index */       \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, f3P](typeF1& x)                                         \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP1 f2P[i] OP2 f3P[i];                                       \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP1 (f2P[i]) OP2 (f3P[i]);                                \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -429,10 +644,32 @@ void checkFields
     /* Loop: f1 OP1 s OP2 f2 */                                                \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (f1P[i]) OP1 (s) OP2 (f2P[i]);                                         \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, s_](typeF1& x)                                          \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP1 s_ OP2 f2P[i];                                           \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP1 (s) OP2 (f2P[i]);                                     \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -448,13 +685,35 @@ void checkFields
     List_ACCESS(typeF1, f1, f1P);                                              \
     List_CONST_ACCESS(typeF2, f2, f2P);                                        \
                                                                                \
-    /* Loop f1 OP1 s OP2 f2 */                                                 \
+    /* Loop: f1 OP1 f2 OP2 s */                                                \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>                                    \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (f1P[i]) OP1 (f2P[i]) OP2 (s);                                         \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P, s_](typeF1& x)                                          \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP1 f2P[i] OP2 s_;                                           \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP1 (f2P[i]) OP2 (s);                                     \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -473,10 +732,28 @@ void checkFields
     /* Loop: f1 OP f2 */                                                       \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>)                                   \
     {                                                                          \
-        (f1P[i]) OP (f2P[i]);                                                  \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P](typeF1& x)                                              \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP f2P[i];                                                   \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP (f2P[i]);                                              \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -495,10 +772,28 @@ void checkFields
     /* Loop: f1 OP1 OP2 f2 */                                                  \
     const label loop_len = (f1).size();                                        \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF1>                                    \
+    && std::is_trivially_copyable_v<typeF2>)                                   \
     {                                                                          \
-        (f1P[i]) OP1 OP2 (f2P[i]);                                             \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            f1P, f1P + loop_len,                                               \
+            [f1P, f2P](typeF1& x)                                              \
+            {                                                                  \
+                const std::size_t i = static_cast<std::size_t>(&x - f1P);      \
+                x OP1 OP2 f2P[i];                                              \
+            });                                                                \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (f1P[i]) OP1 OP2 (f2P[i]);                                         \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -513,10 +808,28 @@ void checkFields
     /* Loop: f OP s */                                                         \
     const label loop_len = (f).size();                                         \
                                                                                \
-    /* pragmas... */                                                           \
-    for (label i = 0; i < loop_len; ++i)                                       \
+                                                                               \
+    using SVal = std::decay_t<typeS>;                                          \
+                                                                               \
+    if constexpr (FOAM_OFFLOAD_ENABLED                                         \
+    && std::is_trivially_copyable_v<typeF>                                     \
+    && std::is_trivially_copyable_v<SVal>)                                     \
     {                                                                          \
-        (fP[i]) OP (s);                                                        \
+        const SVal s_ = (s);                                                   \
+        apply_policy(loop_len, [&](auto policy)                                \
+        {                                                                      \
+            std::for_each(policy,                                              \
+            fP, fP + static_cast<std::size_t>(loop_len),                       \
+            [s_](typeF& x) { x OP s_; });                                      \
+        });                                                                    \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        /* pragmas... */                                                       \
+        for (label i = 0; i < loop_len; ++i)                                   \
+        {                                                                      \
+            (fP[i]) OP (s);                                                    \
+        }                                                                      \
     }                                                                          \
 }
 
@@ -575,7 +888,6 @@ void checkFields
         (s) OP FUNC(fP[i]);                                                    \
     }                                                                          \
 }
-
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

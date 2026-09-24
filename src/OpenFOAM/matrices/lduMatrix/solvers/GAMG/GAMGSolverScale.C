@@ -31,6 +31,49 @@ License
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
+template<class Type>
+struct ScalePair
+{
+    Type first_;
+    Type second_;
+};
+
+template<class Type>
+struct ScalePairPlus
+{
+    ScalePair<Type> operator()
+    (
+        const ScalePair<Type>& a,
+        const ScalePair<Type>& b
+    ) const
+    {
+        return ScalePair<Type>
+        {
+            a.first_ + b.first_,
+            a.second_ + b.second_
+        };
+    }
+};
+
+template<class Type>
+struct ScalePairTransform
+{
+    const Type* fieldPtr_;
+    const Type* sourcePtr_;
+    const Type* AcfPtr_;
+
+    ScalePair<Type> operator()(const Foam::label i) const
+    {
+        const Type v = fieldPtr_[i];
+
+        return ScalePair<Type>
+        {
+            v*sourcePtr_[i],
+            v*AcfPtr_[i]
+        };
+    }
+};
+
 void Foam::GAMGSolver::scale
 (
     solveScalarField& field,
@@ -60,11 +103,33 @@ void Foam::GAMGSolver::scale
 
     FixedList<solveScalar, 2> scalingFactor(Zero);
 
+    const labelRange cellRange(nCells);
+
+    #ifdef FOAM_OFFLOAD
+    ScalePair<solveScalar> pairResult{Zero, Zero};
+
+    apply_policy(cellRange.size(), [&](auto policy)
+    {
+        pairResult = std::transform_reduce
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            ScalePair<solveScalar>{Zero, Zero},
+            ScalePairPlus<solveScalar>(),
+            ScalePairTransform<solveScalar>{fieldPtr, sourcePtr, AcfPtr}
+        );
+    });
+
+    scalingFactor[0] = pairResult.first_;
+    scalingFactor[1] = pairResult.second_;
+    #else
     for (label i=0; i<nCells; i++)
     {
         scalingFactor[0] += fieldPtr[i]*sourcePtr[i];
         scalingFactor[1] += fieldPtr[i]*AcfPtr[i];
     }
+    #endif
 
     A.mesh().reduce(scalingFactor, sumOp<solveScalar>());
 
@@ -82,10 +147,20 @@ void Foam::GAMGSolver::scale
     const scalarField& D = A.diag();
     const scalar* const __restrict__ DPtr = D.begin();
 
-    for (label i=0; i<nCells; i++)
+    apply_policy(cellRange.size(), [&](auto policy)
     {
-        fieldPtr[i] = sf*fieldPtr[i] + (sourcePtr[i] - sf*AcfPtr[i])/DPtr[i];
-    }
+        std::for_each
+        (
+            policy,
+            cellRange.begin(),
+            cellRange.end(),
+            [&](const auto& i)
+            {
+                fieldPtr[i] =
+                    sf*fieldPtr[i] + (sourcePtr[i] - sf*AcfPtr[i])/DPtr[i];
+            }
+        );
+    });
 }
 
 

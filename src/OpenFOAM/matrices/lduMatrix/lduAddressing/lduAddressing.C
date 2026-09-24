@@ -28,8 +28,167 @@ License
 
 #include "lduAddressing.H"
 #include "scalarField.H"
-
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+void Foam::lduAddressing::calcPatchSort() const
+{
+    if (patchSortAddr_.size() == nPatches())
+    {
+        FatalErrorIn("lduAddressing::calcPatchSort() const")
+            << "patch sort already calculated"
+            << abort(FatalError);
+    }
+
+    patchSortAddr_.setSize(nPatches());
+    patchSortCells_.setSize(nPatches());
+
+    for(label i=0; i<nPatches(); i++)
+    {
+        if (!patchAvailable(i))
+        {
+            continue;
+        }
+
+        const labelList& nbr = patchAddr(i);
+        labelList* sortPtr_ = new labelList(nbr.size(), -1);
+        patchSortAddr_.set(i, sortPtr_);
+
+        labelList& lst = *sortPtr_;
+
+        labelList nbrTmp(nbr);
+
+        const labelRange indices(0, label(nbr.size()));
+
+        apply_policy(static_cast<std::size_t>(nbr.size()), [&](auto policy)
+        {
+            std::copy
+            (
+                policy,
+                indices.begin(),
+                indices.end(),
+                lst.begin()
+            );
+        });
+
+        apply_policy(static_cast<std::size_t>(lst.size()), [&](auto policy)
+        {
+            std::stable_sort
+            (
+                policy,
+                lst.begin(),
+                lst.end(),
+                [&](label a, label b)
+                {
+                    return nbrTmp[a] < nbrTmp[b];
+                }
+            );
+        });
+
+        labelList* cellsSortPtr = new labelList(nbr.size());
+        patchSortCells_.set(i, cellsSortPtr);
+        labelList& cellsSort = *cellsSortPtr;
+
+        apply_policy(static_cast<std::size_t>(lst.size()), [&](auto policy)
+        {
+            std::transform
+            (
+                policy,
+                lst.begin(),
+                lst.end(),
+                cellsSort.begin(),
+                [&](label idx)
+                {
+                    return nbr[idx];
+                }
+            );
+        });
+
+        auto new_end = std::unique(cellsSort.begin(), cellsSort.end());
+        cellsSort.resize(std::distance(cellsSort.begin(), new_end));
+    }
+}
+
+
+void Foam::lduAddressing::calcPatchSortStart() const
+{
+    if (patchSortStartAddr_.size() == nPatches())
+    {
+        // Already calculated
+        return;
+    }
+
+    patchSortStartAddr_.setSize(nPatches());
+
+    for (label i=0; i<nPatches(); i++)
+    {
+        if (!patchAvailable(i))
+        {
+            continue;
+        }
+
+        const labelList& nbr = patchAddr(i);
+        // assuming this returns std::vector<label>
+        const labelList& lsrt = patchSortAddr(i);
+
+        // 1. Permutation: fill nbrSort with nbr[idx] based on lsrt
+        std::vector<label> nbrSort(nbr.size());
+
+        apply_policy(static_cast<std::size_t>(lsrt.size()), [&](auto policy)
+        {
+            std::transform
+            (
+                policy,
+                lsrt.begin(),
+                lsrt.end(),
+                nbrSort.begin(),
+                [&](label idx)
+                {
+                    return nbr[idx];
+                }
+            );
+        });
+
+        std::vector<size_t> tmpSum;
+        if (!nbrSort.empty()) 
+        {
+            size_t count = 1;
+            for (size_t i=1; i<nbrSort.size(); i++)
+            {
+                if (nbrSort[i] == nbrSort[i-1])
+                {
+                    ++count;
+                }
+                else
+                {
+                    tmpSum.push_back(count);
+                    count = 1;
+                }
+            }
+            tmpSum.push_back(count); // last group
+        }
+  
+        // (nbrsize+1)
+        labelList* patchSortStartAddr = new labelList(tmpSum.size() + 1);
+        patchSortStartAddr_.set(i, patchSortStartAddr);
+        labelList& lsrtStart = *patchSortStartAddr;
+
+        apply_policy(static_cast<std::size_t>(tmpSum.size()), [&](auto policy)
+        {
+            std::exclusive_scan
+            (
+                policy,
+                tmpSum.begin(),
+                tmpSum.end(),
+                lsrtStart.begin(),
+                label(0)
+            );
+        });
+
+        lsrtStart[tmpSum.size()] = lsrt.size(); // last element is total size
+        // lsrtStart now contains starting indices
+        // (exclusive scan of group sizes)
+    }
+}
 
 void Foam::lduAddressing::calcLosort() const
 {
@@ -216,6 +375,39 @@ const Foam::labelUList& Foam::lduAddressing::losortStartAddr() const
     return *losortStartPtr_;
 }
 
+const Foam::labelUList& Foam::lduAddressing::patchSortCells(const label i) const
+{
+    if (patchSortCells_.size() != nPatches())
+    {
+        calcPatchSort();
+    }
+    return patchSortCells_[i];
+}
+
+
+const Foam::labelUList&
+Foam::lduAddressing::patchSortAddr(const label i) const
+{
+    if (patchSortAddr_.size() != nPatches())
+    {
+        calcPatchSort();
+    }
+
+    return patchSortAddr_[i];
+}
+
+
+const Foam::labelUList&
+Foam::lduAddressing::patchSortStartAddr(const label i) const
+{
+    if (patchSortStartAddr_.size() != nPatches())
+    {
+        calcPatchSortStart();
+    }
+
+    return patchSortStartAddr_[i];
+}
+
 
 const Foam::labelUList& Foam::lduAddressing::lowerCSRAddr() const
 {
@@ -234,6 +426,9 @@ void Foam::lduAddressing::clearOut()
     ownerStartPtr_.reset(nullptr);
     losortStartPtr_.reset(nullptr);
     lowerCSRAddrPtr_.reset(nullptr);
+    patchSortCells_.clear();
+    patchSortAddr_.clear();
+    patchSortStartAddr_.clear();
 }
 
 

@@ -245,6 +245,19 @@ Bool1Op(greaterEqual, x >= value)
 
 WeightedOp(multiply, (weight*y))
 
+#ifdef FOAM_OFFLOAD
+template<class T>
+class unityOp                                                         
+{                                                                         
+public:                                                                   
+                                                                                                                              
+    T operator()(const T& x) const            
+    {                                                                     
+        return x;                                                        
+    }                                                                     
+ };
+#endif
+
 #undef Op
 #undef BoolOp
 #undef Bool1Op

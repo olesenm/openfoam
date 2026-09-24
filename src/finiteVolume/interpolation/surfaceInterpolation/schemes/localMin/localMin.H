@@ -145,10 +145,21 @@ public:
             const labelUList& own = mesh.owner();
             const labelUList& nei = mesh.neighbour();
 
-            forAll(vff, facei)
+            labelRange faceRange(vff.size());
+
+            apply_policy(vff.size(), [&](auto policy)
             {
-                vff[facei] = min(vf[own[facei]], vf[nei[facei]]);
-            }
+                std::for_each
+                (
+                    policy,
+                    faceRange.begin(),
+                    faceRange.end(),
+                    [&](const label facei)
+                    {
+                        vff[facei] = min(vf[own[facei]], vf[nei[facei]]);
+                    }
+                );
+            });
 
             typename GeometricField<Type, fvsPatchField, surfaceMesh>::
                 Boundary& bff = vff.boundaryFieldRef();
@@ -165,11 +176,21 @@ public:
 
                     tmp<Field<Type>> tpnf(pf.patchNeighbourField());
                     const Field<Type>& pnf = tpnf();
+                    labelRange faceRange(pff.size());
 
-                    forAll(pff, i)
+                    apply_policy(pff.size(), [&](auto policy)
                     {
-                        pff[i] = min(pif[i], pnf[i]);
-                    }
+                        std::for_each
+                        (
+                            policy,
+                            faceRange.begin(),
+                            faceRange.end(),
+                            [&](const label i)
+                            {
+                                pff[i] = min(pif[i], pnf[i]);
+                            }
+                        );
+                    });
                 }
                 else
                 {
