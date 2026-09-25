@@ -203,7 +203,7 @@ void Foam::pointToPointPlanarInterpolation::calcWeights
         auto tlocalVertices = referenceCS_.localPosition(sourcePoints);
         auto& localVertices = tlocalVertices.ref();
 
-        const boundBox bb(localVertices, true);
+        const boundBox bb(localVertices, UPstream::parRun());
         const point bbMid(bb.centre());
 
         DebugInFunction

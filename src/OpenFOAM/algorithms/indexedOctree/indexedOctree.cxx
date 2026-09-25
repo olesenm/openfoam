@@ -39,49 +39,4 @@ namespace Foam
 }
 
 
-// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
-
-void Foam::indexedOctreeBase::writeOBJ
-(
-    Ostream& os,
-    const treeBoundBox& bb,
-    label& vertIndex,
-    const bool writeLinesOnly
-)
-{
-    // Annotate with '#box' which can be grep'd for later
-    os  << "#box" << nl;
-
-    pointField pts(bb.points());
-
-    for (const point& p : pts)
-    {
-        os  << "v " << p.x() << ' ' << p.y() << ' ' << p.z() << nl;
-    }
-
-    if (writeLinesOnly)
-    {
-        for (const edge& e : treeBoundBox::edges)
-        {
-            os  << "l " << e[0] + vertIndex + 1
-                << ' ' << e[1] + vertIndex + 1 << nl;
-        }
-    }
-    else
-    {
-        for (const face& f : treeBoundBox::faces)
-        {
-            os  << 'f';
-            for (const label fpi : f)
-            {
-                os  << ' ' << fpi + vertIndex + 1;
-            }
-            os  << nl;
-        }
-    }
-
-    vertIndex += pts.size();
-}
-
-
 // ************************************************************************* //

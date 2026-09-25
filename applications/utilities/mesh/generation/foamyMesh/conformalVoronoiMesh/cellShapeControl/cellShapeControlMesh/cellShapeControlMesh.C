@@ -467,7 +467,7 @@ void Foam::cellShapeControlMesh::barycentricCoords
 
 Foam::boundBox Foam::cellShapeControlMesh::bounds() const
 {
-    DynamicList<Foam::point> pts(number_of_vertices());
+    boundBox bb;
 
     for
     (
@@ -478,11 +478,11 @@ Foam::boundBox Foam::cellShapeControlMesh::bounds() const
     {
         if (vit->real())
         {
-            pts.append(topoint(vit->point()));
+            bb.add(topoint(vit->point()));
         }
     }
 
-    boundBox bb(pts);
+    bb.reduce();
 
     return bb;
 }

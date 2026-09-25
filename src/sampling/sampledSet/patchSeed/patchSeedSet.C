@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,6 @@ License
 #include "treeBoundBox.H"
 #include "treeDataFace.H"
 #include "mappedPatchBase.H"
-#include "indirectPrimitivePatch.H"
 #include "triangulatedPatch.H"
 #include "addToRunTimeSelectionTable.H"
 
@@ -64,8 +64,9 @@ void Foam::patchSeedSet::calcPatchSamples
 
     Random& rndGen = *rndGenPtr_;
 
-    globalIndex globalSampleNumbers(nAvailable);
-    label nGlobalPatchPoints = returnReduce(nPatchPoints, sumOp<label>());
+    // Globally consistent addressing
+    const label globalPointStart = globalIndex::calcOffset(nAvailable);
+    const label nGlobalPatchPoints = returnReduce(nPatchPoints, sumOp<label>());
 
     point pt;
     label facei;
@@ -87,7 +88,7 @@ void Foam::patchSeedSet::calcPatchSamples
             samplingCells.append(celli);
             samplingFaces.append(pp.start() + facei);
             samplingSegments.append(0);
-            samplingCurveDist.append(globalSampleNumbers.toGlobal(i));
+            samplingCurveDist.append(globalPointStart + i);
         }
     }
 }
@@ -104,6 +105,8 @@ void Foam::patchSeedSet::calcSelectedLocations
     DynamicList<scalar>& samplingCurveDist
 )
 {
+    const auto myProci = UPstream::myProcNo();
+
     if (nAvailable < 1)
     {
         return;
@@ -111,117 +114,122 @@ void Foam::patchSeedSet::calcSelectedLocations
 
     Random& rndGen = *rndGenPtr_;
 
-    labelList patchFaces(nPatchPoints);
-    label sz = 0;
-    for (const label patchi : patchSet_)
+    // Boundary faces only
+    const label bndFaceOffset = mesh().nInternalFaces();
+    bitSet bndFaces;
+    treeBoundBox overallBb;
+
+    // Collect faces and bounding box
+    for (label patchi : patchSet_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
-        forAll(pp, localFacei)
+
+        bndFaces.set(pp.offset_range());
+
+        overallBb.add(pp.box());
+    }
+
+    // 1. Find nearest local patch face for all selectedLocations
+
+    // Nearest selection: (sqr(distance), (rank, facei))
+    List<Tuple2<scalar, labelPair>> nearest
+    (
+        nAvailable,
+        { Foam::sqr(GREAT), {-1, -1} }
+    );
+
+    const bool hasLocal = bndFaces.any();
+
+    if (hasLocal)
+    {
+        overallBb.inflate(rndGen, 1e-4, ROOTVSMALL);
+
+        const indexedOctree<treeDataFace> boundaryTree
+        (
+            // Boundary faces only
+            treeDataFace(mesh(), std::move(bndFaces), bndFaceOffset),
+
+            overallBb,      // overall search domain
+            8,              // maxLevel
+            10,             // leafsize
+            3.0             // duplicity
+        );
+
+        // Get some global dimension so all points are equally likely
+        // to be found
+        const scalar globalDistSqr
+        (
+            //overallBb.magSqr()
+            GREAT
+        );
+
+        const auto& treeData = boundaryTree.shapes();
+        const auto& samples = selectedLocations_;
+
+        for (label samplei = 0; samplei < nAvailable; ++samplei)
         {
-            patchFaces[sz++] = pp.start() + localFacei;
+            const point& sample = samples[samplei];
+            auto& near = nearest[samplei];
+
+            pointIndexHit pHit = boundaryTree.findNearest
+            (
+                sample,
+                globalDistSqr
+            );
+
+            if (const auto& p = pHit.point(); pHit.hit())
+            {
+                const label facei = treeData.objectIndex(pHit.index());
+
+                near.first() = sample.distSqr(p);
+                near.second().first() = myProci;
+                near.second().second() = facei;
+            }
         }
     }
 
+    // Find rank with nearest hit - globally consistent
+    Pstream::listCombineReduce(nearest, minFirstEqOp{});
+
+    // Extract the nearest (local) patch faces
+    labelList patchFaces;
+
     {
-        DynamicList<label> newPatchFaces(patchFaces.size());
-
-        // Find the nearest patch face
+        label nLocal = 0;
+        for (const auto& near : nearest)
         {
-            // 1. All processors find nearest local patch face for all
-            //    selectedLocations
+            const auto& [proci, facei] = near.second();
 
-            // All the info for nearest. Construct to miss
-            List<mappedPatchBase::nearInfo> nearest(nAvailable);
-
-            const indirectPrimitivePatch pp
-            (
-                IndirectList<face>(mesh().faces(), patchFaces),
-                mesh().points()
-            );
-
-            treeBoundBox patchBb
-            (
-                treeBoundBox(pp.points(), pp.meshPoints())
-                    .extend(rndGen, 1e-4, ROOTVSMALL)
-            );
-
-            indexedOctree<treeDataFace> boundaryTree
-            (
-                treeDataFace(mesh(), patchFaces),  // boundary faces only
-
-                patchBb,        // overall search domain
-                8,              // maxLevel
-                10,             // leafsize
-                3.0             // duplicity
-            );
-
-            // Get some global dimension so all points are equally likely
-            // to be found
-            const scalar globalDistSqr
-            (
-                //boundBox(pp.points(), pp.meshPoints(), true).magSqr()
-                GREAT
-            );
-
-            for (label sampleI = 0; sampleI < nAvailable; ++sampleI)
+            if (proci == myProci)
             {
-                const auto& treeData = boundaryTree.shapes();
-                const point& sample = selectedLocations_[sampleI];
-
-                pointIndexHit& nearInfo = nearest[sampleI].first();
-                auto& distSqrProc = nearest[sampleI].second();
-
-                nearInfo = boundaryTree.findNearest
-                (
-                    sample,
-                    globalDistSqr
-                );
-
-                if (!nearInfo.hit())
-                {
-                    distSqrProc.first() = Foam::sqr(GREAT);
-                    distSqrProc.second() = Pstream::myProcNo();
-                }
-                else
-                {
-                    nearInfo.setPoint(treeData.centre(nearInfo.index()));
-
-                    distSqrProc.first() = sample.distSqr(nearInfo.point());
-                    distSqrProc.second() = Pstream::myProcNo();
-                }
-            }
-
-
-            // 2. Reduce on master. Select nearest processor.
-
-            // Find nearest - globally consistent
-            Pstream::listCombineReduce(nearest, mappedPatchBase::nearestEqOp());
-
-            // 3. Pick up my local faces that have won
-
-            forAll(nearest, sampleI)
-            {
-                if (nearest[sampleI].first().hit())
-                {
-                    label procI = nearest[sampleI].second().second();
-                    label index = nearest[sampleI].first().index();
-
-                    if (procI == Pstream::myProcNo())
-                    {
-                        newPatchFaces.append(pp.addressing()[index]);
-                    }
-                }
+                ++nLocal;
             }
         }
 
-        if (debug)
+        if (const label total = nLocal; total > 0)
         {
-            Pout<< "Found " << newPatchFaces.size()
-                << " out of " << nAvailable
-                << " on local processor" << endl;
-        }
+            patchFaces.resize(total);
+            nLocal = 0;
 
-        patchFaces.transfer(newPatchFaces);
+            for (const auto& near : nearest)
+            {
+                const auto& [proci, facei] = near.second();
+
+                if (proci == myProci)
+                {
+                    patchFaces[nLocal] = facei;
+                    ++nLocal;
+                    if (nLocal >= total) break;  // terminate early
+                }
+            }
+        }
+    }
+
+    if (debug)
+    {
+        Pout<< "Found " << patchFaces.size()
+            << " out of " << nAvailable
+            << " on local processor" << endl;
     }
 
 
@@ -254,12 +262,14 @@ void Foam::patchSeedSet::calcSelectedLocations
                 << " faces out of " << patchFaces.size() << endl;
         }
 
-        patchFaces = labelUIndList(patchFaces, subset)();
+        patchFaces = labelUIndList(patchFaces, subset).list();
     }
 
 
     // Get points on patchFaces.
-    globalIndex globalSampleNumbers(patchFaces.size());
+
+    // Globally consistent addressing
+    const label globalFaceStart = globalIndex::calcOffset(patchFaces.size());
 
     samplingPts.setCapacity(patchFaces.size());
     samplingCells.setCapacity(patchFaces.size());
@@ -273,6 +283,7 @@ void Foam::patchSeedSet::calcSelectedLocations
     forAll(patchFaces, i)
     {
         const label facei = patchFaces[i];
+        const label celli = mesh().faceOwner()[facei];
 
         // Slightly shift point in since on warped face face-diagonal
         // decomposition might be outside cell for face-centre decomposition!
@@ -282,7 +293,6 @@ void Foam::patchSeedSet::calcSelectedLocations
             facei,
             polyMesh::FACE_DIAG_TRIS
         );
-        const label celli = mesh().faceOwner()[facei];
 
         if (info.hit())
         {
@@ -300,7 +310,7 @@ void Foam::patchSeedSet::calcSelectedLocations
         samplingCells.append(celli);
         samplingFaces.append(facei);
         samplingSegments.append(0);
-        samplingCurveDist.append(globalSampleNumbers.toGlobal(i));
+        samplingCurveDist.append(globalFaceStart+i);
     }
 }
 

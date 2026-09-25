@@ -52,9 +52,9 @@ boundBox cube(scalar start, scalar width)
 
 void printEdges(const treeBoundBox& bb)
 {
-    pointField pts(bb.points());
+    pointField pts(bb.octCorners());
 
-    for (const edge& e : treeBoundBox::edges)
+    for (const edge& e : treeBoundBox::octEdges())
     {
         Info<< pts[e.first()] << " -> " << pts[e.second()] << nl;
     }
@@ -84,9 +84,6 @@ void testIntersect(const treeBoundBox& bb, const triPoints& tri)
 int main(int argc, char *argv[])
 {
     argList args(argc, argv);
-
-    // Info<<"tree-bb faces: " << treeBoundBox::faces << nl
-    //     <<"tree-bb edges: " << treeBoundBox::edges << endl;
 
     treeBoundBox bb(zero_one{});
 

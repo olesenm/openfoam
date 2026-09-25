@@ -47,7 +47,7 @@ SourceFiles
 #include "cellCellStencil.H"
 #include "volFields.H"
 #include "labelVector.H"
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 #include "pointList.H"
 #include "globalIndex.H"
 

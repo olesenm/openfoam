@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -58,7 +59,7 @@ static treeBoundBoxList boxesImpl
         elemIds.cbegin(),
         elemIds.cend(),
         bbs.begin(),
-        [&](label edgei)
+        [&edges,&points](label edgei)
         {
             return treeBoundBox(edges[edgei].box(points));
         }
@@ -108,7 +109,7 @@ Foam::treeDataEdge::boxes
         edges.cbegin(),
         edges.cend(),
         bbs.begin(),
-        [&](const edge& e) { return treeBoundBox(e.box(points)); }
+        [&points](const edge& e) { return treeBoundBox(e.box(points)); }
     );
 
     return bbs;
@@ -189,7 +190,7 @@ void Foam::treeDataEdge::update()
     {
         if (useSubset_)
         {
-            bbs_ = treeDataEdge::boxes(edges_, points_, edgeLabels_);
+            bbs_ = treeDataEdge::boxes(edges_, points_, subset_);
         }
         else
         {
@@ -210,7 +211,6 @@ Foam::treeDataEdge::treeDataEdge
 :
     points_(points),
     edges_(edges),
-    edgeLabels_(),
     useSubset_(false),
     cacheBb_(cacheBb)
 {
@@ -228,7 +228,7 @@ Foam::treeDataEdge::treeDataEdge
 :
     points_(points),
     edges_(edges),
-    edgeLabels_(identity(range)),
+    subset_(Foam::identity(range)),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
@@ -246,7 +246,7 @@ Foam::treeDataEdge::treeDataEdge
 :
     points_(points),
     edges_(edges),
-    edgeLabels_(edgeLabels),
+    subset_(edgeLabels),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
@@ -264,7 +264,7 @@ Foam::treeDataEdge::treeDataEdge
 :
     points_(points),
     edges_(edges),
-    edgeLabels_(std::move(edgeLabels)),
+    subset_(std::move(edgeLabels)),
     useSubset_(true),
     cacheBb_(cacheBb)
 {
@@ -282,7 +282,7 @@ Foam::treeBoundBox Foam::treeDataEdge::bounds(const labelUList& indices) const
 
         for (const label index : indices)
         {
-            const edge& e = edges_[edgeLabels_[index]];
+            const edge& e = edges_[subset_[index]];
 
             bb.add(points_[e.first()], points_[e.second()]);
         }
@@ -300,12 +300,12 @@ Foam::tmp<Foam::pointField> Foam::treeDataEdge::centres() const
 
     if (useSubset_)
     {
-        tpts = tmp<pointField>::New(edgeLabels_.size());
+        tpts = tmp<pointField>::New(subset_.size());
 
         std::transform
         (
-            edgeLabels_.cbegin(),
-            edgeLabels_.cend(),
+            subset_.cbegin(),
+            subset_.cend(),
             tpts.ref().begin(),
             [&](label edgei) { return edges_[edgei].centre(points_); }
         );
@@ -362,22 +362,6 @@ bool Foam::treeDataEdge::overlaps
 
 
 // * * * * * * * * * * * * * * * * Searching * * * * * * * * * * * * * * * * //
-
-Foam::treeDataEdge::findNearestOp::findNearestOp
-(
-    const indexedOctree<treeDataEdge>& tree
-)
-:
-    tree_(tree)
-{}
-
-
-Foam::treeDataEdge::findIntersectOp::findIntersectOp
-(
-    const indexedOctree<treeDataEdge>& tree
-)
-{}
-
 
 void Foam::treeDataEdge::findNearest
 (

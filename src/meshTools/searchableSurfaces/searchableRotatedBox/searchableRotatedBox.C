@@ -150,13 +150,10 @@ bool Foam::searchableRotatedBox::overlaps(const boundBox& bb) const
     // 3. Difficult case: all points are outside but connecting edges might
     // go through cube.
 
-    const treeBoundBox treeBb(bb);
-
     // 3a. my edges through bb faces
-    for (const edge& e : treeBoundBox::edges)
+    for (const auto& e : boundBox::octEdges())
     {
-        point inter;
-        if (treeBb.intersects(points_[e[0]], points_[e[1]], inter))
+        if (bb.intersects(points_[e.start()], points_[e.end()]))
         {
             return true;
         }
@@ -164,18 +161,21 @@ bool Foam::searchableRotatedBox::overlaps(const boundBox& bb) const
 
     // 3b. bb edges through my faces
 
-    const pointField bbPoints(bb.points());
+    // NB: must use octant-ordered corners since using
+    // treeBoundBox edges/faces (octEdges, octFaces)
 
-    for (const face& f : treeBoundBox::faces)
+    const pointField bbCorners(bb.octCorners());
+
+    for (const auto& f : boundBox::octFaces())
     {
         const point fc = f.centre(points_);
 
-        for (const edge& e : treeBoundBox::edges)
+        for (const auto& e : boundBox::octEdges())
         {
             pointHit inter = f.intersection
             (
-                bbPoints[e[0]],
-                bbPoints[e[1]],
+                bbCorners[e.start()],
+                bbCorners[e.end()],
                 fc,
                 points_,
                 intersection::HALF_RAY

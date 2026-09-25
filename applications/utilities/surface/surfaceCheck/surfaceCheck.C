@@ -385,14 +385,14 @@ int main(int argc, char *argv[])
     // write bounding box corners
     if (args.found("blockMesh"))
     {
-        pointField cornerPts(boundBox(surf.points(), false).points());
+        pointField cornerPts(boundBox(surf.box()).hexCorners());
 
         Info<< "// blockMeshDict info" << nl << nl;
 
         Info<< "vertices\n(" << nl;
-        forAll(cornerPts, pti)
+        for (const auto& p : cornerPts)
         {
-            Info<< "    " << cornerPts[pti] << nl;
+            Info<< "    " << p << nl;
         }
 
         // number of divisions needs adjustment later
@@ -682,7 +682,7 @@ int main(int argc, char *argv[])
         const edgeList& edges = surf.edges();
         const pointField& localPoints = surf.localPoints();
 
-        const boundBox bb(localPoints);
+        const boundBox bb(surf.box());
         scalar smallDim = 1e-6 * bb.mag();
 
         Info<< "Checking for points less than 1e-6 of bounding box ("
@@ -1020,9 +1020,7 @@ int main(int argc, char *argv[])
 
         //// Check very near triangles
         //{
-        //    const pointField& localPoints = surf.localPoints();
-        //
-        //    const boundBox bb(localPoints);
+        //    const boundBox bb(surf.box());
         //    scalar smallDim = 1e-6 * bb.mag();
         //    scalar smallDimSqr = Foam::sqr(smallDim);
         //

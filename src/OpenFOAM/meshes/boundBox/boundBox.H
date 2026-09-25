@@ -36,6 +36,22 @@ Note
     bounding box. Points can be added later and the bounding box will grow to
     include them.
 
+    \verbatim
+    Octant vertex ordering               | Hex cell ordering
+    (treeBoundBox)                       | (boundBox, blockMesh, hexCell)
+                                         |
+                    6 ---- 7             |         7 ---- 6
+              f5    |\     :\    f3      |   f5    |\     :\    f3
+               |    | 4 ---- 5    \      |    |    | 4 ---- 5    \
+               |    2.|....3 |     \     |    |    3.|....2 |     \
+               |     \|     \|     f2    |    |     \|     \|     f2
+              f4      0 ---- 1           |   f4      0 ---- 1
+      Y  Z                               |
+       \ |          f0 ------ f1         |         f0 ------ f1
+        \|                               |
+         o--- X                          |
+     \endverbatim
+
 SeeAlso
     Foam::treeBoundBox
 
@@ -54,6 +70,18 @@ SourceFiles
 #include "Pair.H"
 #include "triangleFwd.H"
 
+// Transitional features/misfeatures.
+// Default is syncPar = true, an explicit parameter under "+strict"
+#ifdef FOAM_COMPILE_STRICT
+#  define Foam_boundBox_syncPar(name) name
+#else
+#  define Foam_boundBox_syncPar(name) name = true
+#endif
+
+// No default syncPar handling (an ideal future...)
+// #undef  Foam_boundBox_syncPar
+// #define Foam_boundBox_syncPar(name) name
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -61,13 +89,13 @@ namespace Foam
 
 // Forward Declarations
 class boundBox;
+class treeBoundBox;
 class plane;
 class Random;
 template<class T> class MinMax;
 
 Istream& operator>>(Istream& is, boundBox& bb);
 Ostream& operator<<(Ostream& os, const boundBox& bb);
-
 
 /*---------------------------------------------------------------------------*\
                           Class boundBox Declaration
@@ -94,7 +122,7 @@ protected:
             const point& maxB   // boxB (max)
         );
 
-        //- Test for overlap of box and boundingSphere (centre + sqr(radius))
+        //- Test for overlap of box and bounding sphere (centre + sqr(radius))
         //  Note: ordering of corners is irrelevant
         inline static bool box_sphere_overlaps
         (
@@ -102,6 +130,15 @@ protected:
             const point& corner1,   // box corner
             const point& centre,    // sphere centre
             const scalar radiusSqr  // sqr(radius)
+        );
+
+        //- Test if box contains the bounding sphere (centre + sqr(radius))
+        inline static bool box_sphere_contains
+        (
+            const point& min_corner,    // box corner (min)
+            const point& max_corner,    // box corner (max)
+            const point& centre,        // sphere centre
+            const scalar radiusSqr      // sqr(radius)
         );
 
 
@@ -127,17 +164,7 @@ public:
         static const FixedList<vector, 6> faceNormals;
 
 
-    // Static Methods
-
-        //- The null boundBox is the same as an inverted box
-        static const boundBox& null() noexcept
-        {
-            return invertedBox;
-        }
-
-        //- The boundBox faces as a hexCell, using hexCorner points.
-        //- Same as hexCell::modelFaces()
-        static const Foam::faceList& hexFaces();
+    // Properties
 
         //- Number of points for boundBox and HEX
         static constexpr label nPoints() noexcept { return 8; }
@@ -147,6 +174,22 @@ public:
 
         //- Number of faces for boundBox and HEX
         static constexpr label nFaces() noexcept { return 6; }
+
+
+    // Static Methods
+
+        //- The null boundBox is the same as an inverted box
+        static const boundBox& null() noexcept { return invertedBox; }
+
+        //- The boundBox faces as a hexCell, using hexCorner points.
+        //- Same as hexCell::modelFaces()
+        static const Foam::faceList& hexFaces();
+
+        //- The boundBox faces using octCorner points.
+        static const Foam::faceList& octFaces();
+
+        //- The boundBox edges, using octCorner points.
+        static const Foam::edgeList& octEdges();
 
 
     // Standard (Generated) Methods
@@ -164,7 +207,7 @@ public:
     // Constructors
 
         //- Copy construct with specified global reduction
-        boundBox(const boundBox& bb, bool doReduce);
+        boundBox(const boundBox& bb, bool syncPar);
 
         //- Construct a bounding box containing a single initial point
         inline explicit boundBox(const point& p);
@@ -185,32 +228,44 @@ public:
         inline boundBox(const boundBox& a, const boundBox& b);
 
         //- Construct as the bounding box of the given points
-        //  Does parallel communication (doReduce = true)
-        explicit boundBox(const UList<point>& points, bool doReduce = true);
+        //  Does parallel communication (syncPar = true)
+        explicit boundBox
+        (
+            const UList<point>& points,
+            //! Do parallel reduction
+            bool Foam_boundBox_syncPar(syncPar)
+        );
 
         //- Construct as the bounding box of the given temporary pointField.
-        //  Does parallel communication (doReduce = true)
-        explicit boundBox(const tmp<pointField>& tpoints, bool doReduce = true);
+        //  Does parallel communication (syncPar = true)
+        explicit boundBox
+        (
+            const tmp<pointField>& tpoints,
+            //! Do parallel reduction
+            bool Foam_boundBox_syncPar(syncPar)
+        );
 
         //- Construct bounding box as an indirect subset of the points.
         //  The indices could be from cell/face etc.
-        //  Does parallel communication (doReduce = true)
+        //  Does parallel communication (syncPar = true)
         boundBox
         (
             const UList<point>& points,
             const labelUList& indices,
-            bool doReduce = true
+            //! Do parallel reduction
+            bool Foam_boundBox_syncPar(syncPar)
         );
 
         //- Construct bounding box as an indirect subset of the points.
         //  The indices could be from edge/triFace etc.
-        //  Does parallel communication (doReduce = true)
+        //  Does parallel communication (syncPar = true)
         template<unsigned N>
         boundBox
         (
             const UList<point>& points,
             const FixedList<label, N>& indices,
-            bool doReduce = true
+            //! Do parallel reduction
+            bool Foam_boundBox_syncPar(syncPar)
         );
 
         //- Construct from Istream
@@ -245,8 +300,20 @@ public:
             //- The centre (midpoint) of the bounding box
             inline point centre() const;
 
+            //- Component of centre (midpoint) of the bounding box
+            inline scalar centre(direction cmpt) const;
+
+            //- Linear interpolation between bounding box min/max
+            inline point lerp(scalar t) const;
+
+            //- Linear interpolation between bounding box min/max
+            inline point lerp(const vector& t) const;
+
             //- The bounding box span (from minimum to maximum)
             inline vector span() const;
+
+            //- Component of bounding box span (from minimum to maximum)
+            inline scalar span(direction cmpt) const;
 
             //- The magnitude/length of the bounding box diagonal
             inline scalar mag() const;
@@ -281,6 +348,9 @@ public:
             //   -  3 : 3D (box)
             inline int nDim() const;
 
+
+        // Geometry
+
             //- Return corner point [0..7] corresponding to a 'hex' cell
             template<direction I>
             inline point hexCorner() const;
@@ -290,19 +360,38 @@ public:
             void hexCorners(UList<point>& output) const;
 
             //- Corner points in an order corresponding to a 'hex' cell
-            tmp<pointField> hexCorners() const;
+            pointField hexCorners() const;
+
+            //- Return corner point of given octant [0..7]
+            template<direction Octant>
+            inline point octCorner() const;
+
+            //- Fill in 8 corner points in octant ordering
+            void octCorners(UList<point>& output) const;
+
+            //- Corner points in octant coding
+            pointField octCorners() const;
+
+            //- Return corner point of given octant [0..7].
+            inline point octCorner(direction octant) const;
+
+            //- Return corner point of given octant [0..7] == octCorner
+            point corner(direction octant) const { return octCorner(octant); }
 
             //- Corner points in an order corresponding to a 'hex' cell
-            tmp<pointField> points() const { return hexCorners(); }
+            tmp<pointField> points() const
+            {
+                return tmp<pointField>::New(hexCorners());
+            }
 
-            //- Fill in 6 face midpoints
+            //- Fill in 6 face midpoints (hex/oct order are identical)
             void faceCentres(UList<point>& output) const;
 
-            //- Face midpoints
-            tmp<pointField> faceCentres() const;
+            //- Face midpoints (hex/oct order are identical)
+            pointField faceCentres() const;
 
-            //- Face centre of given face index
-            point faceCentre(const direction facei) const;
+            //- Face centre of given face index (hex/oct order are identical)
+            point faceCentre(direction facei) const;
 
 
         // Manipulate
@@ -325,14 +414,16 @@ public:
             //- Extend to include the second box.
             inline void add(const boundBox& bb);
 
+            //- Extend to include the second bound box.
+            //- Here the point pair are treated semantically like
+            //- a bound box min/max pair.
+            inline void add(const Pair<point>& bb);
+
             //- Extend to include the point.
             inline void add(const point& pt);
 
             //- Extend to include two additional points.
             inline void add(const point& pt0, const point& pt1);
-
-            //- Extend to include two additional points.
-            inline void add(const Pair<point>& points);
 
             //- Extend to include the points.
             inline void add(const UList<point>& points);
@@ -377,30 +468,71 @@ public:
             //- Expand box slightly by expanding all dimensions with
             //- factor*span*(random 0-1) and guarantees
             //- factor*mag(span) minimum width in any direction
-            void inflate(Random& rndGen, const scalar factor);
+            void inflate(Random& rndGen, scalar factor);
 
             //- As per two parameter version but with additional
             //- grow() by given amount in each dimension
-            void inflate(Random& r, const scalar factor, const scalar delta);
+            void inflate(Random& rndGen, scalar factor, scalar delta);
+
+            //- Expand box slightly by expanding all dimensions with
+            //- factor*span*(random 0-1) and guarantees
+            //- factor*mag(span) minimum width in any direction
+            void inflate_random(label seedValue, scalar factor);
+
+            //- As per two parameter version but with additional
+            //- grow() by given amount in each dimension
+            void inflate_random(label seedValue, scalar factor, scalar delta);
 
 
         // Parallel
 
-            //- Inplace parallel reduction of min/max values,
-            //- using UPstream::worldComm
-            void reduce();
+            //- Inplace parallel reduction of min/max values.
+            //- Uses worldComm (default) or the specified communicator.
+            void reduce(int communicator = -1);
 
-            //- Inplace parallel reduction of min/max values,
-            //- using the specified communicator
-            void reduce(int communicator);
+            //- Perform a reduction on a copy and return the result.
+            //- Uses worldComm (default) or the specified communicator.
+            inline boundBox returnReduce(int communicator = -1) const;
 
-            //- Perform a reduction on a copy and return the result,
-            //- using UPstream::worldComm
-            static boundBox returnReduce(const boundBox& bb);
+            //- Parallel reduction of min/max values for multiple boxes.
+            //- Uses worldComm (default) or the specified communicator.
+            static void reduce
+            (
+                boundBox bbs[],
+                label count,
+                int communicator = -1
+            );
 
-            //- Perform a reduction on a copy and return the result,
-            //- using the specified communicator
-            static boundBox returnReduce(const boundBox& bb, int communicator);
+            //- Parallel reduction of min/max values for multiple boxes.
+            //- Uses worldComm (default) or the specified communicator.
+            static void reduce
+            (
+                treeBoundBox bbs[],
+                label count,
+                int communicator = -1
+            );
+
+            //- Parallel broadcast of contents.
+            //- Uses worldComm (default) or the specified communicator.
+            void broadcast(int communicator = -1);
+
+            //- Parallel broadcast of contents for multiple boxes.
+            //- Uses worldComm (default) or the specified communicator.
+            static void broadcast
+            (
+                boundBox bbs[],
+                label count,
+                int communicator = -1
+            );
+
+            //- Parallel broadcast of contents for multiple boxes.
+            //- Uses worldComm (default) or the specified communicator.
+            static void broadcast
+            (
+                treeBoundBox bbs[],
+                label count,
+                int communicator = -1
+            );
 
 
         // Query
@@ -417,24 +549,37 @@ public:
             //  exactly with a box face
             bool intersects(const triPointRef& tri) const;
 
+            //- Does line segment intersect this bounding box?
+            //  Forwards to treeBoundBox implementation.
+            bool intersects(const point& from, const point& to) const;
+
+            //- Does line segment intersect this bounding box?
+            //  Forwards to treeBoundBox implementation.
+            inline bool intersects(const linePointRef& ln) const;
+
             //- Overlaps/touches boundingBox?
             inline bool overlaps(const boundBox& bb) const;
 
-            //- Overlaps boundingSphere (centre + sqr(radius))?
-            inline bool overlaps
-            (
-                const point& centre,
-                const scalar radiusSqr
-            ) const;
+            //- Overlaps bounding sphere (centre + sqr(radius))?
+            inline bool overlaps(const point& centre, scalar radiusSqr) const;
 
             //- Contains point? (inside or on edge)
-            inline bool contains(const point& pt) const;
-
-            //- Fully contains other boundingBox?
-            inline bool contains(const boundBox& bb) const;
+            inline bool contains(const point& pt) const noexcept;
 
             //- Contains point? (inside only)
-            inline bool containsInside(const point& pt) const;
+            inline bool containsInside(const point& pt) const noexcept;
+
+            //- Fully contains other boundingBox?
+            inline bool contains(const boundBox& bb) const noexcept;
+
+            //- Fully contains bounding sphere (centre + sqr(radius))
+            inline bool contains(const point& centre, scalar radiusSqr) const;
+
+            //- Contains both points?
+            inline bool containsAll(const point& p0, const point& p1) const;
+
+            //- Contains both line ends?
+            inline bool contains(const linePointRef& ln) const;
 
             //- Contains all points? (inside or on edge)
             bool contains(const UList<point>& points) const;
@@ -459,6 +604,12 @@ public:
                 const IntContainer& indices
             ) const;
 
+
+            //- Contains either of the points?
+            inline bool containsAny(const point& p0, const point& p1) const;
+
+            //- Contains either of the line ends?
+            inline bool containsAny(const linePointRef& ln) const;
 
             //- Contains any of the points? (inside or on edge)
             bool containsAny(const UList<point>& points) const;
@@ -488,6 +639,39 @@ public:
             //  unchanged.
             point nearest(const point& p) const;
 
+            //- The min/max distance squared from given point to box corners.
+            //  The max will correspond to the radius squared of the bounding
+            //  sphere (around the given point) that encloses the entire box.
+            inline Pair<scalar> distSqr(const point& p) const;
+
+            //- Minimum (absolute) distance from given point to a box corner
+            inline scalar minDist(const point& p) const;
+
+            //- Minimum distance squared from given point to a box corner
+            inline scalar minDistSqr(const point& p) const;
+
+            //- The radius of the bounding sphere
+            //- (around the given point) that encloses the entire box.
+            inline scalar maxDist(const point& p) const;
+
+            //- The radius squared of the bounding sphere
+            //- (around the given point) that encloses the entire box.
+            inline scalar maxDistSqr(const point& p) const;
+
+            //- Compare distance of two bounding boxes to the reference point
+            //  return:
+            //  -2 : all vertices of box \p a are closer than any of box \p b
+            //  -1 : some vertex of box \p a is closer than any of box \p b
+            //   0 : boxes appear to have an identical distance to the point
+            //  +1 : some vertex of box \p b is closer than any of box \p a
+            //  +2 : all vertices of box \p b are closer than any of \p a
+            static int distanceCmp
+            (
+                const boundBox& a,
+                const boundBox& b,
+                const point& refPoint
+            );
+
 
     // Member Operators
 
@@ -497,6 +681,19 @@ public:
         //- Extend box to include the second box, as per the add() method.
         //  Can be used in a reduction operation.
         void operator+=(const boundBox& bb) { add(bb); }
+
+
+    // Write
+
+        //- Write boundBox in OBJ format (octant order)
+        void writeOBJ
+        (
+            Ostream& os,
+            //! [in,out] current vertex offset
+            label& vertIndex,
+            //! write as lines instead of faces
+            const bool writeLinesOnly = false
+        ) const;
 
 
     // IOstream Operators
@@ -517,6 +714,8 @@ public:
         point midpoint() const { return centre(); }
 };
 
+// Cleanup
+#undef Foam_boundBox_syncPar
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 

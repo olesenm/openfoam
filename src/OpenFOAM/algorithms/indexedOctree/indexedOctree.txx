@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -893,7 +894,6 @@ Foam::point Foam::indexedOctree<Type>::pushPointIntoFace
             }
         }
     }
-
 
     return facePoint;
 }
@@ -2046,11 +2046,11 @@ void Foam::indexedOctree<Type>::writeOBJ
         }
         else if (isContent(index))
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
         else if (isEmpty(index) && !leavesOnly)
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
     }
 }
@@ -2084,9 +2084,9 @@ void Foam::indexedOctree<Type>::writeOBJ
     Pout<< "dumpContentNode : writing node:" << nodeI << " octant:" << octant
         << " to " << os.name() << endl;
 
-    bool writeLinesOnly(false);
     label vertIndex(0);
-    indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+    constexpr bool writeLinesOnly = false;
+    subBb.writeOBJ(os, vertIndex, writeLinesOnly);
 }
 
 
@@ -2096,73 +2096,48 @@ void Foam::indexedOctree<Type>::writeOBJ(Ostream& os) const
     if (!nodes_.empty())
     {
         label vertIndex(0);
-        // leavesOnly=true, writeLinesOnly=false
-        writeOBJ(0, os, vertIndex, true, false);
+        constexpr bool leavesOnly = true;
+        constexpr bool writeLinesOnly = false;
+        writeOBJ(0, os, vertIndex, leavesOnly, writeLinesOnly);
     }
 }
 
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * Private Member Functions * * * * * * * * * * * * //
 
 template<class Type>
-Foam::indexedOctree<Type>::indexedOctree(const Type& shapes)
-:
-    shapes_(shapes),
-    nodes_(),
-    contents_(),
-    nodeTypes_()
-{}
-
-
-template<class Type>
-Foam::indexedOctree<Type>::indexedOctree
+void Foam::indexedOctree<Type>::build
 (
-    const Type& shapes,
-    const List<node>& nodes,
-    const List<labelList>& contents
-)
-:
-    shapes_(shapes),
-    nodes_(nodes),
-    contents_(contents),
-    nodeTypes_()
-{}
-
-
-template<class Type>
-Foam::indexedOctree<Type>::indexedOctree
-(
-    const Type& shapes,
     const treeBoundBox& bb,
-    const label maxLevels,          // maximum number of levels
-    const scalar maxLeafRatio,
-    const scalar maxDuplicity
+    label maxLevels,          // maximum number of levels
+    scalar maxLeafRatio,
+    scalar maxDuplicity
 )
-:
-    shapes_(shapes),
-    nodes_(),
-    contents_(),
-    nodeTypes_()
 {
+    // Clear out any existing content
+    nodes_.clear();
+    contents_.clear();
+    nodeTypes_.clear();
+
     int64_t oldMemSize = 0;
     if (debug)
     {
         Pout<< "indexedOctree::indexedOctree:" << nl
-            << "    shapes:" << shapes.size() << nl
+            << "    shapes:" << shapes_.size() << nl
             << "    bb:" << bb << nl
             << endl;
         oldMemSize = Foam::memInfo{}.size();
     }
 
-    if (shapes.size() == 0)
+    if (shapes_.empty())
     {
         return;
     }
 
     // Start off with one node with all shapes in it.
-    DynamicList<node> nodes(label(shapes.size() / maxLeafRatio));
-    DynamicList<labelList> contents(label(shapes.size() / maxLeafRatio));
-    contents.push_back(identity(shapes.size()));
+    DynamicList<node> nodes(label(shapes_.size() / maxLeafRatio));
+    DynamicList<labelList> contents(label(shapes_.size() / maxLeafRatio));
+    contents.push_back(Foam::identity(shapes_.size()));
 
     // Create topnode.
     node topNode(divide(bb, contents, 0));
@@ -2178,7 +2153,7 @@ Foam::indexedOctree<Type>::indexedOctree
     {
         // Count number of references into shapes (i.e. contents)
         label nEntries = 0;
-        label minEntries = shapes.size();
+        label minEntries = shapes_.size();
         label maxEntries = 0;
         for (const auto& subContents : contents)
         {
@@ -2207,7 +2182,7 @@ Foam::indexedOctree<Type>::indexedOctree
         (
             //nEntries < maxLeafRatio*contents.size()
          // ||
-            nEntries > maxDuplicity*shapes.size()
+            nEntries > maxDuplicity*shapes_.size()
         )
         {
             break;
@@ -2275,7 +2250,7 @@ Foam::indexedOctree<Type>::indexedOctree
     if (debug)
     {
         label nEntries = 0;
-        label minEntries = shapes.size();
+        label minEntries = shapes_.size();
         label maxEntries = 0;
         for (const auto& subContents : contents_)
         {
@@ -2289,10 +2264,10 @@ Foam::indexedOctree<Type>::indexedOctree
         int64_t memSize = Foam::memInfo{}.size();
 
         Pout<< "indexedOctree::indexedOctree"
-            << " : finished construction of tree of:" << shapes.typeName
-            << nl
+            << " : finished construction of tree of:"
+            << error::demangle<Type>() << nl
             << "    bb:" << this->bb() << nl
-            << "    shapes:" << shapes.size() << nl
+            << "    shapes:" << shapes_.size() << nl
             << "    nLevels:" << nLevels << nl
             << "    treeNodes:" << nodes_.size() << nl
             << "    nEntries:" << nEntries << nl
@@ -2301,25 +2276,87 @@ Foam::indexedOctree<Type>::indexedOctree
             << "    - avg per leaf:"
             << scalar(nEntries)/contents.size() << nl
             << "    - per shape (duplicity):"
-            << scalar(nEntries)/shapes.size() << nl
+            << scalar(nEntries)/shapes_.size() << nl
             << "    total memory:" << memSize-oldMemSize << nl
             << endl;
     }
 }
 
 
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+
+template<class Type>
+Foam::indexedOctree<Type>::indexedOctree(const Type& shapes)
+:
+    shapes_(shapes)
+{}
+
+
+template<class Type>
+Foam::indexedOctree<Type>::indexedOctree(Type&& shapes)
+:
+    shapes_(std::move(shapes))
+{}
+
+
 template<class Type>
 Foam::indexedOctree<Type>::indexedOctree
 (
     const Type& shapes,
-    Istream& is
+    const List<node>& nodes,
+    const List<labelList>& contents
 )
 :
     shapes_(shapes),
-    nodes_(is),
-    contents_(is),
-    nodeTypes_()
+    nodes_(nodes),
+    contents_(contents)
 {}
+
+
+template<class Type>
+Foam::indexedOctree<Type>::indexedOctree
+(
+    Type&& shapes,
+    const List<node>& nodes,
+    const List<labelList>& contents
+)
+:
+    shapes_(std::move(shapes)),
+    nodes_(nodes),
+    contents_(contents)
+{}
+
+
+template<class Type>
+Foam::indexedOctree<Type>::indexedOctree
+(
+    const Type& shapes,
+    const treeBoundBox& bb,
+    const label maxLevels,          // maximum number of levels
+    const scalar maxLeafRatio,
+    const scalar maxDuplicity
+)
+:
+    shapes_(shapes)
+{
+    build(bb, maxLevels, maxLeafRatio, maxDuplicity);
+}
+
+
+template<class Type>
+Foam::indexedOctree<Type>::indexedOctree
+(
+    Type&& shapes,
+    const treeBoundBox& bb,
+    const label maxLevels,          // maximum number of levels
+    const scalar maxLeafRatio,
+    const scalar maxDuplicity
+)
+:
+    shapes_(std::move(shapes))
+{
+    build(bb, maxLevels, maxLeafRatio, maxDuplicity);
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -2508,7 +2545,7 @@ Foam::label Foam::indexedOctree<Type>::findBox
     if (!nodes_.empty())
     {
         // Some arbitrary minimal size estimate (eg, 1/100 are found)
-        label estimatedCount(max(128, (shapes_.size() / 100)));
+        label estimatedCount(Foam::max(128, (shapes_.size() / 100)));
         elements.reserve(estimatedCount);
 
         // start node=0, store results
@@ -2530,7 +2567,7 @@ Foam::labelList Foam::indexedOctree<Type>::findBox
         return labelList();
     }
 
-    labelHashSet elements(0);
+    labelHashSet elements;
 
     findBox(searchBox, elements);
 
@@ -2564,7 +2601,7 @@ Foam::label Foam::indexedOctree<Type>::findSphere
     if (!nodes_.empty())
     {
         // Some arbitrary minimal size estimate (eg, 1/100 are found)
-        label estimatedCount(max(128, (shapes_.size() / 100)));
+        label estimatedCount(Foam::max(128, (shapes_.size() / 100)));
         elements.reserve(estimatedCount);
 
         // start node=0, store results
@@ -2889,12 +2926,15 @@ bool Foam::indexedOctree<Type>::write(Ostream& os) const
 }
 
 
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
+
 template<class Type>
 Foam::Ostream& Foam::operator<<(Ostream& os, const indexedOctree<Type>& t)
 {
-    return
-        os  << t.bb() << token::SPACE << t.nodes()
-            << token::SPACE << t.contents();
+    os  << t.bb() << token::SPACE
+        << t.nodes() << token::SPACE << t.contents();
+
+    return os;
 }
 
 

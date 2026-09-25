@@ -37,7 +37,6 @@ Description
 #include "indexedOctree.H"
 #include "AABBTree.H"
 #include "treeDataPrimitivePatch.H"
-#include "Random.H"
 #include "ListListOps.H"
 
 using namespace Foam;
@@ -80,11 +79,11 @@ int main(int argc, char *argv[])
 
     meshedSurface surf(importName);
 
-    Random rndGen(123456);
+    constexpr label rand_seed = 123456;
 
     treeBoundBox overallBb
     (
-        treeBoundBox(surf.box()).extend(rndGen, 1e-4, ROOTVSMALL)
+        treeBoundBox(surf.box()).extend_random(rand_seed, 1e-4, ROOTVSMALL)
     );
 
     Info<< "Surface with " << surf.size() << " faces, "

@@ -27,7 +27,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "triSurfaceMesh.H"
-#include "Random.H"
 #include "addToRunTimeSelectionTable.H"
 #include "edgeHashes.H"
 #include "triSurfaceFields.H"
@@ -786,6 +785,9 @@ Foam::triSurfaceMesh::edgeTree() const
         // Boundary edges
         const labelRange bEdges(nInternalEdges(), nBoundaryEdges());
 
+        // Random number generator. Bit dodgy since not exactly random ;-)
+        constexpr label rand_seed = 65431;
+
         treeBoundBox bb(point::zero);
 
         if (bEdges.size())
@@ -798,13 +800,10 @@ Foam::triSurfaceMesh::edgeTree() const
                 nPoints
             );
 
-            // Random number generator. Bit dodgy since not exactly random ;-)
-            Random rndGen(65431);
-
             // Slightly extended bb. Slightly off-centred just so on symmetric
             // geometry there are less face/edge aligned items.
 
-            bb.inflate(rndGen, 1e-4, ROOTVSMALL);
+            bb.inflate_random(rand_seed, 1e-4, ROOTVSMALL);
         }
 
 

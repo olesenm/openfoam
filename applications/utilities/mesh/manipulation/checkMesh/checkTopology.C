@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -184,7 +185,7 @@ bool Foam::checkPatch
     if (allGeometry)
     {
         boundBox bb(pp.box());
-        bb.reduce();
+        bb.reduce(mesh.comm());
 
         if (bb.good())
         {
@@ -359,7 +360,7 @@ bool Foam::checkPatch
     if (allGeometry)
     {
         boundBox bb(pp.box());
-        bb.reduce();
+        bb.reduce(mesh.comm());
 
         if (bb.good())
         {
@@ -756,9 +757,14 @@ Foam::label Foam::checkTopology
                     }
                 }
 
-                Pstream::listCombineReduce(regionDisconnected, andEqOp<bool>());
+                // Reduce AND (same size on all ranks)
+                UPstream::reduceAnd
+                (
+                    regionDisconnected.data(),
+                    regionDisconnected.size(),
+                    UPstream::worldComm
+                );
             }
-
 
 
             // write cellSet for each region
@@ -1065,7 +1071,7 @@ Foam::label Foam::checkTopology
                     }
                 }
 
-                bb.reduce();  // Global min/max
+                bb.reduce(mesh.comm());  // Global min/max
 
                 Info<< "    "
                     << setw(19) << cZone.name()
@@ -1125,8 +1131,9 @@ Foam::label Foam::checkTopology
                 (
                     mesh.points(),
                     static_cast<const labelUList&>(zone),
-                    true  // Reduce (global min/max)
+                    false  // no reduce
                 );
+                bb.reduce(mesh.comm());  // Global min/max
 
                 Info<< "    "
                     << setw(20) << zone.name()

@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
         )
     );
 
-    boundBox bb(points);
+    const boundBox bb(points, UPstream::parRun());
 
     Info<< "bounding box: min = " << bb.min()
         << " max = " << bb.max() << " metres."

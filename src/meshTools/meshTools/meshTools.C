@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -215,9 +216,8 @@ void Foam::meshTools::writeOBJ
     const UList<point>& pts
 )
 {
-    forAll(pts, i)
+    for (const point& pt : pts)
     {
-        const point& pt = pts[i];
         os << "v " << pt.x() << ' ' << pt.y() << ' ' << pt.z() << nl;
     }
 
@@ -275,12 +275,11 @@ void Foam::meshTools::writeOBJ
     const treeBoundBox& bb
 )
 {
-    writeOBJ(os, bb.points());
+    constexpr bool writeLinesOnly = true;
 
-    for (const edge& e : treeBoundBox::edges)
-    {
-        os << "l " << (e[0] + 1) <<  ' ' << (e[1] + 1) << nl;
-    }
+    label vertexIndex(0);
+
+    bb.writeOBJ(os, vertexIndex, writeLinesOnly);
 }
 
 

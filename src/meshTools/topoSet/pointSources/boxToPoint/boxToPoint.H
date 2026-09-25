@@ -113,11 +113,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef boxToPoint_H
-#define boxToPoint_H
+#ifndef Foam_boxToPoint_H
+#define Foam_boxToPoint_H
 
 #include "topoSetPointSource.H"
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

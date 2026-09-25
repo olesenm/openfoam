@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,6 @@ License
 #include "nearestToCell.H"
 #include "polyMesh.H"
 #include "addToRunTimeSelectionTable.H"
-#include "mappedPatchBase.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -69,29 +69,40 @@ Foam::topoSetSource::addToUsageTable Foam::nearestToCell::usage_
 
 void Foam::nearestToCell::combine(topoSet& set, const bool add) const
 {
-    // All the info for nearest. Construct to miss
-    List<mappedPatchBase::nearInfo> nearest(points_.size());
+    // Nearest selection: (sqr(distance), (rank, celli))
+    List<Tuple2<scalar, labelPair>> nearest
+    (
+        points_.size(),
+        { Foam::sqr(GREAT), {-1, -1} }
+    );
+
+    const auto myProci = UPstream::myProcNo();
 
     forAll(points_, pointi)
     {
-        const label celli = mesh_.findNearestCell(points_[pointi]);
-        const point& cc = mesh_.cellCentres()[celli];
+        const auto& sample = points_[pointi];
+        auto& near = nearest[pointi];
 
-        nearest[pointi].first() = pointIndexHit(true, cc, celli);
-        nearest[pointi].second() = Tuple2<scalar, label>
+        if
         (
-            magSqr(cc-points_[pointi]),
-            Pstream::myProcNo()
-        );
+            label celli = mesh_.findNearestCell(sample);
+            celli >= 0
+        )
+        {
+            const point& cc = mesh_.cellCentres()[celli];
+            near = { sample.distSqr(cc), {myProci, celli} };
+        }
     }
 
-    Pstream::listCombineReduce(nearest, mappedPatchBase::nearestEqOp());
+    Pstream::listCombineReduce(nearest, minFirstEqOp{});
 
     for (const auto& near : nearest)
     {
-        if (near.second().second() == Pstream::myProcNo())
+        const auto& [proci, celli] = near.second();
+
+        if (proci == myProci)
         {
-            addOrDelete(set, near.first().index(), add);
+            addOrDelete(set, celli, add);
         }
     }
 }

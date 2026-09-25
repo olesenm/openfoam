@@ -51,7 +51,7 @@ Foam::patchDistMethods::exact::patchSurface() const
     {
         const polyBoundaryMesh& pbm = mesh_.boundaryMesh();
 
-        Random rndGen(0);
+        constexpr label rand_seed = 0;
 
         treeBoundBox localBb(mesh_.points());
 
@@ -59,7 +59,7 @@ Foam::patchDistMethods::exact::patchSurface() const
         List<treeBoundBox> meshBb
         (
             1,
-            localBb.extend(rndGen, 1E-3)
+            localBb.extend_random(rand_seed, 1e-3)
         );
 
         // Add any missing properties (but not override existing ones)

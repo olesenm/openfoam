@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2015 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,7 +52,7 @@ namespace Foam
 {
 
 // Forward Declarations
-class treeBoundBox;
+class boundBox;
 
 /*---------------------------------------------------------------------------*\
                           Class OBJstream Declaration
@@ -206,8 +207,8 @@ public:
             const bool compact = false
         );
 
-        //- Write tree-bounding box with lines/filled-polygons
-        Ostream& write(const treeBoundBox& bb, const bool lines = true);
+        //- Write bounding box (octant order) with lines/filled-polygons
+        Ostream& write(const boundBox& bb, const bool lines = true);
 };
 
 

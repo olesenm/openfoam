@@ -441,12 +441,12 @@ int main(int argc, char *argv[])
         vector v;
         if (args.found("recentre"))
         {
-            v = boundBox(points).centre();
+            v = treeBoundBox(points).centre();
             Info<< "Adjust centre " << v << " -> (0 0 0)" << endl;
             points -= v;
         }
 
-        if (args.readIfPresent("translate", v))
+        if (vector v; args.readIfPresent("translate", v))
         {
             Info<< "Translating points by " << v << endl;
             points += v;
@@ -457,7 +457,7 @@ int main(int argc, char *argv[])
         if (args.found("auto-centre") && !useRotationCentre)
         {
             useRotationCentre = true;
-            rotationCentre = boundBox(points).centre();
+            rotationCentre = treeBoundBox(points).centre();
         }
 
         if (useRotationCentre)

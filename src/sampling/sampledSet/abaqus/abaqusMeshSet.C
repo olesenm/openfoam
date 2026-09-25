@@ -30,6 +30,7 @@ License
 #include "Fstream.H"
 #include "SpanStream.H"
 #include "meshSearch.H"
+#include "treeBoundBox.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -121,8 +122,7 @@ void Foam::abaqusMeshSet::calcSamples
     {
         const vector& pt = sampleCoords_[samplei];
 
-        label celli = searchEngine().findCell(pt);
-        if (celli != -1)
+        if (label celli = searchEngine().findCell(pt); celli >= 0)
         {
             found[samplei] = true;
 
@@ -134,56 +134,64 @@ void Foam::abaqusMeshSet::calcSamples
         }
     }
 
-    Pstream::listCombineAllGather(found, orEqOp<bool>());
+    // Allreduce OR (same size on all ranks)
+    UPstream::reduceOr(found.data(), found.size());
 
     DynamicList<label> lost;
     forAll(found, samplei)
     {
-        if (!found[samplei]) lost.append(samplei);
+        if (!found[samplei]) lost.push_back(samplei);
     }
 
     const label nFound = sampleCoords_.size() - lost.size();
     label nOutOfBounds = 0;
 
-    if (Pstream::parRun())
-    {
-        typedef Tuple2<label, Tuple2<label, scalar>> procCellDist;
-        List<procCellDist> pcd(lost.size(), procCellDist(-1, {-1, GREAT}));
-        forAll(pcd, i)
-        {
-            const label samplei = lost[i];
-            const vector& pt0 = sampleCoords_[samplei];
-            const label celli = searchEngine().findNearestCell(pt0);
-            const vector& pt1 = mesh().cellCentres()[celli];
-            const scalar distSqr = magSqr(pt1 - pt0);
-            pcd[i] = procCellDist(Pstream::myProcNo(), {celli, distSqr});
-        }
+    const auto myProci = UPstream::myProcNo();
 
-        Pstream::listCombineAllGather
+    if (UPstream::parRun())
+    {
+        // Nearest selection: (sqr(distance), (rank, celli))
+        List<Tuple2<scalar, labelPair>> nearest
         (
-            pcd,
-            [](procCellDist& x, const procCellDist& y)
-            {
-                // Select item with smallest distance
-                if (y.second().second() < x.second().second())
-                {
-                    x = y;
-                }
-            }
+            lost.size(),
+            { Foam::sqr(GREAT), {-1, -1} }
         );
 
-        forAll(pcd, i)
+        forAll(lost, i)
         {
             const label samplei = lost[i];
+            auto& near = nearest[i];
+            const vector& pt = sampleCoords_[samplei];
 
-            if (pcd[i].second().second() < maxDistSqr_)
+            if
+            (
+                label celli = searchEngine().findNearestCell(pt);
+                celli >= 0
+            )
             {
-                if (pcd[i].first() == Pstream::myProcNo())
-                {
-                    const label celli = pcd[i].second().first();
-                    const vector& pt1 = mesh().cellCentres()[celli];
+                const auto& cc = mesh().cellCentres()[celli];
+                near = { pt.distSqr(cc), {myProci, celli} };
+            }
+        }
 
-                    samplingPts.append(pt1);
+        // Find nearest - globally consistent
+        Pstream::listCombineReduce(nearest, minFirstEqOp{});
+
+        forAll(nearest, i)
+        {
+            const label samplei = lost[i];
+            const auto& near = nearest[i];
+
+            const auto distSqr = near.first();
+            const auto& [rank, celli] = near.second();
+
+            if (distSqr < maxDistSqr_)
+            {
+                if (rank == myProci)
+                {
+                    const vector& cc = mesh().cellCentres()[celli];
+
+                    samplingPts.append(cc);
                     samplingCells.append(celli);
                     samplingFaces.append(-1);
                     samplingSegments.append(0);
@@ -193,7 +201,7 @@ void Foam::abaqusMeshSet::calcSamples
             else
             {
                 // Insert points that have not been found as null points
-                if (Pstream::master())
+                if (UPstream::master())
                 {
                     samplingPts.append(sampleCoords_[samplei]);
                     samplingCells.append(-1);
@@ -209,17 +217,18 @@ void Foam::abaqusMeshSet::calcSamples
     {
         // Serial running
 
+        // Use findNearestCell, instead of findCell this time..
         forAll(lost, i)
         {
             const label samplei = lost[i];
-            const vector& pt0 = sampleCoords_[samplei];
-            const label celli = searchEngine().findNearestCell(pt0);
-            const vector& pt1 = mesh().cellCentres()[celli];
-            const scalar distSqr = magSqr(pt1 - pt0);
 
-            if (distSqr < maxDistSqr_)
+            const vector& pt = sampleCoords_[samplei];
+            const label celli = searchEngine().findNearestCell(pt);
+            const vector& cc = mesh().cellCentres()[celli];
+
+            if (scalar distSqr = pt.distSqr(cc); distSqr < maxDistSqr_)
             {
-                samplingPts.append(pt1);
+                samplingPts.append(cc);
                 samplingCells.append(celli);
                 samplingFaces.append(-1);
                 samplingSegments.append(0);
@@ -310,7 +319,7 @@ Foam::abaqusMeshSet::abaqusMeshSet
     sampleCoords_(),
     maxDistSqr_(sqr(dict.getOrDefault<scalar>("maxDist", 0)))
 {
-    if (Pstream::master())
+    if (UPstream::master())
     {
         const fileName inputFile(dict.get<fileName>("file").expand());
         IFstream pointsFile(inputFile);
@@ -337,7 +346,7 @@ Foam::abaqusMeshSet::abaqusMeshSet
 
     DebugInfo
         << "Number of sample points: " << sampleCoords_.size() << nl
-        << "Sample points bounds: " << boundBox(sampleCoords_) << endl;
+        << "Sample points bounds: " << treeBoundBox(sampleCoords_) << endl;
 
     genSamples();
 }

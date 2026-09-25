@@ -505,7 +505,7 @@ Foam::autoPtr<Foam::fvMesh> Foam::voxelMeshSearch::makeMesh
         block b
         (
             cellShape(cellModel::HEX, identity(8)),
-            localBb_.points(),
+            localBb_.hexCorners(),
             blockEdgeList(),
             blockFaceList(),
             nDivs_,

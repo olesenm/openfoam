@@ -521,9 +521,10 @@ void Foam::ccm::reader::readProblemDescription_cellTable
 
 void Foam::ccm::reader::printInfo() const
 {
+    // serial-only information
     Info<< "Mesh Information" << nl
         << "----------------" << nl
-        << "boundingBox: " << boundBox(points_) << nl
+        << "boundingBox: " << treeBoundBox(points_) << nl
         << "nPoints: " << nPoints_ << nl
         << "nCells: " << nCells_ << nl
         << "nFaces: " << nFaces_ << nl

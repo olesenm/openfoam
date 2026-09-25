@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -41,18 +42,15 @@ Foam::patchFieldProbe::sample(const VolumeField<Type>& vField) const
     auto tvalues = tmp<Field<Type>>::New(Field<Type>(this->size(), unsetVal));
     auto& values = tvalues.ref();
 
-    const polyBoundaryMesh& patches = thisMesh_.boundaryMesh();
+    const auto& pbm = thisMesh_.boundaryMesh();
     const auto& bField = vField.boundaryField();
 
     forAll(*this, probei)
     {
-        label facei = faceIds_[probei];
-
-        if (facei >= 0)
+        if (label facei = faceIds_[probei]; facei >= 0)
         {
-            label patchi = patches.whichPatch(facei);
-            label localFacei = patches[patchi].whichFace(facei);
-            values[probei] = bField[patchi][localFacei];
+            auto patchFacePair = pbm.whichPatchFace(facei);
+            values[probei] = bField[patchFacePair];
         }
     }
 
@@ -71,18 +69,15 @@ Foam::patchFieldProbe::sample(const SurfaceField<Type>& sField) const
     auto tvalues = tmp<Field<Type>>::New(Field<Type>(this->size(), unsetVal));
     auto& values = tvalues.ref();
 
-    const polyBoundaryMesh& patches = thisMesh_.boundaryMesh();
+    const auto& pbm = thisMesh_.boundaryMesh();
     const auto& bField = sField.boundaryField();
 
     forAll(*this, probei)
     {
-        label facei = faceIds_[probei];
-
-        if (facei >= 0)
+        if (label facei = faceIds_[probei]; facei >= 0)
         {
-            label patchi = patches.whichPatch(facei);
-            label localFacei = patches[patchi].whichFace(facei);
-            values[probei] = bField[patchi][localFacei];
+            auto patchFacePair = pbm.whichPatchFace(facei);
+            values[probei] = bField[patchFacePair];
         }
     }
 

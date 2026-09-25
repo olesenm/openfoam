@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1958,11 +1959,11 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ
         }
         else if (isContent(index))
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
         else if (isEmpty(index) && !leavesOnly)
         {
-            indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+            subBb.writeOBJ(os, vertIndex, writeLinesOnly);
         }
     }
 }
@@ -1996,9 +1997,9 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ
     Pout<< "dumpContentNode : writing node:" << nodeI << " octant:" << octant
         << " to " << os.name() << endl;
 
-    bool writeLinesOnly(false);
     label vertIndex(0);
-    indexedOctreeBase::writeOBJ(os, subBb, vertIndex, writeLinesOnly);
+    constexpr bool writeLinesOnly = false;
+    subBb.writeOBJ(os, vertIndex, writeLinesOnly);
 }
 
 
@@ -2008,8 +2009,9 @@ void Foam::dynamicIndexedOctree<Type>::writeOBJ(Ostream& os) const
     if (!nodes_.empty())
     {
         label vertIndex(0);
-        // leavesOnly=true, writeLinesOnly=false
-        writeOBJ(0, os, vertIndex, true, false);
+        constexpr bool leavesOnly = true;
+        constexpr bool writeLinesOnly = false;
+        writeOBJ(0, os, vertIndex, leavesOnly, writeLinesOnly);
     }
 }
 
@@ -2023,30 +2025,61 @@ Foam::dynamicIndexedOctree<Type>::dynamicIndexedOctree
     const treeBoundBox& bb,
     const label maxLevels,          // maximum number of levels
     const scalar maxLeafRatio,
-    const scalar maxDuplicity
+    [[maybe_unused]] const scalar maxDuplicity
 )
 :
     shapes_(shapes),
     bb_(bb),
     maxLevels_(maxLevels),
     nLevelsMax_(0),
-    maxLeafRatio_(maxLeafRatio),
-    minSize_(label(maxLeafRatio)),
-    maxDuplicity_(maxDuplicity),
-    nodes_(label(shapes.size() / maxLeafRatio_)),
-    contents_(label(shapes.size() / maxLeafRatio_)),
-    nodeTypes_()
+    minSize_(label(maxLeafRatio))
 {
-    if (shapes_.size() == 0)
+    if (shapes_.size() > 0)
     {
-        return;
+        const label estNumNodes = label(shapes_.size() / maxLeafRatio);
+
+        nodes_.reserve(estNumNodes);
+        contents_.reserve(estNumNodes);
+
+        insert(0, shapes_.size());
+
+        if (debug)
+        {
+            writeTreeInfo();
+        }
     }
+}
 
-    insert(0, shapes_.size());
 
-    if (debug)
+template<class Type>
+Foam::dynamicIndexedOctree<Type>::dynamicIndexedOctree
+(
+    Type&& shapes,
+    const treeBoundBox& bb,
+    const label maxLevels,          // maximum number of levels
+    const scalar maxLeafRatio,
+    [[maybe_unused]] const scalar maxDuplicity
+)
+:
+    shapes_(std::move(shapes)),
+    bb_(bb),
+    maxLevels_(maxLevels),
+    nLevelsMax_(0),
+    minSize_(label(maxLeafRatio))
+{
+    if (shapes_.size() > 0)
     {
-        writeTreeInfo();
+        const label estNumNodes = label(shapes_.size() / maxLeafRatio);
+
+        nodes_.reserve(estNumNodes);
+        contents_.reserve(estNumNodes);
+
+        insert(0, shapes_.size());
+
+        if (debug)
+        {
+            writeTreeInfo();
+        }
     }
 }
 
@@ -2724,8 +2757,8 @@ void Foam::dynamicIndexedOctree<Type>::writeTreeInfo() const
     }
 
     Pout<< "indexedOctree::indexedOctree"
-        << " : finished construction of tree of:" << shapes().typeName
-        << nl
+        << " : finished construction of tree of:"
+        << error::demangle<Type>() << nl
         << "    bounding box:     " << this->bb() << nl
         << "    shapes:           " << shapes().size() << nl
         << "    treeNodes:        " << nodes_.size() << nl
@@ -2749,11 +2782,13 @@ bool Foam::dynamicIndexedOctree<Type>::write(Ostream& os) const
 }
 
 
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
+
 template<class Type>
 Foam::Ostream&
 Foam::operator<<(Ostream& os, const dynamicIndexedOctree<Type>& t)
 {
-    os  << t.bb() << token::SPACE << t.nodes() << endl;
+    os  << t.bb() << token::SPACE << t.nodes() << nl;
 
     for (const auto& subContents : t.contents())
     {

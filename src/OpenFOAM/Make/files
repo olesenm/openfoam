@@ -739,7 +739,7 @@ pointBoundaryMesh = $(pointMesh)/pointBoundaryMesh
 $(pointBoundaryMesh)/pointBoundaryMesh.C
 
 meshes/boundBox/boundBox.cxx
-meshes/treeBoundBox/treeBoundBox.cxx
+meshes/boundBox/treeBoundBox.cxx
 
 meshTools = meshes/meshTools
 $(meshTools)/matchPoints.C
@@ -837,12 +837,14 @@ $(interpolationWeights)/splineInterpolationWeights/splineInterpolationWeights.C
 algorithms/AABBTree/AABBTree.cxx
 
 algorithms/indexedOctree/indexedOctree.cxx
-algorithms/indexedOctree/treeDataCell.cxx
-algorithms/indexedOctree/treeDataEdge.cxx
-algorithms/indexedOctree/treeDataPoint.cxx
-
 algorithms/dynamicIndexedOctree/dynamicIndexedOctree.cxx
 algorithms/dynamicIndexedOctree/dynamicTreeDataPoint.cxx
+
+algorithms/treeShapes/treeDataCell.cxx
+algorithms/treeShapes/treeDataEdge.cxx
+algorithms/treeShapes/treeDataFace.cxx
+algorithms/treeShapes/treeDataPoint.cxx
+algorithms/treeShapes/treeDataPrimitivePatch.cxx
 
 parallel/commSchedule/commSchedule.C
 parallel/globalIndex/globalIndex.cxx

@@ -50,9 +50,10 @@ namespace Foam
 
 // Forward Declarations
 template<class Type> class dynamicIndexedOctree;
+
+//- Write bounding box, nodes, contents
 template<class Type>
 Ostream& operator<<(Ostream&, const dynamicIndexedOctree<Type>&);
-
 
 /*---------------------------------------------------------------------------*\
                   Class dynamicIndexedOctreeBase Declaration
@@ -101,11 +102,7 @@ class dynamicIndexedOctree
         //- Current number of levels in the tree.
         label nLevelsMax_;
 
-        const scalar maxLeafRatio_;
-
         const label minSize_;
-
-        const scalar maxDuplicity_;
 
         //- List of all nodes
         DynamicList<node> nodes_;
@@ -342,10 +339,19 @@ public:
         (
             const Type& shapes,
             const treeBoundBox& bb,
-            const label maxLevels,          // maximum number of levels
-            const scalar maxLeafRatio,      // how many elements per leaf
-            const scalar maxDuplicity       // in how many leaves is a shape on
-                                            // average
+            const label maxLevels,      // maximum number of levels
+            const scalar maxLeafRatio,  // how many elements per leaf
+            const scalar maxDuplicity   // average number of leafs a shape is in
+        );
+
+        //- Construct from shapes, moving shapes
+        dynamicIndexedOctree
+        (
+            Type&& shapes,
+            const treeBoundBox& bb,
+            const label maxLevels,      // maximum number of levels
+            const scalar maxLeafRatio,  // how many elements per leaf
+            const scalar maxDuplicity   // average number of leafs a shape is in
         );
 
         //- Clone
@@ -565,18 +571,10 @@ public:
             const label
         ) const;
 
+        //- Write bounding box, nodes, contents
         bool write(Ostream& os) const;
 
         void writeTreeInfo() const;
-
-
-    // IOstream Operators
-
-        friend Ostream& operator<< <Type>
-        (
-            Ostream&,
-            const dynamicIndexedOctree<Type>&
-        );
 };
 
 

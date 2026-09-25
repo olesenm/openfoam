@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,10 +33,22 @@ License
 
 // Special reductions for bool
 
-void Foam::UPstream::reduceAnd(bool& value, const int communicator)
+void Foam::UPstream::reduceAnd(bool& value, int communicator)
 {}
 
-void Foam::UPstream::reduceOr(bool& value, const int communicator)
+void Foam::UPstream::reduceAnd(bool values[], label count, int communicator)
+{}
+
+void Foam::UPstream::reduceOr(bool& value, int communicator)
+{}
+
+void Foam::UPstream::reduceOr(bool values[], label count, int communicator)
+{}
+
+void Foam::UPstream::mpiReduceAnd(bool values[], label count, int communicator)
+{}
+
+void Foam::UPstream::mpiReduceOr(bool values[], label count, int communicator)
 {}
 
 

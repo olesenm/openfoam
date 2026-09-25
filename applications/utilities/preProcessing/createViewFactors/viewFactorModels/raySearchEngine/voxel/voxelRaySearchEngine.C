@@ -618,14 +618,12 @@ void Foam::VF::voxel::voxelise
             << endl;
     }
 
-    const auto& points = surface_.points();
-
     for (label trii = trii0; trii < surface_.size(); ++trii)
     {
         // Triangle bounding box
-        boundBox bb(points, surface_[trii]);
+        auto& bb = objectBbs_[trii];
+        bb = boundBox(surface_.box(trii));
         bb.inflate(0.01);
-        objectBbs_[trii] = bb;
 
         const label nVoxelMax = addBbToVoxels(bb, trii, objects);
 
@@ -708,7 +706,7 @@ Foam::pointIndexHit Foam::VF::voxel::hit
 
     if (debug > 2)
     {
-        Info<< "surfBb:" << boundBox(surface_.points())
+        Info<< "surfBb:" << boundBox(surface_.box())
             << " bb:" << bb0_
             << " origin" << origin0
             << " voxel_origin:" << origin

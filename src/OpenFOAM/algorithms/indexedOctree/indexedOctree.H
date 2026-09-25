@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,8 +56,9 @@ namespace Foam
 
 // Forward Declarations
 template<class Type> class indexedOctree;
-template<class Type> Ostream& operator<<(Ostream&, const indexedOctree<Type>&);
 
+//- Write bounding box, nodes and contents
+template<class Type> Ostream& operator<<(Ostream&, const indexedOctree<Type>&);
 
 /*---------------------------------------------------------------------------*\
                       Class indexedOctreeBase Declaration
@@ -215,7 +217,7 @@ protected:
 public:
 
     //- Get the perturbation tolerance
-    static scalar& perturbTol() noexcept { return perturbTol_; }
+    static scalar perturbTol() noexcept { return perturbTol_; }
 
     //- Set the perturbation tolerance, return the old value
     static scalar perturbTol(scalar tol) noexcept
@@ -234,18 +236,6 @@ public:
 
         //- Default construct
         indexedOctreeBase() = default;
-
-
-    // Output Helpers
-
-        //- Write treeBoundBox in OBJ format
-        static void writeOBJ
-        (
-            Ostream& os,
-            const treeBoundBox& bb,
-            label& vertIndex,
-            const bool writeLinesOnly = false
-        );
 };
 
 
@@ -276,6 +266,16 @@ class indexedOctree
     // Private Member Functions
 
         // Construction
+
+            //- Build the tree (nodes_/contents_) for shapes_ within the
+            //- given bounding box.
+            void build
+            (
+                const treeBoundBox& bb,
+                label maxLevels,
+                scalar maxLeafRatio,
+                scalar maxDuplicity
+            );
 
             //- Split list of indices into 8 bins
             //  according to where they are in relation to mid.
@@ -518,13 +518,24 @@ public:
 
     // Constructors
 
-        //- Construct null
+        //- Construct null, copying shapes
         indexedOctree(const Type& shapes);
 
-        //- Construct from components
+        //- Construct null, moving shapes
+        indexedOctree(Type&& shapes);
+
+        //- Copy construct from components
         indexedOctree
         (
             const Type& shapes,
+            const List<node>& nodes,
+            const List<labelList>& contents
+        );
+
+        //- Construct from components, moving shapes
+        indexedOctree
+        (
+            Type&& shapes,
             const List<node>& nodes,
             const List<labelList>& contents
         );
@@ -534,14 +545,20 @@ public:
         (
             const Type& shapes,
             const treeBoundBox& bb,
-            const label maxLevels,          // maximum number of levels
-            const scalar maxLeafRatio,      // how many elements per leaf
-            const scalar maxDuplicity       // in how many leaves is a shape on
-                                            // average
+            const label maxLevels,      // maximum number of levels
+            const scalar maxLeafRatio,  // how many elements per leaf
+            const scalar maxDuplicity   // average number of leafs a shape is in
         );
 
-        //- Construct from Istream
-        indexedOctree(const Type& shapes, Istream& is);
+        //- Construct from shapes, moving shapes
+        indexedOctree
+        (
+            Type&& shapes,
+            const treeBoundBox& bb,
+            const label maxLevels,      // maximum number of levels
+            const scalar maxLeafRatio,  // how many elements per leaf
+            const scalar maxDuplicity   // average number of leafs a shape is in
+        );
 
         //- Clone
         autoPtr<indexedOctree<Type>> clone() const
@@ -561,10 +578,7 @@ public:
         const List<node>& nodes() const noexcept { return nodes_; }
 
         //- Per node, per octant whether is fully inside/outside/mixed.
-        PackedList<2>& nodeTypes() const noexcept
-        {
-            return nodeTypes_;
-        }
+        PackedList<2>& nodeTypes() const noexcept { return nodeTypes_; }
 
         //- Top bounding box
         const treeBoundBox& bb() const
@@ -776,8 +790,9 @@ public:
         //- Write (non-empty) tree boxes in OBJ format
         void writeOBJ(Ostream& os) const;
 
-        //- Print tree. Either print all indices (printContent = true) or
-        //  just size of contents nodes.
+        //- Print tree.
+        //  Either print all indices (printContent = true)
+        //  or just size of contents nodes.
         void print
         (
             prefixOSstream&,
@@ -785,14 +800,9 @@ public:
             const label
         ) const;
 
+        //- Write bounding box, nodes and contents
         bool write(Ostream& os) const;
-
-
-    // IOstream Operators
-
-        friend Ostream& operator<< <Type>(Ostream&, const indexedOctree<Type>&);
 };
-
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

@@ -3278,13 +3278,13 @@ void Foam::meshRefinement::distribute(const mapDistributePolyMesh& map)
 
     // Redistribute surface and any fields on it.
     {
-        Random rndGen(653213);
+        constexpr label rand_seed = 653213;
 
         // Get local mesh bounding box. Single box for now.
         List<treeBoundBox> meshBb
         (
             1,
-            treeBoundBox(mesh_.points()).extend(rndGen, 1e-4)
+            treeBoundBox(mesh_.points()).extend_random(rand_seed, 1e-4)
         );
 
         // Distribute all geometry (so refinementSurfaces and shellSurfaces)

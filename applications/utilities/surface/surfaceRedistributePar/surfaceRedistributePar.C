@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
     }
 
 
-    Random rndGen(653213);
+    constexpr label rand_seed = 653213;
 
     // For independent decomposition, ensure that distributedTriSurfaceMesh
     // can find the alternative decomposeParDict specified via the
@@ -227,10 +227,9 @@ int main(int argc, char *argv[])
     {
         #include "createPolyMesh.H"
 
-        meshBb[UPstream::myProcNo()].push_back
-        (
-            treeBoundBox(mesh.points()).extend(rndGen, 1e-3)
-        );
+        auto& bb = meshBb[UPstream::myProcNo()].emplace_back(mesh.points());
+        bb.inflate_random(rand_seed, 1e-3);
+
         Pstream::allGatherList(meshBb);
     }
 

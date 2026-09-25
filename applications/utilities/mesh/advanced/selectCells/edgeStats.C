@@ -159,7 +159,8 @@ Foam::scalar Foam::edgeStats::minLen(Ostream& os) const
         }
     }
 
-    os  << "Mesh bounding box:" << boundBox(mesh_.points()) << nl << nl
+    // serial information
+    os  << "Mesh bounding box:" << treeBoundBox(mesh_.points()) << nl << nl
         << "Mesh edge statistics:" << nl
         << "    x aligned :  number:" << nX
         << "\tminLen:" << limitsX.min() << "\tmaxLen:" << limitsX.max() << nl

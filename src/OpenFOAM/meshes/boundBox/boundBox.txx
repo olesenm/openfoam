@@ -36,14 +36,14 @@ Foam::boundBox::boundBox
 (
     const UList<point>& points,
     const FixedList<label, N>& indices,
-    bool doReduce
+    bool syncPar
 )
 :
     boundBox()
 {
     add(points, indices);
 
-    if (doReduce)
+    if (syncPar)
     {
         this->reduce();   // Uses UPstream::worldComm
     }

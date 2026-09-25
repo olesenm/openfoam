@@ -44,8 +44,8 @@ SourceFiles
 #define Foam_dynamicTreeDataPoint_H
 
 #include "pointField.H"
-#include "treeBoundBox.H"
 #include "line.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -83,7 +83,7 @@ public:
     // Member Functions
 
         //- Object dimension == 0 (point element)
-        int nDim() const noexcept { return 0; }
+        static constexpr int nDim() noexcept { return 0; }
 
         //- Return bounding box for the specified point indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -94,8 +94,11 @@ public:
         //- The original point field
         const DynamicList<point>& points() const noexcept { return points_; }
 
-        //TDB //- The subset of point ids to use
-        ///const labelList& pointLabels() const noexcept { labelList::null(); }
+        //- The subset of point ids being used (none)
+        const labelUList& objectIds() const noexcept
+        {
+            return labelUList::null();
+        }
 
         //- Use a subset of points
         bool useSubset() const noexcept { return false; }

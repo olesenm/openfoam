@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM, distributed under GPL-3.0-or-later.
@@ -16,10 +17,11 @@ Description
 \*---------------------------------------------------------------------------*/
 
 {
+    // serial information
     Info<< "----------------" << nl
         << "Mesh Information" << nl
         << "----------------" << nl
-        << "  " << "boundingBox: " << boundBox(mesh.points()) << nl
+        << "  " << "boundingBox: " << treeBoundBox(mesh.points()) << nl
         << "  " << "nPoints: " << mesh.nPoints() << nl
         << "  " << "nCells: " << mesh.nCells() << nl
         << "  " << "nFaces: " << mesh.nFaces() << nl

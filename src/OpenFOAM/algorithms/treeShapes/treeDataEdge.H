@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,9 +39,9 @@ SourceFiles
 #ifndef Foam_treeDataEdge_H
 #define Foam_treeDataEdge_H
 
-#include "treeBoundBoxList.H"
 #include "labelRange.H"
 #include "line.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -66,19 +67,31 @@ class treeDataEdge
         const edgeList& edges_;
 
         //- Subset of edges to work on
-        const labelList edgeLabels_;
+        labelList subset_;
 
-        //- Use subset of edges (edgeLabels)
+        //- Edge bounding boxes (valid only if cacheBb_)
+        treeBoundBoxList bbs_;
+
+        //- Use subset of edges (subset_ active)
         const bool useSubset_;
 
         //- Whether to precalculate and store edge bounding box
         const bool cacheBb_;
 
-        //- Edge bounding boxes (valid only if cacheBb_)
-        treeBoundBoxList bbs_;
-
 
     // Private Member Functions
+
+        //- The object index corresponding to the shape index,
+        //- returns -1 for an invalid range
+        label mappedIndex(label i) const noexcept
+        {
+            return
+            (
+                (i >= 0 && i < size())
+              ? (useSubset_ ? subset_.cdata()[i] : i)
+              : -1
+            );
+        }
 
         //- Initialise all member data
         void update();
@@ -94,7 +107,10 @@ public:
 
     public:
 
-        findNearestOp(const indexedOctree<treeDataEdge>& tree);
+        findNearestOp(const indexedOctree<treeDataEdge>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         void operator()
         (
@@ -124,10 +140,9 @@ public:
     {
     public:
 
-        findIntersectOp(const indexedOctree<treeDataEdge>& tree);
+        findIntersectOp(const indexedOctree<treeDataEdge>&) noexcept {}
 
-        //- Calculate intersection of triangle with ray. Sets result
-        //  accordingly
+        //- Not implemented
         bool operator()
         (
             const label index,
@@ -140,6 +155,12 @@ public:
 
     // Declare name of the class and its debug switch
     ClassNameNoDebug("treeDataEdge");
+
+
+    // Generated Methods
+
+        //- Move construct
+        treeDataEdge(treeDataEdge&&) = default;
 
 
     // Constructors (cachable versions)
@@ -282,7 +303,7 @@ public:
     // Member Functions
 
         //- Object dimension == 1 (line element)
-        int nDim() const noexcept { return 1; }
+        static constexpr int nDim() noexcept { return 1; }
 
         //- Return bounding box for the specified edge indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -297,7 +318,7 @@ public:
         const edgeList& edges() const noexcept { return edges_; }
 
         //- The subset of edge ids to use
-        const labelList& edgeLabels() const noexcept { return edgeLabels_; }
+        const labelUList& objectIds() const noexcept { return subset_; }
 
         //- Use a subset of edges
         bool useSubset() const noexcept { return useSubset_; }
@@ -305,19 +326,19 @@ public:
         //- Is the effective edge selection empty?
         bool empty() const noexcept
         {
-            return useSubset_ ? edgeLabels_.empty() : edges_.empty();
+            return useSubset_ ? subset_.empty() : edges_.empty();
         }
 
         //- The size of edge selection
         label size() const noexcept
         {
-            return useSubset_ ? edgeLabels_.size() : edges_.size();
+            return useSubset_ ? subset_.size() : edges_.size();
         }
 
         //- Map from shape index to original (non-subset) edge label
         label objectIndex(const label index) const
         {
-            return useSubset_ && index >= 0 ? edgeLabels_[index] : index;
+            return useSubset_ && index >= 0 ? subset_[index] : index;
         }
 
         //- Edge at specified shape index

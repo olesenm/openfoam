@@ -553,7 +553,7 @@ Foam::Ostream& Foam::PDRblock::blockMeshDict
         os  << nl << word("vertices") << nl;
         begIndentList(os);
 
-        pointField corners(innerCorners.points());
+        pointField corners(innerCorners.hexCorners());
 
         // inner
         outputIndent(os, corners);
@@ -561,7 +561,7 @@ Foam::Ostream& Foam::PDRblock::blockMeshDict
         // outer
         if (CLIP_BOTTOM == outerTopology || FULL_OUTER == outerTopology)
         {
-            corners = outerCorners.points();
+            corners = outerCorners.hexCorners();
 
             if (outer_.isSphere())
             {

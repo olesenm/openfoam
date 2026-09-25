@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -256,28 +257,26 @@ void Foam::shortestPathSet::sync
         isLeakFace,
         orEqOp<unsigned int>()
     );
+
     // Sync origin, findMinDistance
     {
-        typedef Tuple2<label, Tuple2<point, bool>> ProcData;
+        // Encode celli,findMinDistance information as tri-state (-1, 0, +1)
+        // where -1 == invalid, 0 = false, 1 = true
 
-        ProcData searchData
+        Tuple2<point, int> searchData
         (
-            celli,
-            Tuple2<point, bool>(origin, findMinDistance)
+            origin,
+            (celli < 0 ? -1 : findMinDistance ? 1 : 0)
         );
+
         Pstream::combineReduce
         (
             searchData,
-            [](ProcData& x, const ProcData& y)
-            {
-                if (y.first() != -1)
-                {
-                    x = y;
-                }
-            }
+            [](auto& x, const auto& y) { if (y.second() >= 0) { x = y; } }
         );
-        origin = searchData.second().first();
-        findMinDistance = searchData.second().second();
+
+        origin = searchData.first();
+        findMinDistance = (searchData.second() > 0);
     }
 }
 
@@ -563,7 +562,7 @@ bool Foam::shortestPathSet::genSingleLeakPath
     // and if we're on the processor that has the minimum
     if (frontCellI == -1)
     {
-        const scalar searchRadius = mag(mesh.bounds().max() - mesh.bounds().min()) * 0.1;
+        const scalar searchRadius = 0.1 * mesh.bounds().mag();
         if (globalMin.first() < searchRadius && globalMin.second() == Pstream::myProcNo() && minCellI != -1)
         {
             frontCellI = minCellI;
@@ -1003,7 +1002,7 @@ void Foam::shortestPathSet::genSamples
     // If not found, try perturbation (points on processor boundaries)
     if (globalOutsideCelli == -1)
     {
-        const vector perturbVec = 1e-6 * (mesh.bounds().max() - mesh.bounds().min());
+        const vector perturbVec = 1e-6 * mesh.bounds().span();
         localOutsideCelli = mesh.findCell(outsidePoint + perturbVec);
         if (localOutsideCelli != -1)
         {
@@ -1319,7 +1318,7 @@ void Foam::shortestPathSet::genSamples
         // If not found, try perturbation (points on processor boundaries)
         if (globalInsideCelli == -1)
         {
-            const vector perturbVec = 1e-6 * (mesh.bounds().max() - mesh.bounds().min());
+            const vector perturbVec = 1e-6 * mesh.bounds().span();
             localInsideCelli = mesh.findCell(insidePoint + perturbVec);
             if (localInsideCelli != -1)
             {

@@ -68,7 +68,12 @@ void Foam::setRefCells
             }
         }
 
-        Pstream::listCombineReduce(regionNeedReference, orEqOp<bool>());
+        // Reduce OR (same size on all ranks)
+        UPstream::reduceOr
+        (
+            regionNeedReference.data(),
+            regionNeedReference.size()
+        );
     }
 
 

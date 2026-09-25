@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
             meshCells = Zero;
         }
 
-        PDRblock block(boundBox(point::zero, point::one), meshCells);
+        PDRblock block(boundBox(Foam::zero_one{}), meshCells);
 
         // Advance time
         // - coherent currently still needs to read the mesh itself!

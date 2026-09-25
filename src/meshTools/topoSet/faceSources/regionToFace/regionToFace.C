@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,6 @@ License
 #include "regionToFace.H"
 #include "polyMesh.H"
 #include "faceSet.H"
-#include "mappedPatchBase.H"
 #include "indirectPrimitivePatch.H"
 #include "PatchTools.H"
 #include "addToRunTimeSelectionTable.H"
@@ -83,34 +83,26 @@ void Foam::regionToFace::markZone
 ) const
 {
     // Data on all edges and faces
-    List<edgeTopoDistanceData<label>> allEdgeInfo(patch.nEdges());
-    List<edgeTopoDistanceData<label>> allFaceInfo(patch.size());
+    using dataType = edgeTopoDistanceData<label>;
+
+    List<dataType> allEdgeInfo(patch.nEdges());
+    List<dataType> allFaceInfo(patch.size());
 
     DynamicList<label> changedEdges;
-    DynamicList<edgeTopoDistanceData<label>> changedInfo;
+    DynamicList<dataType> changedInfo;
 
-    if (Pstream::myProcNo() == proci)
+    if (UPstream::myProcNo() == proci)
     {
-        const labelList& fEdges = patch.faceEdges()[facei];
-        for (const label edgei : fEdges)
-        {
-            changedEdges.append(edgei);
-            changedInfo.append
-            (
-                edgeTopoDistanceData<label>
-                (
-                    0,          // distance
-                    zonei
-                )
-            );
-        }
+        changedEdges = patch.faceEdges()[facei];
+        // (distance, zone)
+        changedInfo.resize(changedEdges.size(), dataType(0, zonei));
     }
 
     // Walk
     PatchEdgeFaceWave
     <
         indirectPrimitivePatch,
-        edgeTopoDistanceData<label>
+        dataType
     > calc
     (
         mesh_,
@@ -143,6 +135,8 @@ void Foam::regionToFace::combine
     const labelUList& ids
 ) const
 {
+    const auto myProci = UPstream::myProcNo();
+
     if (verbose_)
     {
         Info<< "    Loading subset " << setName_
@@ -155,47 +149,58 @@ void Foam::regionToFace::combine
         mesh_.points()
     );
 
-    mappedPatchBase::nearInfo ni
-    (
-        pointIndexHit(false, Zero, -1),
-        Tuple2<scalar, label>
-        (
-            sqr(GREAT),
-            UPstream::myProcNo()
-        )
-    );
+    // Nearest selection: (sqr(distance), (rank, facei))
+    Tuple2<scalar, labelPair> nearest(Foam::sqr(GREAT), {-1, -1});
 
-    forAll(patch, i)
+    point bestPoint(point::max);
+
+    if (patch.size())
     {
-        const point& fc = patch.faceCentres()[i];
-        scalar d2 = magSqr(fc-nearPoint_);
+        auto& minDistSqr = nearest.first();
+        auto& bestFacei = nearest.second().second();
+        nearest.second().first() = myProci;
 
-        if (!ni.first().hit() || d2 < ni.second().first())
+        forAll(patch, i)
         {
-            ni.second().first() = d2;
-            ni.first().hitPoint(fc);
-            ni.first().setIndex(i);
+            const point& fc = patch.faceCentres()[i];
+            scalar distSqr = nearPoint_.distSqr(fc);
+
+            if (minDistSqr > distSqr)
+            {
+                minDistSqr = distSqr;
+                bestFacei = i;
+                bestPoint = fc;
+            }
         }
     }
 
     // Globally reduce
-    Pstream::combineReduce(ni, mappedPatchBase::nearestEqOp());
+    Pstream::combineReduce(nearest, minFirstEqOp{});
+
+    const auto& [markProci, markFacei] = nearest.second();
 
     if (verbose_)
     {
-        Info<< "    Found nearest face at " << ni.first().point()
-            << " on processor " << ni.second().second()
-            << " face " << ni.first().index()
-            << " distance " << Foam::sqrt(ni.second().first()) << endl;
+        if (markProci != myProci)
+        {
+            bestPoint = point::max;
+        }
+
+        Foam::reduce(bestPoint, minOp<point>());
+
+        Info<< "    Found nearest face at " << bestPoint
+            << " on processor " << markProci
+            << " face " << markFacei
+            << " distance " << Foam::sqrt(nearest.first()) << endl;
     }
 
     labelList faceRegion(patch.size(), -1);
     markZone
     (
         patch,
-        ni.second().second(),   // proci
-        ni.first().index(),     // start face
-        0,                      // currentZone
+        markProci,  // proci
+        markFacei,  // start face
+        0,          // currentZone
         faceRegion
     );
 

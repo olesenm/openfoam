@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2013 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,8 +45,8 @@ SourceFiles
 #define Foam_treeDataPoint_H
 
 #include "pointField.H"
-#include "treeBoundBox.H"
 #include "line.H"
+#include "treeBoundBox.H"
 #include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -68,11 +69,25 @@ class treeDataPoint
         const pointField& points_;
 
         //- Subset of points to work on (or empty)
-        const labelList pointLabels_;
+        labelList subset_;
 
-        //- Use subset of points (pointLabels)
+        //- Use subset of points (subset_ active)
         const bool useSubset_;
 
+
+    // Private Member Functions
+
+        //- The object index corresponding to the shape index,
+        //- returns -1 for an invalid range
+        label mappedIndex(label i) const noexcept
+        {
+            return
+            (
+                (i >= 0 && i < size())
+              ? (useSubset_ ? subset_.cdata()[i] : i)
+              : -1
+            );
+        }
 
 public:
 
@@ -83,7 +98,10 @@ public:
 
     public:
 
-        findNearestOp(const indexedOctree<treeDataPoint>& tree);
+        findNearestOp(const indexedOctree<treeDataPoint>& tree) noexcept
+        :
+            tree_(tree)
+        {}
 
         void operator()
         (
@@ -113,10 +131,9 @@ public:
     {
     public:
 
-        findIntersectOp(const indexedOctree<treeDataPoint>& tree);
+        findIntersectOp(const indexedOctree<treeDataPoint>& tree) noexcept {}
 
-        //- Calculate intersection of triangle with ray.
-        //  Sets result accordingly
+        //- Not implemented
         bool operator()
         (
             const label index,
@@ -131,11 +148,17 @@ public:
     ClassNameNoDebug("treeDataPoint");
 
 
+    // Generated Methods
+
+        //- Move construct
+        treeDataPoint(treeDataPoint&&) = default;
+
+
     // Constructors (non-caching)
 
         //- Construct from pointField
         //  \note Holds reference to the points!
-        explicit treeDataPoint(const pointField& points);
+        explicit treeDataPoint(const pointField& points) noexcept;
 
         //- Construct from subset of pointField, copies point ids
         //  \note Holds reference to the points!
@@ -143,7 +166,9 @@ public:
         (
             const pointField& points,
             const labelUList& pointLabels,
-            const bool useSubsetPoints = true
+            //! optional override of subset
+            //! (eg, allow empty pointLabels to mean no subset)
+            const bool withSubset = true
         );
 
         //- Construct from subset of pointField, moves point ids
@@ -152,14 +177,16 @@ public:
         (
             const pointField& points,
             labelList&& pointLabels,
-            const bool useSubsetPoints = true
+            //! optional override of subset
+            //! (eg, allow empty pointLabels to mean no subset)
+            const bool withSubset = true
         );
 
 
     // Member Functions
 
         //- Object dimension == 0 (point element)
-        int nDim() const noexcept { return 0; }
+        static constexpr int nDim() noexcept { return 0; }
 
         //- Return bounding box for the specified point indices
         treeBoundBox bounds(const labelUList& indices) const;
@@ -170,8 +197,8 @@ public:
         //- The original point field
         const pointField& points() const noexcept { return points_; }
 
-        //- The subset of point ids to use
-        const labelList& pointLabels() const noexcept { return pointLabels_; }
+        //- The subset of point ids being used
+        const labelUList& objectIds() const noexcept { return subset_; }
 
         //- Use a subset of points
         bool useSubset() const noexcept { return useSubset_; }
@@ -179,19 +206,19 @@ public:
         //- Is the effective point field empty?
         bool empty() const noexcept
         {
-            return useSubset_ ? pointLabels_.empty() : points_.empty();
+            return useSubset_ ? subset_.empty() : points_.empty();
         }
 
         //- The size of the effective point field
         label size() const noexcept
         {
-            return useSubset_ ? pointLabels_.size() : points_.size();
+            return useSubset_ ? subset_.size() : points_.size();
         }
 
         //- Map to the original (non-subset) point label
         label objectIndex(const label index) const
         {
-            return useSubset_ && index >= 0 ? pointLabels_[index] : index;
+            return useSubset_ && index >= 0 ? subset_[index] : index;
         }
 
         //- Point at specified shape index

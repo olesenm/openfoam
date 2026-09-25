@@ -28,19 +28,18 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "treeBoundBox.H"
-#include "Random.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-inline Foam::treeBoundBox::treeBoundBox(Foam::zero_one)
-:
-    boundBox(Foam::zero_one{})
-{}
-
 
 inline Foam::treeBoundBox::treeBoundBox(const point& p)
 :
     boundBox(p)
+{}
+
+
+inline Foam::treeBoundBox::treeBoundBox(Foam::zero_one)
+:
+    boundBox(Foam::zero_one{})
 {}
 
 
@@ -62,6 +61,12 @@ inline Foam::treeBoundBox::treeBoundBox(const boundBox& a, const boundBox& b)
 {}
 
 
+inline Foam::treeBoundBox::treeBoundBox(const tmp<pointField>& tpoints)
+:
+    boundBox(tpoints, false)  // syncPar = false
+{}
+
+
 inline Foam::treeBoundBox::treeBoundBox(Istream& is)
 :
     boundBox(is)
@@ -69,30 +74,6 @@ inline Foam::treeBoundBox::treeBoundBox(Istream& is)
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
-
-template<Foam::direction Octant>
-inline Foam::point Foam::treeBoundBox::octCorner() const
-{
-    static_assert(Octant < 8, "Corner index [0..7]");
-    return point
-    (
-        (Octant & RIGHTHALF) ? max().x() : min().x(),
-        (Octant & TOPHALF)   ? max().y() : min().y(),
-        (Octant & FRONTHALF) ? max().z() : min().z()
-    );
-}
-
-
-inline Foam::point Foam::treeBoundBox::corner(const direction octant) const
-{
-    return point
-    (
-        (octant & RIGHTHALF) ? max().x() : min().x(),
-        (octant & TOPHALF)   ? max().y() : min().y(),
-        (octant & FRONTHALF) ? max().z() : min().z()
-    );
-}
-
 
 // Returns octant in which point resides. Reverse of subBbox.
 inline Foam::direction Foam::treeBoundBox::subOctant(const point& pt) const
@@ -365,54 +346,31 @@ inline bool Foam::treeBoundBox::subOverlaps
 
 inline bool Foam::treeBoundBox::intersects
 (
+    const boundBox& bb,
+    const linePointRef& ln
+)
+{
+    return intersects(bb, ln.start(), ln.end());
+}
+
+
+inline bool Foam::treeBoundBox::intersects
+(
     const linePointRef& ln,
-    point& pt
+    point& p
 ) const
 {
-    return intersects(ln.start(), ln.end(), pt);
+    return intersects(ln.start(), ln.end(), p);
 }
 
 
-inline Foam::treeBoundBox Foam::treeBoundBox::extend
-(
-    Random& rndGen,
-    const scalar factor
-) const
+inline Foam::treeBoundBox
+Foam::treeBoundBox::returnReduce(int communicator) const
 {
-    treeBoundBox bb(*this);
-
-    bb.inflate(rndGen, factor);
-
-    return bb;
+    treeBoundBox work(*this);
+    work.reduce(communicator);
+    return work;
 }
 
-
-inline Foam::treeBoundBox Foam::treeBoundBox::extend
-(
-    Random& rndGen,
-    const scalar factor,
-    const scalar delta
-) const
-{
-    treeBoundBox bb(*this);
-
-    bb.inflate(rndGen, factor, delta);
-
-    return bb;
-}
-
-
-// * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * * //
-
-inline bool Foam::operator==(const treeBoundBox& a, const treeBoundBox& b)
-{
-    return static_cast<const boundBox&>(a) == static_cast<const boundBox&>(b);
-}
-
-
-inline bool Foam::operator!=(const treeBoundBox& a, const treeBoundBox& b)
-{
-    return !(a == b);
-}
 
 // ************************************************************************* //

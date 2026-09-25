@@ -82,9 +82,6 @@ namespace Foam
 // Forward Declarations
 class treeBoundBox;
 
-Istream& operator>>(Istream& is, treeBoundBox& bb);
-Ostream& operator<<(Ostream& os, const treeBoundBox& bb);
-
 // List types
 typedef List<treeBoundBox> treeBoundBoxList;   //!< A List of treeBoundBox
 
@@ -106,6 +103,7 @@ public:
         //  Defined as (1 << vector::components).
         enum octantBit : direction
         {
+            NO_OCTANT = 0,  //!< 0: none
             RIGHTHALF = 1,  //!< 1: positive x-direction
             TOPHALF   = 2,  //!< 2: positive y-direction
             FRONTHALF = 4   //!< 4: positive z-direction
@@ -139,34 +137,36 @@ public:
             FRONTBIT  = (1 << FRONT)    //!< 32: z-max face
         };
 
-        //- Edges codes.
-        //  E01 = edge between 0 and 1.
-        enum edgeId
-        {
-            E01 = 0,
-            E13 = 1,
-            E23 = 2,
-            E02 = 3,
-
-            E45 = 4,
-            E57 = 5,
-            E67 = 6,
-            E46 = 7,
-
-            E04 = 8,
-            E15 = 9,
-            E37 = 10,
-            E26 = 11
-        };
+        // Unused
+        // //- Edges codes.
+        // enum edgeId : direction
+        // {
+        //     EDGE_0_1 = 0,  //!< edge between 0,1
+        //     EDGE_1_3 = 1,  //!< edge between 1,3
+        //     EDGE_2_3 = 2,  //!< edge between 2,3
+        //     EDGE_0_2 = 3,  //!< edge between 0,2
+        //
+        //     EDGE_4_5 = 4,  //!< edge between 4,5
+        //     EDGE_5_7 = 5,  //!< edge between 5,7
+        //     EDGE_6_7 = 6,  //!< edge between 6,7
+        //     EDGE_4_6 = 7,  //!< edge between 4,6
+        //
+        //     EDGE_0_4 = 8,  //!< edge between 0,4
+        //     EDGE_1_5 = 9,  //!< edge between 1,5
+        //     EDGE_3_7 = 10, //!< edge between 3,7
+        //     EDGE_2_6 = 11  //!< edge between 2,6
+        // };
 
 
     // Static Data Members
 
         //- Face to point addressing, using octant corner points.
-        static const faceList faces;
+        FOAM_DEPRECATED_FOR(2026-09, "boundBox::octFaces()")
+        static const faceList& faces;
 
         //- Edge to point addressing, using octant corner points.
-        static const edgeList edges;
+        FOAM_DEPRECATED_FOR(2026-09, "boundBox::octEdges()")
+        static const edgeList& edges;
 
 
     // Static Methods
@@ -202,11 +202,11 @@ public:
 
     // Constructors
 
-        //- Construct a 0/1 unit bounding box
-        inline explicit treeBoundBox(Foam::zero_one);
-
         //- Construct a bounding box containing a single initial point
         inline explicit treeBoundBox(const point& p);
+
+        //- Construct a 0/1 unit bounding box
+        inline explicit treeBoundBox(Foam::zero_one);
 
         //- Construct from bound box min/max points
         inline treeBoundBox(const point& min, const point& max);
@@ -223,6 +223,10 @@ public:
         //- Construct as the bounding box of the given pointField.
         //  Local processor domain only (no reduce as in boundBox)
         explicit treeBoundBox(const UList<point>& points);
+
+        //- Construct as the bounding box of the given temporary pointField.
+        //  Local processor domain only (no reduce as in boundBox)
+        inline explicit treeBoundBox(const tmp<pointField>& tpoints);
 
         //- Construct as subset of points
         //  Local processor domain only (no reduce as in boundBox)
@@ -246,21 +250,14 @@ public:
 
         // Geometry
 
-            //- Fill in 8 corner points in octant ordering
-            void octCorners(UList<point>& output) const;
-
             //- Vertex coordinates. In octant coding.
-            tmp<pointField> points() const;
+            tmp<pointField> points() const
+            {
+                return tmp<pointField>::New(octCorners());
+            }
 
 
         // Octant handling
-
-            //- Return corner point of given octant [0..7]
-            template<direction Octant>
-            inline point octCorner() const;
-
-            //- Return corner point of given octant [0..7]
-            inline point corner(const direction octant) const;
 
             //- Sub-box of given octant. Midpoint calculated.
             treeBoundBox subBbox(const direction octant) const;
@@ -358,6 +355,21 @@ public:
             //- intersects other bounding box, sphere etc?
             using boundBox::intersects;
 
+            //- Line/bound box intersects?
+            static bool intersects
+            (
+                const boundBox& bb,
+                const point& from,
+                const point& to
+            );
+
+            //- Line/bound box intersects?
+            static inline bool intersects
+            (
+                const boundBox& bb,
+                const linePointRef& ln
+            );
+
             //- Intersects segment; set point to intersection position and face,
             //  return true if intersection found.
             //  (pt argument used during calculation even if not intersecting).
@@ -376,22 +388,19 @@ public:
                 direction& ptBits
             ) const;
 
-            //- Like above but does not return faces point is on
-            bool intersects
-            (
-                const point& start,
-                const point& end,
-                point& pt
-            ) const;
+            //- Intersects line segment?
+            //  \param[out] p the intersection point
+            bool intersects(const point& from, const point& to, point& p) const;
 
-            //- Like above but does not return faces point is on
-            inline bool intersects(const linePointRef& ln, point& pt) const;
+            //- Intersects line segment?
+            //  \param[out] p the intersection point
+            inline bool intersects(const linePointRef& ln, point& p) const;
 
             //- Contains point or other bounding box?
             using boundBox::contains;
 
             //- Contains point (inside or on edge) and moving in direction
-            //  dir would cause it to go inside.
+            //- dir would cause it to go inside.
             bool contains(const vector& dir, const point&) const;
 
             //- Code position of point on bounding box faces
@@ -400,46 +409,41 @@ public:
             //- Position of point relative to bounding box
             direction posBits(const point& pt) const;
 
-            //- Calculate nearest and furthest (to point) vertex coords of
-            //  bounding box
-            void calcExtremities
-            (
-                const point& pt,
-                point& nearest,
-                point& furthest
-            ) const;
+            //- Find the nearest/furthest box corners to the given point
+            Pair<direction> findExtremities(const point& p) const;
 
-            //- Returns distance point to furthest away corner.
-            scalar maxDist(const point& pt) const;
-
-            //- Compare distance to point with other bounding box
-            //  return:
-            //  -1 : all vertices of my bounding box are nearer than any of
-            //       other
-            //  +1 : all vertices of my bounding box are further away than
-            //       any of other
-            //   0 : none of the above.
-            label distanceCmp(const point& pt, const treeBoundBox& other) const;
+            //- Determine the nearest/furthest box corners to the given point
+            void calcExtremities(const point& p, point& near, point& far) const;
 
             //- Return slightly wider bounding box
-            //  Extends all dimensions with s*span*Random::sample01<scalar>()
+            //  Extends all dimensions with s*span*Random[0-1]
             //  and guarantees in any direction s*mag(span) minimum width
-            inline treeBoundBox extend(Random& rndGen, const scalar s) const;
+            treeBoundBox extend(Random&, scalar s) const;
 
             //- As per two parameter version but with additional
             //- grow() by given amount in each dimension
-            inline treeBoundBox extend
+            treeBoundBox extend(Random&, scalar factor, scalar delta) const;
+
+            //- Return slightly wider bounding box
+            //  Extends all dimensions with s*span*Random[0-1]
+            //  and guarantees in any direction s*mag(span) minimum width
+            treeBoundBox extend_random(label seedValue, scalar s) const;
+
+            //- As per two parameter version but with additional
+            //- grow() by given amount in each dimension
+            treeBoundBox extend_random
             (
-                Random& rndGen,
-                const scalar s,
-                const scalar delta
+                label seedValue,
+                scalar s,
+                scalar delta
             ) const;
 
 
-    // IOstream Operators
+        // Parallel
 
-        friend Istream& operator>>(Istream& is, treeBoundBox& bb);
-        friend Ostream& operator<<(Ostream& os, const treeBoundBox& bb);
+            //- Perform a reduction on a copy and return the result.
+            //- Uses worldComm (default) or the specified communicator.
+            inline treeBoundBox returnReduce(int communicator = -1) const;
 
 
     // Housekeeping
@@ -461,10 +465,34 @@ template<> struct is_contiguous_scalar<treeBoundBox>
 {};
 
 
-// * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
 
-inline bool operator==(const treeBoundBox& a, const treeBoundBox& b);
-inline bool operator!=(const treeBoundBox& a, const treeBoundBox& b);
+// Currently identical to boundBox:
+//
+//inline Istream& operator>>(Istream& is, treeBoundBox& bb)
+//{
+//    return is >> static_cast<boundBox&>(bb);
+//}
+//
+//inline Ostream& operator<<(Ostream& os, const treeBoundBox& bb)
+//{
+//    return os << static_cast<const boundBox&>(bb);
+//}
+
+
+// * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * * //
+
+// Currently identical to boundBox:
+//
+//inline bool operator==(const treeBoundBox& a, const treeBoundBox& b)
+//{
+//    return static_cast<const boundBox&>(a) == static_cast<const boundBox&>(b);
+//}
+//
+//inline bool operator!=(const treeBoundBox& a, const treeBoundBox& b)
+//{
+//    return !(a == b);
+//}
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

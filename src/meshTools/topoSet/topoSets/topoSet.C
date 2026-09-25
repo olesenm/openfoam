@@ -319,13 +319,28 @@ void Foam::topoSet::writeDebug
     const label maxLen
 ) const
 {
+    const labelHashSet& indices = *this;
+
+    if (indices.empty())
+    {
+        os  << "Empty set" << nl << endl;
+        return;
+    }
+
     // Bounding box of contents.
-    boundBox bb(pointField(coords, toc()), true);
+    // NB: non-parallel, since decisions based on size() are not
+    // parallel consistent
+
+    treeBoundBox bb;
+    for (auto i : indices)
+    {
+        bb.add(coords[i]);
+    }
 
     os  << "Set bounding box: min = "
         << bb.min() << "    max = " << bb.max() << " metres." << nl << endl;
 
-    labelHashSet::const_iterator iter = labelHashSet::cbegin();
+    auto iter = indices.cbegin();
 
     if (size() <= maxLen)
     {
@@ -657,7 +672,7 @@ void Foam::topoSet::sync(const polyMesh&)
 
 void Foam::topoSet::writeDebug(Ostream& os, const label maxLen) const
 {
-    labelHashSet::const_iterator iter = labelHashSet::cbegin();
+    auto iter = labelHashSet::cbegin();
 
     if (size() <= maxLen)
     {

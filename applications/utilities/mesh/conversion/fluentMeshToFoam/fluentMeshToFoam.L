@@ -988,8 +988,7 @@ int main(int argc, char *argv[])
         if (!args.readIfPresent("2D", twoDThickness))
         {
             const scalar extrusionFactor = 0.02; //0.01 in each direction
-            boundBox box(points);
-            twoDThickness = extrusionFactor*box.mag();
+            twoDThickness = extrusionFactor*treeBoundBox(points).mag();
         }
 
         Info<< "Grid is 2-D. Extruding in z-direction by: " << twoDThickness

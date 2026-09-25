@@ -113,11 +113,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef boxToFace_H
-#define boxToFace_H
+#ifndef Foam_boxToFace_H
+#define Foam_boxToFace_H
 
 #include "topoSetFaceSource.H"
-#include "treeBoundBoxList.H"
+#include "treeBoundBox.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

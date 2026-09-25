@@ -98,23 +98,11 @@ void Foam::faceAreaWeightAMI2D::writeNoMatch
     {
         OFstream os("no_match_" + Foam::name(srcFacei) + "_bb.obj");
 
-        const pointField points(srcFaceBb.points());
-        for (const point& p : points)
-        {
-            os  << "v " << p.x() << " " << p.y() << " " << p.z() << endl;
-        }
-        os  << "l 1 2" << nl;
-        os  << "l 2 4" << nl;
-        os  << "l 4 3" << nl;
-        os  << "l 3 1" << nl;
-        os  << "l 5 6" << nl;
-        os  << "l 6 8" << nl;
-        os  << "l 8 7" << nl;
-        os  << "l 7 5" << nl;
-        os  << "l 5 1" << nl;
-        os  << "l 6 2" << nl;
-        os  << "l 8 4" << nl;
-        os  << "l 7 3" << nl;
+        label vertIndex(0);
+
+        constexpr bool writeLinesOnly = true;
+
+        srcFaceBb.writeOBJ(os, vertIndex, writeLinesOnly);
     }
 }
 

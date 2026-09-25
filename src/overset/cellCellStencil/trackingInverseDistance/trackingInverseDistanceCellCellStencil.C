@@ -34,7 +34,6 @@ License
 #include "oversetFvPatch.H"
 #include "zeroGradientFvPatchFields.H"
 #include "syncTools.H"
-#include "treeBoundBoxList.H"
 #include "voxelMeshSearch.H"
 #include "dynamicOversetFvMesh.H"
 #include "waveMethod.H"

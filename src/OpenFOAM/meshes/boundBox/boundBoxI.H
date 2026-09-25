@@ -76,6 +76,32 @@ inline Foam::point Foam::boundBox::hexCorner() const
 }
 
 
+// Box corners by octant encoding
+
+template<Foam::direction Octant>
+inline Foam::point Foam::boundBox::octCorner() const
+{
+    static_assert(Octant < 8, "Corner index [0..7]");
+    return point
+    (
+        (Octant & 1) ? max_.x() : min_.x(),
+        (Octant & 2) ? max_.y() : min_.y(),
+        (Octant & 4) ? max_.z() : min_.z()
+    );
+}
+
+
+inline Foam::point Foam::boundBox::octCorner(direction octant) const
+{
+    return point
+    (
+        (octant & 1) ? max_.x() : min_.x(),
+        (octant & 2) ? max_.y() : min_.y(),
+        (octant & 4) ? max_.z() : min_.z()
+    );
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 inline Foam::boundBox::boundBox()
@@ -172,13 +198,52 @@ inline Foam::point& Foam::boundBox::max() noexcept
 
 inline Foam::point Foam::boundBox::centre() const
 {
-    return 0.5 * (min_ + max_);
+    return point
+    (
+        (0.5*min_.x() + 0.5*max_.x()),
+        (0.5*min_.y() + 0.5*max_.y()),
+        (0.5*min_.z() + 0.5*max_.z())
+    );
+}
+
+
+inline Foam::scalar Foam::boundBox::centre(direction cmpt) const
+{
+    return (0.5*min_[cmpt] + 0.5*max_[cmpt]);
+}
+
+
+inline Foam::point Foam::boundBox::lerp(scalar t) const
+{
+    return point
+    (
+        Foam::lerp(min_.x(), max_.x(), t),
+        Foam::lerp(min_.y(), max_.y(), t),
+        Foam::lerp(min_.z(), max_.z(), t)
+    );
+}
+
+
+inline Foam::point Foam::boundBox::lerp(const vector& t) const
+{
+    return point
+    (
+        Foam::lerp(min_.x(), max_.x(), t.x()),
+        Foam::lerp(min_.y(), max_.y(), t.y()),
+        Foam::lerp(min_.z(), max_.z(), t.z())
+    );
 }
 
 
 inline Foam::vector Foam::boundBox::span() const
 {
     return (max_ - min_);
+}
+
+
+inline Foam::scalar Foam::boundBox::span(direction cmpt) const
+{
+    return (max_[cmpt] - min_[cmpt]);
 }
 
 
@@ -258,6 +323,68 @@ inline Foam::direction Foam::boundBox::maxDir() const
 }
 
 
+inline Foam::Pair<Foam::scalar> Foam::boundBox::distSqr(const point& p) const
+{
+    scalar sumMinSqr = 0;
+    scalar sumMaxSqr = 0;
+
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        scalar a = Foam::magSqr(min_[dir] - p[dir]);
+        scalar b = Foam::magSqr(max_[dir] - p[dir]);
+
+        sumMinSqr += std::min(a, b);
+        sumMaxSqr += std::max(a, b);
+    }
+
+    return { sumMinSqr, sumMaxSqr };
+}
+
+
+inline Foam::scalar Foam::boundBox::minDistSqr(const point& p) const
+{
+    scalar sumMinSqr = 0;
+
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        scalar a = Foam::magSqr(min_[dir] - p[dir]);
+        scalar b = Foam::magSqr(max_[dir] - p[dir]);
+
+        sumMinSqr += std::min(a, b);
+    }
+
+    return sumMinSqr;
+}
+
+
+inline Foam::scalar Foam::boundBox::maxDistSqr(const point& p) const
+{
+    scalar sumMaxSqr = 0;
+
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        scalar a = Foam::magSqr(min_[dir] - p[dir]);
+        scalar b = Foam::magSqr(max_[dir] - p[dir]);
+
+        sumMaxSqr += std::max(a, b);
+    }
+
+    return sumMaxSqr;
+}
+
+
+Foam::scalar Foam::boundBox::minDist(const point& p) const
+{
+    return std::sqrt(minDistSqr(p));
+}
+
+
+Foam::scalar Foam::boundBox::maxDist(const point& p) const
+{
+    return std::sqrt(maxDistSqr(p));
+}
+
+
 inline int Foam::boundBox::nDim() const
 {
     int ngood = 0;
@@ -314,6 +441,13 @@ inline void Foam::boundBox::add(const boundBox& bb)
 }
 
 
+inline void Foam::boundBox::add(const Pair<point>& bb)
+{
+    min_ = ::Foam::min(min_, bb.first());
+    max_ = ::Foam::max(max_, bb.second());
+}
+
+
 inline void Foam::boundBox::add(const point& pt)
 {
     min_ = ::Foam::min(min_, pt);
@@ -325,13 +459,6 @@ inline void Foam::boundBox::add(const point& pt0, const point& pt1)
 {
     add(pt0);
     add(pt1);
-}
-
-
-inline void Foam::boundBox::add(const Pair<point>& points)
-{
-    add(points.first());
-    add(points.second());
 }
 
 
@@ -410,7 +537,7 @@ inline bool Foam::boundBox::box_sphere_overlaps
         }
         else
         {
-            distSqr += ::Foam::min(Foam::magSqr(d0), Foam::magSqr(d1));
+            distSqr += std::min(Foam::magSqr(d0), Foam::magSqr(d1));
 
             if (distSqr > radiusSqr)
             {
@@ -423,6 +550,41 @@ inline bool Foam::boundBox::box_sphere_overlaps
 }
 
 
+inline bool Foam::boundBox::box_sphere_contains
+(
+    const point& min_corner,    // box corner (min)
+    const point& max_corner,    // box corner (max)
+    const point& centre,
+    const scalar radiusSqr      // Input (squared radius, avoids sqrt)
+)
+{
+    // The box contains the sphere iff, on every axis, the margin between
+    // the sphere centre and both box faces is >= radius.
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        const auto margin = std::min
+        (
+            (centre[dir] - min_corner[dir]),
+            (max_corner[dir] - centre[dir])
+        );
+
+        // Need a sufficient (and non-negative) margin on each component
+        if (margin < 0 || Foam::sqr(margin) < radiusSqr)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+inline bool Foam::boundBox::intersects(const linePointRef& ln) const
+{
+    return intersects(ln.start(), ln.end());
+}
+
+
 inline bool Foam::boundBox::overlaps(const boundBox& bb) const
 {
     return box_box_overlaps(min_, max_, bb.min(), bb.max());
@@ -432,14 +594,14 @@ inline bool Foam::boundBox::overlaps(const boundBox& bb) const
 inline bool Foam::boundBox::overlaps
 (
     const point& centre,
-    const scalar radiusSqr
+    scalar radiusSqr
 ) const
 {
     return box_sphere_overlaps(min_, max_, centre, radiusSqr);
 }
 
 
-inline bool Foam::boundBox::contains(const point& pt) const
+inline bool Foam::boundBox::contains(const point& pt) const noexcept
 {
     return
     (
@@ -450,13 +612,7 @@ inline bool Foam::boundBox::contains(const point& pt) const
 }
 
 
-inline bool Foam::boundBox::contains(const boundBox& bb) const
-{
-    return contains(bb.min()) && contains(bb.max());
-}
-
-
-inline bool Foam::boundBox::containsInside(const point& pt) const
+inline bool Foam::boundBox::containsInside(const point& pt) const noexcept
 {
     return
     (
@@ -464,6 +620,55 @@ inline bool Foam::boundBox::containsInside(const point& pt) const
      && min_.y() < pt.y() && pt.y() < max_.y()
      && min_.z() < pt.z() && pt.z() < max_.z()
     );
+}
+
+
+inline bool Foam::boundBox::contains(const boundBox& bb) const noexcept
+{
+    return contains(bb.min()) && contains(bb.max());
+}
+
+
+inline bool Foam::boundBox::contains
+(
+    const point& centre,
+    scalar radiusSqr
+) const
+{
+    return box_sphere_contains(min_, max_, centre, radiusSqr);
+}
+
+
+inline bool Foam::boundBox::containsAll(const point& p0, const point& p1) const
+{
+    return (contains(p0) && contains(p1));
+}
+
+
+inline bool Foam::boundBox::contains(const linePointRef& ln) const
+{
+    return (contains(ln.start()) && contains(ln.end()));
+}
+
+
+inline bool Foam::boundBox::containsAny(const point& p0, const point& p1) const
+{
+    return (contains(p0) || contains(p1));
+}
+
+
+inline bool Foam::boundBox::containsAny(const linePointRef& ln) const
+{
+    return (contains(ln.start()) || contains(ln.end()));
+}
+
+
+inline Foam::boundBox
+Foam::boundBox::returnReduce(int communicator) const
+{
+    boundBox work(*this);
+    work.reduce(communicator);
+    return work;
 }
 
 
