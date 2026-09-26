@@ -161,6 +161,13 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+// SpatialVector does not have a 'rank' so not detected as a
+// vector-space quantity with contiguous forwarding for its cmptType
+
+// Still required here (unlike Vector, Tensor, etc) since SpatialVector
+// does not (yet) define its own 'rank', so the generalized cmptType
+// forwarding in contiguous.H (which is gated on 'rank') does not apply.
+
 //- Data are contiguous if component type is contiguous
 template<class Cmpt>
 struct is_contiguous<SpatialVector<Cmpt>> : is_contiguous<Cmpt> {};

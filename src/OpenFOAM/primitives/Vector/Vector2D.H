@@ -230,17 +230,21 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
-//- Data are contiguous if component type is contiguous
-template<class Cmpt>
-struct is_contiguous<Vector2D<Cmpt>> : is_contiguous<Cmpt> {};
-
-//- Data are contiguous label if component type is label
-template<class Cmpt>
-struct is_contiguous_label<Vector2D<Cmpt>> : is_contiguous_label<Cmpt> {};
-
-//- Data are contiguous scalar if component type is scalar
-template<class Cmpt>
-struct is_contiguous_scalar<Vector2D<Cmpt>> : is_contiguous_scalar<Cmpt> {};
+// Contiguous traits handled by generalized traits using cmptType (SEPT-2026)
+//
+// OLD CODE:
+//
+// //- Data are contiguous if component type is contiguous
+// template<class Cmpt>
+// struct is_contiguous<Vector2D<Cmpt>> : is_contiguous<Cmpt> {};
+//
+// //- Data are contiguous label if component type is label
+// template<class Cmpt>
+// struct is_contiguous_label<Vector2D<Cmpt>> : is_contiguous_label<Cmpt> {};
+//
+// //- Data are contiguous scalar if component type is scalar
+// template<class Cmpt>
+// struct is_contiguous_scalar<Vector2D<Cmpt>> : is_contiguous_scalar<Cmpt> {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

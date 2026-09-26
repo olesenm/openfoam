@@ -101,6 +101,9 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+// CompactSpatialTensorT does not have a 'rank' so not detected as a
+// vector-space quantity with contiguous forwarding for its cmptType
+
 //- Data are contiguous if component type is contiguous
 template<class Cmpt>
 struct is_contiguous<CompactSpatialTensorT<Cmpt>> : is_contiguous<Cmpt> {};
