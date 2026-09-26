@@ -753,14 +753,15 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+//- Handle boundBox content as two points
+template<> struct contiguous_element<boundBox> { using type = point; };
+
 //- Contiguous data for boundBox
 template<> struct is_contiguous<boundBox> : is_contiguous<point> {};
 
 //- Contiguous scalar data for boundBox
-template<> struct is_contiguous_scalar<boundBox>
-:
-    is_contiguous_scalar<point>
-{};
+template<>
+struct is_contiguous_scalar<boundBox> : is_contiguous_scalar<point> {};
 
 
 // * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //

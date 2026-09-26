@@ -455,15 +455,16 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+//- The treeBoundBox has the same representation as boundBox
+template<>
+struct contiguous_element<treeBoundBox> : contiguous_element<boundBox> {};
+
 //- Contiguous data for treeBoundBox
 template<> struct is_contiguous<treeBoundBox> : is_contiguous<boundBox> {};
 
 //- Contiguous scalar data for treeBoundBox
-template<> struct is_contiguous_scalar<treeBoundBox>
-:
-    is_contiguous_scalar<boundBox>
-{};
-
+template<>
+struct is_contiguous_scalar<treeBoundBox> : is_contiguous_scalar<boundBox> {};
 
 // * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
 
