@@ -2294,7 +2294,7 @@ Foam::triSurface Foam::triSurfaceTools::triangulate
         {
             const face& f = patch[patchFacei];
 
-            if (bBox.containsAny(points, f))
+            if (bBox.contains_any(points, f))
             {
                 faceList triFaces(f.nTriangles(points));
 

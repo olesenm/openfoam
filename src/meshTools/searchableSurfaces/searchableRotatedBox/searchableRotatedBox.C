@@ -142,7 +142,7 @@ bool Foam::searchableRotatedBox::overlaps(const boundBox& bb) const
     }
 
     // 2. Check if any corner points inside
-    if (bb.containsAny(points_))
+    if (bb.contains_any(points_))
     {
         return true;
     }

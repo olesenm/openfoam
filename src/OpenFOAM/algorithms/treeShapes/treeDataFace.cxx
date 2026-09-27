@@ -627,7 +627,7 @@ bool Foam::treeDataFace::overlaps
         return searchBox.intersects(tri);
     }
 
-    if (searchBox.containsAny(points, f))
+    if (searchBox.contains_any(points, f))
     {
         return true;
     }

@@ -529,7 +529,7 @@ bool Foam::boundBox::intersects(const triPointRef& tri) const
     }
 
     // Simplest check - if any points are inside
-    if (contains(tri.a()) || contains(tri.b()) || contains(tri.c()))
+    if (contains_any(tri.a(), tri.b(), tri.c()))
     {
         return true;
     }
@@ -665,11 +665,18 @@ bool Foam::boundBox::intersects(const point& from, const point& to) const
 }
 
 
-bool Foam::boundBox::contains(const UList<point>& points) const
+bool Foam::boundBox::contains_all(const UList<point>& points) const
 {
     if (points.empty())
     {
+        // Empty range == true (as per std::all_of).
+        // ie, no test on individual elements can fail
         return true;
+    }
+    else if (!good())
+    {
+        // Inverted box - no match possible
+        return false;
     }
 
     for (const point& p : points)
@@ -684,11 +691,17 @@ bool Foam::boundBox::contains(const UList<point>& points) const
 }
 
 
-bool Foam::boundBox::containsAny(const UList<point>& points) const
+bool Foam::boundBox::contains_any(const UList<point>& points) const
 {
     if (points.empty())
     {
-        return true;
+        // Empty range == false (no matches possible)
+        return false;
+    }
+    else if (!good())
+    {
+        // Inverted box - no match possible
+        return false;
     }
 
     for (const point& p : points)

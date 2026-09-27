@@ -390,7 +390,7 @@ bool Foam::treeDataPrimitivePatch<PatchType>::overlaps
         return searchBox.intersects(tri);
     }
 
-    if (searchBox.containsAny(points, f))
+    if (searchBox.contains_any(points, f))
     {
         return true;
     }

@@ -436,34 +436,31 @@ public:
             void add(const FixedList<point, N>& points);
 
             //- Extend to include a (subsetted) point field.
-            //  The indices could be from edge/triFace etc.
-            template<unsigned N>
-            void add
-            (
-                const UList<point>& points,
-                const FixedList<label, N>& indices
-            );
-
-            //- Extend to include a (subsetted) point field.
             //
-            //  \tparam IntContainer  A container with an iterator that
-            //      dereferences to an label
-            template<class IntContainer>
+            //  \tparam IndexContainer  A container with an iterator that
+            //      dereferences to a label
+            //      (eg, FixedList, labelUList, face, triFace, ...)
+            template<class IndexContainer>
             void add
             (
                 const UList<point>& points,
-                const IntContainer& indices
+                const IndexContainer& indices
             );
 
             //- Expand box by adjusting min/max by specified amount
             //- in each dimension
-            inline void grow(const scalar delta);
+            inline void grow(scalar delta);
 
             //- Expand box by adjusting min/max by specified amounts
             inline void grow(const vector& delta);
 
             //- Expand box by factor*mag(span) in all dimensions
-            inline void inflate(const scalar factor);
+            inline void inflate(scalar factor);
+
+            //- Expand box so each component (axis) span grows by
+            //- (1+epsilon), scaled about the centre.
+            //- This makes this an anisotropic, shape-preserving expansion.
+            inline void inflate_components(scalar epsilon);
 
             //- Expand box slightly by expanding all dimensions with
             //- factor*span*(random 0-1) and guarantees
@@ -575,64 +572,88 @@ public:
             //- Fully contains bounding sphere (centre + sqr(radius))
             inline bool contains(const point& centre, scalar radiusSqr) const;
 
-            //- Contains both points?
-            inline bool containsAll(const point& p0, const point& p1) const;
+            //- Contains both points? (eg, a line)
+            inline bool contains_all(const point& p0, const point& p1) const;
+
+            //- Contains either points (eg, line ends)
+            inline bool contains_any(const point& p0, const point& p1) const;
 
             //- Contains both line ends?
-            inline bool contains(const linePointRef& ln) const;
-
-            //- Contains all points? (inside or on edge)
-            bool contains(const UList<point>& points) const;
-
-            //- Contains all of the (subsetted) points? (inside or on edge)
-            template<unsigned N>
-            bool contains
-            (
-                const UList<point>& points,
-                const FixedList<label, N>& indices
-            ) const;
-
-
-            //- Contains all of the (subsetted) points? (inside or on edge)
-            //
-            //  \tparam IntContainer  A container with an iterator that
-            //      dereferences to an label
-            template<class IntContainer>
-            bool contains
-            (
-                const UList<point>& points,
-                const IntContainer& indices
-            ) const;
-
-
-            //- Contains either of the points?
-            inline bool containsAny(const point& p0, const point& p1) const;
+            inline bool contains_all(const linePointRef& ln) const;
 
             //- Contains either of the line ends?
-            inline bool containsAny(const linePointRef& ln) const;
+            inline bool contains_any(const linePointRef& ln) const;
+
+            //- Same as contains_all(const linePointRef&)
+            bool contains(const linePointRef& ln) const
+            {
+                return contains_all(ln);
+            }
+
+            //- Contains all three points? (eg, a triangle)
+            inline bool contains_all
+            (
+                const point& p0,
+                const point& p1,
+                const point& p2
+            ) const;
+
+            //- Contains any of the three points (eg, from a triangle)
+            inline bool contains_any
+            (
+                const point& p0,
+                const point& p1,
+                const point& p2
+            ) const;
+
+            //- Contains all points? (inside or on edge).
+            //  \return True on empty range, or if all points are contained.
+            bool contains_all(const UList<point>& points) const;
 
             //- Contains any of the points? (inside or on edge)
-            bool containsAny(const UList<point>& points) const;
+            bool contains_any(const UList<point>& points) const;
 
-            //- Contains any of the (subsetted) points? (inside or on edge)
-            template<unsigned N>
-            bool containsAny
+            //- Same as contains_all(const UList<point>&)
+            bool contains(const UList<point>& points) const
+            {
+                return contains_all(points);
+            }
+
+            //- Contains all of the (subsetted) points? (inside or on edge)
+            //  \return True on empty ranges, or if all points are contained.
+            //
+            //  \tparam IndexContainer  A container with an iterator that
+            //      dereferences to a label
+            //      (eg, FixedList, labelUList, face, triFace, ...)
+            template<class IndexContainer>
+            bool contains_all
             (
                 const UList<point>& points,
-                const FixedList<label, N>& indices
+                const IndexContainer& indices
             ) const;
 
             //- Contains any of the (subsetted) points? (inside or on edge)
             //
-            //  \tparam IntContainer  A container with an iterator that
-            //      dereferences to an label
-            template<class IntContainer>
-            bool containsAny
+            //  \tparam IndexContainer  A container with an iterator that
+            //      dereferences to a label
+            //      (eg, FixedList, labelUList, face, triFace, ...)
+            template<class IndexContainer>
+            bool contains_any
             (
                 const UList<point>& points,
-                const IntContainer& indices
+                const IndexContainer& indices
             ) const;
 
+            //- Same as contains_all()
+            template<class IndexContainer>
+            bool contains
+            (
+                const UList<point>& points,
+                const IndexContainer& indices
+            ) const
+            {
+                return contains_all(points, indices);
+            }
 
             //- Return the nearest point on the boundBox to the supplied point.
             //  If point is inside the boundBox then the point is returned
@@ -703,6 +724,19 @@ public:
 
 
     // Housekeeping
+
+        //- Same as contains_any()
+        bool containsAny(const UList<point>& points) const
+        {
+            return contains_any(points);
+        }
+
+        //- Same as contains_any()
+        template<class IdxContainer>
+        bool containsAny(const UList<point>& pts, const IdxContainer& ids) const
+        {
+            return contains_any(pts, ids);
+        }
 
         //- Deprecated(2022-10) - use 'operator&=' to avoid confusion with
         //- other intersects() methods.

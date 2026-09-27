@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2017 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -65,11 +66,11 @@ void Foam::boundBox::add
 }
 
 
-template<unsigned N>
+template<class IndexContainer>
 void Foam::boundBox::add
 (
     const UList<point>& points,
-    const FixedList<label, N>& indices
+    const IndexContainer& indices
 )
 {
     const label len = points.size();
@@ -80,60 +81,44 @@ void Foam::boundBox::add
         return;
     }
 
-    for (const label pointi : indices)
+    for (label i : indices)
     {
-        if (pointi >= 0 && pointi < len)
+        // Ignore out-of-bound indices
+        if (i >= 0 && i < len)
         {
-            add(points[pointi]);
+            add(points[i]);
         }
     }
 }
 
 
-template<class IntContainer>
-void Foam::boundBox::add
+template<class IndexContainer>
+inline bool Foam::boundBox::contains_all
 (
     const UList<point>& points,
-    const IntContainer& indices
-)
-{
-    const label len = points.size();
-
-    // Skip if points is empty
-    if (!len)
-    {
-        return;
-    }
-
-    for (const label pointi : indices)
-    {
-        if (pointi >= 0 && pointi < len)
-        {
-            add(points[pointi]);
-        }
-    }
-}
-
-
-template<unsigned N>
-inline bool Foam::boundBox::contains
-(
-    const UList<point>& points,
-    const FixedList<label, N>& indices
+    const IndexContainer& indices
 ) const
 {
     const label len = points.size();
 
-    if (!len)
+    if (!len || indices.empty())
     {
+        // Empty range == true (as per std::all_of).
+        // ie, no test on individual elements can fail
         return true;
     }
-
-    for (const label pointi : indices)
+    else if (!good())
     {
-        if (pointi >= 0 && pointi < len)
+        // Inverted box - no match possible
+        return false;
+    }
+
+    for (label i : indices)
+    {
+        // Treat out-of-bound indices as not part of the set
+        if (i >= 0 && i < len)
         {
-            if (!contains(points[pointi]))
+            if (!contains(points[i]))
             {
                 return false;
             }
@@ -144,98 +129,39 @@ inline bool Foam::boundBox::contains
 }
 
 
-template<class IntContainer>
-inline bool Foam::boundBox::contains
+template<class IndexContainer>
+inline bool Foam::boundBox::contains_any
 (
     const UList<point>& points,
-    const IntContainer& indices
+    const IndexContainer& indices
 ) const
 {
     const label len = points.size();
 
-    if (!len)
+    if (!len || indices.empty())
     {
-        return true;
+        // Trivial case - no match possible
+        return false;
+    }
+    else if (!good())
+    {
+        // Inverted box - no match possible
+        return false;
     }
 
-    for (const label pointi : indices)
+    for (label i : indices)
     {
-        if (pointi >= 0 && pointi < len)
+        // Treat out-of-bound indices as not part of the set
+        if (i >= 0 && i < len)
         {
-            if (!contains(points[pointi]))
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-
-template<unsigned N>
-inline bool Foam::boundBox::containsAny
-(
-    const UList<point>& points,
-    const FixedList<label, N>& indices
-) const
-{
-    const label len = points.size();
-
-    if (!len)
-    {
-        return true;
-    }
-
-    label failed = 0;
-
-    for (const label pointi : indices)
-    {
-        if (pointi >= 0 && pointi < len)
-        {
-            if (contains(points[pointi]))
+            if (contains(points[i]))
             {
                 return true;
             }
-
-            ++failed;
         }
     }
 
-    return !failed;
-}
-
-
-template<class IntContainer>
-inline bool Foam::boundBox::containsAny
-(
-    const UList<point>& points,
-    const IntContainer& indices
-) const
-{
-    const label len = points.size();
-
-    if (!len)
-    {
-        return true;
-    }
-
-    label failed = 0;
-
-    for (const label pointi : indices)
-    {
-        if (pointi >= 0 && pointi < len)
-        {
-            if (contains(points[pointi]))
-            {
-                return true;
-            }
-
-            ++failed;
-        }
-    }
-
-    return !failed;
+    return false;
 }
 
 

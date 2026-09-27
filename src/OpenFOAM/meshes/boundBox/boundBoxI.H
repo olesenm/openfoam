@@ -478,7 +478,7 @@ inline void Foam::boundBox::add(const tmp<pointField>& tpoints)
 }
 
 
-inline void Foam::boundBox::grow(const scalar delta)
+inline void Foam::boundBox::grow(scalar delta)
 {
     min_.x() -= delta; min_.y() -= delta; min_.z() -= delta;
     max_.x() += delta; max_.y() += delta; max_.z() += delta;
@@ -492,9 +492,36 @@ inline void Foam::boundBox::grow(const vector& delta)
 }
 
 
-inline void Foam::boundBox::inflate(const scalar factor)
+inline void Foam::boundBox::inflate(scalar factor)
 {
     grow(factor*mag());
+}
+
+
+inline void Foam::boundBox::inflate_components(scalar epsilon)
+{
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        const scalar middle = (0.5*min_[dir] + 0.5*max_[dir]);
+        const scalar half_span = (1 + epsilon)*(max_[dir] - middle);
+
+        if (half_span < 0)
+        {
+            // Clamp away tiny negative half-spans (rounding noise) to zero.
+            // Ignore non-trivial inverted spans completely.
+
+            if (Foam::mag(half_span) < ROOTVSMALL)
+            {
+                min_[dir] = middle;
+                max_[dir] = middle;
+            }
+        }
+        else
+        {
+            min_[dir] = (middle - half_span);
+            max_[dir] = (middle + half_span);
+        }
+    }
 }
 
 
@@ -625,7 +652,7 @@ inline bool Foam::boundBox::containsInside(const point& pt) const noexcept
 
 inline bool Foam::boundBox::contains(const boundBox& bb) const noexcept
 {
-    return contains(bb.min()) && contains(bb.max());
+    return contains_all(bb.min(), bb.max());
 }
 
 
@@ -639,27 +666,57 @@ inline bool Foam::boundBox::contains
 }
 
 
-inline bool Foam::boundBox::containsAll(const point& p0, const point& p1) const
+inline bool Foam::boundBox::contains_all
+(
+    const point& p0,
+    const point& p1
+) const
 {
     return (contains(p0) && contains(p1));
 }
 
 
-inline bool Foam::boundBox::contains(const linePointRef& ln) const
-{
-    return (contains(ln.start()) && contains(ln.end()));
-}
-
-
-inline bool Foam::boundBox::containsAny(const point& p0, const point& p1) const
+inline bool Foam::boundBox::contains_any
+(
+    const point& p0,
+    const point& p1
+) const
 {
     return (contains(p0) || contains(p1));
 }
 
 
-inline bool Foam::boundBox::containsAny(const linePointRef& ln) const
+inline bool Foam::boundBox::contains_all
+(
+    const point& p0,
+    const point& p1,
+    const point& p2
+) const
 {
-    return (contains(ln.start()) || contains(ln.end()));
+    return (contains(p0) && contains(p1) && contains(p2));
+}
+
+
+inline bool Foam::boundBox::contains_any
+(
+    const point& p0,
+    const point& p1,
+    const point& p2
+) const
+{
+    return (contains(p0) || contains(p1) || contains(p2));
+}
+
+
+inline bool Foam::boundBox::contains_all(const linePointRef& ln) const
+{
+    return contains_all(ln.start(), ln.end());
+}
+
+
+inline bool Foam::boundBox::contains_any(const linePointRef& ln) const
+{
+    return contains_any(ln.start(), ln.end());
 }
 
 
