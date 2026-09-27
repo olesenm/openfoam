@@ -844,6 +844,10 @@ public:
         //- Optional maximum message size (bytes)
         static int maxCommsSize;
 
+        //- Optional list chunking for listCombine etc
+        //- (number of list elements). Control name: mpi.listChunkLength
+        static int listChunkLength_;
+
         //- Tuning parameters for non-blocking exchange (NBX)
         static int tuning_NBX_;
 
@@ -1141,6 +1145,28 @@ public:
 
         //- Report the topology routines settings
         static void printTopoControl(Ostream& os);
+
+
+    // Tuning
+
+        //- Lower threshold on listChunkLength (to avoid thrashing)
+        static constexpr int listChunkLength_min() { return 1000; }
+
+        //- The preferred upper limit on number of elements for list
+        //- operations (eg, listGather). Control name: mpi.listChunkLength
+        static int listChunkLength() noexcept
+        {
+            return listChunkLength_;
+        }
+
+        //- Change the upper limit on number of elements for list
+        //- operations. Returns old value
+        static int listChunkLength(int len) noexcept
+        {
+            int old(listChunkLength_);
+            listChunkLength_ = len;
+            return old;
+        }
 
 
     // Requests (non-blocking comms).

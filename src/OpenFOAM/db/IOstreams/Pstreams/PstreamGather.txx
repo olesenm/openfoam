@@ -442,6 +442,7 @@ void listGather_algorithm
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+// Respects UPstream::listChunkLength()
 template<class T, class BinaryOp, bool InplaceMode>
 void Foam::Pstream::listGather
 (
@@ -483,8 +484,14 @@ void Foam::Pstream::listGather
         // Multiple values - same length on all ranks
         const label listLen = values.size();
 
-        // Chunk length (== listLen if no chunking is required)
-        const label chunkLen = PstreamDetail::listMaxChunkSize(values);
+        // Chunk length. User defined, or MPI max limits.
+        // (will simply be the listLen if no chunking is required)
+        const label chunkLen =
+        (
+            (UPstream::listChunkLength() >= UPstream::listChunkLength_min())
+          ? UPstream::listChunkLength()
+          : PstreamDetail::listMaxChunkSize(values)
+        );
 
         // Communication order
         const auto& commOrder = UPstream::whichCommunication(communicator);

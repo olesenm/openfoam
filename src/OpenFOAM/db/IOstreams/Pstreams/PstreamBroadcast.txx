@@ -79,7 +79,8 @@ label listMaxChunkSize(const UList<T>& values)
 
 // Broadcast (sync) UList content without exceeding MPI <int> buffer limits.
 // Lists are same length on all ranks!
-
+//
+// Respects UPstream::listChunkLength()
 template<class T>
 void UList_chunked_broadcast(UList<T>& values, int communicator)
 {
@@ -97,8 +98,14 @@ void UList_chunked_broadcast(UList<T>& values, int communicator)
     // Multiple values - same length on all ranks
     const label listLen = values.size();
 
-    // Chunk length (== listLen if no chunking is required)
-    const label chunkLen = PstreamDetail::listMaxChunkSize(values);
+    // Chunk length. User defined, or MPI max limits.
+    // (will simply be the listLen if no chunking is required)
+    const label chunkLen =
+    (
+        (UPstream::listChunkLength() >= UPstream::listChunkLength_min())
+      ? UPstream::listChunkLength()
+      : PstreamDetail::listMaxChunkSize(values)
+    );
 
     // Operate on chunks, single pass when no chunking is needed
     for (label start = 0; start < listLen; start += chunkLen)

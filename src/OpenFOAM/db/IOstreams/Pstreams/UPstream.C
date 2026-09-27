@@ -1055,6 +1055,18 @@ const int Foam::UPstream::mpiBufferSize
 );
 
 
+int Foam::UPstream::listChunkLength_
+(
+    Foam::debug::optimisationSwitch("mpi.listChunkLength", 0)
+);
+registerOptSwitch
+(
+    "mpi.listChunkLength",
+    int,
+    Foam::UPstream::listChunkLength_
+);
+
+
 // * * * * * * * * * * * * * * * * Reduction * * * * * * * * * * * * * * * * //
 
 int Foam::UPstream::find_first(bool condition, int communicator)

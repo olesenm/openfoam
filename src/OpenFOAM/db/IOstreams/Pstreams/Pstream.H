@@ -236,6 +236,7 @@ public:
 
         //- Gather (reduce) list elements,
         //- applying \c bop to each list element
+        //  Respects UPstream::listChunkLength()
         //
         //  \tparam InplaceMode indicates that the binary operator
         //      modifies values in-place, not using assignment
@@ -250,6 +251,7 @@ public:
         );
 
         //- Forwards to Pstream::listGather with an \em in-place \c cop
+        //  Respects UPstream::listChunkLength()
         template<class T, class CombineOp>
         static void listCombineGather
         (
@@ -262,6 +264,7 @@ public:
 
         //- Reduce list elements (list must be equal size on all ranks),
         //- applying \c bop to each list element.
+        //  Respects UPstream::listChunkLength()
         //
         //  \tparam InplaceMode indicates that the binary operator
         //      modifies values in-place, not using assignment
@@ -276,6 +279,7 @@ public:
         );
 
         //- Forwards to Pstream::listReduce with an \em in-place \c cop
+        //  Respects UPstream::listChunkLength()
         template<class T, class CombineOp>
         static void listCombineReduce
         (
@@ -285,20 +289,6 @@ public:
             const int tag = UPstream::msgType(),
             const int communicator = UPstream::worldComm
         );
-
-        //- Same as Pstream::listCombineReduce
-        template<class T, class CombineOp>
-        static void listCombineAllGather
-        (
-            //! [in,out] the result is consistent on all ranks
-            UList<T>& values,
-            CombineOp cop,
-            const int tag = UPstream::msgType(),
-            const int communicator = UPstream::worldComm
-        )
-        {
-            Pstream::listCombineReduce(values, cop, tag, communicator);
-        }
 
 
     // Gather/combine variants working on Map/HashTable containers
@@ -616,6 +606,21 @@ public:
         )
         {
             Pstream::broadcast(value, comm);
+        }
+
+        //- \deprecated(2022-08) == listCombineReduce
+        template<class T, class CombineOp>
+        FOAM_DEPRECATED_FOR(2022-08, "Pstream::listCombineReduce()")
+        static void listCombineAllGather
+        (
+            //! [in,out] the result is consistent on all ranks
+            UList<T>& values,
+            CombineOp cop,
+            const int tag = UPstream::msgType(),
+            const int communicator = UPstream::worldComm
+        )
+        {
+            Pstream::listCombineReduce(values, cop, tag, communicator);
         }
 
         //- \deprecated(2024-01) Broadcast data

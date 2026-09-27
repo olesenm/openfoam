@@ -1,7 +1,7 @@
 /*--------------------------------*- C++ -*----------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  v2606                                 |
+|  \\    /   O peration     | Version:  v2612                                 |
 |   \\  /    A nd           | Website:  www.openfoam.com                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
@@ -185,6 +185,12 @@ OptimisationSwitches
     //  >0 : limit exchanges to specified number of bytes
     //  <0 : limit exchanges to INT_MAX minus specified number of bytes
     maxCommsSize    0;
+
+    // Optional max list length (number of elements) to use for
+    // list combine/reduce operations. This limits the amount of memory
+    // overhead by splitting the total list into smaller chunks.
+    // Trade-off of lower memory overhead vs more communication.
+    mpi.listChunkLength 0;
 
     // Optional (experimental) feature in lduMatrixUpdate
     // to poll (processor) interfaces for individual readiness
