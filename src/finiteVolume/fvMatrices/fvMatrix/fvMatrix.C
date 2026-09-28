@@ -538,7 +538,7 @@ void Foam::fvMatrix<Type>::setValuesFromList
                         if (neiMask[facei])
                         {
                             source_[celli] -=
-                                Lower[facei] * cellValues[nei[facei]];
+                                Upper[facei] * cellValues[nei[facei]];
                         }
                     }
 
@@ -553,7 +553,7 @@ void Foam::fvMatrix<Type>::setValuesFromList
                         if (ownMask[facei])
                         {
                             source_[celli] -=
-                                Upper[facei] * cellValues[own[facei]];
+                                Lower[facei] * cellValues[own[facei]];
                         }
                     }
                 }
