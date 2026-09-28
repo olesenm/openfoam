@@ -291,6 +291,7 @@ $(dictionary)/dictionary.C
 $(dictionary)/dictionaryIO.C
 $(dictionary)/dictionarySearch.C
 $(dictionary)/dictionaryCompat.C
+$(dictionary)/dictionaryUtils.cxx
 
 /* Additional helpers */
 $(dictionary)/dictionaryContent/dictionaryContent.C

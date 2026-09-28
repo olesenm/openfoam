@@ -1278,6 +1278,18 @@ public:
         ) const;
 
 
+    // Comparison
+
+        //- Compares dictionaries for equal contents, independent of order
+        static bool equal_contents(const dictionary& a, const dictionary& b);
+
+        //- Compares dictionaries for equal keys, independent of order
+        static bool equal_keys(const dictionary& a, const dictionary& b);
+
+        //- The recursive depth of the dictionary
+        static label depth(const dictionary& dict);
+
+
     // Member Operators
 
         //- Copy assignment
