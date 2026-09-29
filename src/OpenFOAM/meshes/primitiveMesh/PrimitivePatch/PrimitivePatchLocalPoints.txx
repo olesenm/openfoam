@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -24,9 +25,6 @@ License
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
-Description
-     Orders the local points on the patch for most efficient search
-
 \*---------------------------------------------------------------------------*/
 
 #include "boolList.H"
@@ -34,11 +32,13 @@ Description
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
+// Orders the local points on the patch for most efficient search
+
 template<class FaceList, class PointField>
 void
 Foam::PrimitivePatch<FaceList, PointField>::calcLocalPointOrder() const
 {
-    // Note: Cannot use bandCompressing as point-point addressing does
+    // Note: Cannot use bandCompression as point-point addressing does
     // not exist and is not considered generally useful.
 
     DebugInFunction << "Calculating local point order" << endl;
@@ -51,7 +51,7 @@ Foam::PrimitivePatch<FaceList, PointField>::calcLocalPointOrder() const
             << abort(FatalError);
     }
 
-    const List<face_type>& lf = localFaces();
+    const auto& lf = localFaces();
 
     const labelListList& ff = faceFaces();
 
@@ -110,6 +110,140 @@ Foam::PrimitivePatch<FaceList, PointField>::calcLocalPointOrder() const
     }
 
     DebugInfo << "Calculated local point order" << endl;
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<class FaceList, class PointField>
+template<class OutputPointFieldType>
+void Foam::PrimitivePatch<FaceList, PointField>::localPoints
+(
+    Foam::identity_construct_t,
+    OutputPointFieldType& newPoints
+) const
+{
+    static_assert
+    (
+        std::is_same_v
+        <
+            typename OutputPointFieldType::value_type,
+            point_type
+        >,
+        "output list value_type must match the patch point_type"
+    );
+
+    // Copy out all local points, avoid demand-driven localPoints().
+    // They are based on meshPoints() so use that as the least costly solution.
+
+    if (points_.empty() || this->nFaces() == 0)
+    {
+        newPoints.clear();
+        return;
+    }
+
+    // The local to global mapping
+    const auto& meshPts = meshPoints();
+
+    if (label nLocalPoints = meshPts.size(); nLocalPoints > 0)
+    {
+        newPoints.resize_nocopy(nLocalPoints);
+    }
+    else
+    {
+        newPoints.clear();
+        return;
+    }
+
+    auto iter = newPoints.begin();
+
+    if (hasLocalPoints())
+    {
+        const auto& locPoints = this->localPoints();
+
+        std::copy(locPoints.begin(), locPoints.end(), iter);
+    }
+    else
+    {
+        // Copy out all of the local points
+        for (label globalPointi : meshPts)
+        {
+            *iter = points_[globalPointi];
+            ++iter;
+        }
+    }
+}
+
+
+template<class FaceList, class PointField>
+template<class OutputPointFieldType>
+void Foam::PrimitivePatch<FaceList, PointField>::localPoints
+(
+    const labelUList& pointMap,
+    OutputPointFieldType& newPoints
+) const
+{
+    static_assert
+    (
+        std::is_same_v
+        <
+            typename OutputPointFieldType::value_type,
+            point_type
+        >,
+        "output list value_type must match the patch point_type"
+    );
+
+    // Copy out a sub-sample of local points, avoid demand-driven localPoints().
+    // They are based on meshPoints() so use that as the least costly solution.
+
+    if (pointMap.empty())
+    {
+        newPoints.clear();
+        return;
+    }
+
+    newPoints.resize_nocopy(pointMap.size());
+
+    auto iter = newPoints.begin();
+
+    if (hasLocalPoints())
+    {
+        const auto& locPoints = this->localPoints();
+
+        // Subset the local points by the pointMap
+        for (label localPointi : pointMap)
+        {
+            *iter = locPoints[localPointi];
+            ++iter;
+        }
+    }
+    else
+    {
+        // The local to global mapping
+        const auto& meshPts = meshPoints();
+
+        // Subset the local points by the pointMap
+        for (label localPointi : pointMap)
+        {
+            *iter = points_[meshPts[localPointi]];
+            ++iter;
+        }
+    }
+}
+
+
+template<class FaceList, class PointField>
+Foam::Field<typename Foam::PrimitivePatch<FaceList, PointField>::point_type>
+Foam::PrimitivePatch<FaceList, PointField>::localPoints
+(
+    const labelUList& pointMap
+) const
+{
+    Field<point_type> newPoints;
+
+    this->localPoints(pointMap, newPoints);
+
+    return newPoints;
 }
 
 

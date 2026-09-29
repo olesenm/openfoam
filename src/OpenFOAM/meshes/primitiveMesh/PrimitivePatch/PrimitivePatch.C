@@ -446,7 +446,7 @@ Foam::PrimitivePatch<FaceList, PointField>::operator=
 #include "PrimitivePatchClear.C"
 #include "PrimitivePatchBdryFaces.C"
 #include "PrimitivePatchBdryPoints.C"
-#include "PrimitivePatchLocalPointOrder.C"
+#include "PrimitivePatchLocalPoints.txx"
 #include "PrimitivePatchMeshData.C"
 #include "PrimitivePatchMeshEdges.C"
 #include "PrimitivePatchPointAddressing.C"

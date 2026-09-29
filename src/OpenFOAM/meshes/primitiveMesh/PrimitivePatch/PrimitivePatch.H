@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,7 +44,7 @@ SourceFiles
     PrimitivePatchCheck.C
     PrimitivePatchClear.C
     PrimitivePatchEdgeLoops.C
-    PrimitivePatchLocalPointOrder.C
+    PrimitivePatchLocalPoints.txx
     PrimitivePatchMeshData.C
     PrimitivePatchMeshEdges.C
     PrimitivePatchPointAddressing.C
@@ -487,6 +488,43 @@ public:
             scalar sphere(const label facei) const;
 
 
+        // Sub-patch handling
+
+            //- Return a subset of localPoints from the patch.
+            //
+            //  \param[in] pointMap mapping new to old localPoints.
+            //      This corresponds to which points to sample.
+            Field<point_type> localPoints(const labelUList& pointMap) const;
+
+            //- Copy a subset of localPoints from the patch.
+            //
+            //  \tparam OutputPointFieldType the output container.
+            //       Eg, DynamicList<point_type>
+            //
+            //  \param[in] pointMap mapping new to old localPoints.
+            //      This corresponds to which points to sample.
+            template<class OutputPointFieldType>
+            void localPoints
+            (
+                const labelUList& pointMap,
+                //! [out] subsetted points as List/DynamicList,.. point_type
+                OutputPointFieldType& newPoints
+            ) const;
+
+            //- Copy out all localPoints from the patch.
+            //
+            //  \tparam OutputPointFieldType the output container.
+            //       Eg, DynamicList<point_type>
+            template<class OutputPointFieldType>
+            void localPoints
+            (
+                //! dispatch tag
+                Foam::identity_construct_t,
+                //! [out] the copied points as List/DynamicList,.. point_type
+                OutputPointFieldType& newPoints
+            ) const;
+
+
         // Storage Management
 
             bool hasFaceAreas() const { return bool(faceAreasPtr_); }
@@ -509,6 +547,9 @@ public:
 
             bool hasMeshPoints() const { return bool(meshPointsPtr_); }
             bool hasMeshPointMap() const { return bool(meshPointMapPtr_); }
+
+            bool hasLocalFaces() const { return bool(localFacesPtr_); }
+            bool hasLocalPoints() const { return bool(localPointsPtr_); }
 
 
         // Other patch operations
