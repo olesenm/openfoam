@@ -143,6 +143,17 @@ template<> struct UPstream_user_dataType<void> : std::false_type
     static constexpr auto datatype_id = UPstream::dataTypes::invalid;
 };
 
+//- UPstream data type for a fundamental (MPI) location tuple,
+//- based on the first tuple element (second is always \c int).
+//- Limited to a very few pre-defined types!
+template<class T>
+struct UPstream_location_dataType : std::false_type
+{
+    //- The basic (C) type for the tuple first element
+    using type = T;
+    static constexpr auto datatype_id = UPstream::dataTypes::invalid;
+};
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -211,6 +222,25 @@ defineUPstreamDataTraits(type_9double, Tensor<double>);
 
 #undef defineUPstreamDataTraits
 
+// ------------------------------------------------------------------------- //
+
+#undef  defineUPstreamDataTraits
+#define defineUPstreamDataTraits(TypeId, Type, BasicType)                     \
+                                                                              \
+    /*! \brief Map tuple \c (Type, int) to UPstream::dataTypes::TypeId */     \
+    template<> struct UPstream_location_dataType<Type> : std::true_type       \
+    {                                                                         \
+        using type = BasicType;                                               \
+        static constexpr auto datatype_id = UPstream::dataTypes::TypeId;      \
+    };
+
+// Location tuple Types [4]:
+defineUPstreamDataTraits(type_int_int,  int32_t, int);
+defineUPstreamDataTraits(type_long_int, int64_t, long);
+defineUPstreamDataTraits(type_float_int, float, float);
+defineUPstreamDataTraits(type_double_int, double, double);
+
+#undef defineUPstreamDataTraits
 
 // ------------------------------------------------------------------------- //
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2015 OpenFOAM Foundation
     Copyright (C) 2023-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -106,6 +107,12 @@ void Foam::PstreamGlobals::initDataTypes()
     defineType(type_float,  MPI_FLOAT);
     defineType(type_double, MPI_DOUBLE);
     defineType(type_long_double, MPI_LONG_DOUBLE);
+
+    // Tuple Types [4]:
+    defineType(type_int_int,    MPI_2INT);
+    defineType(type_long_int,   MPI_LONG_INT);
+    defineType(type_float_int,  MPI_FLOAT_INT);
+    defineType(type_double_int, MPI_DOUBLE_INT);
 
     #undef defineType
 
@@ -290,8 +297,9 @@ void Foam::PstreamGlobals::initOpCodes()
     defineCode(op_bit_or,   MPI_BOR);
     defineCode(op_bit_xor,  MPI_BXOR);
 
-    // Do not include MPI_MINLOC, MPI_MAXLOC since they are tied to
-    // float_int, double_int and larger or other types
+    // Tuple only operations
+    defineCode(op_minloc,   MPI_MINLOC);
+    defineCode(op_maxloc,   MPI_MAXLOC);
 
     // window-only
     defineCode(op_replace, MPI_REPLACE);

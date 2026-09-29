@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2015 OpenFOAM Foundation
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -64,21 +65,21 @@ extern DynamicList<MPI_Comm> MPICommunicators_;
 extern DynamicList<MPI_Request> outstandingRequests_;
 
 // The fundamental count for each UPstream::dataTypes entry
-typedef Foam::FixedList<int, 17> DataTypeCountLookupTable;
+typedef Foam::FixedList<int, 21> DataTypeCountLookupTable;
 
 //- Fundamental count for each valid UPstream::dataTypes entry
 //- Indexed by UPstream::dataTypes enum
 extern DataTypeCountLookupTable dataTypesCount_;
 
 // For UPstream::dataTypes lookup, includes space for last 'invalid' entry
-typedef Foam::FixedList<MPI_Datatype, 17> DataTypeLookupTable;
+typedef Foam::FixedList<MPI_Datatype, 21> DataTypeLookupTable;
 
 //- MPI data types corresponding to fundamental and OpenFOAM types.
 //- Indexed by UPstream::dataTypes enum
 extern DataTypeLookupTable MPIdataTypes_;
 
 // For UPstream::opCodes lookup, includes space for last 'invalid' entry
-typedef Foam::FixedList<MPI_Op, 13> OpCodesLookupTable;
+typedef Foam::FixedList<MPI_Op, 15> OpCodesLookupTable;
 
 //- MPI operation types, indexed by UPstream::opCodes enum
 extern OpCodesLookupTable MPIopCodes_;

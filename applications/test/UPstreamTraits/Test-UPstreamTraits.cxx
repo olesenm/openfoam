@@ -91,6 +91,11 @@ static const Foam::List<std::string> dataType_names
     "double",
     "long_double",
 
+    "int_int",
+    "long_int",
+    "float_int",
+    "double_int",
+
     "float[3]",
     "double[3]",
     "float[6]",
@@ -112,6 +117,8 @@ static const Foam::List<std::string> opType_names
     "op_bit_and",
     "op_bit_or",
     "op_bit_xor",
+    "op_minloc",
+    "op_maxloc",
     "op_replace",
     "op_no_op"
 });

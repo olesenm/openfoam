@@ -100,7 +100,7 @@ public:
         // NOTE: changes here require adjustment in
         // PstreamGlobals, UPstreamTraits
 
-        // Fundamental Types [10]:
+        // Fundamental Types [10 + 4]:
         Basic_begin,    //!< (internal use) begin marker [basic/all types]
         type_byte = Basic_begin,  //!< byte, char, unsigned char, ...
         type_int16,
@@ -112,6 +112,12 @@ public:
         type_float,
         type_double,
         type_long_double,
+
+        // MPI tuple types [4]
+        type_int_int,       //!< tuple (int int)
+        type_long_int,      //!< tuple (long int)
+        type_float_int,     //!< tuple (float int)
+        type_double_int,    //!< tuple (double int)
 
         //! (internal use) end marker [basic types]
         Basic_end, User_begin = Basic_end,
@@ -141,7 +147,7 @@ public:
 
         Basic_begin,  //!< (internal use) begin marker [reduce/window types]
 
-        // Reduce or window operations [10]
+        // Reduce or window operations [10 + 2]
         op_min = Basic_begin, //!< min(x,y)
         op_max,         //!< max(x,y)
         op_sum,         //!< (x + y)
@@ -152,6 +158,10 @@ public:
         op_bit_and,     //!< Bit-wise \c and for (unsigned) integral types
         op_bit_or,      //!< Bit-wise \c or for (unsigned) integral types
         op_bit_xor,     //!< Bit-wise \c xor for (unsigned) integral types
+
+        // Tuple operations
+        op_minloc,      //!< min-location on tuple types
+        op_maxloc,      //!< max-location on tuple types
 
         //! (internal use) end marker [reduce types]
         Basic_end, Extra_begin = Basic_end,

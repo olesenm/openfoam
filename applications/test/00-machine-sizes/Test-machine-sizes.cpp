@@ -63,6 +63,13 @@ enum class dataTypes : int
     type_float,
     type_double,
     type_long_double,
+
+    // Tuple Types [4]:
+    type_int_int,
+    type_long_int,
+    type_float_int,
+    type_double_int,
+
     invalid,
     Basic_end = invalid
 };
