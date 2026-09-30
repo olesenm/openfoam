@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
-    Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2015-2022,2026 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1840,6 +1840,7 @@ Foam::label Foam::meshRefinement::markSurfaceFieldRefinement
     const label nAllowRefine,
     const labelList& neiLevel,
     const pointField& neiCc,
+    const bool curvatureLevelAllSurfaces,
 
     labelList& refineCell,
     label& nRefine
@@ -1847,6 +1848,14 @@ Foam::label Foam::meshRefinement::markSurfaceFieldRefinement
 {
     const labelList& cellLevel = meshCutter_.cellLevel();
     const labelList& surfaceIndices = surfaces_.surfaces();
+
+    // Surfaces without a curvatureLevel specification still carry a cached
+    // field, but it only holds the surface- and shell-based levels which are
+    // handled by the regular surface and shell refinement.
+    //
+    // By default skip those surfaces. Set curvatureLevelAllSurfaces true to
+    // restore the older behaviour of visiting every surface.
+    const labelList maxCurvLevel(surfaces_.maxCurvatureLevel());
 
     label oldNRefine = nRefine;
 
@@ -1858,6 +1867,11 @@ Foam::label Foam::meshRefinement::markSurfaceFieldRefinement
 
     forAll(surfaceIndices, surfI)
     {
+        if (!curvatureLevelAllSurfaces && maxCurvLevel[surfI] <= 0)
+        {
+            continue;
+        }
+
         label geomI = surfaceIndices[surfI];
         const searchableSurface& geom = surfaces_.geometry()[geomI];
 

@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2014 OpenFOAM Foundation
-    Copyright (C) 2015-2020,2023 OpenCFD Ltd.
+    Copyright (C) 2015-2020,2023,2026 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -120,6 +120,10 @@ class refinementParameters
         const Switch handleSnapProblems_;
 
         const Switch interfaceRefine_;
+
+        //- Apply curvatureLevel field refinement to all surfaces, not only
+        //  those with an explicit curvatureLevel. Default is false.
+        const Switch curvatureLevelAllSurfaces_;
 
         const label nErodeCellZone_;
 
@@ -261,6 +265,14 @@ public:
             bool interfaceRefine() const
             {
                 return interfaceRefine_;
+            }
+
+            //- Apply curvatureLevel field refinement to all surfaces
+            //  (legacy behaviour). Default false: only surfaces with an
+            //  explicit curvatureLevel are processed.
+            bool curvatureLevelAllSurfaces() const
+            {
+                return curvatureLevelAllSurfaces_;
             }
 
             //- Number of iterations of erosion to get a consistent cellZone

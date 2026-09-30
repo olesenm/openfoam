@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
-    Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2015-2023,2026 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -2248,7 +2248,8 @@ Foam::labelList Foam::meshRefinement::refineCandidates
     const bool bigGapRefinement,
     const bool spreadGapSize,
     const label maxGlobalCells,
-    const label maxLocalCells
+    const label maxLocalCells,
+    const bool curvatureLevelAllSurfaces
 ) const
 {
     label totNCells = mesh_.globalData().nTotalCells();
@@ -2453,6 +2454,7 @@ Foam::labelList Foam::meshRefinement::refineCandidates
                     nAllowRefine,
                     neiLevel,
                     neiCc,
+                    curvatureLevelAllSurfaces,
 
                     refineCell,
                     nRefine

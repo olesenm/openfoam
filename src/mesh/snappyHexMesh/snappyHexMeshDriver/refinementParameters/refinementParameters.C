@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
-    Copyright (C) 2015-2020,2023 OpenCFD Ltd.
+    Copyright (C) 2015-2020,2023,2026 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -93,6 +93,10 @@ Foam::refinementParameters::refinementParameters
     interfaceRefine_
     (
         dict.getOrDefault<Switch>("interfaceRefine", true)
+    ),
+    curvatureLevelAllSurfaces_
+    (
+        dict.getOrDefault<Switch>("curvatureLevelAllSurfaces", false)
     ),
     nErodeCellZone_(dict.getOrDefault<label>("nCellZoneErodeIter", 0)),
     nFilterIter_(dict.getOrDefault<label>("nFilterIter", 2)),

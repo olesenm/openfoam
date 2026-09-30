@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
-    Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2015-2026 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
@@ -275,7 +275,8 @@ Foam::label Foam::snappyRefineDriver::smallFeatureRefine
                 false,              // bigGapRefinement
                 false,              // spreadGapSize
                 refineParams.maxGlobalCells(),
-                refineParams.maxLocalCells()
+                refineParams.maxLocalCells(),
+                refineParams.curvatureLevelAllSurfaces()
             )
         );
 

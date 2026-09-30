@@ -6,7 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
-    Copyright (C) 2015-2024 OpenCFD Ltd.
+    Copyright (C) 2015-2024,2026 OpenCFD Ltd.
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -490,12 +490,15 @@ private:
 
             //- Refine cells containing triangles with high refinement level
             //  (currently due to high curvature or being inside shell with
-            //   high level)
+            //   high level). By default only surfaces with an explicit
+            //  curvatureLevel are visited; set curvatureLevelAllSurfaces
+            //  to restore the older all-surfaces behaviour.
             label markSurfaceFieldRefinement
             (
                 const label nAllowRefine,
                 const labelList& neiLevel,
                 const pointField& neiCc,
+                const bool curvatureLevelAllSurfaces,
 
                 labelList& refineCell,
                 label& nRefine
@@ -1233,7 +1236,8 @@ public:
                 const bool bigGapRefinement,
                 const bool spreadGapSize,
                 const label maxGlobalCells,
-                const label maxLocalCells
+                const label maxLocalCells,
+                const bool curvatureLevelAllSurfaces = false
             ) const;
 
 
