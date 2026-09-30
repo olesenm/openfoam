@@ -336,11 +336,66 @@ tmp<areaScalarField> liquidFilmBase::pg() const
 
     if (!pName_.empty())
     {
+        const auto& p = primaryMesh().lookupObject<volScalarField>(pName_);
+
+        scalar pScale = 1;
+
+        if (p.dimensions() == dimPressure/dimDensity)
+        {
+            if (!primaryMesh().foundObject<dictionary>("transportProperties"))
+            {
+                FatalErrorInFunction
+                    << "Cannot convert kinematic pressure field " << p.name()
+                    << " to pressure: no transportProperties dictionary found"
+                    << " on the primary region"
+                    << exit(FatalError);
+            }
+
+            const auto& transportProperties =
+                primaryMesh().lookupObject<dictionary>("transportProperties");
+
+            if (!transportProperties.found("rhoInf"))
+            {
+                FatalErrorInFunction
+                    << "Cannot convert kinematic pressure field " << p.name()
+                    << " to pressure: transportProperties is missing rhoInf"
+                    << exit(FatalError);
+            }
+
+            const dimensionedScalar rhoInf
+            (
+                "rhoInf",
+                dimDensity,
+                transportProperties
+            );
+
+            if (!(rhoInf.value() > 0) || !std::isfinite(rhoInf.value()))
+            {
+                FatalErrorInFunction
+                    << "Invalid rhoInf " << rhoInf
+                    << " for kinematic pressure field " << p.name()
+                    << exit(FatalError);
+            }
+
+            pScale = rhoInf.value();
+        }
+        else if (p.dimensions() != dimPressure)
+        {
+            FatalErrorInFunction
+                << "Pressure field " << p.name() << " has dimensions "
+                << p.dimensions() << "; expected " << dimPressure
+                << " or " << dimPressure/dimDensity
+                << " (kinematic pressure)"
+                << exit(FatalError);
+        }
+
         vsmPtr_->mapInternalToSurface
         (
-            primaryMesh().lookupObject<volScalarField>(pName_),
+            p,
             pfg.primitiveFieldRef()
         );
+
+        pfg.primitiveFieldRef() *= pScale;
     }
 
     return tpg;
