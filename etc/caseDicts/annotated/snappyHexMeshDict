@@ -275,6 +275,11 @@ castellatedMeshControls
             //    these can be done with feature edge snapping (so can leave
             //    level (0 0))
             //curvatureLevel (10 0 10 -1);
+            //
+            // Note: this field refinement is applied only to surfaces that
+            // specify curvatureLevel. To restore the older behaviour of
+            // visiting all surfaces whenever any one specifies it, set
+            // castellatedMeshControls.curvatureLevelAllSurfaces to true.
 
             // Optional disabling of buffer layer addition (if switched on by
             // type = castellatedBufferLayer)
@@ -522,6 +527,11 @@ castellatedMeshControls
     // Optional: do not refine surface cells with opposite faces of
     //           differing refinement levels
     //interfaceRefine false;
+
+    // Optional: apply curvatureLevel field refinement to all surfaces,
+    //           not only those with an explicit curvatureLevel. Default is
+    //           false. Set true to restore the older (slower) behaviour.
+    //curvatureLevelAllSurfaces true;
 
     // Optional: use an erosion instead of region assignment to allocate
     //           left-over cells to the background region (i.e. make cellZones
