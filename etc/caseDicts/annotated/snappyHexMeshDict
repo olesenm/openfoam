@@ -44,6 +44,10 @@ addLayers       false;
 //          zero-sized patches.
 // keepPatches true;
 
+// Optional: recalculate surface intersections before layer addition. Otherwise
+//           they depend on whether snapping ran in the same invocation.
+// recomputeIntersectionsBeforeLayers true;   // default false
+
 
 // Geometry. All surfaces are of class searchableSurface.
 // Surfaces are used

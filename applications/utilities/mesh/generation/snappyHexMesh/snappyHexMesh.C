@@ -1906,6 +1906,15 @@ int main(int argc, char *argv[])
             snapParams
         );
 
+        // Make cached intersections consistent with snapped mesh - can cause small differences
+        // Optional since expensive.
+        if (wantLayers && meshDict.getOrDefault("recomputeIntersectionsBeforeLayers", false))
+        {
+            meshRefiner.updateIntersections(identity(mesh.nFaces()));
+            Info<< "Recalculated surface intersections in = "
+                << mesh.time().cpuTimeIncrement() << " s" << nl << endl;
+        }
+
         // Remove zero sized patches originating from faceZones
         if (!keepPatches && !wantLayers)
         {
