@@ -78,11 +78,11 @@ Foam::labelList randomMap
 
         for (label& val : distribution)
         {
-            cached = rndGen.position(0, upper);
+            cached = rndGen.position(label(0), upper);
 
             if (!repeat)
             {
-                cached = rndGen.position<label>(0, upper);
+                cached = rndGen.position<label>(label(0), upper);
                 repeat = agglomerate;
             }
             --repeat;
@@ -94,7 +94,7 @@ Foam::labelList randomMap
     {
         for (label& val : distribution)
         {
-            val = rndGen.position<label>(0, upper);
+            val = rndGen.position<label>(label(0), upper);
         }
     }
 
