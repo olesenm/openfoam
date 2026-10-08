@@ -66,6 +66,14 @@ Foam::refinementParameters::refinementParameters
     (
         meshRefinement::get<label>(dict, "nCellsBetweenLevels", dryRun)
     ),
+    maxRefinementIslandCount_
+    (
+        dict.getOrDefault<label>("maxRefinementIslandCount", 0)
+    ),
+    maxRefinementIslandIter_
+    (
+        dict.getOrDefault<label>("maxRefinementIslandIter", 10)
+    ),
     locationsOutsideMesh_
     (
         dict.getOrDefault
@@ -145,6 +153,23 @@ Foam::refinementParameters::refinementParameters
         IOWarningInFunction(dict)
             << "No 'locationInMesh' or 'locationsInMesh' provided"
             << endl;
+    }
+
+
+    if (maxRefinementIslandCount_ < 0)
+    {
+        FatalIOErrorInFunction(dict)
+            << "maxRefinementIslandCount " << maxRefinementIslandCount_
+            << " must be >= 0 (0 to disable)"
+            << exit(FatalIOError);
+    }
+
+    if (maxRefinementIslandIter_ < 0)
+    {
+        FatalIOErrorInFunction(dict)
+            << "maxRefinementIslandIter " << maxRefinementIslandIter_
+            << " must be >= 0"
+            << exit(FatalIOError);
     }
 
 
