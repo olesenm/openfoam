@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017, 2020 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1330,8 +1331,30 @@ void Foam::polyMesh::movePoints(const pointField& newPoints)
 void Foam::polyMesh::resetMotion() const
 {
     curMotionTimeIndex_ = 0;
-    oldPointsPtr_.reset(nullptr);
+    clearOldPoints();
     oldCellCentresPtr_.reset(nullptr);
+}
+
+
+void Foam::polyMesh::clearOldPoints() const
+{
+    oldPointsPtr_.reset(nullptr);
+}
+
+
+void Foam::polyMesh::setOldPoints(const pointField& newOldPoints)
+{
+    oldPointsPtr_.reset(new pointField(newOldPoints));
+
+    // Prevent calling 'movePoints()' to overwrite motion history
+    curMotionTimeIndex_ = time().timeIndex();
+}
+
+
+void Foam::polyMesh::setOldPoints(pointField&& newOldPoints)
+{
+    oldPointsPtr_.reset(new pointField(std::move(newOldPoints)));
+    curMotionTimeIndex_ = time().timeIndex();
 }
 
 
