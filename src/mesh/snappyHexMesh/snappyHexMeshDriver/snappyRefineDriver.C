@@ -1166,6 +1166,432 @@ Foam::label Foam::snappyRefineDriver::danglingCellRefine
 }
 
 
+// Detect small pockets ('islands') of surface cells that are at a coarser
+// refinement level than every surface cell around them and refine them one
+// level. Only cells with a surface intersection take part so that the coarse
+// background underneath the surface shell is never seen as an island, and of
+// those only the ones on the locationInMesh side of the surface so that the
+// yet-to-be-deleted cells inside the geometry do not inflate the island size.
+Foam::label Foam::snappyRefineDriver::islandCellRefine
+(
+    const refinementParameters& refineParams,
+    const label maxIter
+)
+{
+    const label maxIslandCount = refineParams.maxRefinementIslandCount();
+
+    if (maxIslandCount == 0)
+    {
+        return 0;
+    }
+
+    if (refineParams.minRefineCells() == -1)
+    {
+        // Special setting to be able to restart shm on meshes with inconsistent
+        // cellLevel/pointLevel
+        return 0;
+    }
+
+    if (dryRun_)
+    {
+        return 0;
+    }
+
+    addProfiling(island, "snappyHexMesh::refine::island");
+    const fvMesh& mesh = meshRefiner_.mesh();
+    const labelList& faceOwner = mesh.faceOwner();
+    const labelList& faceNeighbour = mesh.faceNeighbour();
+
+    label iter;
+    for (iter = 0; iter < maxIter; iter++)
+    {
+        Info<< nl
+            << "Refinement island refinement iteration " << iter << nl
+            << "-----------------------------------------" << nl
+            << endl;
+
+        const labelList& surfaceIndex = meshRefiner_.surfaceIndex();
+        const labelList& cellLevel = meshRefiner_.meshCutter().cellLevel();
+
+        // The cells inside the geometry are only deleted later on (in
+        // baffleAndSplitMesh) so restrict ourselves to the side of the surface
+        // that is kept. Without this the shell of cells below wraps both sides
+        // of the surface and an island counts about double.
+        labelHashSet keepRegions;
+        labelList keepRegion;
+        if (refineParams.locationsInMesh().size())
+        {
+            boolList isIntersectedFace(mesh.nFaces(), false);
+            forAll(surfaceIndex, facei)
+            {
+                isIntersectedFace[facei] = (surfaceIndex[facei] != -1);
+            }
+
+            // Same reachability test as the later baffle stage, without
+            // actually introducing the baffles
+            {
+                const regionSplit surfaceSplit(mesh, isIntersectedFace);
+                keepRegion = surfaceSplit;
+            }
+
+            const labelList insideCells
+            (
+                refinementParameters::findCells
+                (
+                    true,
+                    mesh,
+                    refineParams.locationsInMesh()
+                )
+            );
+
+            forAll(insideCells, i)
+            {
+                label regioni = -1;
+                if (insideCells[i] != -1)
+                {
+                    regioni = keepRegion[insideCells[i]];
+                }
+                reduce(regioni, maxOp<label>());
+                keepRegions.insert(regioni);
+            }
+        }
+
+        // Cells that see the surface
+        labelList isSurfaceCell(mesh.nCells(), 0);
+        forAll(surfaceIndex, facei)
+        {
+            if (surfaceIndex[facei] != -1)
+            {
+                const label own = faceOwner[facei];
+
+                if (keepRegion.empty() || keepRegions.found(keepRegion[own]))
+                {
+                    isSurfaceCell[own] = 1;
+                }
+
+                if (mesh.isInternalFace(facei))
+                {
+                    const label nei = faceNeighbour[facei];
+
+                    if
+                    (
+                        keepRegion.empty()
+                     || keepRegions.found(keepRegion[nei])
+                    )
+                    {
+                        isSurfaceCell[nei] = 1;
+                    }
+                }
+            }
+        }
+
+        labelList neiLevel;
+        syncTools::swapBoundaryCellList(mesh, cellLevel, neiLevel);
+
+        labelList neiIsSurfaceCell;
+        syncTools::swapBoundaryCellList(mesh, isSurfaceCell, neiIsSurfaceCell);
+
+
+        // Split into connected regions of equal-level surface cells
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // Block the faces between the surface shell and the interior so the
+        // interior cannot connect two separate islands. The interior itself is
+        // left connected so it collapses into a handful of regions.
+        boolList isBlockedFace(mesh.nFaces(), false);
+        meshRefiner_.selectSeparatedCoupledFaces(isBlockedFace);
+
+        for (label facei = 0; facei < mesh.nInternalFaces(); facei++)
+        {
+            const label own = faceOwner[facei];
+            const label nei = faceNeighbour[facei];
+
+            if (isSurfaceCell[own] != isSurfaceCell[nei])
+            {
+                isBlockedFace[facei] = true;
+            }
+            else if (isSurfaceCell[own] && cellLevel[own] != cellLevel[nei])
+            {
+                isBlockedFace[facei] = true;
+            }
+        }
+
+        for (const polyPatch& pp : mesh.boundaryMesh())
+        {
+            if (pp.coupled())
+            {
+                forAll(pp, i)
+                {
+                    const label facei = pp.start()+i;
+                    const label bFacei = facei-mesh.nInternalFaces();
+                    const label own = faceOwner[facei];
+
+                    if (isSurfaceCell[own] != neiIsSurfaceCell[bFacei])
+                    {
+                        isBlockedFace[facei] = true;
+                    }
+                    else if
+                    (
+                        isSurfaceCell[own]
+                     && cellLevel[own] != neiLevel[bFacei]
+                    )
+                    {
+                        isBlockedFace[facei] = true;
+                    }
+                }
+            }
+        }
+
+        const regionSplit cellRegion(mesh, isBlockedFace);
+
+        // Per region the number of cells, the (uniform) refinement level with
+        // -1 for the interior regions, and the coarsest level of any surface
+        // cell bordering it
+        labelList nCellsPerRegion(cellRegion.nRegions(), 0);
+        labelList regionLevel(cellRegion.nRegions(), -1);
+        labelList regionNbrLevel(cellRegion.nRegions(), labelMax);
+
+        forAll(cellRegion, celli)
+        {
+            const label regioni = cellRegion[celli];
+
+            nCellsPerRegion[regioni]++;
+
+            if (isSurfaceCell[celli])
+            {
+                regionLevel[regioni] = cellLevel[celli];
+            }
+        }
+
+        // Only blocked faces can have their two cells in different regions
+        for (label facei = 0; facei < mesh.nInternalFaces(); facei++)
+        {
+            const label own = faceOwner[facei];
+            const label nei = faceNeighbour[facei];
+
+            if
+            (
+                isBlockedFace[facei]
+             && isSurfaceCell[own]
+             && isSurfaceCell[nei]
+            )
+            {
+                regionNbrLevel[cellRegion[own]] =
+                    min(regionNbrLevel[cellRegion[own]], cellLevel[nei]);
+                regionNbrLevel[cellRegion[nei]] =
+                    min(regionNbrLevel[cellRegion[nei]], cellLevel[own]);
+            }
+        }
+
+        for (const polyPatch& pp : mesh.boundaryMesh())
+        {
+            if (pp.coupled())
+            {
+                forAll(pp, i)
+                {
+                    const label facei = pp.start()+i;
+                    const label bFacei = facei-mesh.nInternalFaces();
+                    const label own = faceOwner[facei];
+
+                    if
+                    (
+                        isBlockedFace[facei]
+                     && isSurfaceCell[own]
+                     && neiIsSurfaceCell[bFacei]
+                    )
+                    {
+                        regionNbrLevel[cellRegion[own]] =
+                            min
+                            (
+                                regionNbrLevel[cellRegion[own]],
+                                neiLevel[bFacei]
+                            );
+                    }
+                }
+            }
+        }
+
+        Pstream::listReduce(nCellsPerRegion, sumOp<label>());
+        Pstream::listReduce(regionLevel, maxOp<label>());
+        Pstream::listReduce(regionNbrLevel, minOp<label>());
+
+
+        // Determine cells to refine
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // Note that all processors have the same information so take the same
+        // decision.
+        label nIslands = 0;
+        DynamicList<label> tooLargeSizes;
+        bitSet isIslandRegion(cellRegion.nRegions());
+        forAll(regionLevel, regioni)
+        {
+            if
+            (
+                regionLevel[regioni] != -1
+             && regionNbrLevel[regioni] != labelMax
+             && regionNbrLevel[regioni] > regionLevel[regioni]
+            )
+            {
+                if (nCellsPerRegion[regioni] <= maxIslandCount)
+                {
+                    isIslandRegion.set(regioni);
+                    ++nIslands;
+                }
+                else
+                {
+                    tooLargeSizes.append(nCellsPerRegion[regioni]);
+                }
+            }
+        }
+
+        labelList candidateCells;
+        {
+            cellSet candidateCellSet
+            (
+                mesh,
+                "candidateCells",
+                mesh.nCells()/1000
+            );
+
+            forAll(cellRegion, celli)
+            {
+                if (isIslandRegion[cellRegion[celli]])
+                {
+                    candidateCellSet.insert(celli);
+                }
+            }
+
+            if (debug&meshRefinement::MESH)
+            {
+                Pout<< "Dumping " << candidateCellSet.size()
+                    << " cells to cellSet candidateCellSet." << endl;
+                candidateCellSet.instance() = meshRefiner_.timeName();
+                candidateCellSet.write();
+            }
+            candidateCells = candidateCellSet.toc();
+        }
+
+        // Islands sit next to finer cells so refining them is normally safe,
+        // but an explicit limitRegion still wins
+        if (meshRefiner_.limitShells().shells().size())
+        {
+            const pointField& cellCentres = mesh.cellCentres();
+
+            pointField testCc(candidateCells.size());
+            labelList testLevels(candidateCells.size());
+            forAll(candidateCells, i)
+            {
+                testCc[i] = cellCentres[candidateCells[i]];
+                testLevels[i] = cellLevel[candidateCells[i]];
+            }
+
+            labelList levelShell;
+            meshRefiner_.limitShells().findLevel
+            (
+                testCc,
+                testLevels,
+                levelShell
+            );
+
+            label nAllowed = 0;
+            forAll(candidateCells, i)
+            {
+                if (levelShell[i] == -1)
+                {
+                    candidateCells[nAllowed++] = candidateCells[i];
+                }
+            }
+            candidateCells.resize(nAllowed);
+        }
+
+        Info<< "Detected " << nIslands << " refinement islands of at most "
+            << maxIslandCount << " cells" << endl;
+
+        if (tooLargeSizes.size())
+        {
+            // Only reason these were not refined is maxRefinementIslandCount,
+            // so their sizes are the settings that would pick them up
+            Foam::sort(tooLargeSizes);
+
+            Info<< "Skipped " << tooLargeSizes.size()
+                << " pockets above the island count, of size";
+
+            const label nPrint = min(tooLargeSizes.size(), label(20));
+            for (label i = 0; i < nPrint; i++)
+            {
+                Info<< ' ' << tooLargeSizes[i];
+            }
+            if (nPrint < tooLargeSizes.size())
+            {
+                Info<< " ... " << tooLargeSizes.back();
+            }
+            Info<< " cells" << endl;
+        }
+
+
+        labelList cellsToRefine
+        (
+            meshRefiner_.meshCutter().consistentRefinement
+            (
+                candidateCells,
+                true
+            )
+        );
+        Info<< "Determined cells to refine in = "
+            << mesh.time().cpuTimeIncrement() << " s" << endl;
+
+
+        const label nCellsToRefine =
+            returnReduce(cellsToRefine.size(), sumOp<label>());
+
+        Info<< "Selected for refinement : " << nCellsToRefine
+            << " cells (out of " << mesh.globalData().nTotalCells()
+            << ')' << endl;
+
+        if (nCellsToRefine == 0)
+        {
+            Info<< "Stopping refining since no cells selected."
+                << nl << endl;
+            break;
+        }
+
+
+        if (debug)
+        {
+            const_cast<Time&>(mesh.time())++;
+        }
+
+
+        if (returnReduceOr(mesh.nCells() >= refineParams.maxLocalCells()))
+        {
+            meshRefiner_.balanceAndRefine
+            (
+                "island cell refinement iteration " + name(iter),
+                decomposer_,
+                distributor_,
+                cellsToRefine,
+                refineParams.maxLoadUnbalance(),
+                refineParams.maxCellUnbalance()
+            );
+        }
+        else
+        {
+            meshRefiner_.refineAndBalance
+            (
+                "island cell refinement iteration " + name(iter),
+                decomposer_,
+                distributor_,
+                cellsToRefine,
+                refineParams.maxLoadUnbalance(),
+                refineParams.maxCellUnbalance()
+            );
+        }
+    }
+    return iter;
+}
+
+
 // Detect cells with opposing intersected faces of differing refinement
 // level and refine them.
 Foam::label Foam::snappyRefineDriver::refinementInterfaceRefine
@@ -3644,6 +4070,15 @@ void Foam::snappyRefineDriver::doRefine
     (
         refineParams,
         0       // nBufferLayers
+    );
+
+    // Refine small islands of cells left coarser than their surroundings.
+    // Done before the dangling/interface refinement below so that those clean
+    // up any transition the extra refinement introduces.
+    islandCellRefine
+    (
+        refineParams,
+        refineParams.maxRefinementIslandIter()
     );
 
     // Refine any hexes with 5 or 6 faces refined to make smooth edges

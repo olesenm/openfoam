@@ -84,6 +84,15 @@ class refinementParameters
         //- Number of layers between different refinement levels
         const label nBufferLayers_;
 
+        //- Largest island (in cells) of surface cells that is refined an
+        //  extra level when all surrounding surface cells are finer.
+        //  0 = off (default)
+        const label maxRefinementIslandCount_;
+
+        //- Maximum number of island refinement passes. Fewer are done if no
+        //  islands are left
+        const label maxRefinementIslandIter_;
+
 
         // Selection of areas
 
@@ -200,6 +209,19 @@ public:
             label nBufferLayers() const
             {
                 return nBufferLayers_;
+            }
+
+            //- Largest island of surface cells to refine an extra level,
+            //  or 0 if island refinement is disabled
+            label maxRefinementIslandCount() const
+            {
+                return maxRefinementIslandCount_;
+            }
+
+            //- Maximum number of island refinement passes
+            label maxRefinementIslandIter() const
+            {
+                return maxRefinementIslandIter_;
             }
 
             //- Areas to keep

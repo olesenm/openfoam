@@ -156,6 +156,24 @@ castellatedMeshControls
     // refinement.
     nCellsBetweenLevels 1;
 
+    //- Optional removal of refinement 'islands': pockets of surface cells left
+    //  at a coarser level than every surface cell around them. Any such pocket
+    //  of at most this many cells is refined one extra level, repeatedly until
+    //  it matches its surroundings. 0 = off (default).
+    //  Only cells on the same side of the surface as locationInMesh are
+    //  counted, so the count is the number of cells you see on the final
+    //  surface. Pockets that were rejected only because of this setting are
+    //  reported with their sizes, to help pick a value.
+    //  Note the count is on the current cells, so a pocket that is two levels
+    //  too coarse needs a count of at least 8 times its size to be carried
+    //  through the second level.
+    //maxRefinementIslandCount 10;
+
+    //- Maximum number of island refinement passes (default 10). Fewer are
+    //  done if no islands are left. Set to 1 for a single pass, which only
+    //  lifts each island by one level and never revisits it.
+    //maxRefinementIslandIter 1;
+
 
     // Explicit feature edge refinement
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

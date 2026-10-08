@@ -162,6 +162,14 @@ class snappyRefineDriver
             const label maxIter
         );
 
+        //- Refine islands of surface cells that are coarser than all the
+        //  surface cells surrounding them
+        label islandCellRefine
+        (
+            const refinementParameters& refineParams,
+            const label maxIter
+        );
+
         //- Refine cells with opposite faces with differing refinement level
         label refinementInterfaceRefine
         (
