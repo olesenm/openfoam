@@ -596,10 +596,12 @@ snapControls
         nFeatureSnapIter 10;
 
         // Detect (geometric only) features by sampling the surface
-        // (default=false).
+        // (default=false). When combined with explicitFeatureSnap, implicit
+        // snaps are retained where no explicit feature is found.
         implicitFeatureSnap false;
 
-        // Use castellatedMeshControls::features (default = true)
+        // Use castellatedMeshControls::features (default = true). Explicit
+        // matches take priority when combined with implicitFeatureSnap.
         explicitFeatureSnap true;
 
         // Detect features between multiple surfaces
@@ -622,12 +624,17 @@ snapControls
         //  to sharp edges that are also region edges. The default is false
         //  since it might also introduce problems - at morphing the patching
         //  might still be wrong so points get 'released' instead of behaving
-        //  as any other point.
+        //  as any other point. When both implicit and explicit feature
+        //  snapping are enabled, implicit attractions are not restored on
+        //  released points and remaining feature constraints are cleared.
+        //  With implicit snapping disabled, explicit-snap behavior is
+        //  unchanged.
         //releasePoints true;
         //- Walk along feature edges, adding missing ones. Default is true.
         //stringFeatures false;
-        //- If diagonal attraction also attract other face points. Default is
-        //  false
+        //- If diagonal attraction also attract other face points, including
+        //  diagonals formed by combined implicit and explicit matches.
+        //  Default is false.
         //avoidDiagonal true;
         //- When splitting what concave faces to leave intact. Default is 45
         //  degrees.

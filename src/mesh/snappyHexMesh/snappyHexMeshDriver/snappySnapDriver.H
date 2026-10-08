@@ -373,7 +373,8 @@ class snappySnapDriver
                     const List<pointConstraint>& rawPatchConstraints,
 
                     vectorField& patchAttraction,
-                    List<pointConstraint>& patchConstraints
+                    List<pointConstraint>& patchConstraints,
+                    bitSet& releasedPoints
                 ) const;
 
                 //- Detect any diagonal attraction. Returns indices in face
@@ -478,6 +479,8 @@ class snappySnapDriver
                     const scalar featureCos,
                     const indirectPrimitivePatch& pp,
                     const pointField& ppLocalPoints,
+                    const bitSet& releasedPoints,
+                    const bool combineImplicitFeatureSnap,
                     vectorField& patchAttraction,
                     List<pointConstraint>& patchConstraints
                 ) const;
@@ -684,6 +687,7 @@ class snappySnapDriver
                 void featureAttractionUsingFeatureEdges
                 (
                     const label iter,
+                    const bool combineImplicitFeatureSnap,
                     const bool multiRegionFeatureSnap,
                     const bool strictRegionFeatureSnap,
 
