@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -116,13 +117,21 @@ regionDeltaT() const
     bool adjust = false;
     scalar Co = 0;
 
-    for (const regionFaModel& reg : time_.cobjects<regionFaModel>())
+    for (const auto& mesh : time_.cobjects<polyMesh>())
     {
-        const scalar regionCo = reg.CourantNumber();
-        if (Co < regionCo)
+        const objectRegistry* faRegistry = faMesh::registry(mesh);
+
+        if (faRegistry)
         {
-            Co = regionCo;
-            adjust = true;
+            for (const auto& reg : faRegistry->cobjects<regionFaModel>())
+            {
+                const scalar regionCo = reg.CourantNumber();
+                if (Co < regionCo)
+                {
+                    Co = regionCo;
+                    adjust = true;
+                }
+            }
         }
     }
 
