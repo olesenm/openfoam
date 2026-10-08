@@ -164,8 +164,8 @@
         alphaPhiUn =
             fvc::flux
             (
-                phi,
-                alpha1,
+                phiCN(),
+                cnCoeff*alpha1 + (1.0 - cnCoeff)*alpha1.oldTime(),
                 alphaScheme
             )
           + fvc::flux
