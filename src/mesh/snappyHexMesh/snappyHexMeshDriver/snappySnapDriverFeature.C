@@ -1490,7 +1490,8 @@ void Foam::snappySnapDriver::releasePointsNextToMultiPatch
     const List<pointConstraint>& rawPatchConstraints,
 
     vectorField& patchAttraction,
-    List<pointConstraint>& patchConstraints
+    List<pointConstraint>& patchConstraints,
+    bitSet& releasedPoints
 ) const
 {
     autoPtr<OBJstream> multiPatchStr;
@@ -1578,22 +1579,19 @@ void Foam::snappySnapDriver::releasePointsNextToMultiPatch
             forAll(f, fp)
             {
                 label pointi = f[fp];
-                if
-                (
-                   !isMultiPatchPoint.test(pointi)
-                 && patchConstraints[pointi].first() > 1
-                )
+                if (!isMultiPatchPoint.test(pointi))
                 {
-                    //Pout<< "Knocking out constraint"
-                    //    << " on non-multiPatchPoint:"
-                    //    << ppLocalPoints[pointi] << endl;
-                    patchAttraction[pointi] = Zero;
-                    patchConstraints[pointi] = pointConstraint();
-                    nChanged++;
-
-                    if (multiPatchStr)
+                    releasedPoints.set(pointi);
+                    if (patchConstraints[pointi].first() > 1)
                     {
-                        multiPatchStr().write(ppLocalPoints[pointi]);
+                        patchAttraction[pointi] = Zero;
+                        patchConstraints[pointi] = pointConstraint();
+                        nChanged++;
+
+                        if (multiPatchStr)
+                        {
+                            multiPatchStr().write(ppLocalPoints[pointi]);
+                        }
                     }
                 }
             }
@@ -2157,6 +2155,8 @@ void Foam::snappySnapDriver::avoidDiagonalAttraction
 
     const indirectPrimitivePatch& pp,
     const pointField& ppLocalPoints,
+    const bitSet& releasedPoints,
+    const bool combineImplicitFeatureSnap,
 
     vectorField& patchAttraction,
     List<pointConstraint>& patchConstraints
@@ -2208,7 +2208,16 @@ void Foam::snappySnapDriver::avoidDiagonalAttraction
                 forAll(f, fp)
                 {
                     label pointi = f[fp];
-                    if (patchConstraints[pointi].first() <= 1)
+                    // These points are cleared after this pass in combined
+                    // mode, so do not select them as diagonal attractors.
+                    if
+                    (
+                        patchConstraints[pointi].first() <= 1
+                     && (
+                            !combineImplicitFeatureSnap
+                         || !releasedPoints.test(pointi)
+                        )
+                    )
                     {
                         scalar distSqr = mid.distSqr(ppLocalPoints[pointi]);
                         if (distSqr < minDistSqr)
@@ -3608,6 +3617,7 @@ void Foam::snappySnapDriver::reverseAttractMeshPoints
 void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
 (
     const label iter,
+    const bool combineImplicitFeatureSnap,
     const bool multiRegionFeatureSnap,
     const bool strictRegionFeatureSnap, // special >=3 patch points handling
 
@@ -3635,6 +3645,15 @@ void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
     List<pointConstraint>& patchConstraints
 ) const
 {
+    vectorField implicitPatchAttraction;
+    List<pointConstraint> implicitPatchConstraints;
+
+    if (combineImplicitFeatureSnap)
+    {
+        implicitPatchAttraction = patchAttraction;
+        implicitPatchConstraints = patchConstraints;
+    }
+
     const refinementFeatures& features = meshRefiner_.features();
     const fvMesh& mesh = meshRefiner_.mesh();
 
@@ -3834,6 +3853,7 @@ void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
     //     multi-patch
     //     points. The other points on the face will be dragged along
     //     (hopefully)
+    bitSet releasedPoints(pp.nPoints());
     if (releasePoints)
     {
         releasePointsNextToMultiPatch
@@ -3852,7 +3872,8 @@ void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
             rawPatchConstraints,
 
             patchAttraction,
-            patchConstraints
+            patchConstraints,
+            releasedPoints
         );
     }
 
@@ -3881,9 +3902,28 @@ void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
     }
 
 
-    // Avoid diagonal attraction
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Attract one of the non-diagonal points.
+    if (combineImplicitFeatureSnap)
+    {
+        // Explicit matches take priority; keep implicit snaps except at
+        // points that must follow a multi-patch point.
+        forAll(patchConstraints, pointi)
+        {
+            if
+            (
+                patchConstraints[pointi].first() <= 1
+             && implicitPatchConstraints[pointi].first() > 0
+             && !releasedPoints.test(pointi)
+            )
+            {
+                patchAttraction[pointi] =
+                    implicitPatchAttraction[pointi];
+                patchConstraints[pointi] =
+                    implicitPatchConstraints[pointi];
+            }
+        }
+    }
+
+    // Check the final, combined attraction for diagonal feature matches.
     if (avoidDiagonal)
     {
         avoidDiagonalAttraction
@@ -3892,9 +3932,29 @@ void Foam::snappySnapDriver::featureAttractionUsingFeatureEdges
             featureCos,
             pp,
             ppLocalPoints,
+            releasedPoints,
+            combineImplicitFeatureSnap,
             patchAttraction,
             patchConstraints
         );
+    }
+
+    // Preserve explicit-only behavior; in combined mode clear feature
+    // constraints re-added after the release handling.
+    if (releasePoints && combineImplicitFeatureSnap)
+    {
+        forAll(patchConstraints, pointi)
+        {
+            if
+            (
+                releasedPoints.test(pointi)
+             && patchConstraints[pointi].first() > 1
+            )
+            {
+                patchAttraction[pointi] = Zero;
+                patchConstraints[pointi] = pointConstraint();
+            }
+        }
     }
 
 
@@ -4229,6 +4289,7 @@ Foam::vectorField Foam::snappySnapDriver::calcNearestSurfaceFeature
         featureAttractionUsingFeatureEdges
         (
             iter,
+            implicitFeatureAttraction,
             multiRegionFeatureSnap,
             strictRegionFeatureSnap,    // special logic for >=3 patches points?
 
