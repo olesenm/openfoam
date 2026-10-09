@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -100,6 +101,7 @@ Usage
         coefficients        (<wordHashSet>);
         directForceDensity  <bool>;
         porosity            <bool>;
+        porosityZones       (<wordRes>);
         writeFields         <bool>;
         useNamePrefix       <bool>;
 
@@ -159,6 +161,8 @@ Usage
       directForceDensity | Flag to directly supply force density    <!--
                  -->                                  | bool   | no  | false
       porosity   | Flag to include porosity contributions | bool | no | false
+      porosityZones | Porous cellZone names to include. Not fvOptions <!--
+                 --> cellZone names. Empty selects all | wordRes | no | empty
       writeFields | Flag to write force and moment fields | bool | no | false
       useNamePrefix | Flag to include prefix for field names | bool | no | false
       CofR    | Centre of rotation                    | vector | cndtnl | -

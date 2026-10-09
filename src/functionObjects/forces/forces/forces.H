@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -78,6 +79,7 @@ Usage
         // Optional entries
         directForceDensity  <bool>;
         porosity            <bool>;
+        porosityZones       (<wordRes>);
         writeFields         <bool>;
         useNamePrefix       <bool>;
 
@@ -134,6 +136,8 @@ Usage
       directForceDensity | Flag to directly supply force density <!--
                  -->                         | bool | no      | false
       porosity   | Flag to include porosity contributions | bool | no | false
+      porosityZones | Porous cellZone names to include. Not fvOptions <!--
+                 --> cellZone names. Empty selects all | wordRes | no | empty
       writeFields | Flag to write force and moment fields | bool | no | false
       useNamePrefix | Flag to include prefix for field names | bool | no | false
       coordinateSystem | Coordinate system specifier | dictionary | cndtnl | -
@@ -251,6 +255,10 @@ protected:
 
             //- Name of force density field
             word fDName_;
+
+            //- Porous cellZone names to include (empty selects all).
+            //  These are cellZone names, not fvOptions model names.
+            wordRes porosityZones_;
 
             //- Flag to directly supply force density
             bool directForceDensity_;
