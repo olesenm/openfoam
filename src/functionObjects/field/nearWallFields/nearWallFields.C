@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,6 +43,13 @@ namespace functionObjects
     defineTypeNameAndDebug(nearWallFields, 0);
     addToRunTimeSelectionTable(functionObject, nearWallFields, dictionary);
 }
+
+const Enum<functionObjects::nearWallFields::invalidTetActionType>
+functionObjects::nearWallFields::invalidTetActionTypeNames_
+{
+    { invalidTetActionType::NONE, "none" },
+    { invalidTetActionType::CELL, "cell" },
+};
 }
 
 
@@ -66,6 +74,7 @@ void Foam::functionObjects::nearWallFields::calcAddressing()
 
     // Add particles to track to sample locations
     nPatchFaces = 0;
+    label nSkippedPatchFaces = 0;
 
     for (const label patchi : patchIDs_)
     {
@@ -78,6 +87,7 @@ void Foam::functionObjects::nearWallFields::calcAddressing()
 
         forAll(patch, patchFacei)
         {
+            const label globalWallFacei = globalWalls.toGlobal(nPatchFaces);
             label meshFacei = patch.start()+patchFacei;
 
             // Find starting point on face (since faceCentre might not
@@ -97,9 +107,22 @@ void Foam::functionObjects::nearWallFields::calcAddressing()
             point start;
             const label celli = faceCells[patchFacei];
 
-            if (startInfo.hit())
+            if
+            (
+                startInfo.hit()
+             && (invalidTetAction_ == invalidTetActionType::CELL)
+            )
             {
-                // Move start point slightly in so it is inside the tet
+                // Move slightly into the owner cell without relying on
+                // face-based tet decomposition, which may be invalid.
+                start =
+                    (1.0 - 1e-6)*startInfo.point()
+                  + 1e-6*faceCellCentres[patchFacei];
+            }
+            else if (startInfo.hit())
+            {
+                // Original behaviour: move start point slightly in so it is
+                // inside the tet
                 const face& f = mesh_.faces()[meshFacei];
 
                 label tetFacei = meshFacei;
@@ -107,13 +130,11 @@ void Foam::functionObjects::nearWallFields::calcAddressing()
 
                 start = startInfo.point();
 
-                // Uncomment below to shift slightly in:
                 tetIndices tet(celli, tetFacei, tetPti);
                 start =
                     (1.0 - 1e-6)*startInfo.point()
                   + 1e-6*tet.tet(mesh_).centre();
 
-                // Re-check that we have a valid location
                 mesh_.findTetFacePt(celli, start, tetFacei, tetPti);
                 if (tetFacei == -1)
                 {
@@ -131,25 +152,74 @@ void Foam::functionObjects::nearWallFields::calcAddressing()
             //const point end = start-distance_*nf[patchFacei];
             const point end = faceCentres[patchFacei]-distance_*nf[patchFacei];
 
+            if (invalidTetAction_ == invalidTetActionType::CELL)
+            {
+                label tetFacei = -1;
+                label tetPti = -1;
+                mesh_.findTetFacePt(celli, start, tetFacei, tetPti);
 
-            // Add a particle to the cloud with originating face as passive data
-            cloud.addParticle
-            (
-                new findCellParticle
+                if (tetFacei == -1)
+                {
+                    WarningInFunction
+                        << "Skipping patch face " << meshFacei
+                        << " on patch " << patch.name()
+                        << " since no valid tet decomposition could be found"
+                        << " for owner cell " << celli << endl;
+
+                    ++nSkippedPatchFaces;
+                    ++nPatchFaces;
+                    continue;
+                }
+
+                const tetIndices tet(celli, tetFacei, tetPti);
+                const barycentric startBary
                 (
-                    mesh_,
-                    start,
-                    celli,
-                    end,
-                    globalWalls.toGlobal(nPatchFaces) // passive data
-                )
-            );
+                    tet.tet(mesh_).pointToBarycentric(start)
+                );
+
+                // Add a particle to the cloud with originating face as passive
+                // data
+                cloud.addParticle
+                (
+                    new findCellParticle
+                    (
+                        mesh_,
+                        startBary,
+                        celli,
+                        tetFacei,
+                        tetPti,
+                        end,
+                        globalWallFacei  // passive data
+                    )
+                );
+            }
+            else
+            {
+                // Original behaviour
+                cloud.addParticle
+                (
+                    new findCellParticle
+                    (
+                        mesh_,
+                        start,
+                        celli,
+                        end,
+                        globalWallFacei  // passive data
+                    )
+                );
+            }
 
             nPatchFaces++;
         }
     }
 
-
+    if ((invalidTetAction_ == invalidTetActionType::CELL) && nSkippedPatchFaces)
+    {
+        WarningInFunction
+            << "Skipped " << nSkippedPatchFaces
+            << " near-wall sample faces without a valid tet decomposition"
+            << endl;
+    }
 
     if (debug)
     {
@@ -245,7 +315,8 @@ Foam::functionObjects::nearWallFields::nearWallFields
 )
 :
     fvMeshFunctionObject(name, runTime, dict),
-    fieldSet_()
+    fieldSet_(),
+    invalidTetAction_(invalidTetActionType::NONE)
 {
     read(dict);
 }
@@ -261,6 +332,13 @@ bool Foam::functionObjects::nearWallFields::read(const dictionary& dict)
 
     dict.readEntry("fields", fieldSet_);
     dict.readEntry("distance", distance_);
+    invalidTetAction_ =
+        invalidTetActionTypeNames_.getOrDefault
+        (
+            "invalidTetHandling",
+            dict,
+            invalidTetActionType::NONE
+        );
 
     // Can also use pbm.indices(), but no warnings...
     patchIDs_ = pbm.patchSet(dict.get<wordRes>("patches")).sortedToc();

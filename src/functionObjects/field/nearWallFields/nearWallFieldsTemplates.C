@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -94,6 +95,21 @@ void Foam::functionObjects::nearWallFields::sampleBoundaryField
     // Construct flat fields for all patch faces to be sampled
     Field<Type> sampledValues(getPatchDataMapPtr_().constructSize());
 
+    // Fall back to owner-cell values for faces that were skipped while
+    // constructing valid tracking particles.
+    label nPatchFaces = 0;
+    const auto& patches = mesh_.boundary();
+    for (const label patchi : patchIDs_)
+    {
+        const fvPatch& patch = patches[patchi];
+        const labelUList& faceCells = patch.patch().faceCells();
+
+        for (const label faceCelli : faceCells)
+        {
+            sampledValues[nPatchFaces++] = fld[faceCelli];
+        }
+    }
+
     forAll(cellToWalls_, celli)
     {
         const labelList& cData = cellToWalls_[celli];
@@ -116,7 +132,7 @@ void Foam::functionObjects::nearWallFields::sampleBoundaryField
         Boundary& fldBf = fld.boundaryFieldRef();
 
     // Pick up data
-    label nPatchFaces = 0;
+    nPatchFaces = 0;
     for (const label patchi : patchIDs_)
     {
         fvPatchField<Type>& pfld = fldBf[patchi];
