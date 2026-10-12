@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -59,6 +60,7 @@ Usage
         );
         patches         <wordList>;  // (<patch1> <patch2> ... <patchN>);
         distance        <scalar>;
+        invalidTetHandling <word>;  // none | cell
 
         // Inherited entries
         ...
@@ -73,6 +75,7 @@ Usage
       fields       | Names of input-output fields | wordHashTable | yes | -
       patches      | Names of patches to sample       | wordList | yes  | -
       distance | Wall-normal distance from patch to sample | scalar | yes  | -
+      invalidTetHandling | Handling for invalid tet starts | word | no | none
     \endtable
 
     The inherited entries are elaborated in:
@@ -109,6 +112,19 @@ class nearWallFields
 {
 protected:
 
+    // Protected Enumerations
+
+        //- Handling for invalid tet starts
+        enum invalidTetActionType : char
+        {
+            NONE = 0,
+            CELL
+        };
+
+        //- Names for invalid tet handling
+        static const Enum<invalidTetActionType> invalidTetActionTypeNames_;
+
+
     // Protected Data
 
         // Read from dictionary
@@ -121,6 +137,9 @@ protected:
 
             //- Distance away from wall
             scalar distance_;
+
+            //- Handling for invalid tet starts
+            invalidTetActionType invalidTetAction_;
 
             //- From original field to sampled result
             HashTable<word> fieldMap_;
