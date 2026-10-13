@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -45,7 +46,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
 class motionSolver;
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
                Class dynamicMotionSolverFvMeshAMI Declaration
@@ -101,7 +104,7 @@ public:
 
 
     //- Destructor
-    virtual ~dynamicMotionSolverFvMeshAMI() = default;
+    virtual ~dynamicMotionSolverFvMeshAMI();
 
 
     // Member Functions
@@ -111,6 +114,9 @@ public:
 
         //- Return the motionSolver
         const motionSolver& motion() const;
+
+        //- Update motion solver state after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update();

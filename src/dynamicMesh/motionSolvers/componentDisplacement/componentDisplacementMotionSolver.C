@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 
 #include "componentDisplacementMotionSolver.H"
 #include "mapPolyMesh.H"
+#include "mapDistributePolyMesh.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -144,6 +146,15 @@ Foam::componentDisplacementMotionSolver::~componentDisplacementMotionSolver()
 void Foam::componentDisplacementMotionSolver::movePoints(const pointField& p)
 {
     // No local data to update
+}
+
+
+void Foam::componentDisplacementMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    map.distributePointData(points0_);
 }
 
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -56,6 +57,9 @@ SourceFiles
 
 namespace Foam
 {
+
+// Forward Declarations
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
         Class displacementInterpolationMotionSolver Declaration
@@ -131,13 +135,16 @@ public:
 
 
     //- Destructor
-    ~displacementInterpolationMotionSolver() = default;
+    ~displacementInterpolationMotionSolver();
 
 
     // Member Functions
 
         //- Return point location obtained from the current motion field
         virtual tmp<pointField> curPoints() const;
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Solve for motion
         virtual void solve()

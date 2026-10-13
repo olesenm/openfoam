@@ -1,0 +1,22 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+runApplication -s main blockMesh -dict system/blockMeshDict.main
+
+runApplication mirrorMesh -overwrite
+
+restore0Dir
+
+runApplication setFields
+
+runApplication decomposePar
+
+runParallel -o topoSet
+
+runParallel -s "initial" -o postProcess -func processorField
+
+runParallel -s "initial" checkMesh -latestTime
+
+#------------------------------------------------------------------------------

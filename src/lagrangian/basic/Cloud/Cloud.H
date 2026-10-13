@@ -279,7 +279,7 @@ public:
             //- Call this before a topology change.
             //  Stores the particles global positions in the database
             //  for use during mapping.
-            void storeGlobalPositions() const;
+            virtual void storeGlobalPositions() const;
 
 
     // Housekeeping

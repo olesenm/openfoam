@@ -8,6 +8,7 @@
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2022 Upstream CFD GmbH
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "kOmegaSSTDES.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -65,8 +67,10 @@ tmp<volScalarField> kOmegaSSTDES<BasicTurbulenceModel>::r
 {
     const dimensionedScalar eps(magGradU.dimensions(), SMALL);
 
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     tmp<volScalarField> tr =
-        min(nur/(max(magGradU, eps)*sqr(this->kappa_*this->y_)), scalar(10));
+        min(nur/(max(magGradU, eps)*sqr(this->kappa_*y)), scalar(10));
 
     tr.ref().boundaryFieldRef() == 0;
 

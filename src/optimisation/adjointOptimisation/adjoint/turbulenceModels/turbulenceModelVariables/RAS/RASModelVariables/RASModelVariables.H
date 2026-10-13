@@ -74,7 +74,7 @@ protected:
         refPtr<volScalarField> TMVar1Ptr_;
         refPtr<volScalarField> TMVar2Ptr_;
         refPtr<volScalarField> nutPtr_;
-        refPtr<volScalarField> distPtr_;
+        mutable refPtr<volScalarField> distPtr_;
 
         // Initial values (demand-driven)
         // For finite differences and optimisation runs
@@ -92,6 +92,9 @@ protected:
 
         virtual void allocateInitValues();
         virtual void allocateMeanFields();
+
+        //- Refresh a non-owning wall-distance reference after mesh changes
+        void refreshWallDist() const;
 
         refPtr<volScalarField>
         cloneRefPtr(const refPtr<volScalarField>& obj) const;

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "displacementMotionSolver.H"
+#include "mapDistributePolyMesh.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -78,6 +80,20 @@ Foam::displacementMotionSolver::displacementMotionSolver
         pointDisplacement
     )
 {}
+
+
+void Foam::displacementMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    points0MotionSolver::distribute(map);
+
+    if (!pointDisplacement_.registered())
+    {
+        map.distributePointData(pointDisplacement_.primitiveFieldRef());
+    }
+}
 
 
 // * * * * * * * * * * * * * * * * Selectors * * * * * * * * * * * * * * * * //

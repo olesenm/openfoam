@@ -345,8 +345,6 @@ GEKO<BasicTurbulenceModel>::GEKO
         )
     ),
 
-
-    y_(wallDist::New(this->mesh_).y()),
     k_
     (
         IOobject
@@ -676,11 +674,13 @@ void GEKO<BasicTurbulenceModel>::correct()
 
     if (!wallDistanceFree_)
     {
+        const volScalarField& y = wallDist::New(this->mesh_).y();
+
         tmp<volScalarField> tkTilde = max(k_, CFbLam_*this->nu()*omega_);
 
         tmp<volScalarField> tLT = sqrt(tkTilde)/(Cmu_*omega_);
 
-        tmp<volScalarField> txBlend = CFbTurb_*tLT/y_;
+        tmp<volScalarField> txBlend = CFbTurb_*tLT/y;
 
         FBlend_ = Foam::tanh(pow4(txBlend));
         FBlend_.correctBoundaryConditions();

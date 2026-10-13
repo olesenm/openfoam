@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -136,8 +137,10 @@ tmp<volScalarField> kL<BasicTurbulenceModel>::canopyHeight() const
 template<class BasicTurbulenceModel>
 tmp<volScalarField> kL<BasicTurbulenceModel>::L() const
 {
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     // (A:Eq. 22)
-    const volScalarField Lplain(kappa_*y_);
+    const volScalarField Lplain(kappa_*y);
 
     // Increase roughness for canopy (forest, vegetation etc)
     tmp<volScalarField> tLcanopy = kappa_*canopyHeight();
@@ -151,6 +154,8 @@ tmp<volScalarField> kL<BasicTurbulenceModel>::L() const
 template<class BasicTurbulenceModel>
 void kL<BasicTurbulenceModel>::stratification(const volScalarField& fVB)
 {
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     tmp<volScalarField> tLg = L();
     const volScalarField& Lg = tLg.cref();
 
@@ -166,7 +171,7 @@ void kL<BasicTurbulenceModel>::stratification(const volScalarField& fVB)
 
     forAll(L_, i)
     {
-        if (y_[i] > canopyHeight[i])
+        if (y[i] > canopyHeight[i])
         {
             if (fVB[i] > 0)
             {
@@ -361,8 +366,7 @@ kL<BasicTurbulenceModel>::kL
         this->mesh_,
         dimensionedScalar(dimless, Zero)
     ),
-    g_(meshObjects::gravity::New(this->mesh_.time())),
-    y_(wallDist::New(this->mesh_).y())
+    g_(meshObjects::gravity::New(this->mesh_.time()))
 {
     bound(k_, this->kMin_);
 

@@ -1,0 +1,12 @@
+dynamicLoadBalancer.C
+
+performanceMetrics/performanceMetric/performanceMetric.C
+performanceMetrics/performanceMetric/performanceMetricNew.C
+performanceMetrics/cellNumber/cellNumber.C
+performanceMetrics/cpuLoad/cpuLoad.C
+
+balanceModels/balanceModel/balanceModel.C
+balanceModels/balanceModel/balanceModelNew.C
+balanceModels/distributed/distributed.C
+
+LIB = $(FOAM_LIBBIN)/libdynamicLoadBalancing

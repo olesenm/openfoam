@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -993,6 +994,13 @@ bool Foam::AMIInterpolation::calculate
 
     // Clear storage (only needed if src/tgt become zero size)
     {
+        // Reset distribution maps so that a transition from distributed
+        // to non-distributed, e.g. after dynamic load balancing, does not
+        // leave stale non-null maps that corrupt GAMG agglomeration.
+        srcMapPtr_.reset(nullptr);
+        tgtMapPtr_.reset(nullptr);
+        geomComm_.reset();
+
         if (srcMagSf_.size())
         {
             srcMagSf_.resize_nocopy(srcPatch.size());

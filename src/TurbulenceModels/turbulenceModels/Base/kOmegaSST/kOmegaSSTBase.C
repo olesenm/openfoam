@@ -8,6 +8,7 @@
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2022 Upstream CFD GmbH
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -45,6 +46,9 @@ tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F1
     const volScalarField& CDkOmega
 ) const
 {
+    // wallDist can be rebuilt by mesh redistribution; fetch the current field.
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     tmp<volScalarField> CDkOmegaPlus = max
     (
         CDkOmega,
@@ -57,10 +61,10 @@ tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F1
         (
             max
             (
-                (scalar(1)/betaStar_)*sqrt(k_)/(omega_*y_),
-                scalar(500)*(this->mu()/this->rho_)/(sqr(y_)*omega_)
+                (scalar(1)/betaStar_)*sqrt(k_)/(omega_*y),
+                scalar(500)*(this->mu()/this->rho_)/(sqr(y)*omega_)
             ),
-            (4*alphaOmega2_)*k_/(CDkOmegaPlus*sqr(y_))
+            (4*alphaOmega2_)*k_/(CDkOmegaPlus*sqr(y))
         ),
         scalar(10)
     );
@@ -72,12 +76,14 @@ tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F1
 template<class BasicEddyViscosityModel>
 tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F2() const
 {
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     tmp<volScalarField> arg2 = min
     (
         max
         (
-            (scalar(2)/betaStar_)*sqrt(k_)/(omega_*y_),
-            scalar(500)*(this->mu()/this->rho_)/(sqr(y_)*omega_)
+            (scalar(2)/betaStar_)*sqrt(k_)/(omega_*y),
+            scalar(500)*(this->mu()/this->rho_)/(sqr(y)*omega_)
         ),
         scalar(100)
     );
@@ -89,9 +95,11 @@ tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F2() const
 template<class BasicEddyViscosityModel>
 tmp<volScalarField> kOmegaSSTBase<BasicEddyViscosityModel>::F3() const
 {
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     tmp<volScalarField> arg3 = min
     (
-        150*(this->mu()/this->rho_)/(omega_*sqr(y_)),
+        150*(this->mu()/this->rho_)/(omega_*sqr(y)),
         scalar(10)
     );
 
@@ -377,8 +385,6 @@ kOmegaSSTBase<BasicEddyViscosityModel>::kOmegaSSTBase
             false
         )
     ),
-
-    y_(wallDist::New(this->mesh_).y()),
 
     k_
     (

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -291,8 +292,6 @@ incompressibleKOmegaSST::incompressibleKOmegaSST
             false
         )
     ),
-
-    y_(wallDist::New(this->mesh_).y()),
 
     k_
     (

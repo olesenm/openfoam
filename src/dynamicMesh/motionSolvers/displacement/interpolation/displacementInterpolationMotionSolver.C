@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,6 +33,7 @@ License
 #include "GlobalIOList.H"
 #include "Tuple2.H"
 #include "mapPolyMesh.H"
+#include "mapDistributePolyMesh.H"
 #include "interpolateXY.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -330,6 +332,13 @@ displacementInterpolationMotionSolver
 }
 
 
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::displacementInterpolationMotionSolver::
+~displacementInterpolationMotionSolver() = default;
+
+
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 Foam::tmp<Foam::pointField>
@@ -399,6 +408,16 @@ Foam::displacementInterpolationMotionSolver::curPoints() const
         }
     }
     return tcurPoints;
+}
+
+
+void Foam::displacementInterpolationMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    displacementMotionSolver::distribute(map);
+    calcInterpolation();
 }
 
 

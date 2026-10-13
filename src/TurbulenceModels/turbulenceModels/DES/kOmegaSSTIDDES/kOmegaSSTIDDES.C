@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "kOmegaSSTIDDES.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -54,7 +56,8 @@ const IDDESDelta& kOmegaSSTIDDES<BasicTurbulenceModel>::setDelta() const
 template<class BasicTurbulenceModel>
 tmp<volScalarField> kOmegaSSTIDDES<BasicTurbulenceModel>::alpha() const
 {
-    return max(0.25 - this->y_/IDDESDelta_.hmax(), scalar(-5));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    return max(0.25 - y/IDDESDelta_.hmax(), scalar(-5));
 }
 
 

@@ -179,6 +179,26 @@ void Foam::zoneMotion::resetZone
 void Foam::zoneMotion::resetZone
 (
     const polyMesh& mesh,
+    const labelUList& cellZoneIds
+)
+{
+    pointIDs_.clear();
+    cellZoneIDs_ = cellZoneIds;
+
+    if (cellZoneIDs_.empty())
+    {
+        selectionMode_ = selectionModes::smAll;
+    }
+    else
+    {
+        selectZonePoints(mesh);
+    }
+}
+
+
+void Foam::zoneMotion::resetZone
+(
+    const polyMesh& mesh,
     const dictionary& dict
 )
 {
@@ -286,6 +306,16 @@ void Foam::zoneMotion::resetZone
     }
 
     selectionMode_ = selectionModes(useSubset);
+}
+
+
+void Foam::zoneMotion::rebuildPointIDs
+(
+    const dictionary& dict,
+    const polyMesh& mesh
+)
+{
+    resetZone(mesh, dict);
 }
 
 

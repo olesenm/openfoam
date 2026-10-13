@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2019-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,6 +30,7 @@ License
 #include "kOmegaSSTLM.H"
 #include "fvOptions.H"
 #include "bound.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -45,7 +47,8 @@ tmp<volScalarField> kOmegaSSTLM<BasicTurbulenceModel>::F1
     const volScalarField& CDkOmega
 ) const
 {
-    const volScalarField Ry(this->y_*sqrt(this->k_)/this->nu());
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    const volScalarField Ry(y*sqrt(this->k_)/this->nu());
     const volScalarField F3(exp(-pow(Ry/120.0, 8)));
 
     return max(kOmegaSST<BasicTurbulenceModel>::F1(CDkOmega), F3);
@@ -84,7 +87,7 @@ tmp<volScalarField::Internal> kOmegaSSTLM<BasicTurbulenceModel>::Fthetat
 ) const
 {
     const volScalarField::Internal& omega = this->omega_();
-    const volScalarField::Internal& y = this->y_();
+    const volScalarField::Internal& y = wallDist::New(this->mesh_).y();
 
     dimensionedScalar deltaMin("deltaMin", dimLength, SMALL);
     volScalarField::Internal delta
@@ -164,7 +167,7 @@ tmp<volScalarField::Internal> kOmegaSSTLM<BasicTurbulenceModel>::Flength
     auto& Flength = tFlength.ref();
 
     const volScalarField::Internal& omega = this->omega_();
-    const volScalarField::Internal& y = this->y_();
+    const volScalarField::Internal& y = wallDist::New(this->mesh_).y();
 
     forAll(ReThetat_, celli)
     {
@@ -510,7 +513,7 @@ void kOmegaSSTLM<BasicTurbulenceModel>::correctReThetatGammaInt()
     const volScalarField& omega = this->omega_;
     const tmp<volScalarField> tnu = this->nu();
     const volScalarField::Internal& nu = tnu()();
-    const volScalarField::Internal& y = this->y_();
+    const volScalarField::Internal& y = wallDist::New(this->mesh_).y();
     fv::options& fvOptions(fv::options::New(this->mesh_));
 
     // Fields derived from the velocity gradient

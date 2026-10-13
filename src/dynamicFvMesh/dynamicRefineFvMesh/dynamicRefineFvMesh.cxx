@@ -40,6 +40,7 @@ License
 #include "HashOps.H"
 #include "Function1.H"
 #include "globalIndex.H"
+#include "cloud.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -211,6 +212,7 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
 
         // Each split cell becomes original + 7 additional
         labelList nSubCells(mpm.nOldCells(), Foam::zero{});
+        bool hasSplitCells = false;
 
         forAll(cellMap, celli)
         {
@@ -219,39 +221,56 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
             {
                 // Found master cell.
                 nSubCells[oldCelli]++;
-            }
-        }
-
-        // Start off from mapped old volumes
-        scalarField correctedV0(this->V0());
-
-        // Correct any split cells
-        const auto& V = this->V();
-        forAll(cellMap, celli)
-        {
-            const label oldCelli = cellMap[celli];
-            if (oldCelli >= 0 && nSubCells[oldCelli] == 8)
-            {
-                // Found split cell. Use current volume instead of mapped
-                // old one
-                correctedV0[celli] = V[celli];
+                if (nSubCells[oldCelli] == 8)
+                {
+                    hasSplitCells = true;
+                }
             }
         }
 
         const auto& cellsFromCells = mpm.cellsFromCellsMap();
-        for (const auto& s : cellsFromCells)
-        {
-            // Reset unsplit cell
-            const label celli = s.index();
-            correctedV0[celli] = V[celli];
-            //? Or sum up old volumes?
-            //const labelList& oldCells = s.masterObjects();
-            //for (const label oldCelli : oldCells)
-            //{
-            //}
-        }
 
-        setV0().field() = correctedV0;
+        if (hasSplitCells || cellsFromCells.size())
+        {
+            // Start off from mapped old volumes. Avoid touching V0 for maps
+            // that have no AMR split/merge information, eg, DLB redistribution.
+            scalarField correctedV0(this->V0());
+
+            // Correct any split cells
+            const auto& V = this->V();
+            forAll(cellMap, celli)
+            {
+                if
+                (
+                    label oldCelli = cellMap[celli];
+                    (oldCelli >= 0 && nSubCells[oldCelli] == 8)
+                )
+                {
+                    // Found split cell. Use current volume instead of mapped
+                    // old one
+                    correctedV0[celli] = V[celli];
+                }
+            }
+
+            for (const auto& s : cellsFromCells)
+            {
+                // Reset unsplit cell
+                const label celli = s.index();
+                correctedV0[celli] = V[celli];
+                //? Or sum up old volumes?
+                //const labelList& oldCells = s.masterObjects();
+                //for (const label oldCelli : oldCells)
+                //{
+                //}
+            }
+
+            setV0().field() = correctedV0;
+        }
+        else if (debug)
+        {
+            Pout<< "No AMR cell split/merge volume correction required"
+                << endl;
+        }
     }
 
 
@@ -459,6 +478,13 @@ Foam::dynamicRefineFvMesh::refine
     // might get triggered when doing processor patches.
     // (TBD: should be in changeMesh if no inflation?)
     moving(false);
+
+    // Snapshot cloud positions before topology change
+    for (cloud* cloudPtr : lookupClass<cloud>())
+    {
+        cloudPtr->storeGlobalPositions();
+    }
+
     // Create mesh (no inflation), return map from old to new mesh.
     autoPtr<mapPolyMesh> map = meshMod.changeMesh(*this, false);
 
@@ -582,6 +608,13 @@ Foam::dynamicRefineFvMesh::unrefine
     // might get triggered when doing processor patches.
     // (TBD: should be in changeMesh if no inflation?)
     moving(false);
+
+    // Snapshot cloud positions before topology change
+    for (cloud* cloudPtr : lookupClass<cloud>())
+    {
+        cloudPtr->storeGlobalPositions();
+    }
+
     // Create mesh (no inflation), return map from old to new mesh.
     autoPtr<mapPolyMesh> map = meshMod.changeMesh(*this, false);
 

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2020 OpenCFD Ltd
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -46,6 +47,7 @@ namespace Foam
 {
 
 // Forward declaration of classes
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
                       Class dynamicMotionSolverTopoFvMesh Declaration
@@ -100,6 +102,9 @@ public:
 
         //- Initialise all non-demand-driven data
         virtual bool init(const bool doInit);
+
+        //- Update motion solver state after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update();

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,7 +44,7 @@ namespace Foam
 
 bool Foam::fvGeometryScheme::setMeshPhi() const
 {
-    if (!mesh_.moving())
+    if (!mesh_.changing())
     {
         return false;
     }
@@ -53,6 +54,19 @@ bool Foam::fvGeometryScheme::setMeshPhi() const
 
     if (oldPoints.size() != currPoints.size())
     {
+        if (mesh_.topoChanging())
+        {
+            DebugInFunction
+                << "Skipping meshPhi update due to topology change with "
+                << "non-conformal old/current point sizes"
+                << " old:" << oldPoints.size()
+                << " current:" << currPoints.size()
+                << endl;
+
+            return false;
+        }
+
+
         FatalErrorInFunction
             << "Old and current points sizes must be the same. "
             << "Old points:" << oldPoints.size()
@@ -91,6 +105,8 @@ bool Foam::fvGeometryScheme::setMeshPhi() const
                 meshPhip[facei] = f.sweptVol(oldPoints, currPoints)*rdt;
             }
         }
+
+        meshPhi.setUpToDate();
     }
 
     return true;

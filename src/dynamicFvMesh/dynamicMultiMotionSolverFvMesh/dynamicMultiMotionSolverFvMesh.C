@@ -28,6 +28,8 @@ License
 
 #include "dynamicMultiMotionSolverFvMesh.H"
 #include "addToRunTimeSelectionTable.H"
+#include "mapDistributePolyMesh.H"
+#include "motionSolver.H"
 #include "volFields.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
@@ -150,7 +152,32 @@ bool Foam::dynamicMultiMotionSolverFvMesh::init(const bool doInit)
 }
 
 
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::dynamicMultiMotionSolverFvMesh::
+~dynamicMultiMotionSolverFvMesh() = default;
+
+
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::dynamicMultiMotionSolverFvMesh::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    forAll(motionSolvers_, zonei)
+    {
+        motionSolvers_[zonei].distribute(map);
+
+        zoneMotions_[zonei].resetZone
+        (
+            *this,
+            zoneMotions_[zonei].cellZoneIDs()
+        );
+    }
+}
+
 
 bool Foam::dynamicMultiMotionSolverFvMesh::update()
 {

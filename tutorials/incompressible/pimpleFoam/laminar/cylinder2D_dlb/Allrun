@@ -1,0 +1,27 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+./Allrun.pre
+
+runParallel $(getApplication)
+
+runParallel -s 'reconstruct' redistributePar -reconstruct
+
+./Allrun.post
+
+# restart test
+latestTime=$(foamListTimes -latestTime)
+
+mv -f "$latestTime" "$latestTime".bak
+
+rm -rf processor*
+
+runParallel -s 'decompose.restart' redistributePar -decompose -latestTime
+
+runParallel -s 'restart' $(getApplication)
+
+runParallel -s 'reconstruct.restart' redistributePar -reconstruct -latestTime
+
+#------------------------------------------------------------------------------

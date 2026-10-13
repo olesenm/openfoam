@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -85,6 +86,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+class mapDistributePolyMesh;
+
 /*---------------------------------------------------------------------------*\
                 Class multiDisplacementMotionSolver Declaration
 \*---------------------------------------------------------------------------*/
@@ -140,7 +144,7 @@ public:
 
 
     //- Destructor
-    ~multiDisplacementMotionSolver() = default;
+    ~multiDisplacementMotionSolver();
 
 
     // Member Functions
@@ -156,6 +160,9 @@ public:
 
         //-  Update local data for topology changes
         virtual void updateMesh(const mapPolyMesh&);
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 };
 
 

@@ -599,6 +599,15 @@ public:
             //- Reset motion
             void resetMotion() const;
 
+            //- Clear the old points
+            void clearOldPoints() const;
+
+            //- Set the old points by replacing any stored old points
+            void setOldPoints(const pointField& newOldPoints);
+
+            //- Set the old points by moving the source
+            void setOldPoints(pointField&& newOldPoints);
+
 
         // Topological change
 

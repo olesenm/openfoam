@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017,2022 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -523,8 +524,15 @@ public:
             //- Return cell face motion fluxes, if any (can be nullptr)
             refPtr<surfaceScalarField> setPhi();
 
+            //- Create and store cell face motion flux field
+            void createMeshPhi();
+
             //- Return old-time cell volumes
             DimensionedField<scalar, volMesh>& setV0();
+
+            //- Initialise old-time cell volumes from current V if absent
+            //  Used after mesh redistribution of a moving mesh
+            void initV0FromV();
 
 
         // Write

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
     Copyright (C) 2015-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "SpalartAllmarasIDDES.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -54,7 +56,8 @@ const IDDESDelta& SpalartAllmarasIDDES<BasicTurbulenceModel>::setDelta() const
 template<class BasicTurbulenceModel>
 tmp<volScalarField> SpalartAllmarasIDDES<BasicTurbulenceModel>::alpha() const
 {
-    return max(0.25 - this->y_/IDDESDelta_.hmax(), scalar(-5));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    return max(0.25 - y/IDDESDelta_.hmax(), scalar(-5));
 }
 
 
@@ -64,7 +67,8 @@ tmp<volScalarField> SpalartAllmarasIDDES<BasicTurbulenceModel>::ft
     const volScalarField& magGradU
 ) const
 {
-    return tanh(pow3(sqr(Ct_)*this->r(this->nut_, magGradU, this->y_)));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    return tanh(pow3(sqr(Ct_)*this->r(this->nut_, magGradU, y)));
 }
 
 
@@ -74,7 +78,8 @@ tmp<volScalarField> SpalartAllmarasIDDES<BasicTurbulenceModel>::fl
     const volScalarField& magGradU
 ) const
 {
-    return tanh(pow(sqr(Cl_)*this->r(this->nu(), magGradU, this->y_), 10));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    return tanh(pow(sqr(Cl_)*this->r(this->nu(), magGradU, y), 10));
 }
 
 
@@ -84,7 +89,8 @@ tmp<volScalarField> SpalartAllmarasIDDES<BasicTurbulenceModel>::fdt
     const volScalarField& magGradU
 ) const
 {
-    return 1 - tanh(pow(Cdt1_*this->r(this->nut_, magGradU, this->y_), Cdt2_));
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+    return 1 - tanh(pow(Cdt1_*this->r(this->nut_, magGradU, y), Cdt2_));
 }
 
 
@@ -101,7 +107,7 @@ tmp<volScalarField> SpalartAllmarasIDDES<BasicTurbulenceModel>::dTilda
     const volScalarField magGradU(mag(gradU));
     const volScalarField psi(this->psi(chi, fv1));
 
-    const volScalarField& lRAS = this->y_;
+    const volScalarField& lRAS = wallDist::New(this->mesh_).y();
     const volScalarField lLES(psi*this->CDES_*this->delta());
 
     const volScalarField alpha(this->alpha());

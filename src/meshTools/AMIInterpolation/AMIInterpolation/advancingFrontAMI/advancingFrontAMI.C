@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2015-2022,2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -566,6 +567,11 @@ bool Foam::advancingFrontAMI::calculate
         if (distributed() && comm() != -1)
         {
             createExtendedTgtPatch();
+        }
+
+        if (!distributed())
+        {
+            extendedTgtPatchPtr_.reset(nullptr);
         }
 
         const auto& src = this->srcPatch();

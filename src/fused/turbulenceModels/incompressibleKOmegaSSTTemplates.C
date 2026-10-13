@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2025 M.Janssens
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 #include "fvCFD.H"
 #include "GeometricFieldExpression.H"
 #include "fvOptions.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -79,9 +81,11 @@ auto incompressibleKOmegaSST::F1(const CDType& CDkOmega) const -> decltype(auto)
     const volConstant twoOverBetaStar(dummy, scalar(2)/betaStar_);
     const volConstant rho(dummy, 1.0);
 
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     // Wrap some fields
     const auto wk = volExpr(k_);
-    const auto wy = volExpr(y_);
+    const auto wy = volExpr(y);
     const auto womega = volExpr(omega_);
     const auto wmu = volExpr(this->mu());
 
@@ -122,9 +126,11 @@ auto incompressibleKOmegaSST::F2() const -> decltype(auto)
 
     const volConstant rho(dummy, 1.0);
 
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     // Wrap some fields
     const auto wk = volExpr(k_);
-    const auto wy = volExpr(y_);
+    const auto wy = volExpr(y);
     const auto womega = volExpr(omega_);
     const auto wmu = volExpr(this->mu()());
 
@@ -155,8 +161,10 @@ auto incompressibleKOmegaSST::F3() const -> decltype(auto)
     const volConstant c10(dummy, scalar(10));
     const volConstant rho(dummy, 1.0);
 
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     // Wrap some fields
-    const auto wy = volExpr(y_);
+    const auto wy = volExpr(y);
     const auto womega = volExpr(omega_);
     const auto wmu = volExpr(this->mu()());
 

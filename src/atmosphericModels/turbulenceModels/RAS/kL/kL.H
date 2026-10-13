@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -222,11 +223,6 @@ protected:
 
             //- Gravitational acceleration  [m2/s2]
             const uniformDimensionedVectorField& g_;
-
-            //- Wall distance
-            //  Note: different to wall distance in parent RASModel
-            //  which is for near-wall cells only
-            const volScalarField& y_;
 
 
     // Protected Member Functions

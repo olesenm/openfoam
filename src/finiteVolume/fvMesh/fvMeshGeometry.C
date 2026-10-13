@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017,2022 OpenFOAM Foundation
     Copyright (C) 2020-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -230,6 +231,29 @@ Foam::volScalarField::Internal& Foam::fvMesh::setV0()
 }
 
 
+void Foam::fvMesh::initV0FromV()
+{
+    if (!V0Ptr_)
+    {
+        DebugInFunction
+            << "Initialising V0 from current cell volumes V after "
+            << "redistribution" << endl;
+
+        V0Ptr_ = std::make_unique<DimensionedField<scalar, volMesh>>
+        (
+            IOobject
+            (
+                "V0",
+                this->time().timeName(),
+                *this,
+                IOobjectOption::NO_REGISTER
+            ),
+            V()
+        );
+    }
+}
+
+
 const Foam::volScalarField::Internal& Foam::fvMesh::V00() const
 {
     if (!V00Ptr_)
@@ -433,6 +457,28 @@ const Foam::surfaceScalarField& Foam::fvMesh::phi() const
     phiPtr_->setOriented();
 
     return *phiPtr_;
+}
+
+
+void Foam::fvMesh::createMeshPhi()
+{
+    if (!phiPtr_)
+    {
+        phiPtr_ = std::make_unique<surfaceScalarField>
+        (
+            IOobject
+            (
+                "meshPhi",
+                this->time().timeName(),
+                *this,
+                IOobjectOption::NO_READ,
+                IOobjectOption::NO_WRITE,
+                IOobjectOption::NO_REGISTER
+            ),
+            *this,
+            dimensionedScalar(dimVolume/dimTime, Foam::zero{})
+        );
+    }
 }
 
 

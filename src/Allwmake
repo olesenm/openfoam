@@ -118,6 +118,7 @@ parallel/Allwmake $targetType $*
 
 wmake $targetType dynamicFvMesh
 wmake $targetType topoChangerFvMesh
+wmake $targetType dynamicLoadBalancing
 
 wmake $targetType sampling
 transportModels/Allwmake $targetType $*

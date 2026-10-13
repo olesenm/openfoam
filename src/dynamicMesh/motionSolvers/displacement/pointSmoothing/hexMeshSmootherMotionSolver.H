@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -69,8 +70,9 @@ SourceFiles
 namespace Foam
 {
 
-//class searchableSurfaces;
+// Forward Declarations
 class pointSmoother;
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
                  Class hexMeshSmootherMotionSolver Declaration
@@ -131,10 +133,10 @@ protected:
 
         //- Cached per-point coupled status. For guaranteeing contributions
         //  of coupled points only done once
-        const bitSet isMasterPoint_;
+        bitSet isMasterPoint_;
 
         //- Create big primitivePatch for all outside and any features on it
-        const autoPtr<indirectPrimitivePatch> bnd0Ptr_;
+        autoPtr<indirectPrimitivePatch> bnd0Ptr_;
 
 
     // Private Member Functions
@@ -241,6 +243,9 @@ public:
 
         //- Return point location obtained from the current motion field
         virtual tmp<pointField> curPoints() const;
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Solve for motion
         virtual void solve();

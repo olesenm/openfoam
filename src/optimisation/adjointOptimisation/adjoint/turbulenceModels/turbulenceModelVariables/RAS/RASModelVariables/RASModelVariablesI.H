@@ -160,12 +160,14 @@ inline tmp<volScalarField> RASModelVariables::nut() const
 
 inline const volScalarField& RASModelVariables::d() const
 {
+    refreshWallDist();
     return distPtr_.cref();
 }
 
 
 inline volScalarField& RASModelVariables::d()
 {
+    refreshWallDist();
     return distPtr_.ref();
 }
 

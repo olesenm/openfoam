@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2020,2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,7 +56,9 @@ tmp<volScalarField> LamBremhorstKE::Rt() const
 
 tmp<volScalarField> LamBremhorstKE::fMu(const volScalarField& Rt) const
 {
-    tmp<volScalarField> Ry(sqrt(k_)*y_/nu());
+    const volScalarField& y = wallDist::New(mesh_).y();
+
+    tmp<volScalarField> Ry(sqrt(k_)*y/nu());
     return sqr(scalar(1) - exp(-0.0165*Ry))*(scalar(1) + 20.5/(Rt + SMALL));
 }
 
@@ -174,9 +177,7 @@ LamBremhorstKE::LamBremhorstKE
             IOobject::AUTO_WRITE
         ),
         mesh_
-    ),
-
-    y_(wallDist::New(mesh_).y())
+    )
 {
     bound(k_, kMin_);
     bound(epsilon_, epsilonMin_);

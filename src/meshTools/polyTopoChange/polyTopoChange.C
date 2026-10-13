@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2022,2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -229,6 +230,7 @@ void Foam::polyTopoChange::writeMeshStats(const polyMesh& mesh, Ostream& os)
         << "    cZoneSizes  : " << flatOutput(cellZoneSizes) << nl
         << "    fZoneSizes  : " << flatOutput(faceZoneSizes) << nl
         << "    pZoneSizes  : " << flatOutput(pointZoneSizes) << nl
+        << "    moving      : " << mesh.moving() << nl
         << endl;
 }
 
@@ -3904,6 +3906,12 @@ Foam::autoPtr<Foam::mapPolyMesh> Foam::polyTopoChange::changeMesh
             syncParallel
         );
         mesh.topoChanging(true);
+    }
+
+    // Clear out old polyPatch information since old primitives were destroyed
+    {
+        const_cast<polyBoundaryMesh&>(mesh.boundaryMesh()).clearAddressing();
+        const_cast<polyBoundaryMesh&>(mesh.boundaryMesh()).clearGeom();
     }
 
     // Clear out primitives

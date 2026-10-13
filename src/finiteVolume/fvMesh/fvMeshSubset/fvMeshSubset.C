@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2022,2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -657,6 +658,7 @@ void Foam::fvMeshSubset::reset
     const cellList& oldCells = baseMesh().cells();
     const faceList& oldFaces = baseMesh().faces();
     const pointField& oldPoints = baseMesh().points();
+    const bool oldMoving = baseMesh().moving();
     const labelList& oldOwner = baseMesh().faceOwner();
     const labelList& oldNeighbour = baseMesh().faceNeighbour();
     const polyBoundaryMesh& oldPatches = baseMesh().boundaryMesh();
@@ -1302,6 +1304,15 @@ void Foam::fvMeshSubset::reset
     // Subset and add any zones
     subsetZones();
 
+    if (oldMoving)
+    {
+        subMeshPtr_().moving(true);
+        subMeshPtr_().clearOldPoints();
+        subMeshPtr_().setOldPoints
+        (
+            pointField(baseMesh_.oldPoints(), pointMap_)
+        );
+    }
 
     if (basePointMeshPtr)
     {

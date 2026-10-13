@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -87,6 +88,10 @@ void Foam::cloud::autoMap(const mapPolyMesh&)
 {
     NotImplemented;
 }
+
+
+void Foam::cloud::storeGlobalPositions() const
+{}
 
 
 void Foam::cloud::readObjects(const objectRegistry& obr)

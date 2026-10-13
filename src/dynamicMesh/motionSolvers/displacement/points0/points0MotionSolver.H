@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
     Copyright (C) 2016-2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -123,6 +124,9 @@ public:
 
         //-  Update local data for topology changes
         virtual void updateMesh(const mapPolyMesh&);
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 };
 
 

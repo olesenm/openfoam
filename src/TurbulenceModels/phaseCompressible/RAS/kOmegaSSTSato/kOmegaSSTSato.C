@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2017 OpenFOAM Foundation
     Copyright (C) 2019-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,6 +30,7 @@ License
 #include "kOmegaSSTSato.H"
 #include "fvOptions.H"
 #include "twoPhaseSystem.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -140,9 +142,11 @@ void kOmegaSSTSato<BasicTurbulenceModel>::correctNut
     const PhaseCompressibleTurbulenceModel<transportModel>& gasTurbulence =
         this->gasTurbulence();
 
+    const volScalarField& y = wallDist::New(this->mesh_).y();
+
     volScalarField yPlus
     (
-        pow(this->betaStar_, 0.25)*this->y_*sqrt(this->k_)/this->nu()
+        pow(this->betaStar_, 0.25)*y*sqrt(this->k_)/this->nu()
     );
 
     this->nut_ =

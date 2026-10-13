@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -47,6 +48,7 @@ namespace Foam
 
 // Forward class declarations
 class displacementMotionSolver;
+class mapDistributePolyMesh;
 
 /*---------------------------------------------------------------------------*\
               Class velocityDisplacementMotionSolver Declaration
@@ -107,6 +109,9 @@ public:
 
         //- Update geometry
         virtual void movePoints(const pointField&);
+
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 
         //- Update topology
         virtual void updateMesh(const mapPolyMesh&);

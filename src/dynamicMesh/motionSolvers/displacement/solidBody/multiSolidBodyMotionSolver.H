@@ -99,6 +99,9 @@ public:
         //- Return point location obtained from the current motion field
         virtual tmp<pointField> curPoints() const;
 
+        //- Update local data after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
+
         //- Solve for motion
         virtual void solve()
         {}

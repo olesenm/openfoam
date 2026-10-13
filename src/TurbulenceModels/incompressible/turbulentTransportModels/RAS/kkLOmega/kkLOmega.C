@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -534,8 +535,7 @@ kkLOmega::kkLOmega
             mesh_
         ),
         kt_*omega_ + D(kl_) + D(kt_)
-    ),
-    y_(wallDist::New(mesh_).y())
+    )
 {
     bound(kt_, kMin_);
     bound(kl_, kMin_);
@@ -607,9 +607,11 @@ void kkLOmega::correct()
         return;
     }
 
+    const volScalarField& y = wallDist::New(mesh_).y();
+
     const volScalarField lambdaT(sqrt(kt_)/(omega_ + omegaMin_));
 
-    const volScalarField lambdaEff(min(Clambda_*y_, lambdaT));
+    const volScalarField lambdaEff(min(Clambda_*y, lambdaT));
 
     const volScalarField fw
     (
@@ -639,14 +641,14 @@ void kkLOmega::correct()
     volScalarField Pkt(this->GName(), nuts*S2);
 
     const volScalarField ktL(kt_ - ktS);
-    const volScalarField ReOmega(sqr(y_)*Omega/nu());
+    const volScalarField ReOmega(sqr(y)*Omega/nu());
     const volScalarField nutl
     (
         min
         (
             C11_*fTaul(lambdaEff, ktL, Omega)*Omega*sqr(lambdaEff)
            *sqrt(ktL)*lambdaEff/nu()
-          + C12_*BetaTS(ReOmega)*ReOmega*sqr(y_)*Omega
+          + C12_*BetaTS(ReOmega)*ReOmega*sqr(y)*Omega
         ,
             0.5*(kl_ + ktL)/(sqrt(S2) + omegaMin_)
         )
@@ -669,7 +671,7 @@ void kkLOmega::correct()
        /(fw + fwMin)
     );
 
-    const volScalarField fNatCrit(1.0 - exp(-Cnc_*sqrt(kl_)*y_/nu()));
+    const volScalarField fNatCrit(1.0 - exp(-Cnc_*sqrt(kl_)*y/nu()));
 
     // Natural source term divided by kl_
     const volScalarField Rnat
@@ -698,7 +700,7 @@ void kkLOmega::correct()
       - fvm::Sp(Cw2_*sqr(fw)*omega_, omega_)
       + (
             Cw3_*fOmega(lambdaEff, lambdaT)*alphaTEff*sqr(fw)*sqrt(kt_)
-        )()()/pow3(y_())
+        )()()/pow3(y())
     );
 
     omegaEqn.ref().relax();

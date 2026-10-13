@@ -1,0 +1,13 @@
+
+surfaceInterpolate1
+{
+    type            surfaceInterpolate;
+    libs            (fieldFunctionObjects);
+    fields          ((U surfaceU) (p surfaceP));
+
+    executeControl  writeTime;
+    writeControl    writeTime;
+}
+
+
+// ************************************************************************* //

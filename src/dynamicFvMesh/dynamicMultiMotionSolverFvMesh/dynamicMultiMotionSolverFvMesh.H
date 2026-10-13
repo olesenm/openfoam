@@ -48,6 +48,9 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+class mapDistributePolyMesh;
+
 /*---------------------------------------------------------------------------*\
                    Class dynamicMultiMotionSolverFvMesh Declaration
 \*---------------------------------------------------------------------------*/
@@ -94,7 +97,7 @@ public:
 
 
     //- Destructor
-    virtual ~dynamicMultiMotionSolverFvMesh() = default;
+    virtual ~dynamicMultiMotionSolverFvMesh();
 
 
     // Member Functions
@@ -104,6 +107,9 @@ public:
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update();
+
+        //- Update motion solver state after mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh& map);
 };
 
 

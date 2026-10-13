@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2024-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,7 @@ License
 
 #include "displacementSmartPointSmoothingMotionSolver.H"
 #include "addToRunTimeSelectionTable.H"
+#include "mapDistributePolyMesh.H"
 #include "syncTools.H"
 #include "pointConstraints.H"
 #include "motionSmootherAlgo.H"
@@ -419,6 +421,13 @@ displacementSmartPointSmoothingMotionSolver
 }
 
 
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::displacementSmartPointSmoothingMotionSolver::
+~displacementSmartPointSmoothingMotionSolver() = default;
+
+
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
 Foam::tmp<Foam::pointField>
@@ -427,6 +436,28 @@ Foam::displacementSmartPointSmoothingMotionSolver::curPoints() const
     //Note: twoDCorrect already done by ::solve
 
     return relaxedPoints_;
+}
+
+
+void Foam::displacementSmartPointSmoothingMotionSolver::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    displacementMotionSolver::distribute(map);
+    map.distributePointData(relaxedPoints_);
+
+    pointUntangler_ =
+        pointSmoother::New
+        (
+            coeffDict().get<word>("untangler"),
+            mesh(),
+            coeffDict()
+        );
+    pointSmoother_ = pointSmoother::New(mesh(), coeffDict());
+    facesToMove_.clear();
+    setFacesToMove(coeffDict());
+    meshGeometry_.correct();
 }
 
 

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2022 OpenCFD Ltd
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 #include "addToRunTimeSelectionTable.H"
 #include "dynamicMotionSolverTopoFvMesh.H"
 #include "mapPolyMesh.H"
+#include "mapDistributePolyMesh.H"
 #include "OBJstream.H"
 #include "Time.H"
 #include "surfaceFields.H"
@@ -92,6 +94,15 @@ Foam::dynamicMotionSolverTopoFvMesh::~dynamicMotionSolverTopoFvMesh()
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::dynamicMotionSolverTopoFvMesh::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    motionPtr_->distribute(map);
+}
+
 
 bool Foam::dynamicMotionSolverTopoFvMesh::update()
 {

@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,7 @@ License
 #include "dynamicMotionSolverFvMeshAMI.H"
 #include "addToRunTimeSelectionTable.H"
 #include "motionSolver.H"
+#include "mapDistributePolyMesh.H"
 #include "volFields.H"
 #include "surfaceFields.H"
 #include "cyclicAMIPolyPatch.H"
@@ -86,7 +88,7 @@ bool Foam::dynamicMotionSolverFvMeshAMI::init(const bool doInit)
     motionPtr_ = motionSolver::New(*this);
 
     // allow restarts during initialization to match patch field values if
-    // required 
+    // required
     const auto& pbm = boundaryMesh();
     bool changeRequired = false;
     for (label patchi = 0; patchi < pbm.nNonProcessor(); ++patchi)
@@ -140,11 +142,26 @@ Foam::dynamicMotionSolverFvMeshAMI::dynamicMotionSolverFvMeshAMI
 {}
 
 
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::dynamicMotionSolverFvMeshAMI::~dynamicMotionSolverFvMeshAMI() = default;
+
+
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 const Foam::motionSolver& Foam::dynamicMotionSolverFvMeshAMI::motion() const
 {
     return *motionPtr_;
+}
+
+
+void Foam::dynamicMotionSolverFvMeshAMI::distribute
+(
+    const mapDistributePolyMesh& map
+)
+{
+    motionPtr_->distribute(map);
 }
 
 

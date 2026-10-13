@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -57,6 +58,10 @@ SourceFiles
 namespace Foam
 {
 
+// Forward Declarations
+class mapDistributePolyMesh;
+class dynamicLoadBalancingModel;
+
 /*---------------------------------------------------------------------------*\
                         Class dynamicFvMesh Declaration
 \*---------------------------------------------------------------------------*/
@@ -70,11 +75,24 @@ class dynamicFvMesh
         //- Optional update control
         timeControl timeControl_;
 
+        //- Optional dynamic-load-balancing model
+        std::unique_ptr<dynamicLoadBalancingModel> dlbModelPtr_;
+
+        //- Flag to decide if the optional dynamic-load-balancing model is
+        //- selected for this mesh
+        bool dlbModelInitialised_;
+
 
     // Private Member Functions
 
         //- Read the updateControl/updateInterval from dynamicMeshDict
         void readDict();
+
+        //- Read/select optional dynamic-load-balancing model once
+        void readDynamicLoadBalancingModel();
+
+        //- Execute optional dynamic-load-balancing model
+        bool executeDynamicLoadBalancingModel();
 
         //- No copy construct
         dynamicFvMesh(const dynamicFvMesh&) = delete;
@@ -165,7 +183,7 @@ public:
 
 
     //- Destructor
-    virtual ~dynamicFvMesh() = default;
+    virtual ~dynamicFvMesh();
 
 
     // Member Functions
@@ -181,6 +199,9 @@ public:
 
         //- Update the mesh if controller permits
         virtual bool controlledUpdate();
+
+        //- Update local state after parallel mesh redistribution
+        virtual void distribute(const mapDistributePolyMesh&) {}
 
         //- Update the mesh for both mesh motion and topology change
         virtual bool update() = 0;
