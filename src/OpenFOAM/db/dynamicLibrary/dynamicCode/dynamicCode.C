@@ -555,8 +555,9 @@ void Foam::dynamicCode::waitForFile
     // We do this by just polling a few times using the
     // fileModificationSkew.
 
-    off_t localSize = Foam::fileSize(file);
-    off_t masterSize = localSize;
+    // off_t (long) is ambiguous on mingw : broadcast as int64
+    auto localSize = int64_t(Foam::fileSize(file));
+    auto masterSize(localSize);
     Pstream::broadcast(masterSize);
 
     for
@@ -607,7 +608,7 @@ void Foam::dynamicCode::waitForFile
             Foam::sleep(IOobject::fileModificationSkew);
 
             // Recheck local size
-            localSize = Foam::fileSize(file);
+            localSize = int64_t(Foam::fileSize(file));
         }
     }
 
