@@ -16,6 +16,10 @@ c++FLAGS    = \
     $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
     $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS)
 
+# In many (most) installations, the tbb library isn't really available
+# so disable parallel policies for mingw (define as 0).
+c++FLAGS  += -DPSTL_USE_PARALLEL_POLICIES=0
+
 # big-obj for assembler stage since some files (eg, rhoReactionThermos)
 # exceed the classic 16-bit COFF section numbering.
 

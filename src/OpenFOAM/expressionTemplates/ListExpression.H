@@ -54,9 +54,6 @@ SourceFiles
 #elif __has_include(<execution>) && defined(Foam_Expression_execution)
     #include <execution>
 #endif
-#if defined(FOAM_OFFLOAD_NEXT) \
-    && defined(__cpp_lib_execution) && (__cpp_lib_execution >= 201902L)
-#endif
 
 #include "List.H"
 #include "labelPair.H"
