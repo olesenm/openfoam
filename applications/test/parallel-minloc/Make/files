@@ -1,0 +1,3 @@
+Test-parallel-minloc.cxx
+
+EXE = $(FOAM_USER_APPBIN)/Test-parallel-minloc

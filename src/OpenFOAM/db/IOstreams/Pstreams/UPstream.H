@@ -35,6 +35,7 @@ SourceFiles
     UPstream.C
     UPstream.txx
     UPstreamCommsStruct.C
+    UPstreamOps.cxx
     UPstreamReduceOffsets.H
 
 \*---------------------------------------------------------------------------*/
@@ -62,6 +63,9 @@ namespace PstreamDetail {}
 
 //- Interface handling for UPstream/Pstream/MPI etc.
 namespace PstreamUtils {}
+
+// Forward Declarations
+template<class T1, class T2> class Tuple2;
 
 /*---------------------------------------------------------------------------*\
                           Class UPstream Declaration
@@ -605,6 +609,40 @@ private:
         {
             return ListOps::equal(procs1, procs2);
         }
+
+        //- Implementation detail for in-place allreduce
+        //- MINLOC/MAXLOC operations.
+        //
+        //  \tparam Type   the C++ data type (int32, int64, float, double)
+        //  \tparam OpCode the operation (minloc/maxloc)
+        template<class Type, UPstream::opCodes OpCode>
+        static void allReduceLocation_impl
+        (
+            //! [in,out] value/index tuples
+            Tuple2<Type, int>* tuples,
+            //! The number of tuples (must be parallel consistent!)
+            int64_t count,
+            int communicator
+        );
+
+        //- Implementation detail for int64 minLocation/maxLocation on
+        //- platforms where \c long is not 64-bit (eg, LLP64/mingw).
+        //
+        //  Performs a two-pass reduction using (int, int) MPI tuple type.
+        //  Pass 1 finds the extreme value by splitting it into
+        //  (high32, low32) words.
+        //  Pass 2 recovers the originating index amongst any exact ties.
+        //
+        //  \tparam OpCode the operation (minloc/maxloc)
+        template<UPstream::opCodes OpCode>
+        static void allReduceLocation_int64_split
+        (
+            //! [in,out] value/index tuples
+            Tuple2<int64_t, int>* tuples,
+            //! The number of tuples (must be parallel consistent!)
+            int64_t count,
+            int communicator
+        );
 
 
 protected:
@@ -2130,6 +2168,59 @@ public:
         //- Locate the last rank for which the \p condition is true,
         //- or -1 if no ranks satisfy the condition.
         static int find_last(bool condition, int communicator);
+
+        #undef  Pstream_declareMethods
+        #define Pstream_declareMethods(Type)                                  \
+                                                                              \
+        /*!\brief A in-place \c min_location (MINLOC) allReduce operation  */ \
+        /*! \returns the index (second element of tuple)                   */ \
+        /*! \em non-parallel : no-op, returns the index                    */ \
+        static int minLocation                                                \
+        (                                                                     \
+            /*! [in,out] value/index tuple */                                 \
+            Tuple2<Type, int>& data_tuple,                                    \
+            int communicator = UPstream::worldComm                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief A in-place \c max_location (MAXLOC) allReduce operation  */ \
+        /*! \returns the index (second element of tuple)                   */ \
+        /*! \em non-parallel : no-op, returns the index                    */ \
+        static int maxLocation                                                \
+        (                                                                     \
+            /*! [in,out] value/index tuple */                                 \
+            Tuple2<Type, int>& data_tuple,                                    \
+            int communicator = UPstream::worldComm                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief An inplace \c min_location operation on multiple values  */ \
+        /*! \em non-parallel : no-op                                       */ \
+        static void minLocation                                               \
+        (                                                                     \
+            /*! [in,out] value/index tuples */                                \
+            Tuple2<Type, int>* data_tuples,                                   \
+            /*! The number of tuples (must be parallel consistent!) */        \
+            int64_t count,                                                    \
+            int communicator = UPstream::worldComm                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief An inplace \c max_location operation on multiple values  */ \
+        /*! \em non-parallel : no-op                                       */ \
+        static void maxLocation                                               \
+        (                                                                     \
+            /*! [in,out] value/index tuples */                                \
+            Tuple2<Type, int>* data_tuples,                                   \
+            /*! The number of tuples (must be parallel consistent!) */        \
+            int64_t count,                                                    \
+            int communicator = UPstream::worldComm                            \
+        );
+
+        // NB: only four types are ever possible (int, long, float, double)
+        Pstream_declareMethods(int32_t);
+        Pstream_declareMethods(int64_t);
+        Pstream_declareMethods(float);
+        Pstream_declareMethods(double);
+
+        #undef Pstream_declareMethods
 
 
     // Housekeeping

@@ -276,6 +276,7 @@ $(Tstreams)/OTstream.C
 
 Pstreams = $(Streams)/Pstreams
 /* $(Pstreams)/UPstream.C in global.C */
+$(Pstreams)/UPstreamOps.cxx
 $(Pstreams)/UPstreamCommsStruct.C
 $(Pstreams)/Pstream.C
 $(Pstreams)/PstreamBuffers.C
