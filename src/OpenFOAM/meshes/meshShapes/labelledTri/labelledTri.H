@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,7 +29,7 @@ Class
     Foam::labelledTri
 
 Description
-    A triFace with additional (region) index.
+    A triFace with additional index (eg, for a region).
 
 SourceFiles
     labelledTriI.H
@@ -61,13 +62,13 @@ class labelledTri
 {
     // Private Data
 
-        //- The object index (region)
+        //- The object index (eg, region)
         label index_;
 
 
     // Private Member Functions
 
-        //- Assign from 3 or 4 labels, default region is 0.
+        //- Assign from 3 or 4 labels, default index is 0.
         template<class ListType>
         inline void assignList(const ListType& list);
 
@@ -76,44 +77,34 @@ public:
 
     // Constructors
 
-        //- Default construct, with invalid point labels and region (-1).
-        inline labelledTri();
+        //- Default construct, with invalid point labels and index (-1).
+        inline constexpr labelledTri();
 
-        //- Construct from triFace
-        //- and optional region index (0 if unspecified)
-        inline labelledTri
-        (
-            const triFace& tri,
-            const label region = 0
-        );
+        //- Implicit construct from triFace
+        //- and optional index (0 if unspecified)
+        inline constexpr labelledTri(const triFace& tri, label idx = 0);
 
         //- Construct from three point labels
-        //- and optional region index (0 if unspecified)
-        inline labelledTri
-        (
-            const label p0,
-            const label p1,
-            const label p2,
-            const label region = 0
-        );
+        //- and optional index (0 if unspecified)
+        inline constexpr labelledTri(label p0, label p1, label p2, label idx=0);
 
-        //- Construct from a list of 3 or 4 labels. Default region is 0.
+        //- Construct from a list of 3 or 4 labels. Default index is 0.
         inline explicit labelledTri(const labelUList& list);
 
-        //- Construct from a list of 3 or 4 labels. Default region is 0.
+        //- Construct from a list of 3 or 4 labels. Default index is 0.
         inline explicit labelledTri(std::initializer_list<label>);
 
         //- Copy construct from a subset of point labels
-        //- and optional region index (0 if unspecified)
+        //- and optional index (0 if unspecified)
         inline labelledTri
         (
             const labelUList& list,
             const FixedList<label, 3>& triIndices,
-            const label region = 0
+            label idx = 0
         );
 
         //- Copy construct from a subset of point labels
-        //- with region index from input labelledTri
+        //- with index from input labelledTri
         inline labelledTri
         (
             const labelUList& list,
@@ -127,34 +118,19 @@ public:
     // Member Functions
 
         //- Return the index (eg, the region)
-        label index() const noexcept
-        {
-            return index_;
-        }
+        constexpr label index() const noexcept { return index_; }
 
         //- Non-const access to the index (eg, the region)
-        label& index() noexcept
-        {
-            return index_;
-        }
+        constexpr label& index() noexcept { return index_; }
 
         //- Set the index (eg, the region)
-        void setIndex(const label idx) noexcept
-        {
-            index_ = idx;
-        }
+        void setIndex(label idx) noexcept { index_ = idx; }
 
         //- Return the region index
-        label region() const noexcept
-        {
-            return index_;
-        }
+        constexpr label region() const noexcept { return index_; }
 
         //- Non-const access to the region index
-        label& region() noexcept
-        {
-            return index_;
-        }
+        constexpr label& region() noexcept { return index_; }
 
 
     // IOstream Operators

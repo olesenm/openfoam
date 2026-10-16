@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -36,13 +37,13 @@ inline int Foam::edge::compare(const edge& a, const edge& b)
 }
 
 
-inline Foam::edge Foam::edge::sorted(label from, label to)
+inline constexpr Foam::edge Foam::edge::sorted(label from, label to)
 {
     return (from < to) ? edge(from, to) : edge(to, from);
 }
 
 
-inline Foam::edge Foam::edge::sorted(const labelPair& pair)
+inline constexpr Foam::edge Foam::edge::sorted(const labelPair& pair)
 {
     return
     (
@@ -53,7 +54,7 @@ inline Foam::edge Foam::edge::sorted(const labelPair& pair)
 }
 
 
-inline Foam::edge Foam::edge::sorted(const FixedList<label, 2>& pair)
+inline constexpr Foam::edge Foam::edge::sorted(const FixedList<label, 2>& pair)
 {
     return
     (
@@ -66,25 +67,25 @@ inline Foam::edge Foam::edge::sorted(const FixedList<label, 2>& pair)
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::edge::edge()
+inline constexpr Foam::edge::edge()
 :
     labelPair(-1, -1)
 {}
 
 
-inline Foam::edge::edge(label from, label to)
+inline constexpr Foam::edge::edge(label from, label to)
 :
     labelPair(from, to)
 {}
 
 
-inline Foam::edge::edge(const labelPair& pair)
+inline constexpr Foam::edge::edge(const labelPair& pair)
 :
     labelPair(pair.first(), pair.second())
 {}
 
 
-inline Foam::edge::edge(const FixedList<label, 2>& pair)
+inline constexpr Foam::edge::edge(const FixedList<label, 2>& pair)
 :
     labelPair(pair.get<0>(), pair.get<1>())
 {}

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,33 +33,27 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::tetPoints::tetPoints
+inline constexpr Foam::tetPoints::tetPoints
 (
     const point& p0,
     const point& p1,
     const point& p2,
     const point& p3
 )
-{
-    a() = p0;
-    b() = p1;
-    c() = p2;
-    d() = p3;
-}
-
-
-inline Foam::tetPoints::tetPoints(const tetPointRef& pts)
-{
-    a() = pts.a();
-    b() = pts.b();
-    c() = pts.c();
-    d() = pts.d();
-}
-
-
-inline Foam::tetPoints::tetPoints(const FixedList<point, 4>& pts)
 :
-    FixedList<point, 4>(pts)
+    tuple_type(Foam::direct_construct_t{}, p0, p1, p2, p3)
+{}
+
+
+inline constexpr Foam::tetPoints::tetPoints(const tetPointRef& pts)
+:
+    tuple_type(Foam::direct_construct_t{}, pts.a(), pts.b(), pts.c(), pts.d())
+{}
+
+
+inline constexpr Foam::tetPoints::tetPoints(const FixedList<point, 4>& pts)
+:
+    tuple_type(pts)
 {}
 
 
@@ -68,12 +63,12 @@ inline Foam::tetPoints::tetPoints
     const FixedList<label, 4>& indices
 )
 :
-    FixedList<point, 4>(points, indices)
+    tuple_type(points, indices)
 {}
 
 
 template<class Point, class PointRef>
-inline Foam::tetrahedron<Point, PointRef>::tetrahedron
+inline constexpr Foam::tetrahedron<Point, PointRef>::tetrahedron
 (
     const Point& p0,
     const Point& p1,
@@ -89,7 +84,7 @@ inline Foam::tetrahedron<Point, PointRef>::tetrahedron
 
 
 template<class Point, class PointRef>
-inline Foam::tetrahedron<Point, PointRef>::tetrahedron
+inline constexpr Foam::tetrahedron<Point, PointRef>::tetrahedron
 (
     const FixedList<Point, 4>& pts
 )
@@ -587,28 +582,6 @@ inline void Foam::tetrahedron<Point, PointRef>::sumVolOp::operator()
 )
 {
     vol_ += tet.tet().mag();
-}
-
-
-template<class Point, class PointRef>
-inline Foam::tetrahedron<Point, PointRef>::storeOp::storeOp
-(
-    tetIntersectionList& tets,
-    label& nTets
-)
-:
-    tets_(tets),
-    nTets_(nTets)
-{}
-
-
-template<class Point, class PointRef>
-inline void Foam::tetrahedron<Point, PointRef>::storeOp::operator()
-(
-    const tetPoints& tet
-)
-{
-    tets_[nTets_++] = tet;
 }
 
 

@@ -67,6 +67,9 @@ class tetCell
 :
     public FixedList<label, 4>
 {
+    //- Storage type
+    typedef FixedList<label, 4> tuple_type;
+
     // Static Data Members
 
         //- The model faces for TET
@@ -99,16 +102,16 @@ public:
     // Constructors
 
         //- Default construct, with invalid point labels (-1)
-        inline tetCell();
+        inline constexpr tetCell();
 
         //- Construct from four point labels
-        inline tetCell(label p0, label p1, label p2, label p3);
+        inline constexpr tetCell(label p0, label p1, label p2, label p3);
 
         //- Construct from an initializer list of four point labels
         inline explicit tetCell(std::initializer_list<label> list);
 
         //- Construct from FixedList of four point labels
-        inline tetCell(const FixedList<label, 4>& list);
+        inline constexpr tetCell(const FixedList<label, 4>& list);
 
         //- Copy construct from a subset of point labels
         inline tetCell

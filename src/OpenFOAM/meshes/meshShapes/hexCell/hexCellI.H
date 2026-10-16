@@ -65,31 +65,31 @@ inline void Foam::hexCell::copyFace(labelList& f, const label facei) const
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::hexCell::hexCell()
+inline constexpr Foam::hexCell::hexCell()
 :
-    FixedList<label, 8>(-1)
+    tuple_type(-1)
 {}
 
 
 inline Foam::hexCell::hexCell(std::initializer_list<label> list)
 :
-    FixedList<label, 8>(list)
+    tuple_type(list)
 {}
 
 
-inline Foam::hexCell::hexCell(const FixedList<label, 8>& list)
+inline constexpr Foam::hexCell::hexCell(const tuple_type& list)
 :
-    FixedList<label, 8>(list)
+    tuple_type(list)
 {}
 
 
 inline Foam::hexCell::hexCell
 (
     const labelUList& list,
-    const FixedList<label, 8>& indices
+    const tuple_type& indices
 )
 :
-    FixedList<label, 8>(list, indices)
+    tuple_type(list, indices)
 {}
 
 
@@ -97,16 +97,16 @@ template<unsigned AnyNum>
 inline Foam::hexCell::hexCell
 (
     const FixedList<label, AnyNum>& list,
-    const FixedList<label, 8>& indices
+    const tuple_type& indices
 )
 :
-    FixedList<label, 8>(list, indices)
+    tuple_type(list, indices)
 {}
 
 
 inline Foam::hexCell::hexCell(Istream& is)
 :
-    FixedList<label, 8>(is)
+    tuple_type(is)
 {}
 
 

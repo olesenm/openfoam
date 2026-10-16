@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2015 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -76,31 +77,31 @@ public:
     // Generated Methods
 
         //- Copy construct
-        edge(const edge&) = default;
+        constexpr edge(const edge&) = default;
 
         //- Move construct
-        edge(edge&&) = default;
+        constexpr edge(edge&&) = default;
 
         //- Copy assignment
-        edge& operator=(const edge&) = default;
+        constexpr edge& operator=(const edge&) = default;
 
         //- Move assignment
-        edge& operator=(edge&&) = default;
+        constexpr edge& operator=(edge&&) = default;
 
 
     // Constructors
 
         //- Default construct, with invalid vertex labels (-1)
-        inline edge();
+        inline constexpr edge();
 
         //- Construct from two vertex labels
-        inline edge(label from, label to);
+        inline constexpr edge(label from, label to);
 
         //- Construct from two vertex labels
-        inline edge(const labelPair& pair);
+        inline constexpr edge(const labelPair& pair);
 
         //- Construct from two vertex labels
-        inline edge(const FixedList<label, 2>& pair);
+        inline constexpr edge(const FixedList<label, 2>& pair);
 
         //- Copy construct from a subset of vertex labels
         inline edge
@@ -116,13 +117,13 @@ public:
     // Static Functions
 
         //- Create (in ascending order) from two vertex labels
-        inline static edge sorted(label from, label to);
+        inline static constexpr edge sorted(label from, label to);
 
         //- Create (in ascending order) from two vertex labels
-        inline static edge sorted(const labelPair& pair);
+        inline static constexpr edge sorted(const labelPair& pair);
 
         //- Create (in ascending order) from two vertex labels
-        inline static edge sorted(const FixedList<label, 2>& pair);
+        inline static constexpr edge sorted(const FixedList<label, 2>& pair);
 
 
     // Member Functions
@@ -130,28 +131,28 @@ public:
     // Access
 
         //- The first vertex
-        label a() const noexcept { return labelPair::first(); }
+        constexpr label a() const noexcept { return labelPair::first(); }
 
         //- The first vertex
-        label& a() noexcept { return labelPair::first(); }
+        constexpr label& a() noexcept { return labelPair::first(); }
 
         //- The second vertex
-        label b() const noexcept { return labelPair::second(); }
+        constexpr label b() const noexcept { return labelPair::second(); }
 
         //- The second vertex
-        label& b() noexcept { return labelPair::second(); }
+        constexpr label& b() noexcept { return labelPair::second(); }
 
         //- The start (first) vertex label
-        label start() const noexcept { return labelPair::first(); }
+        constexpr label start() const noexcept { return labelPair::first(); }
 
         //- The start (first) vertex label
-        label& start() noexcept { return labelPair::first(); }
+        constexpr label& start() noexcept { return labelPair::first(); }
 
         //- The end (second/last) vertex label
-        label& end() noexcept { return labelPair::second(); }
+        constexpr label& end() noexcept { return labelPair::second(); }
 
         //- The end (last/second) vertex label
-        label end() const noexcept { return labelPair::second(); }
+        constexpr label end() const noexcept { return labelPair::second(); }
 
 
         //- Return reverse edge as copy.

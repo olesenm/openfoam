@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -57,34 +58,34 @@ inline void Foam::labelledTri::assignList(const ListType& list)
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::labelledTri::labelledTri()
+inline constexpr Foam::labelledTri::labelledTri()
 :
     triFace(),
     index_(-1)
 {}
 
 
-inline Foam::labelledTri::labelledTri
+inline constexpr Foam::labelledTri::labelledTri
 (
     const triFace& tri,
-    const label region
+    label idx
 )
 :
     triFace(tri),
-    index_(region)
+    index_(idx)
 {}
 
 
-inline Foam::labelledTri::labelledTri
+inline constexpr Foam::labelledTri::labelledTri
 (
-    const label p0,
-    const label p1,
-    const label p2,
-    const label region
+    label p0,
+    label p1,
+    label p2,
+    label idx
 )
 :
     triFace(p0, p1, p2),
-    index_(region)
+    index_(idx)
 {}
 
 
@@ -110,11 +111,11 @@ inline Foam::labelledTri::labelledTri
 (
     const labelUList& list,
     const FixedList<label, 3>& triIndices,
-    const label region
+    label idx
 )
 :
     triFace(list, triIndices),
-    index_(region)
+    index_(idx)
 {}
 
 
@@ -125,7 +126,7 @@ inline Foam::labelledTri::labelledTri
 )
 :
     triFace(list, triIndices),
-    index_(triIndices.region())
+    index_(triIndices.index())
 {}
 
 
