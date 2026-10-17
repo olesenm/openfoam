@@ -110,11 +110,11 @@ inline Foam::globalIndex::globalIndex
 inline Foam::globalIndex::globalIndex
 (
     label localSize,
-    const label comm,
-    const bool parallel
+    int communicator,
+    bool parallel
 )
 {
-    reset(localSize, comm, parallel);
+    reset(localSize, communicator, parallel);
 }
 
 
@@ -137,11 +137,35 @@ inline Foam::globalIndex::globalIndex
 (
     globalIndex::gatherOnly,
     label localSize,
-    const label comm
+    int communicator,
+    bool parallel
 )
 {
-    // one-sided
-    reset(UPstream::listGatherValues(localSize, comm));
+    reset(globalIndex::gatherOnly{}, localSize, communicator, parallel);
+}
+
+
+inline Foam::globalIndex::globalIndex
+(
+    globalIndex::gatherOffset,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    reset(globalIndex::gatherOffset{}, localSize, communicator, parallel);
+}
+
+
+inline Foam::globalIndex::globalIndex
+(
+    globalIndex::gatherTotal,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    reset(globalIndex::gatherTotal{}, localSize, communicator, parallel);
 }
 
 
@@ -592,11 +616,50 @@ inline void Foam::globalIndex::reset
 (
     globalIndex::gatherOnly,
     label localSize,
-    const label comm
+    int communicator,
+    bool parallel
 )
 {
+    if (!parallel)
+    {
+        single(localSize);
+        return;
+    }
+
     // one-sided
-    reset(UPstream::listGatherValues(localSize, comm));
+    reset(UPstream::listGatherValues(localSize, communicator));
+}
+
+
+inline void Foam::globalIndex::reset
+(
+    globalIndex::gatherTotal,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (!parallel)
+    {
+        single(localSize);
+        return;
+    }
+
+    // one-sided
+    reset(UPstream::listGatherValues(localSize, communicator));
+
+    if (UPstream::is_parallel(communicator))
+    {
+        auto total = totalSize();
+
+        UPstream::broadcast(&total, 1, communicator);
+
+        if (UPstream::is_subrank(communicator))
+        {
+            // total value only (no content for rank 0)
+            sentinel(total);
+        }
+    }
 }
 
 

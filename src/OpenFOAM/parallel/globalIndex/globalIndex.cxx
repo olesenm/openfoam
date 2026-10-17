@@ -134,7 +134,7 @@ bool Foam::globalIndex::splitNodeOffsets
 (
     labelList& interNodeOffsets,
     labelList& localNodeOffsets,
-    const label communicator,
+    int communicator,
     const bool absoluteLocalNodeOffsets
 ) const
 {
@@ -322,37 +322,56 @@ void Foam::globalIndex::resize(label n)
 }
 
 
-void Foam::globalIndex::reset
+void Foam::globalIndex::reset_nonParallel
 (
-    const label localSize,
-    const label comm,
-    const bool parallel
+    label localSize,
+    int communicator
 )
 {
-    if (const label len = UPstream::nProcs(comm); len > 0)
+    // localSize on-proc, zero elsewhere:
+    // offsets are 0 up to and including proci, then localSize
+    if
+    (
+        label len = 0;
+        (communicator >= 0 && (len = UPstream::nProcs(communicator)) > 0)
+    )
     {
-        labelList counts;
-
-        if (parallel && UPstream::parRun())  // or UPstream::is_parallel(comm)
+        offsets_.resize_fill(len+1, 0);
+        if (label proci = UPstream::myProcNo(communicator); proci >= 0)
         {
-            counts = UPstream::allGatherValues(localSize, comm);
+            for (label i = proci+1; i <= len; ++i)
+            {
+                offsets_[i] = localSize;
+            }
         }
-        else
-        {
-            // Non-parallel branch: use localSize on-proc, zero elsewhere
-            // TBD: check for (proci >= 0) ?
-            const auto proci = UPstream::myProcNo(comm);
-
-            counts.resize_fill(len, 0);
-            counts[proci] = localSize;
-        }
-
-        reset(counts, true);  // checkOverflow = true
     }
     else
     {
-        // Nothing to do
         offsets_.clear();
+    }
+}
+
+
+void Foam::globalIndex::reset
+(
+    const label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (parallel && UPstream::is_parallel(communicator))
+    {
+        constexpr bool checkOverflow = true;
+
+        reset
+        (
+            UPstream::allGatherValues(localSize, communicator),
+            checkOverflow
+        );
+    }
+    else
+    {
+        reset_nonParallel(localSize, communicator);
     }
 }
 
@@ -385,6 +404,84 @@ void Foam::globalIndex::reset
     else
     {
         offsets_.clear();
+    }
+}
+
+
+void Foam::globalIndex::reset
+(
+    globalIndex::gatherOffset,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (!parallel)
+    {
+        single(localSize);
+        return;
+    }
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto numProc = UPstream::nProcs(communicator);
+
+        // Number of gatherOnly counts (master: numProc, sub-rank: 0)
+        const int numCounts
+        (
+            UPstream::is_master(communicator) ? static_cast<int>(numProc) : 0
+        );
+
+        // Work array : allocated with double space! (still 0 on non-master)
+        labelList work(2*numCounts);
+
+        // Slice into the initial part of the work array
+        // for getting/setting the counts.
+
+        labelUList counts(work.data(), numCounts);
+
+
+        // Gather the local sizes (master only)
+        UPstream::mpiGather(&localSize, counts.data(), 1, communicator);
+
+        // On the master: from local sizes to offsets and subsequently
+        // pack (start, total) per rank for scattering
+
+        if (UPstream::is_master(communicator))
+        {
+            // Calculate offsets from the collected local sizes
+            reset(counts);
+
+            // Populate the work array with (offset,total) tuples for
+            // scattering to sub-ranks.
+            // Note: also scattering copies of 'total' everywhere instead
+            // using an additional broadcast.
+
+            const auto total = totalSize();
+
+            auto iter = offsets().cbegin();
+
+            for (label proci = 0; proci < numProc; ++proci)
+            {
+                work[2*proci]   = *iter++;
+                work[2*proci+1] = total;
+            }
+        }
+
+        label dims[2];  // (start, total) tuple
+
+        UPstream::mpiScatter(work.cdata(), dims, 2, communicator);
+
+        if (UPstream::is_subrank(communicator))
+        {
+            // Store either as (beg len total) tuple or if there is no
+            // no trailing content simply as a (beg len) tuple
+            single(dims[0], localSize, dims[1]);
+        }
+    }
+    else
+    {
+        reset_nonParallel(localSize, communicator);
     }
 }
 

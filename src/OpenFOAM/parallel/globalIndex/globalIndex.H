@@ -140,7 +140,8 @@ public:
         //- Construct 'one-sided' by gathering the local sizes but also
         //- distribute the start/total to each rank.
         //  The master will have all content, sub-ranks will have
-        //  \em "localized" offsets of three values : (begin, end, total).
+        //  \em "localized" offsets of either three values (beg, end, total)
+        //  or two values (begin, end) if there is no trailing content.
         struct gatherOffset{};
 
 
@@ -179,6 +180,11 @@ class globalIndex
             labelList& order,
             DynamicList<label>& validBins
         );
+
+        //- Reset offsets for a non-parallel communicator:
+        //- localSize for the current rank, zero elsewhere.
+        //- Empty if the communicator has no ranks.
+        void reset_nonParallel(label localSize, int communicator);
 
         //- Return start/size range addressing for proci data
         inline labelRange range_impl(label proci) const noexcept;
@@ -234,8 +240,8 @@ public:
         inline explicit globalIndex
         (
             label localSize,
-            const label comm = UPstream::worldComm,   //!< communicator
-            const bool parallel = UPstream::parRun()  //!< use parallel comms
+            int communicator = UPstream::worldComm,
+            bool parallel = UPstream::parRun()  //!< use parallel comms
         );
 
         //- Construct with a single (local size) entry, no communication
@@ -247,15 +253,44 @@ public:
         );
 
         //- Construct 'one-sided' from local sizes.
-        //- Uses UPstream::listGatherValues, but no broadcast.
-        //- Will be empty on non-master processes.
+        //- The master will have all content, sub-ranks no content.
         //
-        //  \note can be used when Pstream::parRun() is false.
+        //  \note can be used when UPstream::parRun() is false.
         inline globalIndex
         (
             globalIndex::gatherOnly,
             label localSize,
-            const label comm = UPstream::worldComm  //!< communicator
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Construct an augmented 'one-sided' from local sizes
+        //- and distribute the total-size to each rank.
+        //- The master will have all content, sub-ranks will have
+        //- \em single-value content (offsets containing only the total size).
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline globalIndex
+        (
+            globalIndex::gatherTotal,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Construct an augmented 'one-sided' from local sizes
+        //- and distribute the start/total to each rank.
+        //- The master will have all content, sub-ranks will have
+        //- \em "localized" offsets of either three values (beg, end, total)
+        //- or two values (begin, end) if there is no trailing content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline globalIndex
+        (
+            globalIndex::gatherOffset,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
         );
 
         //- Construct from Istream.
@@ -365,8 +400,8 @@ public:
         void reset
         (
             label localSize,
-            const label comm = UPstream::worldComm,   //!< communicator
-            const bool parallel = UPstream::parRun()  //!< use parallel comms
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
         );
 
         //- Reset offsets from a list of local sizes,
@@ -387,15 +422,42 @@ public:
         );
 
         //- Reset as 'one-sided' from local sizes.
-        //- Uses UPstream::listGatherValues, but no broadcast.
-        //- Will be empty on non-master processes.
+        //- The master will have all content, sub-ranks no content.
         //
-        //  \note can be used when Pstream::parRun() is false.
+        //  \note can be used when UPstream::parRun() is false.
         inline void reset
         (
             globalIndex::gatherOnly,
             label localSize,
-            const label comm = UPstream::worldComm  //!< communicator
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset as augmented 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks will have
+        //- \em single-value content (offsets containing only the total size).
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline void reset
+        (
+            globalIndex::gatherTotal,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset as augmented 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks will have
+        //- \em "localized" offsets of either three values (beg, end, total)
+        //- or two values (begin, end) if there is no trailing content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        void reset
+        (
+            globalIndex::gatherOffset,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
         );
 
         //- Reset the globalIndex. Same as copy assignment.
@@ -664,12 +726,12 @@ public:
         static calcRange
         (
             IntType localSize,
-            const label comm,  //!< communicator
+            int communicator,  //!< communicator
             const bool checkOverflow
         )
         {
             IntType start =
-                globalIndex::calcOffset(localSize, comm, checkOverflow);
+                globalIndex::calcOffset(localSize, communicator, checkOverflow);
             return IntRange<IntType>(start, localSize);
         }
 
@@ -682,7 +744,7 @@ public:
         static List<IntType> calcRecvSizes
         (
             IntType localSize,
-            const label comm = UPstream::worldComm  //!< communicator
+            int communicator = UPstream::worldComm  //!< communicator
         );
 
         //- Calculate offsets from a list of local sizes,
@@ -728,7 +790,7 @@ public:
             //! [out] Offsets within a node (only non-empty on node leaders)
             labelList& localNodeOffsets,
             //! The communicator. Must resolve to const world-comm
-            const label communicator = UPstream::worldComm,
+            int communicator = UPstream::worldComm,
             //! Retain absolute values for the localNode offsets
             const bool absoluteLocalNodeOffsets = false
         ) const;

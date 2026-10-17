@@ -34,11 +34,11 @@ License
 
 template<class IntType>
 Foam::List<IntType>
-Foam::globalIndex::calcRecvSizes(IntType localSize, const label comm)
+Foam::globalIndex::calcRecvSizes(IntType localSize, int communicator)
 {
     static_assert(std::is_integral_v<IntType>, "Integral required");
 
-    List<IntType> count(UPstream::listGatherValues(localSize, comm));
+    List<IntType> count(UPstream::listGatherValues(localSize, communicator));
     // Replace element [0] with the max receive count
     if (count.size() > 1)
     {
