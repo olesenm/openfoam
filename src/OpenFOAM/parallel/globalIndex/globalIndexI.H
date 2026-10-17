@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -64,25 +65,6 @@ Foam::globalIndex::slice_impl(label proci) const noexcept
     else
     {
         return {};
-    }
-}
-
-
-// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
-
-inline void Foam::globalIndex::checkOverflowAndExit
-(
-    const label idx,
-    const label prevOffset,
-    const label count
-)
-{
-    if (prevOffset >= 0 && count >= 0)
-    {
-        if (label next = (prevOffset + count); next < prevOffset)
-        {
-            reportOverflowAndExit(idx, prevOffset, count);
-        }
     }
 }
 
@@ -145,6 +127,7 @@ inline Foam::globalIndex::globalIndex
 :
     offsets_(2)
 {
+    // Same as single(localSize)
     offsets_[0] = 0;
     offsets_[1] = localSize;
 }
@@ -162,16 +145,46 @@ inline Foam::globalIndex::globalIndex
 }
 
 
-inline Foam::globalIndex::globalIndex
-(
-    globalIndex::gatherNonLocal,
-    label localSize,
-    const label comm
-)
+//
+// Constructor-like
+//
+
+inline void Foam::globalIndex::single(label len)
 {
-    // one-sided: non-master sizes only
-    if (UPstream::master(comm)) localSize = 0;
-    reset(UPstream::listGatherValues(localSize, comm));
+    offsets_.resize_fill(2, 0);
+    if (len > 0)
+    {
+        offsets_[1] = len;
+    }
+}
+
+
+inline void Foam::globalIndex::single(label beg, label len, label total)
+{
+    const label ending = (beg + len);
+
+    if (total <= ending)
+    {
+        offsets_.resize_nocopy(2);
+        offsets_[0] = beg;
+        offsets_[1] = ending;
+    }
+    else
+    {
+        offsets_.resize_nocopy(3);
+        offsets_[0] = beg;
+        offsets_[1] = ending;
+        offsets_[2] = total;
+    }
+}
+
+
+inline void Foam::globalIndex::sentinel(label total)
+{
+    // Note this creates a degenerate offset table with only 1 entry
+    // instead of the usual minimum of 2 but does mean that we can
+    // evaluate totalSize() without per-rank information at all.
+    offsets_.resize_fill(1, std::max(label(0), total));
 }
 
 
@@ -211,8 +224,7 @@ inline Foam::label Foam::globalIndex::begin_value() const noexcept
 
 inline Foam::label Foam::globalIndex::end_value() const noexcept
 {
-    const label len = (offsets_.size() - 1);
-    return (len < 1) ? 0 : *(offsets_.cdata() + len);
+    return (offsets_.empty() ? 0 : *(offsets_.cdata() + (offsets_.size()-1)));
 }
 
 
@@ -256,18 +268,6 @@ inline Foam::labelRange Foam::globalIndex::subProcs() const noexcept
 }
 
 
-inline const Foam::labelList& Foam::globalIndex::offsets() const noexcept
-{
-    return offsets_;
-}
-
-
-inline Foam::labelList& Foam::globalIndex::offsets() noexcept
-{
-    return offsets_;
-}
-
-
 inline void Foam::globalIndex::clear()
 {
     offsets_.clear();
@@ -295,7 +295,7 @@ inline Foam::label Foam::globalIndex::localStart(const label proci) const
 
 inline Foam::label Foam::globalIndex::localStart() const
 {
-    return localStart(UPstream::myProcNo(UPstream::worldComm));
+    return localStart(myProcNumber());
 }
 
 
@@ -307,7 +307,7 @@ inline Foam::label Foam::globalIndex::localEnd(const label proci) const
 
 inline Foam::label Foam::globalIndex::localEnd() const
 {
-    return localEnd(UPstream::myProcNo(UPstream::worldComm));
+    return localEnd(myProcNumber());
 }
 
 
@@ -319,7 +319,7 @@ inline Foam::label Foam::globalIndex::localSize(const label proci) const
 
 inline Foam::label Foam::globalIndex::localSize() const
 {
-    return localSize(UPstream::myProcNo(UPstream::worldComm));
+    return localSize(myProcNumber());
 }
 
 
@@ -332,7 +332,7 @@ inline Foam::label Foam::globalIndex::maxSize() const
 
 inline Foam::label Foam::globalIndex::maxNonLocalSize() const
 {
-    return maxNonLocalSize(UPstream::myProcNo(UPstream::worldComm));
+    return maxNonLocalSize(myProcNumber());
 }
 
 
@@ -344,7 +344,7 @@ inline Foam::labelRange Foam::globalIndex::range(label proci) const noexcept
 
 inline Foam::labelRange Foam::globalIndex::range() const
 {
-    return range_impl(UPstream::myProcNo(UPstream::worldComm));
+    return range_impl(myProcNumber());
 }
 
 
@@ -358,7 +358,7 @@ Foam::globalIndex::slice(label proci) const noexcept
 inline Foam::OffsetRange<Foam::label>
 Foam::globalIndex::slice() const
 {
-    return slice_impl(UPstream::myProcNo(UPstream::worldComm));
+    return slice_impl(myProcNumber());
 }
 
 
@@ -371,7 +371,7 @@ inline bool Foam::globalIndex::isLocal(const label proci, const label i) const
 
 inline bool Foam::globalIndex::isLocal(const label i) const
 {
-    return isLocal(UPstream::myProcNo(UPstream::worldComm), i);
+    return isLocal(myProcNumber(), i);
 }
 
 
@@ -387,7 +387,7 @@ inline Foam::label Foam::globalIndex::toGlobal
 
 inline Foam::label Foam::globalIndex::toGlobal(const label i) const
 {
-    return toGlobal(UPstream::myProcNo(UPstream::worldComm), i);
+    return toGlobal(myProcNumber(), i);
 }
 
 
@@ -414,7 +414,7 @@ inline Foam::labelList Foam::globalIndex::toGlobal
     const labelUList& labels
 ) const
 {
-    return toGlobal(UPstream::myProcNo(UPstream::worldComm), labels);
+    return toGlobal(myProcNumber(), labels);
 }
 
 
@@ -436,7 +436,7 @@ inline void Foam::globalIndex::inplaceToGlobal
 
 inline void Foam::globalIndex::inplaceToGlobal(labelUList& labels) const
 {
-    inplaceToGlobal(UPstream::myProcNo(UPstream::worldComm), labels);
+    inplaceToGlobal(myProcNumber(), labels);
 }
 
 
@@ -458,7 +458,7 @@ Foam::globalIndex::toLocal(const label proci, const label i) const
 
 inline Foam::label Foam::globalIndex::toLocal(const label i) const
 {
-    return toLocal(UPstream::myProcNo(UPstream::worldComm), i);
+    return toLocal(myProcNumber(), i);
 }
 
 
@@ -573,7 +573,7 @@ inline Foam::label Foam::globalIndex::whichProcID
     const label i
 ) const
 {
-    return whichProcID(UPstream::myProcNo(UPstream::worldComm), i);
+    return whichProcID(myProcNumber(), i);
 }
 
 
@@ -584,9 +584,7 @@ inline void Foam::globalIndex::reset
     int communicator  /* unused: (not applicable) */
 )
 {
-    offsets_.resize_nocopy(2);
-    offsets_[0] = 0;
-    offsets_[1] = localSize;
+    single(localSize);
 }
 
 
@@ -598,19 +596,6 @@ inline void Foam::globalIndex::reset
 )
 {
     // one-sided
-    reset(UPstream::listGatherValues(localSize, comm));
-}
-
-
-inline void Foam::globalIndex::reset
-(
-    globalIndex::gatherNonLocal,
-    label localSize,
-    const label comm
-)
-{
-    // one-sided: non-master sizes only
-    if (UPstream::master(comm)) localSize = 0;
     reset(UPstream::listGatherValues(localSize, comm));
 }
 
@@ -628,13 +613,9 @@ inline void Foam::globalIndex::reset(const globalIndex& rhs)
 // * * * * * * * * * * * * * * * * Iterators * * * * * * * * * * * * * * * * //
 
 inline Foam::globalIndex::const_iterator::
-const_iterator
-(
-    const globalIndex* globalIdx,
-    const label i
-) noexcept
+const_iterator(const globalIndex* gi, label i) noexcept
 :
-    parent_(globalIdx),
+    parent_(gi),
     index_(i)
 {}
 
@@ -676,7 +657,7 @@ operator*() const
 
 inline Foam::globalIndex::const_iterator&
 Foam::globalIndex::const_iterator::
-operator++()
+operator++() noexcept
 {
     ++index_;
     return *this;
@@ -685,7 +666,7 @@ operator++()
 
 inline Foam::globalIndex::const_iterator
 Foam::globalIndex::const_iterator::
-operator++(int)
+operator++(int) noexcept
 {
     const_iterator old(*this);
     ++index_;
@@ -695,7 +676,7 @@ operator++(int)
 
 inline Foam::globalIndex::const_iterator&
 Foam::globalIndex::const_iterator::
-operator--()
+operator--() noexcept
 {
     --index_;
     return *this;
@@ -704,7 +685,7 @@ operator--()
 
 inline Foam::globalIndex::const_iterator
 Foam::globalIndex::const_iterator::
-operator--(int)
+operator--(int) noexcept
 {
     const_iterator old(*this);
     --index_;
@@ -765,7 +746,7 @@ Foam::globalIndex::end() const noexcept
 
 
 inline Foam::globalIndex::const_iterator
-Foam::globalIndex::cbegin(const label i) const noexcept
+Foam::globalIndex::cbegin(label i) const noexcept
 {
     const label len = this->length();
     return const_iterator(this, (i < 0 ? 0 : len < i ? len : i));
@@ -773,7 +754,7 @@ Foam::globalIndex::cbegin(const label i) const noexcept
 
 
 inline Foam::globalIndex::const_iterator
-Foam::globalIndex::begin(const label i) const noexcept
+Foam::globalIndex::begin(label i) const noexcept
 {
     return this->cbegin(i);
 }

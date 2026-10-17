@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,11 +32,11 @@ License
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
-void Foam::globalIndex::reportOverflowAndExit
+void Foam::globalIndexBase::reportOverflowAndExit
 (
-    const label idx,
-    const label prevOffset,
-    const label count
+    label idx,
+    int64_t prevOffset,
+    int64_t count
 )
 {
     if (idx < 0)
@@ -69,28 +70,29 @@ Foam::globalIndex::calcOffsets
     const bool checkOverflow
 )
 {
-    labelList values;
+    labelList starts;
 
     if (const label len = counts.size(); len > 0)
     {
-        values.resize(len+1);
+        starts.resize(len+1);
 
-        label start = 0;
+        label total = 0;
         for (label i = 0; i < len; ++i)
         {
             const auto count = counts[i];
-            values[i] = start;
-            start += count;
 
-            if (checkOverflow && start < values[i])
+            if (checkOverflow && isOverflow(total, count))
             {
-                reportOverflowAndExit(i, values[i], count);
+                reportOverflowAndExit(i, total, count);
             }
+
+            starts[i] = total;
+            total += count;
         }
-        values[len] = start;
+        starts[len] = total;
     }
 
-    return values;
+    return starts;
 }
 
 
@@ -107,22 +109,20 @@ Foam::globalIndex::calcRanges
     {
         values.resize(len);
 
-        label start = 0;
+        label total = 0;
         for (label i = 0; i < len; ++i)
         {
             const auto count = counts[i];
-            values[i].reset(start, count);
-            start += count;
 
-            if
-            (
-                checkOverflow
-             && (start < values[i].start())
-             && (i < len-1)  // Do not check the one beyond the end range
-            )
+            // Note: do not care about endOffset of last range
+
+            if (checkOverflow && (i < len-1) && isOverflow(total, count))
             {
-                reportOverflowAndExit(i, values[i].start(), count);
+                reportOverflowAndExit(i, total, count);
             }
+
+            values[i].reset(total, count);
+            total += count;
         }
     }
 
@@ -179,7 +179,7 @@ bool Foam::globalIndex::splitNodeOffsets
     labelList allOffsets;
     if (UPstream::master(interNodeComm))
     {
-        allOffsets = offsets_;
+        allOffsets = offsets();
     }
     else  // ie, UPstream::is_subrank(interNodeComm)
     {
@@ -263,7 +263,7 @@ Foam::globalIndex::bin
     if (!globalIds.empty())
     {
         labelList& binOffsets = bins.offsets();
-        binOffsets.resize(offsets.size(), Foam::zero{});
+        binOffsets.resize(offsets.size(), 0);
 
         labelList& binValues = bins.values();
         binValues = UIndirectList<label>(globalIds, order);
@@ -309,7 +309,7 @@ Foam::globalIndex::bin
 }
 
 
-void Foam::globalIndex::resize(const label n)
+void Foam::globalIndex::resize(label n)
 {
     if (n < 1)
     {
@@ -343,7 +343,7 @@ void Foam::globalIndex::reset
             // TBD: check for (proci >= 0) ?
             const auto proci = UPstream::myProcNo(comm);
 
-            counts.resize(len, Foam::zero{});
+            counts.resize_fill(len, 0);
             counts[proci] = localSize;
         }
 
@@ -367,19 +367,20 @@ void Foam::globalIndex::reset
     {
         offsets_.resize_nocopy(len+1);
 
-        label start = 0;
+        label total = 0;
         for (label i = 0; i < len; ++i)
         {
             const label count = counts[i];
-            offsets_[i] = start;
-            start += count;
 
-            if (checkOverflow && start < offsets_[i])
+            if (checkOverflow && isOverflow(total, count))
             {
-                reportOverflowAndExit(i, offsets_[i], count);
+                reportOverflowAndExit(i, total, count);
             }
+
+            offsets_[i] = total;
+            total += count;
         }
-        offsets_[len] = start;
+        offsets_[len] = total;
     }
     else
     {

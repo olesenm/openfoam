@@ -8,6 +8,7 @@
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -63,6 +64,7 @@ SourceFiles
 #include "Pstream.H"
 #include "CompactListList.H"
 #include "DynamicList.H"
+#include <limits>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -76,10 +78,89 @@ Istream& operator>>(Istream& is, globalIndex& gi);
 Ostream& operator<<(Ostream& os, const globalIndex& gi);
 
 /*---------------------------------------------------------------------------*\
+                       Class globalIndexBase Declaration
+\*---------------------------------------------------------------------------*/
+
+//- Template invariant parts for globalIndex etc.
+class globalIndexBase
+{
+protected:
+
+    // Protected Member Functions
+
+        //- Report overflow at specified (non-negative) index
+        static void reportOverflowAndExit
+        (
+            label idx,
+            int64_t prevOffset = -1,  // The last valid offset value
+            int64_t count = 0         // The count to add to prevOffset
+        );
+
+        //- Check if adding count to prevOffset would exceed the maximum
+        //- value of T (tested before the addition, to avoid signed overflow)
+        template<class T>
+        static bool isOverflow(T prevOffset, T count) noexcept
+        {
+            return
+            (
+                (count > 0)
+             && (prevOffset > (std::numeric_limits<T>::max() - count))
+            );
+        }
+
+        //- My processor number (on worldComm)
+        static int myProcNumber()
+        {
+            return UPstream::myProcNo(UPstream::worldComm);
+        }
+
+public:
+
+    // Public Data Types
+
+        //- Dispatch tag:
+        //- Construct with a single (local size) entry, no communication.
+        struct gatherNone{};
+
+        //- Dispatch tag:
+        //- Construct 'one-sided' by gathering the local sizes.
+        //  The master will have all content, the sub-ranks will have none.
+        struct gatherOnly{};
+
+        //- Dispatch tag:
+        //- An augmented version of gatherOnly.
+        //- Construct 'one-sided' by gathering the local sizes but also
+        //- distribute the total-size to each rank.
+        //  The master will have all content, sub-ranks will have
+        //  \em single-value content (offsets containing only the total size).
+        struct gatherTotal{};
+
+        //- Dispatch tag:
+        //- An augmented version of gatherOnly.
+        //- Construct 'one-sided' by gathering the local sizes but also
+        //- distribute the start/total to each rank.
+        //  The master will have all content, sub-ranks will have
+        //  \em "localized" offsets of three values : (begin, end, total).
+        struct gatherOffset{};
+
+
+    // Properties
+
+        //- Default communication type for operations (eg, gather/scatter)
+        static constexpr UPstream::commsTypes defaultCommsType() noexcept
+        {
+            return UPstream::commsTypes::nonBlocking;
+        }
+};
+
+
+/*---------------------------------------------------------------------------*\
                          Class globalIndex Declaration
 \*---------------------------------------------------------------------------*/
 
 class globalIndex
+:
+    public globalIndexBase
 {
     // Private Data
 
@@ -97,22 +178,6 @@ class globalIndex
             const labelUList& globalIds,
             labelList& order,
             DynamicList<label>& validBins
-        );
-
-        //- Report overflow at specified (non-negative) index
-        static void reportOverflowAndExit
-        (
-            const label idx,
-            const label prevOffset = -1,  // The last valid offset value
-            const label count = 0         // The count to add to prevOffset
-        );
-
-        //- Check for overflow and calls reportOverflowAndExit...
-        static inline void checkOverflowAndExit
-        (
-            const label idx,
-            const label prevOffset,     // The last valid offset value
-            const label count           // The count to add to prevOffset
         );
 
         //- Return start/size range addressing for proci data
@@ -133,23 +198,6 @@ public:
         typedef label size_type;
 
 
-    // Public Data Types
-
-        //- Dispatch tag:
-        //- Construct with a single (local size) entry, no communication.
-        struct gatherNone{};
-
-        //- Dispatch tag:
-        //- Construct 'one-sided' from local sizes,
-        //- using gather but no broadcast.
-        struct gatherOnly{};
-
-        //- Dispatch tag:
-        //- Construct 'one-sided' from the non-master local sizes
-        //- using gather but no broadcast.
-        struct gatherNonLocal{};
-
-
     // Static Member Functions
 
         //- Return a null globalIndex (reference to a nullObject).
@@ -157,15 +205,6 @@ public:
         static const globalIndex& null() noexcept
         {
             return NullObjectRef<globalIndex>();
-        }
-
-
-    // Properties
-
-        //- Default communication type for gather/scatter
-        static constexpr UPstream::commsTypes defaultCommsType() noexcept
-        {
-            return UPstream::commsTypes::nonBlocking;
         }
 
 
@@ -219,19 +258,6 @@ public:
             const label comm = UPstream::worldComm  //!< communicator
         );
 
-        //- Construct 'one-sided' from the non-master local sizes
-        //- (ie, master size is treated as 0).
-        //- Uses UPstream::listGatherValues, but no broadcast.
-        //- Will be empty on non-master processes.
-        //
-        //  \note can be used when Pstream::parRun() is false.
-        inline globalIndex
-        (
-            globalIndex::gatherNonLocal,
-            label localSize,
-            const label comm = UPstream::worldComm  //!< communicator
-        );
-
         //- Construct from Istream.
         //- No communication required
         explicit globalIndex(Istream& is);
@@ -275,10 +301,10 @@ public:
     // Access
 
         //- Const-access to the offsets
-        inline const labelList& offsets() const noexcept;
+        const labelList& offsets() const noexcept { return offsets_; }
 
         //- Write-access to the offsets, for changing after construction
-        inline labelList& offsets() noexcept;
+        labelList& offsets() noexcept { return offsets_; }
 
 
     // Dimensions
@@ -316,9 +342,23 @@ public:
         //- Reset to be empty (no offsets)
         inline void clear();
 
+        //- Set offsets as a single entry content (eg, local-only content)
+        //- with a beginning offset of 0.
+        inline void single(label len);
+
+        //- Set offsets for a single entry with specified beginning offset,
+        //- optionally with a total size (for trailing information).
+        inline void single(label beg, label len, label total = 0);
+
+        //- Set special purpose \em sentinel for total-size only.
+        //- The offsets are \em "degenerate" since there will only be one
+        //- offset instead of at least two or more offsets.
+        //- However, the totalSize() method is still valid.
+        inline void sentinel(label total);
+
         //- Change the number of entries (nProcs) in the offsets table.
         //- Extending will fill with empty local sizes.
-        void resize(const label n);
+        void resize(label n);
 
         //- Reset from local size, using gather/broadcast
         //- with default/specified communicator if parallel.
@@ -354,19 +394,6 @@ public:
         inline void reset
         (
             globalIndex::gatherOnly,
-            label localSize,
-            const label comm = UPstream::worldComm  //!< communicator
-        );
-
-        //- Reset as 'one-sided' from the non-master local sizes
-        //- (ie, master size is treated as 0).
-        //- Uses UPstream::listGatherValues, but no broadcast.
-        //- Will be empty on non-master processes.
-        //
-        //  \note can be used when Pstream::parRun() is false.
-        inline void reset
-        (
-            globalIndex::gatherNonLocal,
             label localSize,
             const label comm = UPstream::worldComm  //!< communicator
         );
@@ -508,11 +535,8 @@ public:
         // Constructors
 
             //- Construct from globalIndex list at given index
-            explicit const_iterator
-            (
-                const globalIndex* globalIdx,
-                const label i = 0
-            ) noexcept;
+            inline explicit
+            const_iterator(const globalIndex*, label i = 0) noexcept;
 
 
         // Member Operators
@@ -532,11 +556,11 @@ public:
             //- The local range
             inline labelRange operator*() const;
 
-            inline const_iterator& operator++();
-            inline const_iterator operator++(int);
+            inline const_iterator& operator++() noexcept;
+            inline const_iterator operator++(int) noexcept;
 
-            inline const_iterator& operator--();
-            inline const_iterator operator--(int);
+            inline const_iterator& operator--() noexcept;
+            inline const_iterator operator--(int) noexcept;
 
             inline bool operator==(const const_iterator& iter) const noexcept;
             inline bool operator!=(const const_iterator& iter) const noexcept;
@@ -557,15 +581,15 @@ public:
 
         //- Return const_iterator at offset proci from begin,
         //- clamped to [0,nProcs] range
-        inline const_iterator cbegin(const label proci) const noexcept;
+        inline const_iterator cbegin(label proci) const noexcept;
 
         //- Return const_iterator at offset proci from begin,
         //- clamped to [0,nProcs] range
-        inline const_iterator begin(const label proci) const noexcept;
+        inline const_iterator begin(label proci) const noexcept;
 
         // FUTURE?
         // //- Return start/size range of proci data
-        // labelRange operator[](const label proci) const
+        // labelRange operator[](label proci) const
         // {
         //     return this->range(proci);
         // }
@@ -794,7 +818,7 @@ public:
             UPstream::commsTypes commsType = defaultCommsType()
         ) const
         {
-            gatherInplace(offsets_, comm, procIDs, fld, tag, commsType);
+            gatherInplace(offsets(), comm, procIDs, fld, tag, commsType);
         }
 
 
@@ -1090,7 +1114,7 @@ public:
             UPstream::commsTypes commsType = defaultCommsType()
         ) const
         {
-            scatter(offsets_, comm, procIDs, allFld, fld, tag, commsType);
+            scatter(offsets(), comm, procIDs, allFld, fld, tag, commsType);
         }
 
         //- Distribute data in processor order.
@@ -1166,6 +1190,45 @@ public:
 
 
     // Housekeeping
+
+        //- Dispatch tag:
+        //- Construct 'one-sided' from the non-master local sizes
+        //- using gather but no broadcast.
+        struct gatherNonLocal{};
+
+        //- Construct 'one-sided' from the non-master local sizes
+        //- (ie, master size is treated as 0).
+        //- The master will have all content, sub-ranks no content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        globalIndex
+        (
+            globalIndex::gatherNonLocal,
+            label localSize,
+            int communicator = UPstream::worldComm  //!< communicator
+        )
+        {
+            // non-master sizes only
+            if (UPstream::master(communicator)) localSize = 0;
+            reset(globalIndex::gatherOnly{}, localSize, communicator);
+        }
+
+        //- Reset as 'one-sided' from the non-master local sizes
+        //- (ie, master size is treated as 0).
+        //- The master will have all content, sub-ranks no content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        void reset
+        (
+            globalIndex::gatherNonLocal,
+            label localSize,
+            int communicator = UPstream::worldComm  //!< communicator
+        )
+        {
+            // non-master sizes only
+            if (UPstream::master(communicator)) localSize = 0;
+            reset(globalIndex::gatherOnly{}, localSize, communicator);
+        }
 
         //- Construct from local size, using gather/broadcast
         //- with default/specified communicator if parallel.

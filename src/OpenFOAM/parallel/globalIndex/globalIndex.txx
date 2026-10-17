@@ -456,14 +456,14 @@ void Foam::globalIndex::gather
     if (UPstream::myProcNo(comm) == (procIDs.empty() ? 0 : procIDs[0]))
     {
         // presize => totalSize()
-        allData.resize_nocopy(offsets_.back());
+        allData.resize_nocopy(totalSize());
     }
     else
     {
         allData.clear();  // zero-size on non-master
     }
 
-    globalIndex::gather(offsets_, comm, procIDs, fld, allData, tag, commsType);
+    globalIndex::gather(offsets(), comm, procIDs, fld, allData, tag, commsType);
 }
 
 
@@ -488,7 +488,7 @@ void Foam::globalIndex::gather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(offsets_.back());  // == totalSize()
+        allData.resize_nocopy(totalSize());
     }
     else
     {
@@ -499,7 +499,7 @@ void Foam::globalIndex::gather
     {
         globalIndex::gather
         (
-            offsets_,  // needed on master only
+            offsets(),                  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -617,7 +617,7 @@ void Foam::globalIndex::gather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(offsets_.back());  // == totalSize()
+        allData.resize_nocopy(totalSize());
     }
     else
     {
@@ -627,7 +627,7 @@ void Foam::globalIndex::gather
     {
         globalIndex::gather
         (
-            offsets_,  // needed on master only
+            offsets(),                  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -715,7 +715,7 @@ void Foam::globalIndex::mpiGather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(offsets_.back());  // == totalSize()
+        allData.resize_nocopy(totalSize());
     }
     else
     {
@@ -745,17 +745,17 @@ void Foam::globalIndex::mpiGather
             // Must be same as Pstream::nProcs(comm), at least on master!
             // if (UPstream::nProcs(comm) != this->nProcs()) ...
 
-            recvCounts.resize(offsets_.size()-1);
-            recvOffsets.resize(offsets_.size());
+            recvCounts.resize(offsets().size()-1);
+            recvOffsets.resize(offsets().size());
 
             // Copy offsets
-            std::copy(offsets_.begin(), offsets_.end(), recvOffsets.begin());
+            std::copy(offsets().begin(), offsets().end(), recvOffsets.begin());
 
-            // Calculate sizes. Currently without std::minus <functional>
+            // Calculate sizes
             std::transform
             (
-                offsets_.begin()+1, offsets_.end(),
-                offsets_.begin(), recvCounts.begin(),
+                offsets().begin()+1, offsets().end(),
+                offsets().begin(), recvCounts.begin(),
                 std::minus<>{}
             );
 
@@ -782,7 +782,7 @@ void Foam::globalIndex::mpiGather
         // Regular (manual) gathering
         globalIndex::gather
         (
-            offsets_,  // needed on master only
+            offsets(),                  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -1111,7 +1111,7 @@ void Foam::globalIndex::scatter
     {
         scatter
         (
-            offsets_,  // needed on master only
+            offsets(),                 // needed on master only
             comm,
             UPstream::allProcs(comm),  // All communicator ranks
             allData,
