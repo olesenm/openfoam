@@ -184,7 +184,9 @@ Foam::invertOneToManyCompact
     const labelUList& map
 )
 {
+    // The output list sizes and total count
     labelList sizes(len, Foam::zero{});
+    int64_t total = 0;
 
     for (const label newIdx : map)
     {
@@ -201,7 +203,16 @@ Foam::invertOneToManyCompact
             #endif
 
             ++sizes[newIdx];
+            ++total;
         }
+    }
+
+    if (total > int64_t(labelMax))
+    {
+        FatalErrorInFunction
+            << "Total inverse size " << total
+            << " exceeds label range" << nl
+            << abort(FatalError);
     }
 
     CompactListList<label> inverse(sizes);

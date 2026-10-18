@@ -379,11 +379,17 @@ labelList invert(const bitSet& map);
 Map<label> invertToMap(const labelUList& values);
 
 //- Invert one-to-many map. Unmapped elements will be size 0.
-labelListList invertOneToMany(const label len, const labelUList& map);
+labelListList invertOneToMany
+(
+    //! The target number of rows
+    const label len,
+    const labelUList& map
+);
 
 //- Invert one-to-many compact map. Unmapped elements will be size 0.
 CompactListList<label> invertOneToManyCompact
 (
+    //! The target number of rows
     const label len,
     const labelUList& map
 );
@@ -394,14 +400,18 @@ CompactListList<label> invertOneToManyCompact
 template<class InputIntListType, class OutputIntListType>
 void invertManyToMany
 (
+    //! The target number of rows
     const label len,
     const UList<InputIntListType>& input,
+    //! [out] the output in inverted order
     List<OutputIntListType>& output
 );
 
+//- Invert many-to-many
 template<class InputIntListType, class OutputIntListType>
 List<OutputIntListType> invertManyToMany
 (
+    //! The target number of rows
     const label len,
     const UList<InputIntListType>& input
 )
@@ -410,6 +420,30 @@ List<OutputIntListType> invertManyToMany
     invertManyToMany<InputIntListType,OutputIntListType>(len, input, output);
     return output;
 }
+
+
+//- Invert many-to-many into an existing CompactListList
+//- (previous content is discarded).
+//  Input type must be inherited from List and contain ints/labels.
+//  Unmapped output elements will be size 0.
+template<class InputIntListType>
+void invertManyToManyCompact
+(
+    //! The target number of rows
+    const label len,
+    const UList<InputIntListType>& input,
+    //! [out] the output in inverted order
+    CompactListList<label>& inverse
+);
+
+//- Invert many-to-many into a CompactListList.
+template<class InputIntListType>
+CompactListList<label> invertManyToManyCompact
+(
+    //! The target number of rows
+    const label len,
+    const UList<InputIntListType>& input
+);
 
 
 //- Deprecated(2017-10) search for first occurrence of the given element.

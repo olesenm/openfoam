@@ -27,6 +27,8 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+#include "CompactListList.H"
+
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
 template<class IntListType>
@@ -798,6 +800,76 @@ void Foam::invertManyToMany
             output[outi][sizes[outi]++] = listi;
         }
     }
+}
+
+
+template<class InputIntListType>
+void Foam::invertManyToManyCompact
+(
+    const label len,
+    const UList<InputIntListType>& input,
+    CompactListList<label>& inverse
+)
+{
+    // The output list sizes and total count
+    labelList sizes(len, Foam::zero{});
+    int64_t total = 0;
+
+    for (const auto& sublist : input)
+    {
+        for (label outi : sublist)
+        {
+            // Filtering out -1 placeholders (for example)
+            if (outi >= 0)
+            {
+                ++sizes[outi];
+                ++total;
+            }
+        }
+    }
+
+    if (total > int64_t(labelMax))
+    {
+        FatalErrorInFunction
+            << "Total inverse size " << total
+            << " exceeds label range" << nl
+            << abort(FatalError);
+    }
+
+    // Size output. No need to preserve content
+    inverse.resize_nocopy(sizes);
+
+    // Reuse sizes as output position (offset) into output.values()
+    sizes = labelList::subList(inverse.offsets(), inverse.size());
+
+    // The flat output data
+    labelUList& values = inverse.values();
+
+    forAll(input, srci)
+    {
+        for (label outi : input[srci])
+        {
+            // Filtering out -1 placeholders (for example)
+            if (outi >= 0)
+            {
+                values[sizes[outi]++] = srci;
+            }
+        }
+    }
+}
+
+
+template<class InputIntListType>
+Foam::CompactListList<Foam::label>
+Foam::invertManyToManyCompact
+(
+    const label len,
+    const UList<InputIntListType>& input
+)
+{
+    CompactListList<label> inverse;
+    invertManyToManyCompact(len, input, inverse);
+    return inverse;
 }
 
 
