@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -41,43 +42,51 @@ namespace Foam
 
 Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcFaceMap
 (
-    const List<nearestAndDist>& localInfo,
+    const UList<nearKey>& localInfo,
     const primitivePatch& srcPatch,
     const primitivePatch& tgtPatch
 ) const
 {
+    const int communicator = this->comm();
+    const auto myProci = UPstream::myProcNo(communicator);
+    const auto numProc = UPstream::nProcs(communicator);
+
     // Generate the list of processor bounding boxes for tgtPatch
-    List<boundBox> procBbs(Pstream::nProcs(comm()));
-    procBbs[Pstream::myProcNo(comm())] =
-        boundBox(tgtPatch.points(), tgtPatch.meshPoints(), false);
-    Pstream::allGatherList(procBbs, UPstream::msgType(), comm());
+    List<treeBoundBox> procBbs(numProc);
+    if (!tgtPatch.empty())
+    {
+        procBbs[myProci] = treeBoundBox(tgtPatch.box());
+    }
+    boundBox::allGather(procBbs, communicator);
 
     // Identify which of my local src faces intersect with each processor
     // tgtPatch bb within the current match's search distance
     const pointField& srcCcs = srcPatch.faceCentres();
-    List<DynamicList<label>> dynSendMap(Pstream::nProcs(comm()));
+    List<DynamicList<label>> dynSendMap(numProc);
 
     forAll(localInfo, srcFacei)
     {
         // Test local srcPatch face centres against remote processor tgtPatch bb
         // using distance from initial pass
 
-        const scalar r2 = localInfo[srcFacei].second();
+        // Misses carry a huge distance, so are tested against all
+        // remote bounding boxes
+        const scalar distSqr = localInfo[srcFacei].first();
+        const point& srcCc = srcCcs[srcFacei];
 
         forAll(procBbs, proci)
         {
-            if (proci != Pstream::myProcNo(comm()))
+            const auto& bb = procBbs[proci];
+
+            if (proci != myProci && bb.overlaps(srcCc, distSqr))
             {
-                if (procBbs[proci].overlaps(srcCcs[srcFacei], r2))
-                {
-                    dynSendMap[proci].append(srcFacei);
-                }
+                dynSendMap[proci].push_back(srcFacei);
             }
         }
     }
 
     // Convert dynamicList to labelList
-    labelListList sendMap(Pstream::nProcs(comm()));
+    labelListList sendMap(numProc);
     forAll(sendMap, proci)
     {
         sendMap[proci].transfer(dynSendMap[proci]);
@@ -92,9 +101,9 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcFaceMap
     return autoPtr<mapDistribute>::New
     (
         std::move(sendMap),
-        false,
-        false,
-        comm()
+        false,  // subHasFlip = false
+        false,  // constructHasFlip = false
+        communicator
     );
 }
 
@@ -107,6 +116,10 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
     scalarListList& srcToTgtWght
 ) const
 {
+    const int communicator = comm();
+    const auto myProci = UPstream::myProcNo(communicator);
+    //const auto numProc = UPstream::nProcs(communicator);
+
     autoPtr<indexedOctree<treeType>> tgtTreePtr;
     if (tgt.size())
     {
@@ -114,10 +127,7 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
     }
 
     // Create global indexing for tgtPatch
-    globalIndex globalTgtCells(tgt.size(), comm());
-
-
-    const label myRank = UPstream::myProcNo(comm());
+    const globalIndex globalNumbering(tgt.size(), communicator);
 
 
     // First pass
@@ -127,7 +137,8 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
     // Identify local nearest matches
     pointField srcCcs(src.faceCentres());
 
-    List<nearestAndDist> localInfo(src.size());
+    List<nearKey> localInfo(src.size(), { Foam::sqr(GREAT), -1 });
+
     if (tgt.size())
     {
         const auto& tgtTree = tgtTreePtr();
@@ -136,27 +147,24 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
         {
             const point& srcCc = srcCcs[srcCelli];
 
-            pointIndexHit& test = localInfo[srcCelli].first();
-            test = tgtTree.findNearest(srcCc, GREAT);
+            // With a search radius2 of GREAT all cells should receive a hit
+            pointIndexHit test = tgtTree.findNearest(srcCc, GREAT);
 
-            if (test.hit())
+            if (const auto& p = test.point(); test.hit())
             {
-                // With a search radius2 of GREAT all cells should receive a hit
-                localInfo[srcCelli].second() = test.point().distSqr(srcCc);
-                test.setIndex(globalTgtCells.toGlobal(myRank, test.index()));
+                localInfo[srcCelli] =
+                (
+                    nearKey
+                    (
+                        p.distSqr(srcCc),
+                        globalNumbering.toGlobal(myProci, test.index())
+                    )
+                );
             }
         }
     }
-    else
-    {
-        // No local tgtPatch faces - initialise nearest distance for all
-        // srcPatch faces to GREAT so that they [should be] set by remote
-        // tgtPatch faces
-        for (auto& info : localInfo)
-        {
-            info.second() = GREAT;
-        }
-    }
+    // else: no local tgtPatch faces - all srcPatch faces remain as misses
+    // so that they [should be] set by remote tgtPatch faces
 
 
     // Second pass
@@ -167,7 +175,7 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
     autoPtr<mapDistribute> mapPtr = calcFaceMap(localInfo, src, tgt);
     mapDistribute& map = mapPtr();
 
-    List<nearestAndDist> remoteInfo(localInfo);
+    List<nearKey> remoteInfo(localInfo);
     map.distribute(remoteInfo);
 
     // Note: re-using srcCcs
@@ -178,15 +186,22 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
         const auto& tgtTree = tgtTreePtr();
 
         // Test remote srcPatch faces against local tgtPatch faces
-        nearestAndDist testInfo;
-        pointIndexHit& test = testInfo.first();
         forAll(remoteInfo, i)
         {
-            test = tgtTree.findNearest(srcCcs[i], remoteInfo[i].second());
-            if (test.hit())
+            const point& srcCc = srcCcs[i];
+
+            pointIndexHit test =
+                tgtTree.findNearest(srcCc, remoteInfo[i].first());
+
+            if (const auto& p = test.point(); test.hit())
             {
-                test.setIndex(globalTgtCells.toGlobal(myRank, test.index()));
-                testInfo.second() = test.point().distSqr(srcCcs[i]);
+                nearKey testInfo
+                (
+                    p.distSqr(srcCc),
+                    globalNumbering.toGlobal(myProci, test.index())
+                );
+
+                // Combine local into remote
                 nearestEqOp()(remoteInfo[i], testInfo);
             }
         }
@@ -194,9 +209,11 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
 
     // Send back to originating processor. Choose best if sent to multiple
     // processors. Note that afterwards all unused entries have the unique
-    // value nearestZero (distance < 0). This is used later on to see if
-    // the sample was sent to any processor.
-    const nearestAndDist nearestZero(pointIndexHit(), -GREAT);
+    // value nearestZero (distance < 0, index < 0).
+    // This is used later on to see if the sample was sent to any processor.
+
+    const nearKey nearestZero(-GREAT, -1);
+
     mapDistributeBase::distribute
     (
         UPstream::commsTypes::nonBlocking,
@@ -211,7 +228,7 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
         nearestEqOp(),
         identityOp(),       // No flipping
         UPstream::msgType(),
-        comm()
+        communicator
     );
 
 
@@ -224,23 +241,30 @@ Foam::autoPtr<Foam::mapDistribute> Foam::nearestFaceAMI::calcDistributed
     srcToTgtWght.setSize(src.size());
     forAll(srcToTgtAddr, srcFacei)
     {
+        // Combine remote into local
         nearestEqOp()(localInfo[srcFacei], remoteInfo[srcFacei]);
-        if (localInfo[srcFacei].second() < maxDistance2_)
+
+        const auto [distSqr, tgtFacei] = localInfo[srcFacei];
+
+        if
+        (
+            nearestEqOp::good_index(tgtFacei)
+         && distSqr < maxDistance2_
+        )
         {
-            const label tgtFacei = localInfo[srcFacei].first().index();
-            srcToTgtAddr[srcFacei] = labelList(1, tgtFacei);
-            srcToTgtWght[srcFacei] = scalarList(1, 1.0);
+            srcToTgtAddr[srcFacei].resize_fill(1, tgtFacei);
+            srcToTgtWght[srcFacei].resize_fill(1, 1.0);
         }
     }
 
     List<Map<label>> cMap;
     return autoPtr<mapDistribute>::New
     (
-        globalTgtCells,
+        globalNumbering,
         srcToTgtAddr,
         cMap,
         UPstream::msgType(),
-        comm()
+        communicator
     );
 }
 
