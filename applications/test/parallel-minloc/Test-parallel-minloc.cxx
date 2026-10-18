@@ -206,6 +206,8 @@ int main(int argc, char *argv[])
 
     #include "setRootCase.H"
 
+    Info<< nl << "mpi vendor=" << int(UPstream::vendorCode()) << nl;
+
     const label repeat = args.getOrDefault<label>("repeat", 10);
     const label length = args.getOrDefault<label>("length", 1000);
 
@@ -249,6 +251,13 @@ int main(int argc, char *argv[])
             best = UPstream::maxLocation(copy, UPstream::worldComm);
             Info<< "maxloc: " << copy << " best:" << best << endl;
         }
+
+        Info<< "find_minLocation: " << value.first() << " => "
+            << UPstream::find_minLocation(value.first(), UPstream::worldComm)
+            << endl;
+        Info<< "find_maxLocation: " << value.first() << " => "
+            << UPstream::find_maxLocation(value.first(), UPstream::worldComm)
+            << endl;
     }
 
     // min/max/sum with tuple

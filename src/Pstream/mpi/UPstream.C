@@ -8,6 +8,7 @@
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -1559,6 +1560,31 @@ void Foam::UPstream::probeMessages
         }
     }
     profilingPstream::addProbeTime();
+}
+
+
+// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+
+Foam::UPstream::vendorCodes Foam::UPstream::vendorCode() noexcept
+{
+    #if   defined(OMPI_MAJOR_VERSION)
+    return UPstream::vendorCodes::openmpi;
+
+    #elif defined(I_MPI_VERSION)
+    return UPstream::vendorCodes::intelmpi;
+
+    #elif defined(MSMPI_VER) || defined(MSMPI_VERSION)
+    return UPstream::vendorCodes::msmpi;
+
+    #elif defined(MVAPICH2_VERSION)
+    return UPstream::vendorCodes::mvapich;
+
+    #elif defined(MPICH_VERSION)
+    return UPstream::vendorCodes::mpich;
+
+    #else
+    return UPstream::vendorCodes::generic;
+    #endif
 }
 
 

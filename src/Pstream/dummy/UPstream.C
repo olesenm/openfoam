@@ -31,6 +31,12 @@ License
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+Foam::UPstream::vendorCodes Foam::UPstream::vendorCode() noexcept
+{
+    return UPstream::vendorCodes::invalid;
+}
+
+
 void Foam::UPstream::addValidParOptions(HashTable<string>& validParOptions)
 {}
 

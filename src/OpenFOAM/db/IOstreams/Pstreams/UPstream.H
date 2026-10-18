@@ -8,6 +8,7 @@
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -180,6 +181,19 @@ public:
         //! (internal use) end marker [window types]
         Extra_end = invalid, OpCodes_end = invalid
         //!< (internal use) end marker [all types]
+    };
+
+    //- Simple enumeration of some MPI vendors (non-exhaustive),
+    //- for low-level selection of algorithms etc [ADVANCED USE]
+    enum class vendorCodes : int
+    {
+        generic,        //!< generic or MPI with unknown vendor
+        intelmpi,       //!< intelmpi variant
+        mpich,          //!< mpich-derived
+        msmpi,          //!< ms-mpi variant
+        mvapich,        //!< mvapich
+        openmpi,        //!< openmpi variant
+        invalid = -1    //!< (dummy stub handler)
     };
 
     //- Some bit masks corresponding to topology controls
@@ -610,6 +624,13 @@ private:
             return ListOps::equal(procs1, procs2);
         }
 
+        //- Implementation detail for find_minLocation, find_maxLocation.
+        //
+        //  \tparam Type   the C++ data type (int32, int64, float, double)
+        //  \tparam OpCode the operation (minloc/maxloc)
+        template<class Type, UPstream::opCodes OpCode>
+        static int findLocation_impl(Type value, int communicator);
+
         //- Implementation detail for in-place allreduce
         //- MINLOC/MAXLOC operations.
         //
@@ -926,27 +947,27 @@ public:
         static int commConstWorld() noexcept { return constWorldComm_; }
 
         //- Communicator for all ranks (respecting any local worlds)
-        static label commWorld() noexcept { return worldComm; }
+        static int commWorld() noexcept { return static_cast<int>(worldComm); }
 
         //- Set world communicator. Negative values are a no-op.
         //  \returns old world communicator index
-        static label commWorld(label communicator) noexcept
+        static int commWorld(int communicator) noexcept
         {
-            label old(worldComm);
+            int old(worldComm);
             if (communicator >= 0) worldComm = communicator;
             return old;
         }
 
         //- The current communicator debugging setting
-        static label commWarn() noexcept { return warnComm; }
+        static int commWarn() noexcept { return warnComm; }
 
         //- Alter communicator debugging setting.
         //- Warns for use of any communicator differing from specified.
         //- Negative values disable.
         //  \returns the previous warn index
-        static label commWarn(label communicator) noexcept
+        static int commWarn(int communicator) noexcept
         {
-            label old(warnComm);
+            int old(warnComm);
             warnComm = communicator;
             return old;
         }
@@ -1589,17 +1610,26 @@ public:
         }
 
 
+    // Properties
+
+        //- The maximum number of MPI ranks possible.
+        static constexpr int max_ranks() noexcept { return INT_MAX; }
+
+        //- Enumerated vendor code for the linked MPI backend [ADVANCED USE]
+        static vendorCodes vendorCode() noexcept;
+
+
     // Rank addressing
 
         //- Range of process indices for all processes
-        static rangeType allProcs(label communicator = worldComm)
+        static rangeType allProcs(int communicator = worldComm)
         {
             // Proc 0 -> nProcs (int value)
             return rangeType(static_cast<int>(nProcs(communicator)));
         }
 
         //- Range of process indices for sub-processes
-        static rangeType subProcs(label communicator = worldComm)
+        static rangeType subProcs(int communicator = worldComm)
         {
             // Proc 1 -> nProcs (int value)
             return rangeType(1, static_cast<int>(nProcs(communicator)-1));
@@ -1628,18 +1658,18 @@ public:
             bool linear = false
         )
         {
-            const label np
+            const int np
             (
                 parRun_ && is_rank(communicator)  // cf. is_parallel()
-              ? nProcs(communicator)
-              : label(0)
+              ? static_cast<int>(nProcs(communicator))
+              : 0
             );
 
             return
             (
                 np <= 1
               ? commsStructList::null()
-              : (linear || np < UPstream::nProcsSimpleSum)
+              : (linear || (np < UPstream::nProcsSimpleSum))
               ? linearCommunication(communicator)
               : treeCommunication(communicator)
             );
@@ -2169,6 +2199,14 @@ public:
         //- or -1 if no ranks satisfy the condition.
         static int find_last(bool condition, int communicator);
 
+        //- Locate the first rank with the smallest \p value (MINLOC operation).
+        //  For non-parallel : no-op, returns 0.
+        static int find_minLocation(double value, int communicator);
+
+        //- Locate the first rank with the largest \p value (MAXLOC operation).
+        //  For non-parallel : no-op, returns 0.
+        static int find_maxLocation(double value, int communicator);
+
         #undef  Pstream_declareMethods
         #define Pstream_declareMethods(Type)                                  \
                                                                               \
@@ -2211,6 +2249,24 @@ public:
             Tuple2<Type, int>* data_tuples,                                   \
             /*! The number of tuples (must be parallel consistent!) */        \
             int64_t count,                                                    \
+            int communicator = UPstream::worldComm                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief An inplace \c min_location operation on multiple values  */ \
+        /*! \em non-parallel : no-op                                       */ \
+        static void minLocation                                               \
+        (                                                                     \
+            /*! [in,out] value/index tuples */                                \
+            UList<Tuple2<Type, int>>& tuples,                                 \
+            int communicator = UPstream::worldComm                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief An inplace \c max_location operation on multiple values  */ \
+        /*! \em non-parallel : no-op                                       */ \
+        static void maxLocation                                               \
+        (                                                                     \
+            /*! [in,out] value/index tuples */                                \
+            UList<Tuple2<Type, int>>& tuples,                                 \
             int communicator = UPstream::worldComm                            \
         );
 

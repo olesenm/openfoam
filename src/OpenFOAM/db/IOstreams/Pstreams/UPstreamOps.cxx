@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2025 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -346,6 +347,91 @@ void Foam::UPstream::allReduceLocation_impl
 }
 
 
+template<class Type, Foam::UPstream::opCodes OpCode>
+int Foam::UPstream::findLocation_impl(Type value, int communicator)
+{
+    constexpr auto datatype_id = UPstream_location_dataType<Type>::datatype_id;
+
+    static_assert
+    (
+        (
+            (datatype_id == UPstream::dataTypes::type_int_int)
+         || (datatype_id == UPstream::dataTypes::type_long_int)
+         || (datatype_id == UPstream::dataTypes::type_float_int)
+         || (datatype_id == UPstream::dataTypes::type_double_int)
+        ),
+        "Only supports (int_int, long_int, float_int, double_int) tuples"
+    );
+
+    static_assert
+    (
+        (
+            (OpCode == UPstream::opCodes::op_minloc)
+         || (OpCode == UPstream::opCodes::op_maxloc)
+        ),
+        "Only supports (minloc, maxloc) operations"
+    );
+
+    if (!UPstream::is_parallel(communicator))
+    {
+        // For non-parallel (serial) we are rank=0
+        return 0;
+    }
+
+    int proci = UPstream::myProcNo(communicator);
+
+    if constexpr
+    (
+        std::is_same_v<Type, int64_t>
+     && (sizeof(long) < sizeof(int64_t))
+    )
+    {
+        // See note about LLP64 (mingw/Windows) elsewhere in this file
+        Tuple2<int64_t, int> tup2(value, proci);
+
+        allReduceLocation_int64_split<OpCode>(&tup2, 1, communicator);
+
+        proci = tup2.second();
+    }
+    else
+    {
+        using basic_type = typename UPstream_location_dataType<Type>::type;
+
+        // The struct for MPI
+        struct mpiTuple { basic_type first; int second; };
+
+        mpiTuple blob { basic_type(value), proci };
+
+        UPstream::mpi_allreduce(&blob, 1, datatype_id, OpCode, communicator);
+
+        proci = blob.second;
+    }
+
+    return proci;
+}
+
+
+#undef  Pstream_defineMethods
+#define Pstream_defineMethods(Type)                                           \
+                                                                              \
+int Foam::UPstream::find_minLocation(Type value, int communicator)            \
+{                                                                             \
+    return                                                                    \
+    findLocation_impl<Type,UPstream::opCodes::op_minloc>(value, communicator);\
+}                                                                             \
+                                                                              \
+int Foam::UPstream::find_maxLocation(Type value, int communicator)            \
+{                                                                             \
+    return                                                                    \
+    findLocation_impl<Type,UPstream::opCodes::op_maxloc>(value, communicator);\
+}
+
+// NB: only four types are ever possible (int, long, float, double)
+Pstream_defineMethods(double);
+
+#undef Pstream_defineMethods
+
+
 #undef  Pstream_defineMethods
 #define Pstream_defineMethods(Type)                                           \
                                                                               \
@@ -365,6 +451,16 @@ void Foam::UPstream::maxLocation                                              \
 {                                                                             \
     allReduceLocation_impl<Type, UPstream::opCodes::op_maxloc>                \
     ( data_tuples, count, communicator );                                     \
+}                                                                             \
+                                                                              \
+void Foam::UPstream::minLocation(UList<Tuple2<Type, int>>& tuples, int comm)  \
+{                                                                             \
+    UPstream::minLocation(tuples.data(), tuples.size(), comm);                \
+}                                                                             \
+                                                                              \
+void Foam::UPstream::maxLocation(UList<Tuple2<Type, int>>& tuples, int comm)  \
+{                                                                             \
+    UPstream::maxLocation(tuples.data(), tuples.size(), comm);                \
 }                                                                             \
                                                                               \
 int Foam::UPstream::minLocation(Tuple2<Type, int>& data_tuple, int comm)      \
