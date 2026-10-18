@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2022 OpenCFD Ltd.
     Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -48,6 +49,61 @@ namespace Foam
     defineTypeNameAndDebug(shortestPathSet, 0);
     addToRunTimeSelectionTable(sampledSet, shortestPathSet, word);
 }
+
+
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
+
+namespace
+{
+
+// Find a globally consistent cell index for the given point
+Foam::label findGlobalCell
+(
+    const Foam::polyMesh& mesh,
+    const Foam::point& p,
+    const char* what,
+    bool verbose
+)
+{
+    using namespace Foam;
+
+    const int communicator = mesh.comm();
+    const auto myProci = UPstream::myProcNo(communicator);
+
+    label celli = mesh.findCell(p);
+    int proci = UPstream::find_first(celli >= 0, communicator);
+
+    // If not found, try perturbation (points on processor boundaries)
+    if (proci < 0)
+    {
+        const vector perturbVec = 1e-6 * mesh.bounds().span();
+        celli = mesh.findCell(p + perturbVec);
+        proci = UPstream::find_first(celli >= 0, communicator);
+    }
+
+    // Only retain cell index on the first valid domain
+    if (proci != myProci)
+    {
+        celli = -1;
+    }
+
+    // Debug output
+    if (verbose && what)
+    {
+        Info<< what << " point " << p
+            << " on proc " << proci << nl;
+
+        if (proci == myProci)
+        {
+            Pout<< what << " point " << p
+                << ", local cell = " << celli << nl;
+        }
+    }
+
+    return celli;
+}
+
+} // End anonymous namespace
 
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
@@ -1001,54 +1057,14 @@ void Foam::shortestPathSet::genSamples
     // - isLeakFace : is face along a leak path (so inbetween two leakCells)
     // - isLeakPoint : is point on a leakFace
 
-
     const topoDistanceData<label> maxData(labelMax, labelMax);
 
     // Find outside cell globally - handle processor boundaries
     // Force calculation of base points (needs to be synchronised)
     (void)mesh.tetBasePtIs();
 
-    const globalIndex& globalCells = mesh.globalData().globalMeshCellAddr();
-    label localOutsideCelli = mesh.findCell(outsidePoint);
-    label globalOutsideCelli = -1;
-    if (localOutsideCelli != -1)
-    {
-        globalOutsideCelli = globalCells.toGlobal(localOutsideCelli);
-    }
-    reduce(globalOutsideCelli, maxOp<label>());
-
-    // If not found, try perturbation (points on processor boundaries)
-    if (globalOutsideCelli == -1)
-    {
-        const vector perturbVec = 1e-6 * mesh.bounds().span();
-        localOutsideCelli = mesh.findCell(outsidePoint + perturbVec);
-        if (localOutsideCelli != -1)
-        {
-            globalOutsideCelli = globalCells.toGlobal(localOutsideCelli);
-        }
-        reduce(globalOutsideCelli, maxOp<label>());
-    }
-
-    // Convert back to local cell index on the processor that has it
-    label outsideCelli = -1;
-    label outsideProcI = -1;
-    if (globalOutsideCelli != -1)
-    {
-        outsideProcI = globalCells.whichProcID(globalOutsideCelli);
-        if (outsideProcI == Pstream::myProcNo())
-        {
-            outsideCelli = globalCells.toLocal(outsideProcI, globalOutsideCelli);
-        }
-    }
-
-    // Debug output
-    if (debug)
-    {
-        Pout<< "Outside point " << outsidePoint
-            << " -> global cell " << globalOutsideCelli
-            << " on proc " << outsideProcI
-            << ", local cell on proc " << Pstream::myProcNo() << ": " << outsideCelli << endl;
-    }
+    // Find a globally consistent outside cell
+    label outsideCelli = findGlobalCell(mesh, outsidePoint, "Outside", debug);
 
     // Maintain overall track length. Used to make curve distance continuous.
     scalar trackLength = 0;
@@ -1320,56 +1336,12 @@ void Foam::shortestPathSet::genSamples
     // Force calculation of base points (needs to be synchronised)
     (void)mesh.tetBasePtIs();
 
-    const globalIndex& globalCells = mesh.globalData().globalMeshCellAddr();
-
-    for (auto insidePoint : insidePoints_)
+    for (const auto& insidePoint : insidePoints_)
     {
-        // Find cell globally across all processors - handle processor boundaries
-        label localInsideCelli = mesh.findCell(insidePoint);
-        label globalInsideCelli = -1;
-        if (localInsideCelli != -1)
-        {
-            globalInsideCelli = globalCells.toGlobal(localInsideCelli);
-        }
-        reduce(globalInsideCelli, maxOp<label>());
+        // Find a globally consistent inside cell
+        label insideCelli = findGlobalCell(mesh, insidePoint, "Inside", debug);
 
-        // If not found, try perturbation (points on processor boundaries)
-        if (globalInsideCelli == -1)
-        {
-            const vector perturbVec = 1e-6 * mesh.bounds().span();
-            localInsideCelli = mesh.findCell(insidePoint + perturbVec);
-            if (localInsideCelli != -1)
-            {
-                globalInsideCelli = globalCells.toGlobal(localInsideCelli);
-            }
-            reduce(globalInsideCelli, maxOp<label>());
-        }
-
-        // Convert back to local cell index on the processor that has it
-        // CRITICAL: We need to know which processor has the cell for calculateDistance
-        // Even if insideCelli == -1 on this processor, calculateDistance must still be called
-        // because FaceCellWave propagates across processor boundaries
-        label insideCelli = -1;
-        label insideProcI = -1;
-        if (globalInsideCelli != -1)
-        {
-            insideProcI = globalCells.whichProcID(globalInsideCelli);
-            if (insideProcI == Pstream::myProcNo())
-            {
-                insideCelli = globalCells.toLocal(insideProcI, globalInsideCelli);
-            }
-        }
-
-        // Debug output
-        if (debug)
-        {
-            Pout<< "Inside point " << insidePoint
-                << " -> global cell " << globalInsideCelli
-                << " on proc " << insideProcI
-                << ", local cell on proc " << Pstream::myProcNo() << ": " << insideCelli << endl;
-        }
-
-        for (auto outsidePoint : outsidePoints_)
+        for (const auto& outsidePoint : outsidePoints_)
         {
             const label nOldSamples = samplingSegments.size();
 

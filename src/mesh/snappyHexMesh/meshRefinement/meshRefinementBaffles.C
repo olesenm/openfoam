@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2014 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -4043,6 +4044,10 @@ Foam::label Foam::meshRefinement::markPatchZones
     labelList& faceToZone
 ) const
 {
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+    // const auto numProc = UPstream::nProcs(communicator);
+
     List<edgeTopoDistanceData<label>> allEdgeInfo(patch.nEdges());
     List<edgeTopoDistanceData<label>> allFaceInfo(patch.size());
 
@@ -4076,38 +4081,31 @@ Foam::label Foam::meshRefinement::markPatchZones
         edgeTopoDistanceData<label>
     >::propagationTol();
 
-    int dummyTrackData;
-
-    const globalIndex globalFaces(patch.size());
-
+    int dummyTrackData = 0;
     label faceI = 0;
-
     label currentZoneI = 0;
 
     while (true)
     {
         // Pick an unset face
-        label globalSeed = labelMax;
+        label seedFaceI = -1;
         for (; faceI < allFaceInfo.size(); faceI++)
         {
             if (!allFaceInfo[faceI].valid(dummyTrackData))
             {
-                globalSeed = globalFaces.toGlobal(faceI);
+                seedFaceI = faceI;
                 break;
             }
         }
 
-        reduce(globalSeed, minOp<label>());
+        int seedProci = UPstream::find_first(seedFaceI >= 0, communicator);
 
-        if (globalSeed == labelMax)
+        if (seedProci < 0)
         {
             break;
         }
-
-        if (globalFaces.isLocal(globalSeed))
+        else if (seedProci == myProci)
         {
-            const label seedFaceI = globalFaces.toLocal(globalSeed);
-
             edgeTopoDistanceData<label>& faceInfo = allFaceInfo[seedFaceI];
 
             // Set face
@@ -4195,6 +4193,10 @@ void Foam::meshRefinement::consistentOrientation
     bitSet& meshFlipMap
 ) const
 {
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+    // const auto numProc = UPstream::nProcs(communicator);
+
     const polyBoundaryMesh& bm = mesh_.boundaryMesh();
 
     // Data on all edges and faces
@@ -4256,34 +4258,29 @@ void Foam::meshRefinement::consistentOrientation
         patchFaceOrientation
     >::propagationTol();
 
-    int dummyTrackData;
-
-    globalIndex globalFaces(patch.size());
+    int dummyTrackData = 0;
 
     while (true)
     {
         // Pick an unset face
-        label globalSeed = labelMax;
+        label seedFaceI = -1;
         forAll(allFaceInfo, faceI)
         {
             if (allFaceInfo[faceI] == orientedSurface::UNVISITED)
             {
-                globalSeed = globalFaces.toGlobal(faceI);
+                seedFaceI = faceI;
                 break;
             }
         }
 
-        reduce(globalSeed, minOp<label>());
+        int seedProci = UPstream::find_first(seedFaceI >= 0, communicator);
 
-        if (globalSeed == labelMax)
+        if (seedProci < 0)
         {
             break;
         }
-
-        if (globalFaces.isLocal(globalSeed))
+        else if (seedProci == myProci)
         {
-            const label seedFaceI = globalFaces.toLocal(globalSeed);
-
             // Determine orientation of seedFace
 
             patchFaceOrientation& faceInfo = allFaceInfo[seedFaceI];
@@ -4295,7 +4292,6 @@ void Foam::meshRefinement::consistentOrientation
             {
                 faceInfo.flip();
             }
-
 
             const labelList& fEdges = patch.faceEdges()[seedFaceI];
             forAll(fEdges, fEdgeI)
@@ -4329,7 +4325,6 @@ void Foam::meshRefinement::consistentOrientation
         {
             break;
         }
-
 
 
         // Walk
