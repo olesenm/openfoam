@@ -46,6 +46,7 @@ bool Foam::setRefCell
     if (fieldRef.needReference() || forceReference)
     {
         const auto& mesh = field.mesh();
+        const auto communicator = mesh.comm();
 
         const word refCellName = field.name() + "RefCell";
         const word refPointName = field.name() + "RefPoint";
@@ -54,7 +55,7 @@ bool Foam::setRefCell
         const entry* refCellFnd = dict.findEntry(refCellName);
         const entry* refPointFnd = dict.findEntry(refPointName);
 
-        label n = 0;
+        int n = 0;
         if (refCellFnd) n++;
         if (refPointFnd) n++;
         if (n != 1)
@@ -66,13 +67,12 @@ bool Foam::setRefCell
                 << " or " << refCellName << nl << exit(FatalIOError);
         }
 
-
         if (refCellFnd)
         {
-            if (Pstream::master(mesh.comm()))
-            {
-                refCellFnd->stream() >> refCelli;
+            refCellFnd->stream() >> refCelli;
 
+            if (UPstream::master(communicator))
+            {
                 if (refCelli < 0 || refCelli >= mesh.nCells())
                 {
                     FatalIOErrorInFunction(dict)
@@ -89,78 +89,63 @@ bool Foam::setRefCell
                 refCelli = -1;
             }
         }
-        else
+        else if (refPointFnd)
         {
             const point refPt(refPointFnd->stream());
 
             // Try fast approximate search avoiding octree construction
             refCelli = mesh.findCell(refPt, polyMesh::FACE_PLANES);
 
-            const label communicator = field.mesh().comm();
+            const auto myProci = UPstream::myProcNo(communicator);
+            const auto numProc = UPstream::nProcs(communicator);
 
-            label ranking = UPstream::find_first((refCelli >= 0), communicator);
-            if (ranking < 0)
+            int bestProci = UPstream::find_first(refCelli >= 0, communicator);
+            if (bestProci < 0)
             {
                 // Nobody found it - try with cell tet-decompositon
-                refCelli = field.mesh().findCell(refPt);
-                ranking = UPstream::find_first((refCelli >= 0), communicator);
+                refCelli = mesh.findCell(refPt);
+                bestProci = UPstream::find_first(refCelli >= 0, communicator);
             }
 
-            // Lowest rank takes the lead
-            if (ranking != UPstream::myProcNo(communicator))
+            // The refCell is only valid on the best domain
+            if (bestProci != myProci)
             {
                 refCelli = -1;
             }
+
             // But also possible that nobody found it
-            if (ranking < 0)
+            if (bestProci < 0)
             {
-                // Nobody found it - try nearest
+                // Try nearest cell to the reference point
+                Tuple2<scalar, int> nearest(VGREAT, UPstream::max_ranks());
 
-                const auto& globalCells =
-                    mesh.globalData().globalMeshCellAddr();
-
-                // Find the nearest cell to the reference point
-                pointIndexHit nearInfo =
+                pointIndexHit pHit =
                     mesh.cellTree().findNearest(refPt, Foam::sqr(GREAT));
 
-                // Convert the cell to global numbering
-                if (nearInfo.hit())
+                if (const auto& p = pHit.point(); pHit.hit())
                 {
-                    nearInfo.setIndex(globalCells.toGlobal(nearInfo.index()));
+                    refCelli = pHit.index();
+                    nearest = { refPt.distSqr(p), myProci };
+                }
+                else
+                {
+                    refCelli = -1;
                 }
 
-                // Reduce to find the globally nearest cell
-                Foam::reduce
-                (
-                    nearInfo,
-                    [&refPt](pointIndexHit& a, const pointIndexHit& b) -> auto
-                    {
-                        if (!a.hit())
-                        {
-                            if (b.hit())
-                            {
-                                return b;
-                            }
-                        }
-                        else if
-                        (
-                            b.hit()
-                        && magSqr(refPt - a.point()) > magSqr(refPt - b.point())
-                        )
-                        {
-                            return b;
-                        }
-                        return a;
-                    },
-                    UPstream::msgType(),
-                    mesh.comm()
-                );
+                bestProci = UPstream::minLocation(nearest, communicator);
 
-                if (!nearInfo.hit())
+                // The refCell is only valid on the best domain
+                if (myProci != bestProci)
+                {
+                    refCelli = -1;
+                }
+
+                if (bestProci < 0 || bestProci >= numProc)
                 {
                     // Give up
                     FatalIOErrorInFunction(dict)
                         << "Reference point " << refPointName
+                        << " : " << refPt
                         << " not found in any cell on this domain" << nl
                         << exit(FatalIOError);
                 }
@@ -169,20 +154,15 @@ bool Foam::setRefCell
                     IOWarningInFunction(dict)
                         << "Reference point " << refPointName
                         << " not found in any cell on any domain" << nl
-                        << "    Reverting to nearest cell at "
-                        << nearInfo.point() << nl;
-
-                    // Set ref cell on the domain that holds it
-                    if (globalCells.isLocal(nearInfo.index()))
-                    {
-                        refCelli = globalCells.toLocal(nearInfo.index());
-                    }
-                    else
-                    {
-                        refCelli = -1;
-                    }
+                        << "    Reverting to nearest cell, which is on rank="
+                        << bestProci << nl;
                 }
             }
+        }
+        else
+        {
+            // Programming/logic error...
+            FatalErrorInFunction << abort(FatalError);
         }
 
         dict.readEntry(refValueName, refValue);
@@ -217,21 +197,24 @@ Foam::scalar Foam::getRefCellValue
     const label refCelli
 )
 {
+    const label nCells = field.mesh().nCells();
+
     #ifdef FULLDEBUG
-    if (refCelli >= field.mesh().nCells())
+    if (refCelli >= nCells)
     {
         FatalErrorInFunction
             << "Illegal reference cellID " << refCelli
-            << ". Mesh has " << field.mesh().nCells() << ". cells."
+            << ". Mesh has " << nCells << ". cells."
             << exit(FatalError);
     }
     #endif
-    scalar refCellValue = (refCelli >= 0 ? field[refCelli] : 0.0);
+
+    scalar value = (refCelli >= 0 && refCelli < nCells) ? field[refCelli] : 0;
 
     // Currently distributing the value to all processors. This is generally
     // not needed since only the processor holding the reference cell needs
     // it. Tdb.
-    return returnReduce(refCellValue, sumOp<scalar>());
+    return returnReduce(value, sumOp<scalar>());
 }
 
 

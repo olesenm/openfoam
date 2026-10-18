@@ -120,7 +120,7 @@ void Foam::abaqusMeshSet::calcSamples
 
     forAll(sampleCoords_, samplei)
     {
-        const vector& pt = sampleCoords_[samplei];
+        const auto& pt = sampleCoords_[samplei];
 
         if (label celli = searchEngine().findCell(pt); celli >= 0)
         {
@@ -146,22 +146,28 @@ void Foam::abaqusMeshSet::calcSamples
     const label nFound = sampleCoords_.size() - lost.size();
     label nOutOfBounds = 0;
 
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
     if (UPstream::parRun())
     {
-        // Nearest selection: (sqr(distance), (rank, celli))
-        List<Tuple2<scalar, labelPair>> nearest
+        // Nearest cell (locally)
+        labelList objectIndices(lost.size(), Foam::zero{});
+
+        // The nearest selection key: (sqr(distance), rank)
+        // Construct as missed sample
+        // == (large distance, proc = max_ranks)
+
+        List<Tuple2<scalar, int>> nearest
         (
             lost.size(),
-            { Foam::sqr(GREAT), {-1, -1} }
+            { VGREAT, UPstream::max_ranks() }
         );
 
         forAll(lost, i)
         {
             const label samplei = lost[i];
-            auto& near = nearest[i];
-            const vector& pt = sampleCoords_[samplei];
+            const auto& pt = sampleCoords_[samplei];
 
             if
             (
@@ -170,26 +176,39 @@ void Foam::abaqusMeshSet::calcSamples
             )
             {
                 const auto& cc = mesh().cellCentres()[celli];
-                near = { pt.distSqr(cc), {myProci, celli} };
+
+                objectIndices[i] = celli;
+                nearest[i] = { pt.distSqr(cc), myProci };
             }
         }
 
         // Find nearest - globally consistent
-        Pstream::listCombineReduce(nearest, minFirstEqOp{});
+        if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+        {
+            // Avoid slow MINLOC on intelmpi (OCT-2026)
+            Pstream::listCombineReduce
+            (
+                nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+            );
+        }
+        else
+        {
+            UPstream::minLocation(nearest, communicator);
+        }
 
         forAll(nearest, i)
         {
             const label samplei = lost[i];
-            const auto& near = nearest[i];
+            const auto& pt = sampleCoords_[samplei];
 
-            const auto distSqr = near.first();
-            const auto& [rank, celli] = near.second();
+            const auto [distSqr, proci] = nearest[i];
+            const auto celli = objectIndices[i];
 
             if (distSqr < maxDistSqr_)
             {
-                if (rank == myProci)
+                if (proci == myProci)
                 {
-                    const vector& cc = mesh().cellCentres()[celli];
+                    const auto& cc = mesh().cellCentres()[celli];
 
                     samplingPts.append(cc);
                     samplingCells.append(celli);
@@ -203,7 +222,7 @@ void Foam::abaqusMeshSet::calcSamples
                 // Insert points that have not been found as null points
                 if (UPstream::master())
                 {
-                    samplingPts.append(sampleCoords_[samplei]);
+                    samplingPts.append(pt);
                     samplingCells.append(-1);
                     samplingFaces.append(-1);
                     samplingSegments.append(0);
@@ -221,10 +240,10 @@ void Foam::abaqusMeshSet::calcSamples
         forAll(lost, i)
         {
             const label samplei = lost[i];
+            const auto& pt = sampleCoords_[samplei];
 
-            const vector& pt = sampleCoords_[samplei];
             const label celli = searchEngine().findNearestCell(pt);
-            const vector& cc = mesh().cellCentres()[celli];
+            const auto& cc = mesh().cellCentres()[celli];
 
             if (scalar distSqr = pt.distSqr(cc); distSqr < maxDistSqr_)
             {
@@ -237,7 +256,7 @@ void Foam::abaqusMeshSet::calcSamples
             else
             {
                 // Insert points that have not been found as null points
-                samplingPts.append(sampleCoords_[samplei]);
+                samplingPts.append(pt);
                 samplingCells.append(-1);
                 samplingFaces.append(-1);
                 samplingSegments.append(0);

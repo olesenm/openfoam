@@ -44,12 +44,11 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef patchSeedSet_H
-#define patchSeedSet_H
+#ifndef Foam_patchSeedSet_H
+#define Foam_patchSeedSet_H
 
 #include "sampledSet.H"
 #include "DynamicList.H"
-#include "HashSet.H"
 #include "Random.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -65,10 +64,10 @@ class patchSeedSet
 :
     public sampledSet
 {
-    // Private data
+    // Private Data
 
         //- Patches to sample
-        const labelHashSet patchSet_;
+        const labelList patchIDs_;
 
         //- Maximum number of patch faces to seed (if in random subset mode)
         const label maxPoints_;

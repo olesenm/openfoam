@@ -336,8 +336,8 @@ Foam::mappedPatchBase::findLocalSamples
     sampleLocations.resize_fill(samples.size(), point::max);
 
     // The nearest selection key. Construct as missed sample
-    // == (large distance, proc = -1)
-    List<nearKey> nearest(samples.size(), nearKey(Foam::sqr(GREAT), -1));
+    // == (large distance, proc = max_ranks)
+    List<nearKey> nearest(samples.size(), { VGREAT, UPstream::max_ranks() } );
 
     // For multi-world, accept or ignore this sample?
     const auto accept = [&sampleFilter](label i) noexcept
@@ -709,14 +709,18 @@ void Foam::mappedPatchBase::findSamples
     // Reduction: Stage 1
     //
     // reduce the (distance, rank) key as a MINLOC type of operation
-
-    Pstream::listCombineReduce
-    (
-        selectionKeys,
-        minFirstEqOp{},
-        uniqueTag,
-        myComm
-    );
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+    {
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            selectionKeys, minFirstEqOp{}, uniqueTag, myComm
+        );
+    }
+    else
+    {
+        UPstream::minLocation(selectionKeys, myComm);
+    }
 
 
     // Reduction: Stage 2
@@ -730,9 +734,9 @@ void Foam::mappedPatchBase::findSamples
 
     forAll(selectionKeys, i)
     {
-        const auto& rank = selectionKeys[i].second();
+        auto proci = selectionKeys[i].second();
 
-        if (rank == myRank)
+        if (proci == myRank)
         {
             // My rank provides values.
             // Retain sample indices and location
@@ -786,12 +790,12 @@ void Foam::mappedPatchBase::findSamples
         Pout<< "** After combining:" << endl;
         forAll(samples, i)
         {
-            const auto rank  = selectionKeys[i].second();
+            const auto proci = selectionKeys[i].second();
 
             Pout<< "  sample: " << samples[i]
                 << " from proc:" << origProcs[i]
                 << " (world:" << wantedWorlds[i]
-                << " ) found on proc:" << rank
+                << " ) found on proc:" << proci
                 << " at index:" << sampleIndices[i]
                 << " point:" << sampleLocations[i] << nl;
         }

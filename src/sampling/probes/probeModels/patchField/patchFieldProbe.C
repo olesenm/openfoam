@@ -43,17 +43,41 @@ namespace Foam
 
 void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
 {
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+    const auto numProc = UPstream::nProcs(communicator);
+
+    // Test for valid proc number
+    const auto valid_proc = [numProc](int proci) noexcept
+    {
+        return (proci >= 0 && proci < numProc);
+    };
 
     (void)mesh.tetBasePtIs();
 
     const polyBoundaryMesh& bm = mesh.boundaryMesh();
 
-    // Nearest selection: (sqr(distance), (rank, facei))
-    List<Tuple2<scalar, labelPair>> nearest
+    // The extracted sampling information (output):
+    // - cellIds_   : cells, not used
+    // - faceIds_   : mesh face id
+    // - patchIds_  : patch corresponding to faceIds_
+    // - procIds_   : processor
+    //
+    // NOTE: faceIds_ and patchIds_ are filled with local
+    // information and re-filtered later
+
+    cellIds_.resize_fill(this->size(), -1);
+    faceIds_.resize_fill(this->size(), -1);
+    patchIds_.resize_fill(this->size(), -1);
+    procIds_.resize_fill(this->size(), -1);
+
+    // Nearest selection key: (sqr(distance), rank)
+    // Construct as missed sample
+    // == (large distance, proc = max_ranks)
+    List<Tuple2<scalar, int>> nearest
     (
         this->size(),
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
 
     // Initialize all hit points as point::max
@@ -100,22 +124,19 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
         forAll(samples, probei)
         {
             const point& sample = samples[probei];
-            auto& near = nearest[probei];
-            auto& hitAt = hitPoints[probei];
 
             pointIndexHit pHit =
                 boundaryTree.findNearest(sample, boundaryTree.bb().magSqr());
 
-            if (!pHit.hit())
+            if (pHit.not_hit())
             {
                 pHit = boundaryTree.findNearest(sample, Foam::sqr(GREAT));
             }
 
             if (const point& p = pHit.point(); pHit.hit())
             {
-                const label facei = treeData.objectIndex(pHit.index());
-
-                const label patchi = bm.whichPatch(facei);
+                label facei = treeData.objectIndex(pHit.index());
+                label patchi = bm.whichPatch(facei);
 
                 if (isA<emptyPolyPatch>(bm[patchi]))
                 {
@@ -128,8 +149,10 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
                 }
                 else
                 {
-                    hitAt = p;
-                    near = { sample.distSqr(p), {myProci, facei} };
+                    faceIds_[probei] = facei;
+                    patchIds_[probei] = patchi;
+                    hitPoints[probei] = p;
+                    nearest[probei] = { sample.distSqr(p), myProci };
                 }
             }
         }
@@ -137,23 +160,32 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
 
 
     // Find nearest - globally consistent
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+    {
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
 
     // Update hitPoints, with extra sanity
     forAll(nearest, i)
     {
-        const auto proci = nearest[i].second().first();
+        const auto proci = nearest[i].second();
         const point& sample = probeLocations()[i];
 
-        if (proci < 0)
+        // No hit on my proc
+        // - set as point::max (for later reduction)
+        //   or preserve original sample point if no hit anywhere
+
+        if (proci != myProci)
         {
-            // No hit anywhere, preserve original sample point
-            hitPoints[i] = sample;
-        }
-        else if (proci != myProci)
-        {
-            // No hit on my proc
-            hitPoints[i] = point::max;
+            hitPoints[i] = valid_proc(proci) ? point::max : sample;
         }
     }
 
@@ -164,7 +196,7 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
         hitPoints.size(),
         minOp<point>(),
         UPstream::msgType(),
-        UPstream::worldComm
+        communicator
     );
 
     if (debug)
@@ -175,11 +207,13 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
 
         forAll(nearest, samplei)
         {
-            const auto& [proci, facei] = nearest[samplei].second();
+            const auto proci = nearest[samplei].second();
+            const auto facei = faceIds_[samplei];
             const point& sample = samples[samplei];
 
             Info<< "    " << samplei << " coord:" << sample
-                << " found on processor:" << proci
+                << " found on processor:"
+                << (proci < UPstream::nProcs() ? proci : -1)
                 << " in local face:" << facei
                 << " with location:" << hitPoints[samplei]
                 << endl;
@@ -194,33 +228,27 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
         locations = std::move(hitPoints);
     }
 
-    // Extract any local faces to sample:
-    // - operator[] : actual point to sample (=nearest point on patch)
-    // - oldPoints_ : original provided point (might be anywhere in the mesh)
-    // - cellIds_   : cells, not used
-    // - faceIds_   : mesh face id
-    // - patchIds_  : patch corresponding to faceList
-    // - procIds_   : processor
-
-    cellIds_.resize_fill(nearest.size(), -1);
-    faceIds_.resize_fill(nearest.size(), -1);
-    procIds_.resize_fill(nearest.size(), -1);
-    patchIds_.resize_fill(nearest.size(), -1);
+    // Re-filter the local faceIds_/patchIds_
+    // to only retain the globally nearest sample point.
 
     forAll(nearest, samplei)
     {
-        const auto& [proci, facei] = nearest[samplei].second();
+        const auto proci = nearest[samplei].second();
 
         // Valid (local) face to sample?
-        if (proci == myProci && facei >= 0)
+        if (proci == myProci && faceIds_[samplei] >= 0)
         {
-            faceIds_[samplei] = facei;
             procIds_[samplei] = proci;
-            patchIds_[samplei] = bm.whichPatch(facei);
+        }
+        else
+        {
+            faceIds_[samplei] = -1;
+            patchIds_[samplei] = -1;
+            procIds_[samplei] = -1;
         }
     }
 
-    // NB: do not reduce faceIds_ : they are processor-local
+    // NB: never reduce (cellIds_, faceIds_) : they are processor-local
 
     Foam::reduce
     (
@@ -228,7 +256,7 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
         procIds_.size(),
         maxOp<label>(),
         UPstream::msgType(),
-        UPstream::worldComm
+        communicator
     );
 
     Foam::reduce
@@ -237,7 +265,7 @@ void Foam::patchFieldProbe::findElements(const fvMesh& mesh)
         patchIds_.size(),
         maxOp<label>(),
         UPstream::msgType(),
-        UPstream::worldComm
+        communicator
     );
 }
 

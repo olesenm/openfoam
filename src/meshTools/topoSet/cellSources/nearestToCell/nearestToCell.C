@@ -69,19 +69,23 @@ Foam::topoSetSource::addToUsageTable Foam::nearestToCell::usage_
 
 void Foam::nearestToCell::combine(topoSet& set, const bool add) const
 {
-    // Nearest selection: (sqr(distance), (rank, celli))
-    List<Tuple2<scalar, labelPair>> nearest
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+
+    // Nearest cell index (locally)
+    labelList objectIndices(points_.size(), Foam::zero{});
+
+    // The nearest selection key. Construct as missed sample
+    // == (large distance, proc = max_ranks)
+    List<Tuple2<scalar, int>> nearest
     (
         points_.size(),
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
-
-    const auto myProci = UPstream::myProcNo();
 
     forAll(points_, pointi)
     {
         const auto& sample = points_[pointi];
-        auto& near = nearest[pointi];
 
         if
         (
@@ -90,18 +94,32 @@ void Foam::nearestToCell::combine(topoSet& set, const bool add) const
         )
         {
             const point& cc = mesh_.cellCentres()[celli];
-            near = { sample.distSqr(cc), {myProci, celli} };
+
+            objectIndices[pointi] = celli;
+            nearest[pointi] = { sample.distSqr(cc), myProci };
         }
     }
 
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
-
-    for (const auto& near : nearest)
+    // Find rank with nearest - globally consistent
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
     {
-        const auto& [proci, celli] = near.second();
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
 
-        if (proci == myProci)
+    forAll(nearest, samplei)
+    {
+        if (myProci == nearest[samplei].second())
         {
+            label celli = objectIndices[samplei];
+
             addOrDelete(set, celli, add);
         }
     }

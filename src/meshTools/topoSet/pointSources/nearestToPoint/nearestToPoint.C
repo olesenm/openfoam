@@ -69,13 +69,18 @@ Foam::topoSetSource::addToUsageTable Foam::nearestToPoint::usage_
 
 void Foam::nearestToPoint::combine(topoSet& set, const bool add) const
 {
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
-    // Nearest selection: (sqr(distance), (rank, pointi))
-    List<Tuple2<scalar, labelPair>> nearest
+    // Nearest point index (locally)
+    labelList objectIndices(points_.size(), Foam::zero{});
+
+    // The nearest selection key. Construct as missed sample
+    // == (large distance, proc = max_ranks)
+    List<Tuple2<scalar, int>> nearest
     (
         points_.size(),
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
 
     // Do linear search since usually just a few points.
@@ -85,7 +90,6 @@ void Foam::nearestToPoint::combine(topoSet& set, const bool add) const
         forAll(points_, samplei)
         {
             const auto& p = points_[samplei];
-            auto& near = nearest[samplei];
 
             label minPointi = 0;
             scalar minDistSqr = p.distSqr(pts[minPointi]);
@@ -101,17 +105,31 @@ void Foam::nearestToPoint::combine(topoSet& set, const bool add) const
                 }
             }
 
-            near = { minDistSqr, {myProci, minPointi} };
+            objectIndices[samplei] = minPointi;
+            nearest[samplei] = { minDistSqr, myProci };
         }
     }
 
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
-
-    for (const auto& near : nearest)
+    // Find rank with nearest - globally consistent
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
     {
-        const auto& [proci, pointi] = near.second();
-        if (proci == myProci)
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
+
+    forAll(nearest, samplei)
+    {
+        if (myProci == nearest[samplei].second())
         {
+            label pointi = objectIndices[samplei];
+
             addOrDelete(set, pointi, add);
         }
     }

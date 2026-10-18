@@ -148,15 +148,21 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
     // Does approximation by looking at the face centres only
     const pointField& fc = surface_.faceCentres();
 
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
-    // Nearest selection: (sqr(distance), (rank, index))
-    // where index is face or cell
-    List<Tuple2<scalar, labelPair>> nearest
+    // The eligible object index (face or cell).
+    // Will be refilter after the initial collection phase
+    labelList objectIndices(fc.size(), -1);
+
+    // The nearest selection key: (sqr(distance), rank)
+    // Construct as missed sample == (large distance, proc = max_ranks)
+    List<Tuple2<scalar, int>> nearest
     (
         fc.size(),
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
+
 
     if (sampleSource_ == samplingSource::cells)
     {
@@ -168,7 +174,6 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
         forAll(fc, samplei)
         {
             const point& pt = fc[samplei];
-            auto& near = nearest[samplei];
 
             if
             (
@@ -177,7 +182,9 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
             )
             {
                 label celli = treeData.objectIndex(pHit.index());
-                near = { pHit.point().distSqr(pt), {myProci, celli} };
+
+                objectIndices[samplei] = celli;
+                nearest[samplei] = { pHit.point().distSqr(pt), myProci };
             }
         }
     }
@@ -191,14 +198,15 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
         forAll(fc, samplei)
         {
             const point& pt = fc[samplei];
-            auto& near = nearest[samplei];
 
             if (tree.bb().contains(pt))
             {
                 if (label index = tree.findInside(pt); index >= 0)
                 {
                     label celli = treeData.objectIndex(index);
-                    near = { 0, {myProci, celli} };
+
+                    objectIndices[samplei] = celli;
+                    nearest[samplei] = { scalar(0), myProci };
                 }
             }
         }
@@ -214,7 +222,6 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
         forAll(fc, samplei)
         {
             const point& pt = fc[samplei];
-            auto& near = nearest[samplei];
 
             if
             (
@@ -223,7 +230,9 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
             )
             {
                 label facei = treeData.objectIndex(pHit.index());
-                near = { pHit.point().distSqr(pt), {myProci, facei} };
+
+                objectIndices[samplei] = facei;
+                nearest[samplei] = { pHit.point().distSqr(pt), myProci };
             }
         }
     }
@@ -232,27 +241,39 @@ bool Foam::sampledMeshedSurface::update(const meshSearch& meshSearcher)
     // See which processor has the nearest. Mark and subset
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
-
-    labelList objectIndices(fc.size(), label(-1));
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+    {
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
 
     bitSet facesToSubset(fc.size());
 
     forAll(nearest, facei)
     {
-        const auto& near = nearest[facei];
-        const auto& distSqr = near.first();
-        const auto& [proci, index] = near.second();
+        const auto [distSqr, proci] = nearest[facei];
+
+        bool ok = false;
 
         if (proci == myProci)
         {
             facesToSubset.set(facei);
 
             // Filter on max distance, ignored (-1) if too far away
-            if (distSqr < maxDistanceSqr_)
-            {
-                objectIndices[facei] = index;
-            }
+            ok = (distSqr < maxDistanceSqr_);
+        }
+
+        if (!ok)
+        {
+            // Not on this rank, or too far away
+            objectIndices[facei] = -1;
         }
     }
 

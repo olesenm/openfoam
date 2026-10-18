@@ -402,14 +402,16 @@ bool Foam::shortestPathSet::genSingleLeakPath
     List<topoDistanceData<label>>& allCellInfo
 ) const
 {
+    // Should be mesh.comm() :
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+
     const polyBoundaryMesh& pbm = mesh.boundaryMesh();
     const topoDistanceData<label> maxData(labelMax, labelMax);
 
 
-    allFaceInfo.setSize(mesh.nFaces());
-    allFaceInfo = topoDistanceData<label>();
-    allCellInfo.setSize(mesh.nCells());
-    allCellInfo = topoDistanceData<label>();
+    allFaceInfo.resize_fill(mesh.nFaces(), topoDistanceData<label>());
+    allCellInfo.resize_fill(mesh.nCells(), topoDistanceData<label>());
 
     // Mark blocked faces with high distance
     forAll(isBlockedFace, facei)
@@ -488,7 +490,7 @@ bool Foam::shortestPathSet::genSingleLeakPath
     bool targetFound = false;
     if (outsideCelli != -1)
     {
-        int dummyTrackData;
+        int dummyTrackData = 0;
         targetFound = allCellInfo[outsideCelli].valid(dummyTrackData);
     }
 
@@ -523,49 +525,65 @@ bool Foam::shortestPathSet::genSingleLeakPath
 
 
     // Start with given target cell and walk back
-    // CRITICAL FIX: With many processors, outsideCelli might be -1 on most processors.
-    // We need to find the nearest cell to outsidePoint that has valid distance info.
+
+    // NOTE: with many processors, outsideCelli might be -1 on most
+    // processors. We need the nearest cell to outsidePoint that has valid
+    // distance info.
+
     label frontCellI = outsideCelli;
     point origin(outsidePoint);
     bool findMinDistance = true;
 
-    // If outsideCelli is -1, find the nearest cell to outsidePoint with valid distance
-    // This is critical for high processor counts where outsideCelli is on a different processor
-    // CRITICAL: This reduction must be called by ALL processors, even if frontCellI != -1
-    scalar minDist = GREAT;
-    label minCellI = -1;
-    int dummyTrackData = 0;
+    // Called by ALL processors, even if frontCellI != -1
 
-    if (frontCellI == -1)
     {
-        // Search all local cells for the one closest to outsidePoint with valid distance
-        forAll(allCellInfo, celli)
+        // Search all local cells for the one closest to outsidePoint
+        // with valid distance
+
+        Tuple2<scalar, int> nearest(VGREAT, UPstream::max_ranks());
+
+        label minCellI = -1;
+        if (frontCellI == -1)
         {
-            if (allCellInfo[celli].valid(dummyTrackData))
+            scalar minDistSqr = VGREAT;
+            int dummyTrackData = 0;
+
+            forAll(allCellInfo, celli)
             {
-                scalar dist = mag(mesh.cellCentres()[celli] - outsidePoint);
-                if (dist < minDist)
+                if (allCellInfo[celli].valid(dummyTrackData))
                 {
-                    minDist = dist;
-                    minCellI = celli;
+                    scalar d2 = mesh.cellCentres()[celli].distSqr(outsidePoint);
+                    if (minDistSqr > d2)
+                    {
+                        minDistSqr = d2;
+                        minCellI = celli;
+                    }
                 }
             }
+
+            if (minCellI != -1)
+            {
+                nearest = { minDistSqr, myProci };
+            }
         }
-    }
 
-    // Find global minimum across all processors using Tuple2 to track processor
-    // This MUST be called by ALL processors to avoid deadlock
-    Tuple2<scalar, label> globalMin(minDist, Pstream::myProcNo());
-    Pstream::combineReduce(globalMin, minFirstEqOp{});
+        // Find rank with nearest - globally consistent
+        UPstream::minLocation(nearest, communicator);
 
-    // Only use if we found a reasonably close cell (within mesh bounds scale)
-    // and if we're on the processor that has the minimum
-    if (frontCellI == -1)
-    {
-        const scalar searchRadius = 0.1 * mesh.bounds().mag();
-        if (globalMin.first() < searchRadius && globalMin.second() == Pstream::myProcNo() && minCellI != -1)
+
+        // Only use if we found a reasonably close cell
+        // (within mesh bounds scale) on that processor
+
+        const auto [minDistSqr, minProci] = nearest;
+
+        const scalar searchRadiusSqr = Foam::sqr(0.1)*mesh.bounds().magSqr();
+
+        if (minProci == myProci && minDistSqr < searchRadiusSqr)
         {
-            frontCellI = minCellI;
+            if (frontCellI == -1 && minCellI != -1)
+            {
+                frontCellI = minCellI;
+            }
         }
     }
 
