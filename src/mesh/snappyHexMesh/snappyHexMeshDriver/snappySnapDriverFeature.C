@@ -2124,13 +2124,21 @@ void Foam::snappySnapDriver::splitDiagonals
             }
 
             // Fall-back : choose any connected patch
-            if (twoPatches[0] == -1)
+            if
+            (
+                auto fallback = f0[1];
+                (twoPatches[0] == -1) && !pointFacePatchID[fallback].empty()
+            )
             {
-                twoPatches[0] = pointFacePatchID[f0[1]][0];
+                twoPatches[0] = pointFacePatchID[fallback][0];
             }
-            if (twoPatches[1] == -1)
+            if
+            (
+                auto fallback = f1[1];
+                (twoPatches[1] == -1) && !pointFacePatchID[fallback].empty()
+            )
             {
-                twoPatches[1] = pointFacePatchID[f1[1]][0];
+                twoPatches[1] = pointFacePatchID[fallback][0];
             }
 
             //if (twoPatches != labelPair(-1, -1))
