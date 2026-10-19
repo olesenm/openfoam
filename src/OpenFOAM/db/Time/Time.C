@@ -815,7 +815,7 @@ Foam::Time::~Time()
     // Destroy function objects first
     functionObjects_.clear();
 
-    // Clean up profiling
+    // Clean up profiling (if attached to this Time)
     profiling::stop(*this);
 
     // Ensure all owned objects are also cleaned up now

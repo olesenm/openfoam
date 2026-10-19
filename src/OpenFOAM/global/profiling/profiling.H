@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2009-2016 Bernhard Gschaider
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -214,6 +215,9 @@ protected:
 
         //- Stop profiling, cleanup pool if possible
         static void stop(const Time& owner);
+
+        //- Stop profiling unconditional
+        static void shutdown();
 
         //- Existing or new element on pool, add to stack.
         //  Returns nullptr if profiling has not been initialized

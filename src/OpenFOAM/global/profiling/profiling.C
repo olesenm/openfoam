@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2009-2016 Bernhard Gschaider
-    Copyright (C) 2016-2026 OpenCFD Ltd.
+    Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -175,10 +176,18 @@ void Foam::profiling::initialize
 
 void Foam::profiling::stop(const Time& owner)
 {
+    // Remove the profiling singleton associated with 'owner'
     if (singleton_ && &owner == &(singleton_->owner_))
     {
         singleton_.reset(nullptr);
     }
+}
+
+
+void Foam::profiling::shutdown()
+{
+    // Remove the profiling singleton unconditionally
+    singleton_.reset(nullptr);
 }
 
 
@@ -286,7 +295,9 @@ Foam::profiling::~profiling()
 {
     if (this == singleton_.get())
     {
-        singleton_.reset(nullptr);
+        // This object is already being deleted (possibly by ~unique_ptr
+        // itself), so only deregister ownership here.
+        (void) singleton_.release();
     }
 }
 
