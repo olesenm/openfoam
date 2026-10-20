@@ -155,8 +155,11 @@ namespace Foam
     }
 
     // explicit instantiations as needed
-    template typeOfSolve<scalar>::type
-    sumOffload<scalar>(const UList<scalar>&);
+    template typeOfSolve<float>::type
+    sumOffload<float>(const UList<float>&);
+
+    template typeOfSolve<double>::type
+    sumOffload<double>(const UList<double>&);
 
     template typeOfSolve<int>::type
     sumOffload<int>(const UList<int>&);
