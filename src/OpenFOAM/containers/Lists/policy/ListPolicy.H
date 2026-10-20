@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -336,6 +337,7 @@ enum uniformity : unsigned char
     MIXED = 0x3         //!< Mixed uniform/non-uniform (eg, after reduction)
 };
 
+
 //- Algorithm to determine list/container uniformity
 template<class InputIt>
 enum uniformity check_uniformity(InputIt first, InputIt last)
@@ -357,6 +359,18 @@ enum uniformity check_uniformity(InputIt first, InputIt last)
 
     return uniformity::UNIFORM;
 }
+
+
+//- Checking for List uniformity requires the "operator!=()" :
+template<class T, class = void>
+struct has_uniformity : std::false_type {};
+
+template<class T>
+struct has_uniformity
+<
+    T,
+    std::void_t<decltype(std::declval<const T&>() != std::declval<const T&>())>
+> : std::true_type {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -117,34 +118,63 @@ Foam::Ostream& Foam::UList<T>::writeList
         }
 
         os.format(oldFmt);
+
+        os.check(FUNCTION_NAME);
+        return os;
     }
     else
     {
-        if (os.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+        constexpr bool with_contiguous
+        (
+            is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+        );
+        constexpr bool use_uniformity
+        (
+            is_contiguous_v<T> && ListPolicy::has_uniformity<T>::value
+        );
+        constexpr bool no_linebreak
+        (
+            is_contiguous_v<T> || ListPolicy::no_linebreak<T>::value
+        );
+
+        if constexpr (with_contiguous)
         {
-            // Binary and contiguous
-
-            os << nl << len << nl;
-
-            if (len)
+            if (os.format() == IOstreamOption::BINARY)
             {
-                // write(...) includes surrounding start/end delimiters
-                os.write(list.cdata_bytes(), list.size_bytes());
+                // Binary and contiguous
+
+                os << nl << len << nl;
+
+                if (len)
+                {
+                    // write(...) includes surrounding start/end delimiters
+                    os.write(list.cdata_bytes(), list.size_bytes());
+                }
+
+                os.check(FUNCTION_NAME);
+                return os;
             }
         }
-        else if (is_contiguous_v<T> && len > 1 && list.uniform())
+
+        if constexpr (use_uniformity)
         {
-            // Two or more entries, and all entries have identical values.
-            os  << len << token::BEGIN_BLOCK << list[0] << token::END_BLOCK;
+            if (len > 1 && list.uniform())
+            {
+                // Two or more entries, all with identical values.
+                os  << len << token::BEGIN_BLOCK << list[0] << token::END_BLOCK;
+
+                os.check(FUNCTION_NAME);
+                return os;
+            }
         }
-        else if
+
+        // Generic output
+        // (non-binary or non-contiguous, non-uniform)
+
+        if
         (
             (len <= 1 || !shortLen)
-         ||
-            (
-                (len <= shortLen)
-             && (is_contiguous_v<T> || Foam::ListPolicy::no_linebreak<T>::value)
-            )
+         || (len <= shortLen && no_linebreak)
         )
         {
             // Single-line output
@@ -188,10 +218,10 @@ Foam::Ostream& Foam::UList<T>::writeList
             // End delimiter
             os << nl << token::END_LIST << nl;
         }
-    }
 
-    os.check(FUNCTION_NAME);
-    return os;
+        os.check(FUNCTION_NAME);
+        return os;
+    }
 }
 
 
@@ -259,34 +289,47 @@ Foam::Istream& Foam::UList<T>::readList(Istream& is)
 
                 is.fatalCheck
                 (
-                    "UList<char>::readList(Istream&) : [binary block]"
+                    "UList<char>::readList(Istream&) : "
+                    "[binary block]"
                 );
             }
 
             is.format(oldFmt);
+            return is;
         }
         else
         {
-            if (is.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+            constexpr bool with_contiguous
+            (
+                is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+            );
+
+            if constexpr (with_contiguous)
             {
-                // Binary and contiguous
-
-                if (len)
+                if (is.format() == IOstreamOption::BINARY)
                 {
-                    Detail::readContiguous<T>
-                    (
-                        is,
-                        list.data_bytes(),
-                        list.size_bytes()
-                    );
-
-                    is.fatalCheck
-                    (
-                        "UList<T>::readList(Istream&) : [binary block]"
-                    );
+                    // Binary and contiguous
+                    if (len)
+                    {
+                        Detail::readContiguous<T>
+                        (
+                            is,
+                            list.data_bytes(),
+                            list.size_bytes()
+                        );
+                        is.fatalCheck
+                        (
+                            "UList<T>::readList(Istream&) : "
+                            "[binary block]"
+                        );
+                    }
+                    return is;
                 }
             }
-            else
+
+            //
+            // Generic reading (non-binary or non-contiguous)
+            //
             {
                 // Begin of contents marker
                 const char delimiter = is.readBeginList("List");

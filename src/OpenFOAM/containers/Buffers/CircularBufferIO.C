@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -102,41 +103,68 @@ Foam::Ostream& Foam::CircularBuffer<T>::writeList
     }
     #endif
 
-    if (os.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+    constexpr bool with_contiguous
+    (
+        (std::is_same_v<char, std::remove_cv_t<T>>)
+     || (is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value)
+    );
+
+    if constexpr (with_contiguous)
     {
-        // Binary and contiguous
+        const auto oldFmt = os.format();
 
-        os << nl << len << nl;
-
-        if (len)
+        if constexpr (std::is_same_v<char, std::remove_cv_t<T>>)
         {
-            // The TOTAL number of bytes to be written.
-            // - possibly add start delimiter
-            // This is much like IndirectListBase output
+            // Special treatment for char data (binary I/O only)
+            os.format(IOstreamOption::BINARY);
+        }
 
-            os.beginRawWrite(len*sizeof(T));
+        if (os.format() == IOstreamOption::BINARY)
+        {
+            // Binary and contiguous
 
-            if (!list1.empty())
+            os << nl << len << nl;
+
+            if (len)
             {
-                os.writeRaw(list1.cdata_bytes(), list1.size_bytes());
-            }
-            if (!list2.empty())
-            {
-                os.writeRaw(list2.cdata_bytes(), list2.size_bytes());
+                // The TOTAL number of bytes to be written.
+                // - possibly add start delimiter
+                // This is much like IndirectListBase output
+
+                os.beginRawWrite(len*sizeof(T));
+
+                if (!list1.empty())
+                {
+                    os.writeRaw(list1.cdata_bytes(), list1.size_bytes());
+                }
+                if (!list2.empty())
+                {
+                    os.writeRaw(list2.cdata_bytes(), list2.size_bytes());
+                }
+
+                // End delimiter and/or cleanup.
+                os.endRawWrite();
             }
 
-            // End delimiter and/or cleanup.
-            os.endRawWrite();
+            os.format(oldFmt);
+
+            os.check(FUNCTION_NAME);
+            return os;
         }
     }
-    else if
+
+    constexpr bool no_linebreak
+    (
+        is_contiguous_v<T> || ListPolicy::no_linebreak<T>::value
+    );
+
+    // Generic output
+    // (non-binary or non-contiguous, non-uniform)
+
+    if
     (
         (len <= 1 || !shortLen)
-     ||
-        (
-            (len <= shortLen)
-         && (is_contiguous_v<T> || Foam::ListPolicy::no_linebreak<T>::value)
-        )
+     || (len <= shortLen && no_linebreak)
     )
     {
         // Single-line output

@@ -314,6 +314,22 @@ template<class T>
 using contiguous_element_t = typename contiguous_element<T>::type;
 
 
+/*---------------------------------------------------------------------------*\
+                                  ListPolicy
+\*---------------------------------------------------------------------------*/
+
+namespace ListPolicy
+{
+
+//- Permit raw binary IO for List/UList of the given type,
+//- when its corresponding is_contiguous trait is true?
+template<class T> struct allow_contiguous : std::true_type {};
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+} // End namespace ListPolicy
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace Foam

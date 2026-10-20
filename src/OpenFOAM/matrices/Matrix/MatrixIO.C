@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -56,6 +57,11 @@ bool Foam::Matrix<Form, Type>::readMatrix(Istream& is)
 
     is.fatalCheck("readMatrix : reading first token");
 
+    constexpr bool with_contiguous
+    (
+        is_contiguous_v<Type> && ListPolicy::allow_contiguous<Type>::value
+    );
+
     if (firstToken.isLabel())
     {
         mRows_ = firstToken.labelToken();
@@ -65,23 +71,28 @@ bool Foam::Matrix<Form, Type>::readMatrix(Istream& is)
         // The total size
         const label len = size();
 
-        if (is.format() == IOstreamOption::BINARY && is_contiguous_v<Type>)
+        if constexpr (with_contiguous)
         {
-            // Binary and contiguous
-
-            if (len)
+            if (is.format() == IOstreamOption::BINARY)
             {
-                Detail::readContiguous<Type>
-                (
-                    is,
-                    this->data_bytes(),
-                    this->size_bytes()
-                );
+                // Binary and contiguous
+                if (len)
+                {
+                    Detail::readContiguous<Type>
+                    (
+                        is,
+                        this->data_bytes(),
+                        this->size_bytes()
+                    );
 
-                is.fatalCheck("readMatrix : reading the binary block");
+                    is.fatalCheck("readMatrix : reading the binary block");
+                }
             }
+
+            return len;
         }
-        else
+
+        // Generic
         {
             // Begin of contents marker
             char listDelimiter = is.readBeginList("Matrix");
@@ -143,30 +154,58 @@ Foam::Ostream& Foam::Matrix<Form, Type>::writeMatrix
     const Matrix<Form, Type>& mat = *this;
     const label len = mat.size();  // Total size (rows * cols)
 
+    constexpr bool with_contiguous
+    (
+        is_contiguous_v<Type> && ListPolicy::allow_contiguous<Type>::value
+    );
+    constexpr bool use_uniformity
+    (
+        is_contiguous_v<Type> && ListPolicy::has_uniformity<Type>::value
+    );
+    constexpr bool no_linebreak
+    (
+        is_contiguous_v<Type> || ListPolicy::no_linebreak<Type>::value
+    );
+
     auto iter = mat.cbegin();  // element-wise iterator
 
     // Rows, columns size
     os  << mat.nRows() << token::SPACE << mat.nCols();
 
-    if (os.format() == IOstreamOption::BINARY && is_contiguous_v<Type>)
+    if constexpr (with_contiguous)
     {
-        // Binary and contiguous
-
-        if (len)
+        if (os.format() == IOstreamOption::BINARY)
         {
-            // write(...) includes surrounding start/end delimiters
-            os.write(mat.cdata_bytes(), mat.size_bytes());
+            // Binary and contiguous
+            if (len)
+            {
+                // write(...) includes surrounding start/end delimiters
+                os.write(mat.cdata_bytes(), mat.size_bytes());
+            }
+            os.check(FUNCTION_NAME);
+            return os;
         }
     }
-    else if (is_contiguous_v<Type> && len > 1 && mat.uniform())
+
+    if constexpr (use_uniformity)
     {
-        // Two or more entries, and all entries have identical values.
-        os  << token::BEGIN_BLOCK << *iter << token::END_BLOCK;
+        if (len > 1 && mat.uniform())
+        {
+            // Two or more entries, and all entries have identical values.
+            os  << token::BEGIN_BLOCK << *iter << token::END_BLOCK;
+
+            os.check(FUNCTION_NAME);
+            return os;
+        }
     }
-    else if
+
+    // Generic output
+    // (non-binary or non-contiguous, non-uniform)
+
+    if
     (
         (len <= 1 || !shortLen)
-     || (len <= shortLen && is_contiguous_v<Type>)
+     || (len <= shortLen && no_linebreak)
     )
     {
         // Single-line output (entire matrix)
@@ -197,7 +236,7 @@ Foam::Ostream& Foam::Matrix<Form, Type>::writeMatrix
     else if
     (
         (mat.nCols() <= 1 || !shortLen)
-     || (mat.nCols() <= shortLen && is_contiguous_v<Type>)
+     || (mat.nCols() <= shortLen && no_linebreak)
     )
     {
         // Multi-line matrix, single-line rows

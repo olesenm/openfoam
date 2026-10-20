@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -266,11 +267,18 @@ inline bool Foam::UList<T>::uniform() const
     // notation in the writeList() method.
     // - requires 'operator!=' to be defined for the type.
 
-    return
-    (
-        Foam::ListPolicy::uniformity::UNIFORM
-     == Foam::ListPolicy::check_uniformity(this->v_, this->v_ + size_)
-    );
+    if constexpr (Foam::ListPolicy::has_uniformity<T>::value)
+    {
+        return
+        (
+            Foam::ListPolicy::uniformity::UNIFORM
+         == Foam::ListPolicy::check_uniformity(this->v_, this->v_ + size_)
+        );
+    }
+    else
+    {
+        return false;
+    }
 }
 
 

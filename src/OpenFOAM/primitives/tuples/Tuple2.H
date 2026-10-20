@@ -184,6 +184,17 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+namespace ListPolicy
+{
+
+//- No compoundToken for List of arbitrary Tuple2,
+//- so no implicit binary file IO (can still use MPI send/recv etc.)
+template<class T1, class T2>
+struct allow_contiguous<Tuple2<T1, T2>> : std::false_type {};
+
+} // End namespace ListPolicy
+
+
 //- Tuple2 is contiguous if both of its components are contiguous
 template<class T1, class T2>
 struct is_contiguous<Tuple2<T1, T2>>

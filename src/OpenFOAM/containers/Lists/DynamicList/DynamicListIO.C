@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -212,7 +213,8 @@ Foam::Istream& Foam::DynamicList<T, SizeMin>::readList(Istream& is)
 
                 is.fatalCheck
                 (
-                    "DynamicList<char>::readList(Istream&) : [binary block]"
+                    "DynamicList<char>::readList(Istream&) : "
+                    "[binary block]"
                 );
             }
 
@@ -220,26 +222,38 @@ Foam::Istream& Foam::DynamicList<T, SizeMin>::readList(Istream& is)
         }
         else
         {
-            if (is.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+            constexpr bool with_contiguous
+            (
+                is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+            );
+
+            if constexpr (with_contiguous)
             {
-                // Binary and contiguous
-
-                if (len)
+                if (is.format() == IOstreamOption::BINARY)
                 {
-                    Detail::readContiguous<T>
-                    (
-                        is,
-                        list.data_bytes(),
-                        list.size_bytes()
-                    );
-
-                    is.fatalCheck
-                    (
-                        "DynamicList<T>::readList(Istream&) : [binary block]"
-                    );
+                    // Binary and contiguous
+                    if (len)
+                    {
+                        Detail::readContiguous<T>
+                        (
+                            is,
+                            list.data_bytes(),
+                            list.size_bytes()
+                        );
+                        is.fatalCheck
+                        (
+                            "DynamicList<T>::readList(Istream&) : "
+                            "[binary block]"
+                        );
+                    }
+                    return is;
                 }
             }
-            else
+
+
+            // Generic reading
+            // (non-binary or non-contiguous)
+
             {
                 // Begin of contents marker
                 const char delimiter = is.readBeginList("List");
