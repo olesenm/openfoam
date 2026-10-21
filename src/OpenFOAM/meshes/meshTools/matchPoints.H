@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2012 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,8 +33,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef matchPoints_H
-#define matchPoints_H
+#ifndef Foam_matchPoints_H
+#define Foam_matchPoints_H
 
 #include "scalarField.H"
 #include "pointField.H"
@@ -47,38 +48,81 @@ namespace Foam
                       Function matchPoints Declaration
 \*---------------------------------------------------------------------------*/
 
-//- Determine correspondence between pointFields. Gets passed
-//  local matching distance per point. Returns map from 0 to 1. Returns
-//  true if found corresponding point in 1 for every point in 0; false
-//  otherwise. Compares mag(pt - origin) and does proper comparison for points
-//  with (almost) identical mag. pts0 can be subset of pts1.
+//- Determine correspondence between pointFields.
+//- Gets passed local matching distance per point.
+//- Returns map from 0 to 1.
+//- Returns true if every point in 0 has a corresponding point in 1;
+//- false otherwise.
+//- Compares mag(pt - origin) and does proper comparison for points
+//- with (almost) identical mag. pts0 can be subset of pts1.
 bool matchPoints
 (
     const UList<point>& pts0,
     const UList<point>& pts1,
-    const UList<scalar>& matchDistance,
+    //! The match distances. If the array is shorter than \p pts0, uses its
+    //! last value. Can thus have an array of size 1 as \em uniform.
+    const UList<scalar>& matchDistances,
     const bool verbose,
+    //! [out] Map of 0 to 1
     labelList& from0To1,
     const point& origin = point::zero  //!< point::max = use average origin
 );
 
 
-//- Supply pts0Dir and pts1Dir. They are directions associated with the points
-//  e.g., a face normal associated with each face centre.
-//  A match between similar points is only allowed if their directions are
-//  equal and opposite
+//- Determine correspondence between pointFields using the supplied
+//- \p pts0Dir and \p pts1Dir, which are the directions associated with
+//- the points (eg, face normal associated with each face centre).
+//- A match between similar points is only allowed if their directions are
+//- equal and opposite
 bool matchPoints
 (
     const UList<point>& pts0,
     const UList<point>& pts1,
     const UList<point>& pts0Dir,
     const UList<point>& pts1Dir,
+    //! The match distance. If the array is shorter than \p pts0, uses its
+    //! last value. Can thus have an array of size 1 as \em uniform.
     const UList<scalar>& matchDistance,
     const bool verbose,
+    //! [out] Map of 0 to 1
     labelList& from0To1,
     const point& origin = point::zero  //!< point::max = use average origin
 );
 
+
+//- Determine correspondence between pointFields.
+//  The regular matchPoints algorithm but with an identical
+//  matching distance for all points.
+bool matchPoints
+(
+    const UList<point>& pts0,
+    const UList<point>& pts1,
+    //! The match distance (identical for all matches)
+    scalar matchDistance,
+    const bool verbose,
+    //! [out] Map of 0 to 1
+    labelList& from0To1,
+    const point& origin = point::zero  //!< point::max = use average origin
+);
+
+
+//- Determine correspondence between pointFields using the supplied
+//- \p pts0Dir and \p pts1Dir.
+//  The regular matchPoints algorithm but with an identical
+//  matching distance for all points.
+bool matchPoints
+(
+    const UList<point>& pts0,
+    const UList<point>& pts1,
+    const UList<point>& pts0Dir,
+    const UList<point>& pts1Dir,
+    //! The match distance (identical for all matches)
+    scalar matchDistance,
+    const bool verbose,
+    //! [out] Map of 0 to 1
+    labelList& from0To1,
+    const point& origin = point::zero  //!< point::max = use average origin
+);
 
 } // End namespace Foam
 

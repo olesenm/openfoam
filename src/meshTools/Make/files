@@ -263,9 +263,9 @@ triSurface/triSurfaceSearch/triSurfaceRegionSearch.C
 triSurface/triangleFuncs/triangleFuncs.C
 triSurface/surfaceFeatures/surfaceFeatures.C
 triSurface/triSurfaceLoader/triSurfaceLoader.C
-triSurface/triSurfaceTools/triSurfaceTools.C
-triSurface/triSurfaceTools/triSurfaceCloseness.C
-triSurface/triSurfaceTools/triSurfaceCurvature.C
+triSurface/triSurfaceTools/triSurfaceTools.cxx
+triSurface/triSurfaceTools/triSurfaceCloseness.cxx
+triSurface/triSurfaceTools/triSurfaceCurvature.cxx
 triSurface/triSurfaceTools/geompack/geompack.C
 triSurface/triSurfaceTools/pointToPointPlanarInterpolation.C
 

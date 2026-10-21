@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2018 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -48,8 +49,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef triSurfaceTools_H
-#define triSurfaceTools_H
+#ifndef Foam_triSurfaceTools_H
+#define Foam_triSurfaceTools_H
 
 #include "boolList.H"
 #include "pointField.H"
@@ -64,6 +65,7 @@ SourceFiles
 #include "triangle.H"
 #include "triFace.H"
 #include "surfaceLocation.H"
+#include "volumeType.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -71,6 +73,7 @@ namespace Foam
 {
 
 // Forward Declarations
+class bitSet;
 class boundBox;
 class edge;
 class labelledTri;
@@ -114,8 +117,16 @@ class triSurfaceTools
             static triSurface doRefine
             (
                 const triSurface& surf,
-                const List<refineType>& refineStatus
+                const UList<refineType>& refineStatus
             );
+
+            //- Do unconstrained Delaunay of points (ignores z-component).
+            //- Returns triSurface with 3D points with z=0.
+            //- All triangles in region 0.
+            //  The \tparam PointType can be
+            //  floatVector, doubleVector, vector2D etc.
+            template<class PointType>
+            static triSurface delaunay2D_impl(const UList<PointType>& points);
 
 
         // Coarsening
@@ -451,20 +462,77 @@ public:
         //- On which side of surface
         enum sideType
         {
-            UNKNOWN,    // cannot be determined (e.g. non-manifold)
-            INSIDE,     // inside
-            OUTSIDE     // outside
+            UNKNOWN = 0, //!< cannot be determined (e.g. non-manifold)
+            INSIDE,      //!< A location inside the surface
+            OUTSIDE      //!< A location outside the surface
         };
 
-        //- If nearest point is on edgeI, determine on which side of surface
-        //  sample is.
+        //- Rebranding the side side to a corresponding volume type
+        static volumeType sideToVolumeType(sideType t) noexcept
+        {
+            switch (t)
+            {
+                case sideType::INSIDE :
+                    return volumeType(volumeType::INSIDE);
+                case sideType::OUTSIDE :
+                    return volumeType(volumeType::OUTSIDE);
+                default :
+                    return volumeType(volumeType::UNKNOWN);
+            }
+        }
+
+
+        //- If nearest point is on edgeI,
+        //- determine on which side of surface sample is.
         static sideType edgeSide
+        (
+            const triSurface& surf,
+            //! Line from surface point to outside (sample) point
+            const linePointRef& ln,
+            //! Edge index on the surface
+            label edgei
+        );
+
+        //- If nearest point is on edgeI,
+        //- determine on which side of surface sample is.
+        inline static sideType edgeSide
         (
             const triSurface& surf,
             const point& sample,
             const point& nearestPoint,
-            const label edgeI
+            //! Edge index on the surface
+            label edgei
+        )
+        {
+            // Line from surface point to outside (sample) point
+            linePointRef ln(nearestPoint, sample);
+            return edgeSide(surf, ln, edgei);
+        }
+
+        //- Side of nearest point w.r.t. edge between face0 and face1
+        static sideType edgeSide
+        (
+            const triSurface& surf,
+            //! Line from surface point to outside (sample) point
+            const linePointRef& ln,
+            label face0,
+            label face1
         );
+
+        //- Side of nearest point w.r.t. edge between face0 and face1
+        inline static sideType edgeSide
+        (
+            const triSurface& surf,
+            const point& sample,
+            const point& nearestPoint,
+            label face0,
+            label face1
+        )
+        {
+            // Line from surface point to outside (sample) point
+            linePointRef ln(nearestPoint, sample);
+            return edgeSide(surf, ln, face0, face1);
+        }
 
         //- Given nearest point (to sample) on surface determines which side
         //  sample is. Uses either face normal, edge normal or point normal
@@ -476,21 +544,37 @@ public:
             const label nearestFacei
         );
 
+
+    // Selections
+
+        //- Find faces within \p surf that overlap the specified boundBox
+        static bool findOverlapFaces
+        (
+            const triSurface& surf,
+            const boundBox& bBox,
+            //! [out] for each face that overlaps the bound box
+            bitSet& faceSelection
+        );
+
+
     // Triangulation of faces
 
-        //- Simple triangulation of (selected patches of) boundaryMesh. Needs
-        //  polyMesh (or polyBoundaryMesh) since only at this level are the
-        //  triangles on neighbouring patches connected.
+        //- Simple triangulation of (selected patches of) boundaryMesh.
+        //  Needs polyMesh (or polyBoundaryMesh) since only at this level
+        //  are the triangles on neighbouring patches connected.
         //  Return faceMap from triI to faceI
         static triSurface triangulate
         (
             const polyBoundaryMesh& mBesh,
+            //! The patches to include
             const labelHashSet& includePatches,
+            //! [out] for each triSurface face, the originating polyMesh face
             labelList& faceMap,
             const bool verbose = false
         );
 
-
+        //- Triangulate faces on selected patches of boundaryMesh
+        //- that have any points within the specified boundBox
         static triSurface triangulate
         (
             const polyBoundaryMesh& bMesh,
@@ -501,9 +585,8 @@ public:
 
 
         //- Face-centre triangulation of (selected patches of) boundaryMesh.
-        //  Needs
-        //  polyMesh (or polyBoundaryMesh) since only at this level are the
-        //  triangles on neighbouring patches connected.
+        //  Needs polyMesh (or polyBoundaryMesh) since only at this level
+        //  are triangles on neighbouring patches connected.
         triSurface triangulateFaceCentre
         (
             const polyBoundaryMesh& mBesh,
@@ -514,12 +597,18 @@ public:
 
     // Triangulation and interpolation
 
-        //- Do unconstrained Delaunay of points. Returns triSurface with 3D
-        //  points with z=0. All triangles in region 0.
-        static triSurface delaunay2D(const List<vector2D>&);
+        //- Do unconstrained Delaunay of points (ignores z-component).
+        //- Returns triSurface with 3D points with z=0.
+        //- All triangles in region 0.
+        static triSurface delaunay2D(const UList<vector>& points);
 
-        //- Calculate linear interpolation weights for point (guaranteed to be
-        //  inside triangle)
+        //- Do unconstrained Delaunay of points.
+        //- Returns triSurface with 3D points with z=0.
+        //- All triangles in region 0.
+        static triSurface delaunay2D(const UList<vector2D>& points);
+
+        //- Calculate linear interpolation weights for point
+        //- (guaranteed to be inside triangle)
         static void calcInterpolationWeights
         (
             const triPointRef& tri,

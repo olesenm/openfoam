@@ -305,6 +305,21 @@ public:
             const pointField& pts
         );
 
+        //- Copy construct from triangles, patches, points.
+        //  The caller asserts that points/faces are already in compact,
+        //  walk order (identity numbering), but this is not verified.
+        triSurface
+        (
+            Foam::identity_construct_t,
+            const List<labelledTri>& triangles,
+            const geometricSurfacePatchList& patches,
+            const pointField& pts
+        )
+        :
+            triSurface(triangles, patches, pts)
+        {
+        }
+
         //- Construct from triangles, patches, points. Reuse storage.
         triSurface
         (
@@ -313,6 +328,22 @@ public:
             pointField& pts,
             const bool reuse
         );
+
+        //- Construct from triangles, patches, points. Reuse storage.
+        //  The caller asserts that points/faces are already in compact,
+        //  walk order (identity numbering), but this is not verified.
+        triSurface
+        (
+            Foam::identity_construct_t,
+            List<labelledTri>& triangles,
+            const geometricSurfacePatchList& patches,
+            pointField& pts,
+            bool reuse
+        )
+        :
+            triSurface(triangles, patches, pts, reuse)
+        {
+        }
 
         //- Construct from triangles, points.
         //- Set patch names to default.

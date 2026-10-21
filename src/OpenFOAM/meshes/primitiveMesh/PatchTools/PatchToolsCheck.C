@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,17 +31,14 @@ License
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-template<class FaceList, class PointField>
-bool
-Foam::PatchTools::checkOrientation
+template<class FaceList, class PointField, class Inserter>
+bool Foam::PatchTools::checkOrientation_impl
 (
     const PrimitivePatch<FaceList, PointField>& p,
     const bool report,
-    labelHashSet* setPtr
+    Inserter inserter
 )
 {
-    typedef typename PrimitivePatch<FaceList, PointField>::face_type FaceType;
-
     bool foundError = false;
 
     // Check edge normals, face normals, point normals.
@@ -89,7 +87,7 @@ Foam::PatchTools::checkOrientation
         //
         //- Compute normal from 3 points, use the first as the origin
         // minor warpage should not be a problem
-        const FaceType& f = p[facei];
+        const auto& f = p[facei];
         const point& p0 = p.points()[f[0]];
         const point& p1 = p.points()[f[1]];
         const point& p2 = p.points()[f.last()];
@@ -97,6 +95,7 @@ Foam::PatchTools::checkOrientation
         const vector pointNormal((p1 - p0) ^ (p2 - p0));
         if ((pointNormal & p.faceNormals()[facei]) < 0)
         {
+            // Reset error status, or leave as-is?
             foundError = false;
 
             if (report)
@@ -122,13 +121,17 @@ Foam::PatchTools::checkOrientation
         {
             // we use localFaces() since edges() are LOCAL
             // these are both already available
-            const FaceType& faceA = p.localFaces()[neighbouringFaces[0]];
-            const FaceType& faceB = p.localFaces()[neighbouringFaces[1]];
+            const auto& faceA = p.localFaces()[neighbouringFaces[0]];
+            const auto& faceB = p.localFaces()[neighbouringFaces[1]];
 
             // If the faces are correctly oriented, the edges must go in
             // different directions on connected faces.
             if (faceA.edgeDirection(e) == faceB.edgeDirection(e))
             {
+                // Save the value
+                inserter(edgeI);
+                foundError = true;
+
                 if (report)
                 {
                     Info<< "face orientation incorrect." << nl
@@ -143,16 +146,14 @@ Foam::PatchTools::checkOrientation
                         << "   localFace: " << faceB
                         << endl;
                 }
-                if (setPtr)
-                {
-                    setPtr->insert(edgeI);
-                }
-
-                foundError = true;
             }
         }
         else if (neighbouringFaces.size() != 1)
         {
+            // Save the value
+            inserter(edgeI);
+            foundError = true;
+
             if (report)
             {
                 Info
@@ -162,17 +163,143 @@ Foam::PatchTools::checkOrientation
                     << ' ' << p.localPoints()[e.end()]
                     << " has neighbouringFaces:" << neighbouringFaces << endl;
             }
-
-            if (setPtr)
-            {
-                setPtr->insert(edgeI);
-            }
-
-            foundError = true;
         }
     }
 
     return foundError;
+}
+
+
+template<class FaceList, class PointField>
+bool Foam::PatchTools::checkOrientation
+(
+    const PrimitivePatch<FaceList, PointField>& p,
+    bool report,
+    labelHashSet* marked
+)
+{
+    if (marked)
+    {
+        return checkOrientation_impl
+        (
+            p,
+            report,
+            [marked](label i) { marked->set(i); }
+        );
+    }
+    else
+    {
+        // Dummy inserter
+        return checkOrientation_impl( p, report, [](label i){} );
+    }
+}
+
+
+template<class FaceList, class PointField>
+bool Foam::PatchTools::checkOrientation
+(
+    const PrimitivePatch<FaceList, PointField>& p,
+    labelHashSet& marked,
+    bool report
+)
+{
+    return checkOrientation_impl
+    (
+        p,
+        report,
+        [&marked](label i) { marked.set(i); }
+    );
+}
+
+
+template<class FaceList, class PointField>
+bool Foam::PatchTools::checkOrientation
+(
+    const PrimitivePatch<FaceList, PointField>& p,
+    bitSet& marked,
+    bool report
+)
+{
+    return checkOrientation_impl
+    (
+        p,
+        report,
+        [&marked](label i) { marked.set(i); }
+    );
+}
+
+
+template<class FaceList>
+bool Foam::PatchTools::checkFaceWalkOrder
+(
+    const FaceList& faces,
+    const label nPoints
+)
+{
+    label expected = 0;
+
+    for (const auto& f : faces)
+    {
+        for (label pointi : f)
+        {
+            if (pointi == expected)
+            {
+                // First-time use of a new point, in correct order
+                ++expected;
+            }
+            else if (pointi > expected)
+            {
+                // Numbering gap, or a new point out of sequence (BAD)
+                return false;
+            }
+            // else pointi < expected: uses a lower point (OK)
+        }
+    }
+
+    // Optionally check the total number of points used
+    return (nPoints < 0 || expected == nPoints);
+}
+
+
+template<class FaceList, class PointField>
+bool Foam::PatchTools::checkCompactPoints
+(
+    const PrimitivePatch<FaceList, PointField>& p
+)
+{
+    const label nPoints = p.points().size();
+
+    if (p.hasMeshPoints())
+    {
+        // Has cached meshPoints() : test if its mapping corresponds
+        // to an identity map (ie, local == global faces).
+
+        if (const auto& meshPts = p.meshPoints(); (meshPts.size() == nPoints))
+        {
+            for (label i = 0; i < nPoints; ++i)
+            {
+                if (meshPts[i] != i) return false;
+            }
+
+            // An identity mapping, so global == local faces
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        // No cached meshPoints() : check if faces correspond to a local
+        // face walk order
+
+        return PatchTools::checkFaceWalkOrder
+        (
+            static_cast<const FaceList&>(p),
+            nPoints
+        );
+    }
 }
 
 
