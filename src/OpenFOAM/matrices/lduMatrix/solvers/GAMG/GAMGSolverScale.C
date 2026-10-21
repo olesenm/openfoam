@@ -79,7 +79,8 @@ void Foam::GAMGSolver::scale
     solveScalarField& field,
     solveScalarField& Acf,
     const lduMatrix& A,
-    const FieldField<Field, scalar>& interfaceLevelBouCoeffs,
+    const scalarField& interfaceLevelBouCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaceLevel,
     const solveScalarField& source,
     const direction cmpt
@@ -89,7 +90,8 @@ void Foam::GAMGSolver::scale
     (
         Acf,
         field,
-        interfaceLevelBouCoeffs,
+        interfaceLevelBouCoeffsData,
+        coeffsOffsets,
         interfaceLevel,
         cmpt
     );

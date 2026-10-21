@@ -255,12 +255,12 @@ void Foam::cyclicFvPatchField<Type>::manipulateMatrix
 
         const Field<scalar> intCoeffsCmpt
         (
-            matrix.internalCoeffs()[globalPatchID].component(cmpt)
+            matrix.internalCoeffs(globalPatchID).component(cmpt)
         );
 
         const Field<scalar> boundCoeffsCmpt
         (
-            matrix.boundaryCoeffs()[globalPatchID].component(cmpt)
+            matrix.boundaryCoeffs(globalPatchID).component(cmpt)
         );
 
         const labelUList& u = matrix.lduAddr().upperAddr();
@@ -288,29 +288,20 @@ void Foam::cyclicFvPatchField<Type>::manipulateMatrix
 
         if (matrix.psi(mat).mesh().fluxRequired(this->internalField().name()))
         {
-            matrix.internalCoeffs().set
-            (
-                globalPatchID, intCoeffsCmpt*pTraits<Type>::one
-            );
-            matrix.boundaryCoeffs().set
-            (
-                globalPatchID, boundCoeffsCmpt*pTraits<Type>::one
-            );
+            matrix.internalCoeffs(globalPatchID) =
+                intCoeffsCmpt*pTraits<Type>::one;
+            matrix.boundaryCoeffs(globalPatchID) =
+                boundCoeffsCmpt*pTraits<Type>::one;
 
             const label nbrPathID = this->cyclicPatch().neighbPatchID();
 
             const label nbrGlobalPatchID =
                 matrix.lduMeshAssembly().patchLocalToGlobalMap()[mat][nbrPathID];
 
-            matrix.internalCoeffs().set
-            (
-                nbrGlobalPatchID, intCoeffsCmpt*pTraits<Type>::one
-
-            );
-            matrix.boundaryCoeffs().set
-            (
-                nbrGlobalPatchID, boundCoeffsCmpt*pTraits<Type>::one
-            );
+            matrix.internalCoeffs(nbrGlobalPatchID) =
+                intCoeffsCmpt*pTraits<Type>::one;
+            matrix.boundaryCoeffs(nbrGlobalPatchID) =
+                boundCoeffsCmpt*pTraits<Type>::one;
         }
     }
 }

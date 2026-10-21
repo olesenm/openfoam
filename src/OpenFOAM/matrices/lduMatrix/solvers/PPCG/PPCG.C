@@ -98,7 +98,7 @@ Foam::solverPerformance Foam::PPCG::scalarSolveCG
     solveScalarField w(nCells);
 
     // --- Calculate A.psi
-    matrix_.Amul(w, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(w, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     // --- Calculate initial residual field
     solveScalarField r(source - w);
@@ -127,7 +127,7 @@ Foam::solverPerformance Foam::PPCG::scalarSolveCG
     preconPtr_->precondition(u, r, cmpt);
 
     // --- Calculate A*u - reuse w
-    matrix_.Amul(w, u, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(w, u, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
 
     // State
@@ -158,7 +158,7 @@ Foam::solverPerformance Foam::PPCG::scalarSolveCG
 
     // --- Calculate A*m
     solveScalarField n(nCells);
-    matrix_.Amul(n, m, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(n, m, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     solveScalar alpha = 0.0;
     solveScalar gamma = 0.0;
@@ -243,7 +243,7 @@ Foam::solverPerformance Foam::PPCG::scalarSolveCG
         }
 
         // --- Calculate A*m
-        matrix_.Amul(n, m, interfaceBouCoeffs_, interfaces_, cmpt);
+        matrix_.Amul(n, m, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
     }
 
     // Cleanup any outstanding requests
@@ -272,8 +272,9 @@ Foam::PPCG::PPCG
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -282,8 +283,9 @@ Foam::PPCG::PPCG
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     )

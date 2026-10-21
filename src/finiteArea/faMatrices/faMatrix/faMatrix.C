@@ -39,7 +39,7 @@ template<class Type2>
 void Foam::faMatrix<Type>::addToInternalField
 (
     const labelUList& addr,
-    const Field<Type2>& pf,
+    const UList<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
@@ -77,7 +77,7 @@ template<class Type2>
 void Foam::faMatrix<Type>::subtractFromInternalField
 (
     const labelUList& addr,
-    const Field<Type2>& pf,
+    const UList<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
@@ -117,12 +117,12 @@ void Foam::faMatrix<Type>::addBoundaryDiag
     const direction solveCmpt
 ) const
 {
-    forAll(internalCoeffs_, patchI)
+    forAll(psi_.mesh().boundary(), patchI)
     {
         addToInternalField
         (
             lduAddr().patchAddr(patchI),
-            internalCoeffs_[patchI].component(solveCmpt),
+            internalCoeffs(patchI).component(solveCmpt),
             diag
         );
     }
@@ -132,12 +132,12 @@ void Foam::faMatrix<Type>::addBoundaryDiag
 template<class Type>
 void Foam::faMatrix<Type>::addCmptAvBoundaryDiag(scalarField& diag) const
 {
-    forAll(internalCoeffs_, patchI)
+    forAll(psi_.mesh().boundary(), patchI)
     {
         addToInternalField
         (
             lduAddr().patchAddr(patchI),
-            cmptAv(internalCoeffs_[patchI]),
+            cmptAv(internalCoeffs(patchI)),
             diag
         );
     }
@@ -154,7 +154,7 @@ void Foam::faMatrix<Type>::addBoundarySource
     forAll(psi_.boundaryField(), patchI)
     {
         const faPatchField<Type>& ptf = psi_.boundaryField()[patchI];
-        const Field<Type>& pbc = boundaryCoeffs_[patchI];
+        const auto pbc = boundaryCoeffs(patchI);
 
         if (!ptf.coupled())
         {
@@ -189,28 +189,25 @@ Foam::faMatrix<Type>::faMatrix
     psi_(psi),
     dimensions_(ds),
     source_(psi.size(), Zero),
-    internalCoeffs_(psi.mesh().boundary().size()),
-    boundaryCoeffs_(psi.mesh().boundary().size())
+    internalCoeffs_(),
+    boundaryCoeffs_(),
+    coeffsOffset_(psi.mesh().boundary().size() + 1, 0)
 {
     DebugInFunction
         << "constructing faMatrix<Type> for field " << psi_.name()
         << endl;
 
-    // Initialise coupling coefficients
+    // Build offset array
     forAll(psi.mesh().boundary(), patchi)
     {
-        internalCoeffs_.set
-        (
-            patchi,
-            new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-        );
-
-        boundaryCoeffs_.set
-        (
-            patchi,
-            new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-        );
+        coeffsOffset_[patchi+1] =
+            coeffsOffset_[patchi] + psi.mesh().boundary()[patchi].size();
     }
+
+    // Allocate flat coefficient storage (zero-initialised)
+    const label totalSize = coeffsOffset_.back();
+    internalCoeffs_.resize(totalSize, Zero);
+    boundaryCoeffs_.resize(totalSize, Zero);
 
     // Update the boundary coefficients of psi without changing its event No.
     auto& psiRef = psi_.constCast();
@@ -229,7 +226,8 @@ Foam::faMatrix<Type>::faMatrix(const faMatrix<Type>& fam)
     dimensions_(fam.dimensions_),
     source_(fam.source_),
     internalCoeffs_(fam.internalCoeffs_),
-    boundaryCoeffs_(fam.boundaryCoeffs_)
+    boundaryCoeffs_(fam.boundaryCoeffs_),
+    coeffsOffset_(fam.coeffsOffset_)
 {
     DebugInFunction
         << "Copying faMatrix<Type> for field " << psi_.name() << endl;
@@ -252,7 +250,8 @@ Foam::faMatrix<Type>::faMatrix(const tmp<faMatrix<Type>>& tmat)
     dimensions_(tmat().dimensions_),
     source_(tmat.constCast().source_, tmat.movable()),
     internalCoeffs_(tmat.constCast().internalCoeffs_, tmat.movable()),
-    boundaryCoeffs_(tmat.constCast().boundaryCoeffs_, tmat.movable())
+    boundaryCoeffs_(tmat.constCast().boundaryCoeffs_, tmat.movable()),
+    coeffsOffset_(tmat.constCast().coeffsOffset_, tmat.movable())
 {
     DebugInFunction
         << "Copy/Move faMatrix<Type> for field " << psi_.name() << endl;
@@ -363,13 +362,13 @@ void Foam::faMatrix<Type>::setValuesFromList
                 {
                     const label patchi = mesh.boundary().whichPatch(edgei);
 
-                    if (internalCoeffs_[patchi].size())
+                    if (internalCoeffs(patchi).size())
                     {
                         const label patchEdgei =
                             mesh.boundary()[patchi].whichEdge(edgei);
 
-                        internalCoeffs_[patchi][patchEdgei] = Zero;
-                        boundaryCoeffs_[patchi][patchEdgei] = Zero;
+                        internalCoeffs(patchi)[patchEdgei] = Zero;
+                        boundaryCoeffs(patchi)[patchEdgei] = Zero;
                     }
                 }
             }
@@ -513,11 +512,11 @@ void Foam::faMatrix<Type>::relax(const scalar alpha)
         if (ptf.size())
         {
             const labelUList& pa = lduAddr().patchAddr(patchI);
-            Field<Type>& iCoeffs = internalCoeffs_[patchI];
+            auto iCoeffs = internalCoeffs(patchI);
 
             if (ptf.coupled())
             {
-                const Field<Type>& pCoeffs = boundaryCoeffs_[patchI];
+                const auto pCoeffs = boundaryCoeffs(patchI);
 
                 // For coupled boundaries add the diagonal and
                 // off-diagonal contributions
@@ -560,7 +559,7 @@ void Foam::faMatrix<Type>::relax(const scalar alpha)
         if (ptf.size())
         {
             const labelUList& pa = lduAddr().patchAddr(patchI);
-            Field<Type>& iCoeffs = internalCoeffs_[patchI];
+            auto iCoeffs = internalCoeffs(patchI);
 
             if (ptf.coupled())
             {
@@ -680,30 +679,32 @@ Foam::faMatrix<Type>::flux() const
     fieldFlux.setOriented();
 
 
-    FieldField<Field, Type> InternalContrib = internalCoeffs_;
+    Field<Type> InternalContrib(internalCoeffs_);
 
-    forAll(InternalContrib, patchI)
+    forAll(psi_.mesh().boundary(), patchI)
     {
-        InternalContrib[patchI] =
-            cmptMultiply
-            (
-                InternalContrib[patchI],
-                psi_.boundaryField()[patchI].patchInternalField()
-            );
+        const labelRange range = coeffsRange(patchI);
+        auto contrib = SubField<Type>(InternalContrib, range);
+        contrib = cmptMultiply
+        (
+            contrib,
+            psi_.boundaryField()[patchI].patchInternalField()
+        );
     }
 
-    FieldField<Field, Type> NeighbourContrib = boundaryCoeffs_;
+    Field<Type> NeighbourContrib(boundaryCoeffs_);
 
-    forAll(NeighbourContrib, patchI)
+    forAll(psi_.mesh().boundary(), patchI)
     {
         if (psi_.boundaryField()[patchI].coupled())
         {
-            NeighbourContrib[patchI] =
-                cmptMultiply
-                (
-                    NeighbourContrib[patchI],
-                    psi_.boundaryField()[patchI].patchNeighbourField()
-                );
+            const labelRange range = coeffsRange(patchI);
+            auto contrib = SubField<Type>(NeighbourContrib, range);
+            contrib = cmptMultiply
+            (
+                contrib,
+                psi_.boundaryField()[patchI].patchNeighbourField()
+            );
         }
     }
 
@@ -712,7 +713,10 @@ Foam::faMatrix<Type>::flux() const
 
         forAll(ffbf, patchi)
         {
-            ffbf[patchi] = InternalContrib[patchi] - NeighbourContrib[patchi];
+            const labelRange range = coeffsRange(patchi);
+            ffbf[patchi] =
+                Field<Type>(InternalContrib.slice(range))
+              - Field<Type>(NeighbourContrib.slice(range));
         }
     }
 
@@ -766,6 +770,7 @@ void Foam::faMatrix<Type>::operator=(const faMatrix<Type>& famv)
     source_ = famv.source_;
     internalCoeffs_ = famv.internalCoeffs_;
     boundaryCoeffs_ = famv.boundaryCoeffs_;
+    coeffsOffset_ = famv.coeffsOffset_;
 
     if (faceFluxCorrectionPtr_ && famv.faceFluxCorrectionPtr_)
     {
@@ -966,14 +971,16 @@ void Foam::faMatrix<Type>::operator*=
     lduMatrix::operator*=(dsf.field());
     source_ *= dsf.field();
 
-    forAll(boundaryCoeffs_, patchi)
+    forAll(psi_.mesh().boundary(), patchi)
     {
         const scalarField pisf
         (
             dsf.mesh().boundary()[patchi].patchInternalField(dsf.field())
         );
-        internalCoeffs_[patchi] *= pisf;
-        boundaryCoeffs_[patchi] *= pisf;
+        auto iSlice = internalCoeffs(patchi);
+        auto bSlice = boundaryCoeffs(patchi);
+        iSlice *= pisf;
+        bSlice *= pisf;
     }
 
     if (faceFluxCorrectionPtr_)

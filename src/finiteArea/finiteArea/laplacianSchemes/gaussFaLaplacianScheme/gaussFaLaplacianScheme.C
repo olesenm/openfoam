@@ -73,8 +73,8 @@ gaussLaplacianScheme<Type>::famLaplacian
         const faePatchScalarField& patchGamma =
             gammaMagSf.boundaryField()[patchI];
 
-        fam.internalCoeffs()[patchI] = patchGamma*psf.gradientInternalCoeffs();
-        fam.boundaryCoeffs()[patchI] =
+        fam.internalCoeffs(patchI) = patchGamma*psf.gradientInternalCoeffs();
+        fam.boundaryCoeffs(patchI) =
             -patchGamma*psf.gradientBoundaryCoeffs();
     }
 

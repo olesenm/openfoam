@@ -47,8 +47,9 @@ Foam::FPCG::FPCG
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -57,8 +58,9 @@ Foam::FPCG::FPCG
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     )
@@ -124,7 +126,7 @@ Foam::solverPerformance Foam::FPCG::scalarSolve
     solveScalar wArAold = wArA;
 
     // --- Calculate A.psi
-    matrix_.Amul(wA, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(wA, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     // --- Calculate initial residual field
     solveScalarField rA(source - wA);
@@ -215,7 +217,7 @@ Foam::solverPerformance Foam::FPCG::scalarSolve
 
 
             // --- Update preconditioned residual
-            matrix_.Amul(wA, pA, interfaceBouCoeffs_, interfaces_, cmpt);
+            matrix_.Amul(wA, pA, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
             solveScalar wApA = gSumProd(wA, pA, matrix().mesh().comm());
 

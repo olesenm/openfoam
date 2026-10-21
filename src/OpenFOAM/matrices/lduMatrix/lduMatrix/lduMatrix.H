@@ -55,7 +55,8 @@ SourceFiles
 
 #include "lduMesh.H"
 #include "primitiveFieldsFwd.H"
-#include "FieldField.H"
+#include "DynamicField.H"
+#include "SubField.H"
 #include "lduInterfaceFieldPtrsList.H"
 #include "solverPerformance.H"
 #include "typeInfo.H"
@@ -91,16 +92,16 @@ class lduMatrix
         std::reference_wrapper<const lduMesh> lduMesh_;
 
         //- Diagonal coefficients
-        std::unique_ptr<scalarField> diagPtr_;
+        std::unique_ptr<DynamicField<scalar>> diagPtr_;
 
         //- Off-diagonal coefficients (not including interfaces)
-        std::unique_ptr<scalarField> lowerPtr_;
+        std::unique_ptr<DynamicField<scalar>> lowerPtr_;
 
         //- Off-diagonal coefficients (not including interfaces)
-        std::unique_ptr<scalarField> upperPtr_;
+        std::unique_ptr<DynamicField<scalar>> upperPtr_;
 
         //- Off-diagonal coefficients (not including interfaces) in CSR ordering
-        mutable std::unique_ptr<scalarField> lowerCSRPtr_;
+        mutable std::unique_ptr<DynamicField<scalar>> lowerCSRPtr_;
 
         //- Work space
         mutable std::unique_ptr<solveScalarField> workPtr_;
@@ -138,8 +139,16 @@ public:
 
             word fieldName_;
             const lduMatrix& matrix_;
-            const FieldField<Field, scalar>& interfaceBouCoeffs_;
-            const FieldField<Field, scalar>& interfaceIntCoeffs_;
+
+            //- Flat storage for boundary interface coefficients (may be owned or ref)
+            scalarField interfaceBouCoeffsData_;
+
+            //- Flat storage for internal interface coefficients (may be owned or ref)
+            scalarField interfaceIntCoeffsData_;
+
+            //- Per-interface offsets into flat storage (size nInterfaces+1)
+            labelList coeffsOffsets_;
+
             lduInterfaceFieldPtrsList interfaces_;
 
             //- Dictionary of solution controls
@@ -189,16 +198,18 @@ public:
                 (
                     const word& fieldName,
                     const lduMatrix& matrix,
-                    const FieldField<Field, scalar>& interfaceBouCoeffs,
-                    const FieldField<Field, scalar>& interfaceIntCoeffs,
+                    const scalarField& interfaceBouCoeffsData,
+                    const scalarField& interfaceIntCoeffsData,
+                    const labelUList& coeffsOffsets,
                     const lduInterfaceFieldPtrsList& interfaces,
                     const dictionary& solverControls
                 ),
                 (
                     fieldName,
                     matrix,
-                    interfaceBouCoeffs,
-                    interfaceIntCoeffs,
+                    interfaceBouCoeffsData,
+                    interfaceIntCoeffsData,
+                    coeffsOffsets,
                     interfaces,
                     solverControls
                 )
@@ -212,16 +223,18 @@ public:
                 (
                     const word& fieldName,
                     const lduMatrix& matrix,
-                    const FieldField<Field, scalar>& interfaceBouCoeffs,
-                    const FieldField<Field, scalar>& interfaceIntCoeffs,
+                    const scalarField& interfaceBouCoeffsData,
+                    const scalarField& interfaceIntCoeffsData,
+                    const labelUList& coeffsOffsets,
                     const lduInterfaceFieldPtrsList& interfaces,
                     const dictionary& solverControls
                 ),
                 (
                     fieldName,
                     matrix,
-                    interfaceBouCoeffs,
-                    interfaceIntCoeffs,
+                    interfaceBouCoeffsData,
+                    interfaceIntCoeffsData,
+                    coeffsOffsets,
                     interfaces,
                     solverControls
                 )
@@ -230,38 +243,43 @@ public:
 
         // Constructors
 
-            //- Construct solver for given field name, matrix etc
+            //- Construct solver for given field name, matrix, flat coeffs etc
             solver
             (
                 const word& fieldName,
                 const lduMatrix& matrix,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
-                const FieldField<Field, scalar>& interfaceIntCoeffs,
+                const scalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
+                const labelUList& coeffsOffsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const dictionary& solverControls
             );
 
+        public:
+
         // Selectors
 
-            //- Return a new solver of given type
+            //- Return a new solver with flat coefficient storage
             static autoPtr<solver> New
             (
                 const word& solverName,
                 const word& fieldName,
                 const lduMatrix& matrix,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
-                const FieldField<Field, scalar>& interfaceIntCoeffs,
+                const scalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
+                const labelUList& coeffsOffsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const dictionary& solverControls
             );
 
-            //- Return a new solver given dictionary
+            //- Return a new solver from dictionary, flat coefficient storage
             static autoPtr<solver> New
             (
                 const word& fieldName,
                 const lduMatrix& matrix,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
-                const FieldField<Field, scalar>& interfaceIntCoeffs,
+                const scalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
+                const labelUList& coeffsOffsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const dictionary& solverControls
             );
@@ -284,14 +302,44 @@ public:
                 return matrix_;
             }
 
-            const FieldField<Field, scalar>& interfaceBouCoeffs() const noexcept
+            //- Return flat storage for boundary coefficients
+            const scalarField& interfaceBouCoeffsData() const noexcept
             {
-                return interfaceBouCoeffs_;
+                return interfaceBouCoeffsData_;
             }
 
-            const FieldField<Field, scalar>& interfaceIntCoeffs() const noexcept
+            //- Return flat storage for internal coefficients
+            const scalarField& interfaceIntCoeffsData() const noexcept
             {
-                return interfaceIntCoeffs_;
+                return interfaceIntCoeffsData_;
+            }
+
+            //- Return per-interface offsets into flat coefficient storage
+            const labelList& coeffsOffsets() const noexcept
+            {
+                return coeffsOffsets_;
+            }
+
+            //- Return SubField view of boundary coefficients for interface i
+            SubField<scalar> interfaceBouCoeffs(const label inti) const
+            {
+                return SubField<scalar>
+                (
+                    interfaceBouCoeffsData_,
+                    coeffsOffsets_[inti+1] - coeffsOffsets_[inti],
+                    coeffsOffsets_[inti]
+                );
+            }
+
+            //- Return SubField view of internal coefficients for interface i
+            SubField<scalar> interfaceIntCoeffs(const label inti) const
+            {
+                return SubField<scalar>
+                (
+                    interfaceIntCoeffsData_,
+                    coeffsOffsets_[inti+1] - coeffsOffsets_[inti],
+                    coeffsOffsets_[inti]
+                );
             }
 
             const lduInterfaceFieldPtrsList& interfaces() const noexcept
@@ -355,8 +403,9 @@ public:
 
             word fieldName_;
             const lduMatrix& matrix_;
-            const FieldField<Field, scalar>& interfaceBouCoeffs_;
-            const FieldField<Field, scalar>& interfaceIntCoeffs_;
+            const scalarField& interfaceBouCoeffsData_;
+            const scalarField& interfaceIntCoeffsData_;
+            const labelUList& coeffsOffsets_;
             const lduInterfaceFieldPtrsList& interfaces_;
 
 
@@ -379,16 +428,18 @@ public:
                 (
                     const word& fieldName,
                     const lduMatrix& matrix,
-                    const FieldField<Field, scalar>& interfaceBouCoeffs,
-                    const FieldField<Field, scalar>& interfaceIntCoeffs,
+                    const scalarField& interfaceBouCoeffsData,
+                    const scalarField& interfaceIntCoeffsData,
+                    const labelUList& coeffsOffsets,
                     const lduInterfaceFieldPtrsList& interfaces,
                     const dictionary& solverControls
                 ),
                 (
                     fieldName,
                     matrix,
-                    interfaceBouCoeffs,
-                    interfaceIntCoeffs,
+                    interfaceBouCoeffsData,
+                    interfaceIntCoeffsData,
+                    coeffsOffsets,
                     interfaces,
                     solverControls
                 )
@@ -402,16 +453,18 @@ public:
                 (
                     const word& fieldName,
                     const lduMatrix& matrix,
-                    const FieldField<Field, scalar>& interfaceBouCoeffs,
-                    const FieldField<Field, scalar>& interfaceIntCoeffs,
+                    const scalarField& interfaceBouCoeffsData,
+                    const scalarField& interfaceIntCoeffsData,
+                    const labelUList& coeffsOffsets,
                     const lduInterfaceFieldPtrsList& interfaces,
                     const dictionary& solverControls
                 ),
                 (
                     fieldName,
                     matrix,
-                    interfaceBouCoeffs,
-                    interfaceIntCoeffs,
+                    interfaceBouCoeffsData,
+                    interfaceIntCoeffsData,
+                    coeffsOffsets,
                     interfaces,
                     solverControls
                 )
@@ -420,13 +473,14 @@ public:
 
         // Constructors
 
-            //- Construct for given field name, matrix etc
+            //- Construct for given field name, matrix etc (flat storage)
             smoother
             (
                 const word& fieldName,
                 const lduMatrix& matrix,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
-                const FieldField<Field, scalar>& interfaceIntCoeffs,
+                const scalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
+                const labelUList& coeffsOffsets,
                 const lduInterfaceFieldPtrsList& interfaces
             );
 
@@ -438,8 +492,9 @@ public:
             (
                 const word& fieldName,
                 const lduMatrix& matrix,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
-                const FieldField<Field, scalar>& interfaceIntCoeffs,
+                const scalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
+                const labelUList& coeffsOffsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const dictionary& solverControls
             );
@@ -461,14 +516,34 @@ public:
                 return matrix_;
             }
 
-            const FieldField<Field, scalar>& interfaceBouCoeffs() const noexcept
+            //- Return flat storage for boundary coefficients
+            const scalarField& interfaceBouCoeffsData() const noexcept
             {
-                return interfaceBouCoeffs_;
+                return interfaceBouCoeffsData_;
             }
 
-            const FieldField<Field, scalar>& interfaceIntCoeffs() const noexcept
+            //- Return flat storage for internal coefficients
+            const scalarField& interfaceIntCoeffsData() const noexcept
             {
-                return interfaceIntCoeffs_;
+                return interfaceIntCoeffsData_;
+            }
+
+            //- Return per-interface offsets into flat coefficient storage
+            const labelList& coeffsOffsets() const noexcept
+            {
+                return coeffsOffsets_;
+            }
+
+            //- Convenience accessor (returns flat data)
+            const scalarField& interfaceBouCoeffs() const noexcept
+            {
+                return interfaceBouCoeffsData_;
+            }
+
+            //- Convenience accessor (returns flat data)
+            const scalarField& interfaceIntCoeffs() const noexcept
+            {
+                return interfaceIntCoeffsData_;
             }
 
             const lduInterfaceFieldPtrsList& interfaces() const noexcept
@@ -731,22 +806,24 @@ public:
 
             void sumMagOffDiag(scalarField& sumOff) const;
 
-            //- Matrix multiplication with updated interfaces.
+            //- Matrix multiplication with flat field + offset array
             void Amul
             (
                 solveScalarField&,
                 const tmp<solveScalarField>&,
-                const FieldField<Field, scalar>&,
+                const solveScalarField& interfaceBouCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&,
                 const direction cmpt
             ) const;
 
-            //- Matrix transpose multiplication with updated interfaces.
+            //- Matrix transpose multiplication with flat field + offset array
             void Tmul
             (
                 solveScalarField&,
                 const tmp<solveScalarField>&,
-                const FieldField<Field, scalar>&,
+                const solveScalarField& interfaceIntCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&,
                 const direction cmpt
             ) const;
@@ -756,7 +833,8 @@ public:
             void sumA
             (
                 solveScalarField&,
-                const FieldField<Field, scalar>&,
+                const solveScalarField& interfaceBouCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&
             ) const;
 
@@ -766,27 +844,31 @@ public:
                 solveScalarField& rA,
                 const solveScalarField& psi,
                 const scalarField& source,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
+                const solveScalarField& interfaceBouCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const direction cmpt
             ) const;
 
+            //- Residual with flat field + offset array
             tmp<solveScalarField> residual
             (
                 const solveScalarField& psi,
                 const scalarField& source,
-                const FieldField<Field, scalar>& interfaceBouCoeffs,
+                const solveScalarField& interfaceBouCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const direction cmpt
             ) const;
 
 
-            //- Initialise the update of interfaced interfaces
-            //- for matrix operations
+            //- Initialise interfaced interfaces for matrix operations
+            //- using flat field + offset array
             void initMatrixInterfaces
             (
                 const bool add,
-                const FieldField<Field, scalar>& interfaceCoeffs,
+                const solveScalarField& interfaceCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const solveScalarField& psiif,
                 solveScalarField& result,
@@ -794,10 +876,12 @@ public:
             ) const;
 
             //- Update interfaced interfaces for matrix operations
+            //- using flat field + offset array
             void updateMatrixInterfaces
             (
                 const bool add,
-                const FieldField<Field, scalar>& interfaceCoeffs,
+                const solveScalarField& interfaceCoeffsData,
+                const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const solveScalarField& psiif,
                 solveScalarField& result,

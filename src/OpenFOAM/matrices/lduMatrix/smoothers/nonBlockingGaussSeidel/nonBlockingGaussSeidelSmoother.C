@@ -51,8 +51,9 @@ Foam::nonBlockingGaussSeidelSmoother::nonBlockingGaussSeidelSmoother
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -61,8 +62,9 @@ Foam::nonBlockingGaussSeidelSmoother::nonBlockingGaussSeidelSmoother
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces
     )
 {
@@ -73,7 +75,7 @@ Foam::nonBlockingGaussSeidelSmoother::nonBlockingGaussSeidelSmoother
 
     blockStart_ = nCells;
 
-    labelList startCelli(interfaceBouCoeffs.size(), -1);
+    labelList startCelli(coeffsOffsets.size() - 1, -1);
     forAll(interfaces, patchi)
     {
         if (interfaces.set(patchi))
@@ -102,7 +104,8 @@ void Foam::nonBlockingGaussSeidelSmoother::smooth
     const lduMatrix& matrix_,
     const label blockStart,
     const solveScalarField& source,
-    const FieldField<Field, scalar>& interfaceBouCoeffs_,
+    const scalarField& interfaceBouCoeffsData_,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces_,
     const direction cmpt,
     const label nSweeps
@@ -148,7 +151,8 @@ void Foam::nonBlockingGaussSeidelSmoother::smooth
         matrix_.initMatrixInterfaces
         (
             false,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets,
             interfaces_,
             psi,
             bPrime,
@@ -189,7 +193,8 @@ void Foam::nonBlockingGaussSeidelSmoother::smooth
         matrix_.updateMatrixInterfaces
         (
             false,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets,
             interfaces_,
             psi,
             bPrime,
@@ -243,7 +248,8 @@ void Foam::nonBlockingGaussSeidelSmoother::scalarSmooth
         matrix_,
         blockStart_,
         source,
-        interfaceBouCoeffs_,
+        interfaceBouCoeffsData_,
+        coeffsOffsets_,
         interfaces_,
         cmpt,
         nSweeps

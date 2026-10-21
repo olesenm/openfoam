@@ -123,6 +123,23 @@ inline Foam::tmp<Foam::Field<Type>> Foam::SubField<Type>::T() const
 }
 
 
+template<class Type>
+inline void Foam::SubField<Type>::negate()
+{
+    for (Type& v : *this)
+    {
+        v = -v;
+    }
+}
+
+
+template<class Type>
+inline Foam::tmp<Foam::Field<Type>> Foam::SubField<Type>::clone() const
+{
+    return tmp<Field<Type>>::New(*this);
+}
+
+
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
 template<class Type>
@@ -178,11 +195,31 @@ inline void Foam::SubField<Type>::operator+=(const Type& val)
 
 
 template<class Type>
+inline void Foam::SubField<Type>::operator+=(const UList<Type>& rhs)
+{
+    forAll(*this, i)
+    {
+        (*this)[i] += rhs[i];
+    }
+}
+
+
+template<class Type>
 inline void Foam::SubField<Type>::operator-=(const Type& val)
 {
     for (Type& lhs : *this)
     {
         lhs -= val;
+    }
+}
+
+
+template<class Type>
+inline void Foam::SubField<Type>::operator-=(const UList<Type>& rhs)
+{
+    forAll(*this, i)
+    {
+        (*this)[i] -= rhs[i];
     }
 }
 
@@ -198,11 +235,31 @@ inline void Foam::SubField<Type>::operator*=(const scalar& s)
 
 
 template<class Type>
+inline void Foam::SubField<Type>::operator*=(const UList<scalar>& s)
+{
+    forAll(*this, i)
+    {
+        (*this)[i] *= s[i];
+    }
+}
+
+
+template<class Type>
 inline void Foam::SubField<Type>::operator/=(const scalar& s)
 {
     for (Type& lhs : *this)
     {
         lhs /= s;
+    }
+}
+
+
+template<class Type>
+inline void Foam::SubField<Type>::operator/=(const UList<scalar>& s)
+{
+    forAll(*this, i)
+    {
+        (*this)[i] /= s[i];
     }
 }
 

@@ -52,7 +52,7 @@ Foam::solverPerformance Foam::GAMGSolver::solve
 
     // Calculate A.psi used to calculate the initial residual
     solveScalarField Apsi(psi.size());
-    matrix_.Amul(Apsi, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(Apsi, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     // Create the storage for the finestCorrection which may be used as a
     // temporary in normFactor
@@ -74,7 +74,8 @@ Foam::solverPerformance Foam::GAMGSolver::solve
         finestResidual,
         psi,
         source,
-        interfaceBouCoeffs_,
+        interfaceBouCoeffsData_,
+        coeffsOffsets_,
         interfaces_,
         cmpt
     );
@@ -151,7 +152,8 @@ Foam::solverPerformance Foam::GAMGSolver::solve
                 finestResidual,
                 psi,
                 source,
-                interfaceBouCoeffs_,
+                interfaceBouCoeffsData_,
+                coeffsOffsets_,
                 interfaces_,
                 cmpt
             );
@@ -259,6 +261,7 @@ void Foam::GAMGSolver::Vcycle
                         ),
                         matrixLevels_[leveli],
                         interfaceLevelsBouCoeffs_[leveli],
+                        interfaceLevelsOffsets_[leveli],
                         interfaceLevels_[leveli],
                         coarseSources[leveli],
                         cmpt
@@ -276,6 +279,7 @@ void Foam::GAMGSolver::Vcycle
                         coarseSources[leveli]
                     )(),
                     interfaceLevelsBouCoeffs_[leveli],
+                    interfaceLevelsOffsets_[leveli],
                     interfaceLevels_[leveli],
                     cmpt
                 );
@@ -377,6 +381,7 @@ void Foam::GAMGSolver::Vcycle
                     ACfRef,
                     matrixLevels_[leveli],
                     interfaceLevelsBouCoeffs_[leveli],
+                    interfaceLevelsOffsets_[leveli],
                     interfaceLevels_[leveli],
                     agglomeration_.restrictAddressing(leveli + 1),
                     #ifdef FOAM_OFFLOAD
@@ -403,6 +408,7 @@ void Foam::GAMGSolver::Vcycle
                     ACfRef,
                     matrixLevels_[leveli],
                     interfaceLevelsBouCoeffs_[leveli],
+                    interfaceLevelsOffsets_[leveli],
                     interfaceLevels_[leveli],
                     coarseSources[leveli],
                     cmpt
@@ -446,7 +452,8 @@ void Foam::GAMGSolver::Vcycle
             finestCorrection,
             Apsi,
             matrix_,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets_,
             interfaces_,
             agglomeration_.restrictAddressing(0),
             #ifdef FOAM_OFFLOAD
@@ -467,7 +474,8 @@ void Foam::GAMGSolver::Vcycle
             finestCorrection,
             Apsi,
             matrix_,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets_,
             interfaces_,
             finestResidual,
             cmpt
@@ -523,8 +531,9 @@ void Foam::GAMGSolver::initVcycle
         (
             fieldName_,
             matrix_,
-            interfaceBouCoeffs_,
-            interfaceIntCoeffs_,
+            interfaceBouCoeffsData_,
+            interfaceIntCoeffsData_,
+            coeffsOffsets_,
             interfaces_,
             controlDict_
         )
@@ -558,6 +567,7 @@ void Foam::GAMGSolver::initVcycle
                     matrixLevels_[leveli],
                     interfaceLevelsBouCoeffs_[leveli],
                     interfaceLevelsIntCoeffs_[leveli],
+                    interfaceLevelsOffsets_[leveli],
                     interfaceLevels_[leveli],
                     controlDict_
                 )

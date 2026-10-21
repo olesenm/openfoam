@@ -166,12 +166,15 @@ private:
         Field<Type> source_;
 
         //- Boundary scalar field containing pseudo-matrix coeffs
-        //- for internal cells
-        FieldField<Field, Type> internalCoeffs_;
+        //- for internal cells (flat storage)
+        Field<Type> internalCoeffs_;
 
         //- Boundary scalar field containing pseudo-matrix coeffs
-        //- for boundary cells
-        FieldField<Field, Type> boundaryCoeffs_;
+        //- for boundary cells (flat storage)
+        Field<Type> boundaryCoeffs_;
+
+        //- Per-patch offsets into coefficient flat storage (size nPatches+1)
+        labelList coeffsOffset_;
 
         //- Face flux field for non-orthogonal correction
         mutable std::unique_ptr<faceFluxFieldType> faceFluxCorrectionPtr_;
@@ -189,19 +192,19 @@ protected:
         template<class Type2>
         void addToInternalField
         (
-            const labelUList& sortAddr,
+            const labelUList& addr,
             #ifdef FOAM_OFFLOAD
             const labelUList& sort,
             const labelUList& sortStart,
-            #endif 
-            const Field<Type2>& pf,
+            #endif
+            const UList<Type2>& pf,
             Field<Type2>& intf
         ) const;
 
         template<class Type2>
         void addToInternalField
         (
-            const labelUList& sortAddr,
+            const labelUList& addr,
             #ifdef FOAM_OFFLOAD
             const labelUList& sort,
             const labelUList& sortStart,
@@ -219,7 +222,7 @@ protected:
             const labelUList& sort,
             const labelUList& sortStart,
             #endif
-            const Field<Type2>& pf,
+            const UList<Type2>& pf,
             Field<Type2>& intf
         ) const;
 
@@ -490,31 +493,93 @@ public:
             }
 
             //- fvBoundary scalar field containing pseudo-matrix coeffs
-            //- for internal cells
-            const FieldField<Field, Type>& internalCoeffs() const noexcept
+            //- for internal cells (flat storage)
+            const Field<Type>& internalCoeffs() const noexcept
             {
                 return internalCoeffs_;
             }
 
             //- fvBoundary scalar field containing pseudo-matrix coeffs
-            //- for internal cells
-            FieldField<Field, Type>& internalCoeffs() noexcept
+            //- for internal cells (flat storage)
+            Field<Type>& internalCoeffs() noexcept
             {
                 return internalCoeffs_;
             }
 
+            //- Return per-patch offsets into coefficient storage
+            const labelList& coeffsOffset() const noexcept
+            {
+                return coeffsOffset_;
+            }
+
+            //- Return per-patch offsets into coefficient storage
+            labelList& coeffsOffset() noexcept
+            {
+                return coeffsOffset_;
+            }
+
+            //- Return number of patches
+            label nPatches() const noexcept
+            {
+                return coeffsOffset_.size() - 1;
+            }
+
+            //- Return internal coefficients for patch patchi as SubField
+            SubField<Type> internalCoeffs(const label patchi) const
+            {
+                return SubField<Type>
+                (
+                    internalCoeffs_,
+                    coeffsOffset_[patchi+1] - coeffsOffset_[patchi],
+                    coeffsOffset_[patchi]
+                );
+            }
+
+            //- Return internal coefficients for patch patchi as SubField
+            SubField<Type> internalCoeffs(const label patchi)
+            {
+                return SubField<Type>
+                (
+                    internalCoeffs_,
+                    coeffsOffset_[patchi+1] - coeffsOffset_[patchi],
+                    coeffsOffset_[patchi]
+                );
+            }
+
             //- fvBoundary scalar field containing pseudo-matrix coeffs
-            //- for boundary cells
-            const FieldField<Field, Type>& boundaryCoeffs() const noexcept
+            //- for boundary cells (flat storage)
+            const Field<Type>& boundaryCoeffs() const noexcept
             {
                 return boundaryCoeffs_;
             }
 
             //- fvBoundary scalar field containing pseudo-matrix coeffs
-            //- for boundary cells
-            FieldField<Field, Type>& boundaryCoeffs() noexcept
+            //- for boundary cells (flat storage)
+            Field<Type>& boundaryCoeffs() noexcept
             {
                 return boundaryCoeffs_;
+            }
+
+            //- Return boundary coefficients for patch patchi as SubField
+            SubField<Type> boundaryCoeffs(const label patchi) const
+            {
+                return SubField<Type>
+                (
+                    boundaryCoeffs_,
+                    coeffsOffset_[patchi+1] - coeffsOffset_[patchi],
+                    coeffsOffset_[patchi]
+                );
+            }
+
+            //- Return boundary coefficients for patch patchi as SubField
+            SubField<Type> boundaryCoeffs(const label patchi)
+            {
+                return SubField<Type>
+                (
+                    boundaryCoeffs_,
+                    coeffsOffset_[patchi+1] - coeffsOffset_[patchi],
+                    coeffsOffset_[patchi]
+                );
             }
 
             //- Declare return type of the faceFluxCorrectionPtr() function

@@ -158,12 +158,15 @@ protected:
         autoPtr<lduMatrix> matrixPtr_;
 
         //- Boundary scalar field containing pseudo-matrix coeffs
-        //- for internal cells
-        FieldField<Field, scalar> internalCoeffs_;
+        //- for internal cells (flat storage)
+        Field<scalar> internalCoeffs_;
 
         //- Boundary scalar field containing pseudo-matrix coeffs
-        //- for boundary cells
-        FieldField<Field, scalar> boundaryCoeffs_;
+        //- for boundary cells (flat storage)
+        Field<scalar> boundaryCoeffs_;
+
+        //- Per-patch offsets into coefficient flat storage (size nPatches+1)
+        labelList coeffsOffset_;
 
         //- Rays on local proc
         edgeHashSet rays_;

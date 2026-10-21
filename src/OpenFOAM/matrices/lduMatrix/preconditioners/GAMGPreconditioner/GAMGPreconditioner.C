@@ -56,8 +56,9 @@ Foam::GAMGPreconditioner::GAMGPreconditioner
     (
         sol.fieldName(),
         sol.matrix(),
-        sol.interfaceBouCoeffs(),
-        sol.interfaceIntCoeffs(),
+        sol.interfaceBouCoeffsData(),
+        sol.interfaceIntCoeffsData(),
+        sol.coeffsOffsets(),
         sol.interfaces(),
         solverControls
     ),
@@ -148,7 +149,8 @@ void Foam::GAMGPreconditioner::precondition
                 finestResidual,
                 wA,
                 rA,
-                interfaceBouCoeffs_,
+                interfaceBouCoeffsData_,
+                coeffsOffsets_,
                 interfaces_,
                 cmpt
             );

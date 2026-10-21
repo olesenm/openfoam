@@ -84,8 +84,8 @@ gaussConvectionScheme<Type>::famDiv
         const faePatchScalarField& patchFlux = faceFlux.boundaryField()[patchI];
         const faePatchScalarField& pw = weights.boundaryField()[patchI];
 
-        fam.internalCoeffs()[patchI] = patchFlux*psf.valueInternalCoeffs(pw);
-        fam.boundaryCoeffs()[patchI] = -patchFlux*psf.valueBoundaryCoeffs(pw);
+        fam.internalCoeffs(patchI) = patchFlux*psf.valueInternalCoeffs(pw);
+        fam.boundaryCoeffs(patchI) = -patchFlux*psf.valueBoundaryCoeffs(pw);
     }
 
 //     if (tinterpScheme_().corrected())

@@ -82,8 +82,9 @@ public:
         (
             const word& fieldName,
             const lduMatrix& matrix,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
-            const FieldField<Field, scalar>& interfaceIntCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const scalarField& interfaceIntCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const dictionary& solverControls
         );
@@ -91,7 +92,7 @@ public:
 
     // Member Functions
 
-        //- Smooth for the given number of sweeps
+        //- Smooth for the given number of sweeps (flat storage)
         static void smooth
         (
             const word& fieldName,
@@ -99,7 +100,8 @@ public:
             const lduMatrix& matrix,
             const label blockStart,
             const solveScalarField& source,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const direction cmpt,
             const label nSweeps

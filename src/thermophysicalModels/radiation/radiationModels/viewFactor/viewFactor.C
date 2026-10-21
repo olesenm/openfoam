@@ -286,7 +286,8 @@ void Foam::radiation::viewFactor::initialise()
 
         PtrList<const lduPrimitiveProcessorInterface> primitiveInterfaces(nbri);
         internalCoeffs_.clear();
-        boundaryCoeffs_.resize_null(nbri);
+        boundaryCoeffs_.clear();
+        coeffsOffset_.clear();
 
         nbri = 0;
 
@@ -385,17 +386,20 @@ void Foam::radiation::viewFactor::initialise()
             }
         }
 
-        forAll (boundaryCoeffs_, proci)
+        // Build per-interface offsets and allocate flat coefficient storage
         {
-            boundaryCoeffs_.set
-            (
-                proci,
-                new Field<scalar>
-                (
-                    primitiveInterfaces[proci].faceCells().size(),
-                    Zero
-                )
-            );
+            const label nInterf = primitiveInterfaces.size();
+            coeffsOffset_.resize(nInterf + 1);
+            coeffsOffset_[0] = 0;
+            for (label i = 0; i < nInterf; i++)
+            {
+                coeffsOffset_[i+1] =
+                    coeffsOffset_[i]
+                  + primitiveInterfaces[i].faceCells().size();
+            }
+            const label totalCoeffs = coeffsOffset_.last();
+            boundaryCoeffs_.resize(totalCoeffs, Zero);
+            internalCoeffs_.resize(totalCoeffs, Zero);
         }
 
         lduInterfacePtrsList allInterfaces(primitiveInterfaces.size());
@@ -965,17 +969,21 @@ void Foam::radiation::viewFactor::calculate()
                         label interfaceI = procToInterface_[proci];
 
                         boundaryCoeffs_
-                            [interfaceI][boundCoeffI[interfaceI]++] =
+                            [coeffsOffset_[interfaceI]
+                              + boundCoeffI[interfaceI]++] =
                                 -(1-1/compactCoarseE[compactFaceJ])
                                 *FmyProc_()[iFace][jFace];
                     }
                 }
             }
 
-            PtrList<const lduInterfaceField> interfaces(nInterfaces);
-            for(label i = 0; i < interfaces.size(); i++)
+            // Own the interface-field objects; UPtrList holds non-owning refs
+            PtrList<lduCalculatedProcessorField<scalar>>
+                ifStorage(nInterfaces);
+            lduInterfaceFieldPtrsList interfaces(nInterfaces);
+            for (label i = 0; i < nInterfaces; i++)
             {
-                interfaces.set
+                ifStorage.set
                 (
                     i,
                     new lduCalculatedProcessorField<scalar>
@@ -983,6 +991,7 @@ void Foam::radiation::viewFactor::calculate()
                         lduPtr_().interfaces()[i]
                     )
                 );
+                interfaces.set(i, &ifStorage[i]);
             }
 
             const dictionary& solverControls =
@@ -998,6 +1007,7 @@ void Foam::radiation::viewFactor::calculate()
                 matrixPtr_(),
                 boundaryCoeffs_,
                 internalCoeffs_,
+                coeffsOffset_,
                 interfaces,
                 solverControls
             )->solve(qrBandI_[bandI], source);

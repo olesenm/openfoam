@@ -49,10 +49,35 @@ namespace Foam
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
+Foam::SubField<Foam::solveScalar>
+Foam::distributedDILUPreconditioner::interfaceBuffer
+(
+    solveScalarField& buffer,
+    const label inti,
+    const label colouri
+) const
+{
+    const auto& offsets = solver_.coeffsOffsets();
+    label start = offsets[inti];
+
+    if (colouri >= 0)
+    {
+        start += colouri*offsets.last();
+    }
+
+    return SubField<solveScalar>
+    (
+        buffer,
+        offsets[inti+1] - offsets[inti],
+        start
+    );
+}
+
 void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
 (
     const bool add,
-    const FieldField<Field, scalar>& coupleCoeffs,
+    const scalarField& coupleCoeffsData,
+    const labelUList& coeffsOffsets,
     const labelList& selectedInterfaces,
     const solveScalarField& psiif,
     solveScalarField& result,
@@ -72,6 +97,10 @@ void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
 
     for (const label interfacei : selectedInterfaces)
     {
+        const label start = coeffsOffsets[interfacei];
+        const label len = coeffsOffsets[interfacei+1] - start;
+        const SubField<scalar> coupleCoeffs(coupleCoeffsData, len, start);
+
         interfaces[interfacei].initInterfaceMatrixUpdate
         (
             result,
@@ -79,7 +108,7 @@ void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
             lduAddr,
             interfacei,
             psiif,
-            coupleCoeffs[interfacei],
+            coupleCoeffs,
             cmpt,
             UPstream::commsTypes::nonBlocking
         );
@@ -90,6 +119,10 @@ void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
     // Consume
     for (const label interfacei : selectedInterfaces)
     {
+        const label start = coeffsOffsets[interfacei];
+        const label len = coeffsOffsets[interfacei+1] - start;
+        const SubField<scalar> coupleCoeffs(coupleCoeffsData, len, start);
+
         interfaces[interfacei].updateInterfaceMatrix
         (
             result,
@@ -97,7 +130,7 @@ void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
             lduAddr,
             interfacei,
             psiif,
-            coupleCoeffs[interfacei],
+            coupleCoeffs,
             cmpt,
             UPstream::commsTypes::nonBlocking
         );
@@ -118,50 +151,43 @@ void Foam::distributedDILUPreconditioner::sendGlobal
 
     if (selectedInterfaces.size())
     {
+        const auto& coeffsOffsets = solver_.coeffsOffsets();
+        const label nInterfaceCoeffs = coeffsOffsets.last();
+
         // Save old data
-        FieldField<Field, scalar> one(interfaces.size());
-        FieldField<Field, solveScalar> old(interfaces.size());
+        scalarField one(nInterfaceCoeffs, 1.0);
+        solveScalarField old(nInterfaceCoeffs);
         for (const label inti : selectedInterfaces)
         {
             const auto& intf = interfaces[inti].interface();
             const auto& fc = intf.faceCells();
-            one.set(inti, new scalarField(fc.size(), 1.0));
-            old.set(inti, new solveScalarField(psi, intf.faceCells()));
+            SubField<solveScalar> oldValues(interfaceBuffer(old, inti));
+
+            forAll(fc, face)
+            {
+                oldValues[face] = psi[fc[face]];
+            }
         }
         updateMatrixInterfaces
         (
             false,              // add to psi
             one,
+            coeffsOffsets,
             selectedInterfaces,
             psi,                // send data
             psi,                // result
             0                   // cmpt
         );
 
-        if (!colourBufs_.set(colouri))
-        {
-            colourBufs_.set
-            (
-                colouri,
-                new FieldField<Field, solveScalar>
-                (
-                    interfaces.size()
-                )
-            );
-        }
-        auto& colourBuf = colourBufs_[colouri];
-        colourBuf.setSize(interfaces.size());
         for (const label inti : selectedInterfaces)
         {
             const auto& intf = interfaces[inti].interface();
             const auto& fc = intf.faceCells();
-            if (!colourBuf.set(inti))
-            {
-                colourBuf.set(inti, new Field<solveScalar>(fc.size()));
-            }
-            auto& cb = colourBuf[inti];
-            //cb.resize_nocopy(fc.size());
-            auto& oldValues = old[inti];
+            SubField<solveScalar> cb
+            (
+                interfaceBuffer(colourBufs_, inti, colouri)
+            );
+            SubField<solveScalar> oldValues(interfaceBuffer(old, inti));
 
             forAll(cb, face)
             {
@@ -183,7 +209,6 @@ void Foam::distributedDILUPreconditioner::receive
 ) const
 {
     const auto& interfaces = solver_.interfaces();
-    const auto& interfaceBouCoeffs = solver_.interfaceBouCoeffs();
 
     // Start reads
     for (const label inti : selectedInterfaces)
@@ -191,8 +216,7 @@ void Foam::distributedDILUPreconditioner::receive
         const auto& intf = interfaces[inti].interface();
         const auto* ppp = isA<processorLduInterface>(intf);
 
-        auto& recvBuf = recvBufs_[inti];
-        recvBuf.resize_nocopy(interfaceBouCoeffs[inti].size());
+        SubField<solveScalar> recvBuf(interfaceBuffer(recvBufs_, inti));
 
         UIPstream::read
         (
@@ -222,9 +246,7 @@ void Foam::distributedDILUPreconditioner::send
         const auto* ppp = isA<processorLduInterface>(intf);
         const auto& faceCells = intf.faceCells();
 
-        auto& sendBuf = sendBufs_[inti];
-
-        sendBuf.resize_nocopy(faceCells.size());
+        SubField<solveScalar> sendBuf(interfaceBuffer(sendBufs_, inti));
         forAll(faceCells, face)
         {
             sendBuf[face] = psiInternal[faceCells[face]];
@@ -267,18 +289,16 @@ void Foam::distributedDILUPreconditioner::addInterfaceDiag
 (
     solveScalarField& rD,
     const label inti,
-    const Field<solveScalar>& recvBuf
+    const UList<solveScalar>& recvBuf
 ) const
 {
     const auto& interfaces = solver_.interfaces();
-    const auto& interfaceBouCoeffs = solver_.interfaceBouCoeffs();
-    const auto& interfaceIntCoeffs = solver_.interfaceIntCoeffs();
 
     const auto& intf = interfaces[inti].interface();
     // TBD: do not use patch faceCells but passed-in addressing?
     const auto& faceCells = intf.faceCells();
-    const auto& bc = interfaceBouCoeffs[inti];
-    const auto& ic = interfaceIntCoeffs[inti];
+    const auto bc = solver_.interfaceBouCoeffs(inti);
+    const auto ic = solver_.interfaceIntCoeffs(inti);
 
     forAll(recvBuf, face)
     {
@@ -332,15 +352,14 @@ void Foam::distributedDILUPreconditioner::addInterface
 (
     solveScalarField& wA,
     const label inti,
-    const Field<solveScalar>& recvBuf
+    const UList<solveScalar>& recvBuf
 ) const
 {
     const auto& interfaces = solver_.interfaces();
-    const auto& interfaceBouCoeffs = solver_.interfaceBouCoeffs();
 
     const auto& intf = interfaces[inti].interface();
     const auto& faceCells = intf.faceCells();
-    const auto& bc = interfaceBouCoeffs[inti];
+    const auto bc = solver_.interfaceBouCoeffs(inti);
     const solveScalar* __restrict__ rDPtr = rD_.begin();
     solveScalar* __restrict__ wAPtr = wA.begin();
 
@@ -466,7 +485,12 @@ void Foam::distributedDILUPreconditioner::calcReciprocalD
 
         for (const label inti : lowerNbrs_)
         {
-            addInterfaceDiag(rD, inti, recvBufs_[inti]);
+            addInterfaceDiag
+            (
+                rD,
+                inti,
+                interfaceBuffer(recvBufs_, inti)
+            );
         }
     }
 
@@ -482,11 +506,16 @@ void Foam::distributedDILUPreconditioner::calcReciprocalD
 
     for (label colouri = 0; colouri < nColours_; colouri++)
     {
-        if (cellColourPtr_) // && colourBufs_.set(colouri))
+        if (cellColourPtr_)
         {
             for (const label inti : lowerGlobalRecv_[colouri])
             {
-                addInterfaceDiag(rD, inti, colourBufs_[colouri][inti]);
+                addInterfaceDiag
+                (
+                    rD,
+                    inti,
+                    interfaceBuffer(colourBufs_, inti, colouri)
+                );
             }
         }
 
@@ -529,22 +558,13 @@ Foam::distributedDILUPreconditioner::distributedDILUPreconditioner
 {
     const lduMesh& mesh = sol.matrix().mesh();
     const auto& interfaces = sol.interfaces();
-    const auto& interfaceBouCoeffs = sol.interfaceBouCoeffs();
 
-    // Allocate buffers
+    // Allocate flat interface buffers
     // ~~~~~~~~~~~~~~~~
 
-    sendBufs_.setSize(interfaces.size());
-    recvBufs_.setSize(interfaces.size());
-    forAll(interfaceBouCoeffs, inti)
-    {
-        if (interfaces.set(inti))
-        {
-            const auto& bc = interfaceBouCoeffs[inti];
-            sendBufs_.set(inti, new solveScalarField(bc.size(), Zero));
-            recvBufs_.set(inti, new solveScalarField(bc.size(), Zero));
-        }
-    }
+    const label nInterfaceCoeffs = sol.coeffsOffsets().last();
+    sendBufs_.resize_nocopy(nInterfaceCoeffs);
+    recvBufs_.resize_nocopy(nInterfaceCoeffs);
 
 
     // Determine processor colouring
@@ -668,7 +688,7 @@ Foam::distributedDILUPreconditioner::distributedDILUPreconditioner
         higherGlobalRecv_.resize_nocopy(nColours_);
         higherGlobalSend_.resize_nocopy(nColours_);
         higherColour_.setSize(nColours_, -1);
-        colourBufs_.setSize(nColours_);
+        colourBufs_.resize_nocopy(nColours_*nInterfaceCoeffs);
 
         forAll(interfaces, inti)
         {
@@ -816,17 +836,27 @@ void Foam::distributedDILUPreconditioner::precondition
 
         for (const label inti : lowerNbrs_)
         {
-            addInterface(wA, inti, recvBufs_[inti]);
+            addInterface
+            (
+                wA,
+                inti,
+                interfaceBuffer(recvBufs_, inti)
+            );
         }
 
         for (label colouri = 0; colouri < nColours_; colouri++)
         {
             // Do non-processor boundaries for this colour
-            if (cellColourPtr_)  // && colourBufs_.set(colouri))
+            if (cellColourPtr_)
             {
                 for (const label inti : lowerGlobalRecv_[colouri])
                 {
-                    addInterface(wA, inti, colourBufs_[colouri][inti]);
+                    addInterface
+                    (
+                        wA,
+                        inti,
+                        interfaceBuffer(colourBufs_, inti, colouri)
+                    );
                 }
             }
 
@@ -868,17 +898,27 @@ void Foam::distributedDILUPreconditioner::precondition
 
         for (const label inti : higherNbrs_)
         {
-            addInterface(wA, inti, recvBufs_[inti]);
+            addInterface
+            (
+                wA,
+                inti,
+                interfaceBuffer(recvBufs_, inti)
+            );
         }
 
         for (label colouri = nColours_-1; colouri >= 0; colouri--)
         {
             // Do non-processor boundaries for this colour
-            if (cellColourPtr_)  // && colourBufs_.set(colouri))
+            if (cellColourPtr_)
             {
                 for (const label inti : higherGlobalRecv_[colouri])
                 {
-                    addInterface(wA, inti, colourBufs_[colouri][inti]);
+                    addInterface
+                    (
+                        wA,
+                        inti,
+                        interfaceBuffer(colourBufs_, inti, colouri)
+                    );
                 }
             }
 

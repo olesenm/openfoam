@@ -151,7 +151,7 @@ void Foam::mixedEnergyFvPatchScalarField::manipulateMatrix
 
     const Field<scalar> intCoeffsCmpt
     (
-        matrix.internalCoeffs()[globalPatchID].component(cmpt)
+        matrix.internalCoeffs(globalPatchID).component(cmpt)
     );
 
     const scalarField sourceCorr(fPatch.source());

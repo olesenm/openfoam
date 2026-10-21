@@ -132,6 +132,12 @@ public:
         //- Return the field transpose (only defined for second rank tensors)
         tmp<Field<Type>> T() const;
 
+        //- Clone - creates a new Field copy
+        inline tmp<Field<Type>> clone() const;
+
+        //- Negate this field inplace
+        inline void negate();
+
 
     // Member Operators
 
@@ -142,6 +148,15 @@ public:
         operator const Foam::Field<Type>&() const
         {
             return *reinterpret_cast<const Field<Type>*>(this);
+        }
+
+        //- Allow cast to Field\<Type\>&
+        //  \note Marked as "strictly" deprecated.
+        //  Currently (2025-04) code still depends on this cast.
+        FOAM_DEPRECATED_STRICTER(2025-04, "dereference as SubField, not Field?")
+        operator Foam::Field<Type>&()
+        {
+            return *reinterpret_cast<Field<Type>*>(this);
         }
 
         //- Copy assign via UList operator. Takes linear time.
@@ -163,14 +178,26 @@ public:
         //- Add value to each entry
         inline void operator+=(const Type& val);
 
+        //- Add each corresponding entry from a list
+        inline void operator+=(const UList<Type>& rhs);
+
         //- Subtract value from each entry
         inline void operator-=(const Type& val);
+
+        //- Subtract each corresponding entry from a list
+        inline void operator-=(const UList<Type>& rhs);
 
         //- Multiply each entry by value
         inline void operator*=(const scalar& s);
 
+        //- Multiply each entry by corresponding scalar from a list
+        inline void operator*=(const UList<scalar>& s);
+
         //- Divide each entry by value
         inline void operator/=(const scalar& s);
+
+        //- Divide each entry by corresponding scalar from a list
+        inline void operator/=(const UList<scalar>& s);
 };
 
 

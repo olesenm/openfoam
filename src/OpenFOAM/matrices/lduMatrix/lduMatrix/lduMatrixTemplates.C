@@ -82,7 +82,7 @@ Foam::tmp<Foam::Field<Type>> Foam::lduMatrix::H(const Field<Type>& psi) const
         const scalar* __restrict__ lowerPtr = lower().begin();
         const scalar* __restrict__ upperPtr = upper().begin();
 
-        const label nFaces = upper().size();
+        const label nFaces = lduAddr().lowerAddr().size();
 
         for (label face=0; face<nFaces; face++)
         {

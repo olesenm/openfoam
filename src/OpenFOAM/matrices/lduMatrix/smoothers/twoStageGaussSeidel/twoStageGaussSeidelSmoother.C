@@ -57,8 +57,9 @@ Foam::twoStageGaussSeidelSmoother::twoStageGaussSeidelSmoother
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -67,8 +68,9 @@ Foam::twoStageGaussSeidelSmoother::twoStageGaussSeidelSmoother
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces
 	//solverControls
     ),
@@ -85,7 +87,8 @@ void Foam::twoStageGaussSeidelSmoother::smooth
     solveScalarField& psi,
     const lduMatrix& matrix_,
     const solveScalarField& source,
-    const FieldField<Field, scalar>& interfaceBouCoeffs_,
+    const scalarField& interfaceBouCoeffsData_,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces_,
     const direction cmpt,
     const label nSweeps,
@@ -144,7 +147,8 @@ void Foam::twoStageGaussSeidelSmoother::smooth
         matrix_.initMatrixInterfaces
         (
             false,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets,
             interfaces_,
             psi,
             bPrime,
@@ -154,7 +158,8 @@ void Foam::twoStageGaussSeidelSmoother::smooth
         matrix_.updateMatrixInterfaces
         (
             false,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets,
             interfaces_,
             psi,
             bPrime,
@@ -333,7 +338,8 @@ void Foam::twoStageGaussSeidelSmoother::smooth
         psi,
         matrix_,
         ConstPrecisionAdaptor<solveScalar, scalar>(source),
-        interfaceBouCoeffs_,
+        interfaceBouCoeffsData_,
+        coeffsOffsets_,
         interfaces_,
         cmpt,
         nSweeps,
@@ -356,7 +362,8 @@ void Foam::twoStageGaussSeidelSmoother::scalarSmooth
         psi,
         matrix_,
         source,
-        interfaceBouCoeffs_,
+        interfaceBouCoeffsData_,
+        coeffsOffsets_,
         interfaces_,
         cmpt,
         nSweeps,

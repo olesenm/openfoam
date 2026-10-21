@@ -29,6 +29,7 @@ License
 #include "lduMatrix.H"
 #include "diagonalSolver.H"
 #include "PrecisionAdaptor.H"
+#include "SubField.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -46,8 +47,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
     const word& solverName,
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -60,8 +62,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
             (
                 fieldName,
                 matrix,
-                interfaceBouCoeffs,
-                interfaceIntCoeffs,
+                interfaceBouCoeffsData,
+                interfaceIntCoeffsData,
+                offsets,
                 interfaces,
                 solverControls
             )
@@ -88,8 +91,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
             (
                 fieldName,
                 matrix,
-                interfaceBouCoeffs,
-                interfaceIntCoeffs,
+                interfaceBouCoeffsData,
+                interfaceIntCoeffsData,
+                offsets,
                 interfaces,
                 solverControls
             )
@@ -116,8 +120,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
             (
                 fieldName,
                 matrix,
-                interfaceBouCoeffs,
-                interfaceIntCoeffs,
+                interfaceBouCoeffsData,
+                interfaceIntCoeffsData,
+                offsets,
                 interfaces,
                 solverControls
             )
@@ -137,8 +142,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -148,8 +154,9 @@ Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New
         solverControls.get<word>("solver"),
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        offsets,
         interfaces,
         solverControls
     );
@@ -162,16 +169,18 @@ Foam::lduMatrix::solver::solver
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
 :
     fieldName_(fieldName),
     matrix_(matrix),
-    interfaceBouCoeffs_(interfaceBouCoeffs),
-    interfaceIntCoeffs_(interfaceIntCoeffs),
+    interfaceBouCoeffsData_(interfaceBouCoeffsData),  // deep copy
+    interfaceIntCoeffsData_(interfaceIntCoeffsData),  // deep copy
+    coeffsOffsets_(coeffsOffsets),
     interfaces_(interfaces),
     controlDict_(solverControls),
 
@@ -252,7 +261,7 @@ Foam::solveScalarField::cmptType Foam::lduMatrix::solver::normFactor
         case lduMatrix::normTypes::L1_SCALED_NORM :
         {
             // --- Calculate A dot reference value of psi
-            matrix_.sumA(tmpField, interfaceBouCoeffs_, interfaces_);
+            matrix_.sumA(tmpField, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_);
 
             tmpField *= gAverage(psi, matrix_.mesh().comm());
 

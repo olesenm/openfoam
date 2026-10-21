@@ -27,6 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "lduMatrix.H"
+#include "SubField.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -67,8 +68,9 @@ Foam::autoPtr<Foam::lduMatrix::smoother> Foam::lduMatrix::smoother::New
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -111,8 +113,9 @@ Foam::autoPtr<Foam::lduMatrix::smoother> Foam::lduMatrix::smoother::New
             (
                 fieldName,
                 matrix,
-                interfaceBouCoeffs,
-                interfaceIntCoeffs,
+                interfaceBouCoeffsData,
+                interfaceIntCoeffsData,
+                coeffsOffsets,
                 interfaces,
                 controls
             )
@@ -139,8 +142,9 @@ Foam::autoPtr<Foam::lduMatrix::smoother> Foam::lduMatrix::smoother::New
             (
                 fieldName,
                 matrix,
-                interfaceBouCoeffs,
-                interfaceIntCoeffs,
+                interfaceBouCoeffsData,
+                interfaceIntCoeffsData,
+                coeffsOffsets,
                 interfaces,
                 controls
             )
@@ -162,17 +166,22 @@ Foam::lduMatrix::smoother::smoother
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces
 )
 :
     fieldName_(fieldName),
     matrix_(matrix),
-    interfaceBouCoeffs_(interfaceBouCoeffs),
-    interfaceIntCoeffs_(interfaceIntCoeffs),
+    interfaceBouCoeffsData_(interfaceBouCoeffsData),
+    interfaceIntCoeffsData_(interfaceIntCoeffsData),
+    coeffsOffsets_(coeffsOffsets),
     interfaces_(interfaces)
 {}
+
+
+
 
 
 // ************************************************************************* //

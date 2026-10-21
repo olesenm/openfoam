@@ -76,8 +76,9 @@ public:
         (
             const word& fieldName,
             const lduMatrix& matrix,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
-            const FieldField<Field, scalar>& interfaceIntCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const scalarField& interfaceIntCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const dictionary& solverControls
         );

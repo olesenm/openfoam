@@ -68,7 +68,7 @@ void Foam::LduMatrix<Type, DType, LUType>::Amul
     }
 
 
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
     for (label face=0; face<nFaces; face++)
     {
         ApsiPtr[uPtr[face]] += dot(lowerPtr[face], psiPtr[lPtr[face]]);
@@ -126,7 +126,7 @@ void Foam::LduMatrix<Type, DType, LUType>::Tmul
         TpsiPtr[cell] = dot(diagPtr[cell], psiPtr[cell]);
     }
 
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
     for (label face=0; face<nFaces; face++)
     {
         TpsiPtr[uPtr[face]] += dot(upperPtr[face], psiPtr[lPtr[face]]);
@@ -164,7 +164,7 @@ void Foam::LduMatrix<Type, DType, LUType>::sumA
     const LUType* __restrict__ upperPtr = upper().begin();
 
     const label nCells = diag().size();
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
 
     for (label cell=0; cell<nCells; cell++)
     {
@@ -236,7 +236,7 @@ void Foam::LduMatrix<Type, DType, LUType>::residual
     }
 
 
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
     for (label face=0; face<nFaces; face++)
     {
         rAPtr[uPtr[face]] -= dot(lowerPtr[face], psiPtr[lPtr[face]]);

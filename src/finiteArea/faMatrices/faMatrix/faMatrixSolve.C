@@ -42,10 +42,10 @@ void Foam::faMatrix<Type>::setComponentReference
     const scalar value
 )
 {
-    internalCoeffs_[patchi][facei].component(cmpt) +=
+    internalCoeffs(patchi)[facei].component(cmpt) +=
         diag()[psi_.mesh().boundary()[patchi].faceCells()[facei]];
 
-    boundaryCoeffs_[patchi][facei].component(cmpt) +=
+    boundaryCoeffs(patchi)[facei].component(cmpt) +=
         diag()[psi_.mesh().boundary()[patchi].faceCells()[facei]]*value;
 }
 
@@ -93,15 +93,9 @@ Foam::SolverPerformance<Type> Foam::faMatrix<Type>::solve
 
         scalarField sourceCmpt(source.component(cmpt));
 
-        FieldField<Field, scalar> bouCoeffsCmpt
-        (
-            boundaryCoeffs_.component(cmpt)
-        );
-
-        FieldField<Field, scalar> intCoeffsCmpt
-        (
-            internalCoeffs_.component(cmpt)
-        );
+        // Extract per-component flat scalar coefficients
+        scalarField bouCoeffsCmpt(boundaryCoeffs_.component(cmpt));
+        scalarField intCoeffsCmpt(internalCoeffs_.component(cmpt));
 
         // Use the initMatrixInterfaces and updateMatrixInterfaces to correct
         // bouCoeffsCmpt for the explicit part of the coupled boundary
@@ -116,6 +110,7 @@ Foam::SolverPerformance<Type> Foam::faMatrix<Type>::solve
             (
                 true,
                 bouCoeffsCmpt,
+                coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),
                 sourceCmpt_ss.ref(),
@@ -126,6 +121,7 @@ Foam::SolverPerformance<Type> Foam::faMatrix<Type>::solve
             (
                 true,
                 bouCoeffsCmpt,
+                coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),
                 sourceCmpt_ss.ref(),
@@ -143,6 +139,7 @@ Foam::SolverPerformance<Type> Foam::faMatrix<Type>::solve
             *this,
             bouCoeffsCmpt,
             intCoeffsCmpt,
+            coeffsOffset_,
             interfaces,
             solverControls
         )->solve(psiCmpt, sourceCmpt, cmpt);
@@ -204,10 +201,7 @@ Foam::tmp<Foam::Field<Type>> Foam::faMatrix<Type>::residual() const
         scalarField boundaryDiagCmpt(psi_.size(), Zero);
         addBoundaryDiag(boundaryDiagCmpt, cmpt);
 
-        FieldField<Field, scalar> bouCoeffsCmpt
-        (
-            boundaryCoeffs_.component(cmpt)
-        );
+        scalarField bouCoeffsCmpt(boundaryCoeffs_.component(cmpt));
 
         res.replace
         (
@@ -217,6 +211,7 @@ Foam::tmp<Foam::Field<Type>> Foam::faMatrix<Type>::residual() const
                 psiCmpt,
                 res.component(cmpt) - boundaryDiagCmpt*psiCmpt,
                 bouCoeffsCmpt,
+                coeffsOffset_,
                 psi_.boundaryField().scalarInterfaces(),
                 cmpt
             )

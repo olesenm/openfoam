@@ -49,8 +49,9 @@ Foam::PBiCGStab::PBiCGStab
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -59,8 +60,9 @@ Foam::PBiCGStab::PBiCGStab
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     )
@@ -90,7 +92,7 @@ Foam::solverPerformance Foam::PBiCGStab::scalarSolve
     solveScalarField yA(nCells);
 
     // --- Calculate A.psi
-    matrix_.Amul(yA, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(yA, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     // --- Calculate initial residual field
     solveScalarField rA(source.size());
@@ -221,7 +223,7 @@ Foam::solverPerformance Foam::PBiCGStab::scalarSolve
             preconPtr_->precondition(yA, pA, cmpt);
 
             // --- Calculate AyA
-            matrix_.Amul(AyA, yA, interfaceBouCoeffs_, interfaces_, cmpt);
+            matrix_.Amul(AyA, yA, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
             const solveScalar rA0AyA =
                 gSumProd(rA0, AyA, matrix().mesh().comm());
@@ -276,7 +278,7 @@ Foam::solverPerformance Foam::PBiCGStab::scalarSolve
             preconPtr_->precondition(zA, sA, cmpt);
 
             // --- Calculate tA
-            matrix_.Amul(tA, zA, interfaceBouCoeffs_, interfaces_, cmpt);
+            matrix_.Amul(tA, zA, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
             const solveScalar tAtA = gSumSqr(tA, matrix().mesh().comm());
 

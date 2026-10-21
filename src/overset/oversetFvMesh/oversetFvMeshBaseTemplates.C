@@ -115,15 +115,17 @@ Foam::tmp<Foam::scalarField> Foam::oversetFvMeshBase::normalisation
     tmp<scalarField> tnorm(tmp<scalarField>::New(m.diag()));
     scalarField& norm = tnorm.ref();
 
+    const label nPatches = m.nPatches();
     // Add remote coeffs to duplicate behaviour of fvMatrix::addBoundaryDiag
-    const FieldField<Field, Type>& internalCoeffs = m.internalCoeffs();
     for (direction cmpt=0; cmpt<pTraits<Type>::nComponents; cmpt++)
     {
-        forAll(internalCoeffs, patchi)
+        for (label patchi = 0; patchi < nPatches; ++patchi)
         {
             const labelUList& fc = mesh_.lduAddr().patchAddr(patchi);
-            const Field<Type>& intCoeffs = internalCoeffs[patchi];
-            const scalarField cmptCoeffs(intCoeffs.component(cmpt));
+            const scalarField cmptCoeffs
+            (
+                m.internalCoeffs(patchi).component(cmpt)
+            );
             forAll(fc, i)
             {
                 norm[fc[i]] += cmptCoeffs[i];
@@ -335,22 +337,16 @@ void Foam::oversetFvMeshBase::addInterpolation
 
     if (interfaces.size() > nOldInterfaces)
     {
-        // Extend matrix coefficients
-        m.internalCoeffs().setSize(interfaces.size());
-        m.boundaryCoeffs().setSize(interfaces.size());
-
         // 1b. Adapt for additional interfaces
-        for
-        (
-            label patchi = nOldInterfaces;
-            patchi < interfaces.size();
-            patchi++
-        )
+        m.coeffsOffset().setSize(interfaces.size()+1, 0);
+        for (label patchi = nOldInterfaces; patchi < interfaces.size(); patchi++)
         {
-            const labelUList& fc = interfaces[patchi].faceCells();
-            m.internalCoeffs().set(patchi, new Field<Type>(fc.size(), Zero));
-            m.boundaryCoeffs().set(patchi, new Field<Type>(fc.size(), Zero));
+            m.coeffsOffset()[patchi+1] =
+                m.coeffsOffset()[patchi]
+              + interfaces[patchi].faceCells().size();
         }
+        m.internalCoeffs().setSize(m.coeffsOffset().back(), Zero);
+        m.boundaryCoeffs().setSize(m.coeffsOffset().back(), Zero);
 
         // 1c. Adapt field for additional interfaceFields (note: solver uses
         //     GeometricField::scalarInterfaces() to get hold of interfaces)
@@ -430,18 +426,34 @@ void Foam::oversetFvMeshBase::addInterpolation
     for (label patchi = 0; patchi < nOldInterfaces; ++patchi)
     {
         const labelUList& fc = addr.patchAddr(patchi);
-        Field<Type>& bCoeffs = m.boundaryCoeffs()[patchi];
-        Field<Type>& iCoeffs = m.internalCoeffs()[patchi];
+        auto bCoeffs = m.boundaryCoeffs(patchi);
+        auto iCoeffs = m.internalCoeffs(patchi);
         forAll(fc, i)
         {
-            scaleConnection(bCoeffs, types, factor, setHoleCellValue, fc[i], i);
+            scaleConnection
+            (
+                static_cast<Field<Type>&>(bCoeffs),
+                types,
+                factor,
+                setHoleCellValue,
+                fc[i],
+                i
+            );
 
-            scaleConnection(iCoeffs, types, factor, setHoleCellValue, fc[i], i);
+            scaleConnection
+            (
+                static_cast<Field<Type>&>(iCoeffs),
+                types,
+                factor,
+                setHoleCellValue,
+                fc[i],
+                i
+            );
         }
         /*
         const labelUList& fc = addr.patchAddr(patchi);
-        Field<Type>& intCoeffs = m.internalCoeffs()[patchi];
-        Field<Type>& bouCoeffs = m.boundaryCoeffs()[patchi];
+        Field<Type> intCoeffs = m.internalCoeffs(patchi);
+        Field<Type> bouCoeffs = m.boundaryCoeffs(patchi);
         forAll(fc, i)
         {
             label celli = fc[i];
@@ -542,8 +554,8 @@ void Foam::oversetFvMeshBase::addInterpolation
                     //    << endl;
 
                     const scalar s = normalisation[celli]*f*w[nbri];
-                    m.boundaryCoeffs()[patchi][facei] += pTraits<Type>::one*s;
-                    m.internalCoeffs()[patchi][facei] += pTraits<Type>::one*s;
+                    m.boundaryCoeffs(patchi)[facei] += pTraits<Type>::one*s;
+                    m.internalCoeffs(patchi)[facei] += pTraits<Type>::one*s;
 
                     // Note: do NOT add to diagonal - this is in the
                     //       internalCoeffs and gets added to the diagonal
@@ -651,8 +663,8 @@ void Foam::oversetFvMeshBase::addInterpolation
                     //    << endl;
 
                     const scalar s = normalisation[celli]*f*w[nbri];
-                    m.boundaryCoeffs()[patchi][facei] += pTraits<Type>::one*s;
-                    m.internalCoeffs()[patchi][facei] += pTraits<Type>::one*s;
+                    m.boundaryCoeffs(patchi)[facei] += pTraits<Type>::one*s;
+                    m.internalCoeffs(patchi)[facei] += pTraits<Type>::one*s;
 
                     // Note: do NOT add to diagonal - this is in the
                     //       internalCoeffs and gets added to the diagonal
@@ -777,8 +789,11 @@ Foam::SolverPerformance<Type> Foam::oversetFvMeshBase::solveOverset
     // Adapt matrix
     scalarField oldUpper(m.upper());
     scalarField oldLower(m.lower());
-    FieldField<Field, Type> oldInt(m.internalCoeffs());
-    FieldField<Field, Type> oldBou(m.boundaryCoeffs());
+    // FieldField<Field, Type> oldInt(m.internalCoeffs());
+    Field<Type> oldInt(m.internalCoeffs());
+    // FieldField<Field, Type> oldBou(m.boundaryCoeffs());
+    Field<Type> oldBou(m.boundaryCoeffs());
+    labelList oldOffsets(m.coeffsOffset());
 
     Field<Type> oldSource(m.source());
     scalarField oldDiag(m.diag());
@@ -813,6 +828,7 @@ Foam::SolverPerformance<Type> Foam::oversetFvMeshBase::solveOverset
 
     m.internalCoeffs().transfer(oldInt);
     m.boundaryCoeffs().transfer(oldBou);
+    m.coeffsOffset().transfer(oldOffsets);
 
 
     const cellCellStencilObject& overlap = Stencil::New(mesh_);
@@ -925,25 +941,21 @@ void Foam::oversetFvMeshBase::write
 
             os  << "    patch:" << patchi
                 << " patchface:" << patchFacei
-                << " intcoeff:" << m.internalCoeffs()[patchi][patchFacei]
-                << " boucoeff:" << m.boundaryCoeffs()[patchi][patchFacei]
+                << " intcoeff:" << m.internalCoeffs(patchi)[patchFacei]
+                << " boucoeff:" << m.boundaryCoeffs(patchi)[patchFacei]
                 << endl;
         }
     }
-    forAll(m.internalCoeffs(), patchi)
+    forAll(interfaces, patchi)
     {
-        if (m.internalCoeffs().set(patchi))
+        if (interfaces.set(patchi))
         {
             const labelUList& fc = addr.patchAddr(patchi);
 
             os  << "patch:" << patchi
                 //<< " type:" << interfaces[patchi].type()
                 << " size:" << fc.size() << endl;
-            if
-            (
-                interfaces.set(patchi)
-             && isA<processorLduInterface>(interfaces[patchi])
-            )
+            if (isA<processorLduInterface>(interfaces[patchi]))
             {
                 const processorLduInterface& ppp =
                     refCast<const processorLduInterface>(interfaces[patchi]);
@@ -952,11 +964,13 @@ void Foam::oversetFvMeshBase::write
                     << ")" << endl;
             }
 
+            const auto intCoeffs = m.internalCoeffs(patchi);
+            const auto bouCoeffs = m.boundaryCoeffs(patchi);
             forAll(fc, i)
             {
                 os  << "    cell:" << fc[i]
-                    << " int:" << m.internalCoeffs()[patchi][i]
-                    << " boun:" << m.boundaryCoeffs()[patchi][i]
+                    << " int:" << intCoeffs[i]
+                    << " boun:" << bouCoeffs[i]
                     << endl;
             }
         }

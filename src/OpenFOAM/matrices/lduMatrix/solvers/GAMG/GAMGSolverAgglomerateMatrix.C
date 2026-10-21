@@ -66,13 +66,15 @@ void Foam::GAMGSolver::agglomerateMatrix
         // agglomerating.
         scalarField& coarseDiag = coarseMatrix.diag(nCoarseCells);
 
-        agglomeration_.restrictField
-        (
-            coarseDiag,
-            fineMatrix.diag(),
-            fineLevelIndex,
-            false               // no processor agglomeration
-        );
+        // Use manual restriction to avoid resize in restrictField
+        const labelList& cellRestrictAddr =
+            agglomeration_.restrictAddressing(fineLevelIndex);
+
+        coarseDiag = Zero;
+        forAll(fineMatrix.diag(), i)
+        {
+            coarseDiag[cellRestrictAddr[i]] += fineMatrix.diag()[i];
+        }
 
         // Get reference to fine-level interfaces
         const lduInterfaceFieldPtrsList& fineInterfaces =
@@ -97,22 +99,46 @@ void Foam::GAMGSolver::agglomerateMatrix
         lduInterfaceFieldPtrsList& coarseInterfaces =
             interfaceLevels_[fineLevelIndex];
 
-        // Set coarse-level boundary coefficients
+        // Get coarse level interface sizes
+        const labelList& nPatchFaces =
+            agglomeration_.nPatchFaces(fineLevelIndex);
+
+        // Calculate total size and offsets for flat storage
+        // Only include SET interfaces (skip unset wall boundaries)
+        interfaceLevelsOffsets_.set
+        (
+            fineLevelIndex,
+            new labelList(fineInterfaces.size() + 1, 0)
+        );
+        labelList& coeffsOffsets = interfaceLevelsOffsets_[fineLevelIndex];
+
+        label totalSize = 0;
+        forAll(nPatchFaces, inti)
+        {
+            coeffsOffsets[inti+1] = coeffsOffsets[inti];
+            if (fineInterfaces.set(inti))
+            {
+                coeffsOffsets[inti+1] += nPatchFaces[inti];
+                totalSize += nPatchFaces[inti];
+            }
+        }
+
+        // Set coarse-level boundary coefficients (flat storage)
         interfaceLevelsBouCoeffs_.set
         (
             fineLevelIndex,
-            new FieldField<Field, scalar>(fineInterfaces.size())
+            new scalarField(totalSize, Zero)
         );
-        FieldField<Field, scalar>& coarseInterfaceBouCoeffs =
+        scalarField& coarseInterfaceBouCoeffs =
             interfaceLevelsBouCoeffs_[fineLevelIndex];
 
-        // Set coarse-level internal coefficients
+        // Set coarse-level internal coefficients (flat storage)
         interfaceLevelsIntCoeffs_.set
         (
             fineLevelIndex,
-            new FieldField<Field, scalar>(fineInterfaces.size())
+            new scalarField(totalSize, Zero)
         );
-        FieldField<Field, scalar>& coarseInterfaceIntCoeffs =
+        scalarField& coarseInterfaceIntCoeffs =
             interfaceLevelsIntCoeffs_[fineLevelIndex];
 
         // Add the coarse level
@@ -123,7 +149,8 @@ void Foam::GAMGSolver::agglomerateMatrix
             coarsePrimInterfaces,
             coarseInterfaces,
             coarseInterfaceBouCoeffs,
-            coarseInterfaceIntCoeffs
+            coarseInterfaceIntCoeffs,
+            coeffsOffsets
         );
 
 
@@ -134,10 +161,10 @@ void Foam::GAMGSolver::agglomerateMatrix
             agglomeration_.faceFlipMap(fineLevelIndex);
         #ifdef FOAM_OFFLOAD
         const labelList& faceRestrictSortAddr =
-            agglomeration_.faceRestrictSortAddressing(fineLevelIndex); 
-        const labelList& faceRestrictTargetAddr = 
+            agglomeration_.faceRestrictSortAddressing(fineLevelIndex);
+        const labelList& faceRestrictTargetAddr =
             agglomeration_.faceRestrictTargetAddressing(fineLevelIndex);
-        const labelList& faceRestrictTargetStartAddr = 
+        const labelList& faceRestrictTargetStartAddr =
             agglomeration_.faceRestrictTargetStartAddressing(fineLevelIndex);
         #endif
 
@@ -162,7 +189,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                 (
                     policy,
                     faceRange.begin(),
-                    faceRange.end(), 
+                    faceRange.end(),
                     GAMG::asymAgglomerate
                     (
                         coarseUpper,
@@ -183,7 +210,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                 (
                     policy,
                     faceRange.begin(),
-                    faceRange.end(), 
+                    faceRange.end(),
                     GAMG::diagAsymAgglomerate
                     (
                         coarseDiag,
@@ -241,7 +268,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                 (
                     policy,
                     faceRange.begin(),
-                    faceRange.end(), 
+                    faceRange.end(),
                     GAMG::symAgglomerate
                     (
                         coarseUpper,
@@ -259,7 +286,7 @@ void Foam::GAMGSolver::agglomerateMatrix
                 (
                     policy,
                     faceRange.begin(),
-                    faceRange.end(), 
+                    faceRange.end(),
                     GAMG::diagSymAgglomerate
                     (
                         coarseDiag,
@@ -297,28 +324,27 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
     const lduInterfacePtrsList& coarseMeshInterfaces,
     PtrList<lduInterfaceField>& coarsePrimInterfaces,
     lduInterfaceFieldPtrsList& coarseInterfaces,
-    FieldField<Field, scalar>& coarseInterfaceBouCoeffs,
-    FieldField<Field, scalar>& coarseInterfaceIntCoeffs
+    scalarField& coarseInterfaceBouCoeffs,
+    scalarField& coarseInterfaceIntCoeffs,
+    const labelList& coeffsOffsets
 ) const
 {
     // Get reference to fine-level interfaces
     const lduInterfaceFieldPtrsList& fineInterfaces =
         interfaceLevel(fineLevelIndex);
 
-    // Get reference to fine-level boundary coefficients
-    const FieldField<Field, scalar>& fineInterfaceBouCoeffs =
-        interfaceBouCoeffsLevel(fineLevelIndex);
+    // Get reference to fine-level coefficients (flat storage)
+    const scalarField& fineInterfaceBouCoeffs =
+        interfaceBouCoeffsLevelData(fineLevelIndex);
 
-    // Get reference to fine-level internal coefficients
-    const FieldField<Field, scalar>& fineInterfaceIntCoeffs =
-        interfaceIntCoeffsLevel(fineLevelIndex);
+    const scalarField& fineInterfaceIntCoeffs =
+        interfaceIntCoeffsLevelData(fineLevelIndex);
+
+    const labelList& fineCoeffsOffsets =
+        interfaceCoeffsLevelOffsets(fineLevelIndex);
 
     const labelListList& patchFineToCoarse =
         agglomeration_.patchFaceRestrictAddressing(fineLevelIndex);
-
-    const labelList& nPatchFaces =
-        agglomeration_.nPatchFaces(fineLevelIndex);
-
 
     // Add the coarse level
     forAll(fineInterfaces, inti)
@@ -348,11 +374,27 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
 
             const labelList& faceRestrictAddressing = patchFineToCoarse[inti];
 
-            coarseInterfaceBouCoeffs.set
+            // Get SubFields for this interface in flat storage
+            const label fineStart = fineCoeffsOffsets[inti];
+            const label fineSize = fineCoeffsOffsets[inti+1] - fineStart;
+            SubField<scalar> fineBou(fineInterfaceBouCoeffs, fineSize, fineStart);
+            SubField<scalar> fineInt(fineInterfaceIntCoeffs, fineSize, fineStart);
+
+            const label coarseStart = coeffsOffsets[inti];
+            const label coarseSize = coeffsOffsets[inti+1] - coarseStart;
+            SubField<scalar> coarseBou
             (
-                inti,
-                new scalarField(nPatchFaces[inti], Zero)
+                coarseInterfaceBouCoeffs,
+                coarseSize,
+                coarseStart
             );
+            SubField<scalar> coarseInt
+            (
+                coarseInterfaceIntCoeffs,
+                coarseSize,
+                coarseStart
+            );
+
             #ifdef FOAM_OFFLOAD
             const labelListList& fToCSort =
                 agglomeration_.patchFaceRestrictSortAddressing(fineLevelIndex);
@@ -374,8 +416,8 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
 
             agglomeration_.restrictField
             (
-                coarseInterfaceBouCoeffs[inti],
-                fineInterfaceBouCoeffs[inti],
+                coarseBou,
+                fineBou,
                 faceRestrictSortAddressing,
                 faceRestrictTargetAddressing,
                 faceRestrictTargetStartAddressing
@@ -383,23 +425,17 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
             #else
             agglomeration_.restrictField
             (
-                coarseInterfaceBouCoeffs[inti],
-                fineInterfaceBouCoeffs[inti],
+                coarseBou,
+                fineBou,
                 faceRestrictAddressing
             );
             #endif
 
-            coarseInterfaceIntCoeffs.set
-            (
-                inti,
-                new scalarField(nPatchFaces[inti], Zero)
-            );
-
             #ifdef FOAM_OFFLOAD
             agglomeration_.restrictField
             (
-                coarseInterfaceIntCoeffs[inti],
-                fineInterfaceIntCoeffs[inti],
+                coarseInt,
+                fineInt,
                 faceRestrictSortAddressing,
                 faceRestrictTargetAddressing,
                 faceRestrictTargetStartAddressing
@@ -407,8 +443,8 @@ void Foam::GAMGSolver::agglomerateInterfaceCoefficients
             #else
             agglomeration_.restrictField
             (
-                coarseInterfaceIntCoeffs[inti],
-                fineInterfaceIntCoeffs[inti],
+                coarseInt,
+                fineInt,
                 faceRestrictAddressing
             );
             #endif
@@ -424,8 +460,9 @@ void Foam::GAMGSolver::gatherMatrices
 
     // Local matrix
     const lduMatrix& mat,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffs,
+    const scalarField& interfaceIntCoeffs,
+    const labelList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
 
     // Remote matrices
@@ -464,9 +501,9 @@ void Foam::GAMGSolver::gatherMatrices
 
         // All interfaceBouCoeffs need to be sent across
         bitSet validCoeffs(interfaces.size());
-        forAll(interfaceBouCoeffs, intI)
+        forAll(interfaces, intI)
         {
-            if (interfaceBouCoeffs.set(intI))
+            if (coeffsOffsets[intI+1] > coeffsOffsets[intI])
             {
                 validCoeffs.set(intI);
             }
@@ -492,9 +529,12 @@ void Foam::GAMGSolver::gatherMatrices
 
         for (const label intI : validCoeffs)
         {
+            const label start = coeffsOffsets[intI];
+            const label size = coeffsOffsets[intI+1] - start;
+
             toMaster
-                << interfaceBouCoeffs[intI]
-                << interfaceIntCoeffs[intI];
+                << SubField<scalar>(interfaceBouCoeffs, size, start)
+                << SubField<scalar>(interfaceIntCoeffs, size, start);
         }
         for (const label intI : validInterface)
         {
@@ -584,8 +624,9 @@ void Foam::GAMGSolver::procAgglomerateMatrix
 
     // Resulting matrix
     autoPtr<lduMatrix>& allMatrixPtr,
-    FieldField<Field, scalar>& allInterfaceBouCoeffs,
-    FieldField<Field, scalar>& allInterfaceIntCoeffs,
+    autoPtr<scalarField>& allInterfaceBouCoeffs,
+    autoPtr<scalarField>& allInterfaceIntCoeffs,
+    autoPtr<labelList>& allCoeffsOffsets,
     PtrList<lduInterfaceField>& allPrimitiveInterfaces,
     lduInterfaceFieldPtrsList& allInterfaces
 ) const
@@ -593,10 +634,16 @@ void Foam::GAMGSolver::procAgglomerateMatrix
     const lduMatrix& coarsestMatrix = matrixLevels_[levelI];
     const lduInterfaceFieldPtrsList& coarsestInterfaces =
         interfaceLevels_[levelI];
-    const FieldField<Field, scalar>& coarsestBouCoeffs =
-        interfaceLevelsBouCoeffs_[levelI];
-    const FieldField<Field, scalar>& coarsestIntCoeffs =
-        interfaceLevelsIntCoeffs_[levelI];
+
+    // Non-master processors retain empty flat storage.
+    allInterfaceBouCoeffs.reset(new scalarField(0));
+    allInterfaceIntCoeffs.reset(new scalarField(0));
+    allCoeffsOffsets.reset(new labelList(1, 0));
+
+    // Use the existing flat storage directly for gatherMatrices.
+    const scalarField& bouCoeffsData = interfaceLevelsBouCoeffs_[levelI];
+    const scalarField& intCoeffsData = interfaceLevelsIntCoeffs_[levelI];
+    const labelList& coeffsOffsets = interfaceLevelsOffsets_[levelI];
 
     // Communicator containing all processors to combine (=agglomProcIDs).
     // Result will be on master of communicator.
@@ -616,8 +663,9 @@ void Foam::GAMGSolver::procAgglomerateMatrix
         agglomComm,
 
         coarsestMatrix,                 // master before gathering
-        coarsestBouCoeffs,              // master before gathering
-        coarsestIntCoeffs,              // master before gathering
+        bouCoeffsData,                  // master before gathering
+        intCoeffsData,                  // master before gathering
+        coeffsOffsets,                  // master before gathering
         coarsestInterfaces,             // master before gathering
 
         otherMats,                      // slave info
@@ -703,38 +751,28 @@ void Foam::GAMGSolver::procAgglomerateMatrix
 
         lduInterfacePtrsList allMeshInterfaces = allMesh.interfaces();
 
-        allInterfaceBouCoeffs.setSize(allMeshInterfaces.size());
-        allInterfaceIntCoeffs.setSize(allMeshInterfaces.size());
-        allPrimitiveInterfaces.setSize(allMeshInterfaces.size());
-        allInterfaces.setSize(allMeshInterfaces.size());
+        allCoeffsOffsets.reset
+        (
+            new labelList(allMeshInterfaces.size() + 1, 0)
+        );
 
         forAll(allMeshInterfaces, intI)
         {
-            const lduInterface& patch = allMeshInterfaces[intI];
-            label size = patch.faceCells().size();
-
-            allInterfaceBouCoeffs.set(intI, new scalarField(size));
-            allInterfaceIntCoeffs.set(intI, new scalarField(size));
+            (*allCoeffsOffsets)[intI+1] = (*allCoeffsOffsets)[intI]
+                + allMeshInterfaces[intI].faceCells().size();
         }
+
+        const label totalSize = allCoeffsOffsets->last();
+
+        allInterfaceBouCoeffs.reset(new scalarField(totalSize, Zero));
+        allInterfaceIntCoeffs.reset(new scalarField(totalSize, Zero));
+        allPrimitiveInterfaces.setSize(allMeshInterfaces.size());
+        allInterfaces.setSize(allMeshInterfaces.size());
 
         UPtrList<lduInterfaceField> otherFlds(0);
 
         forAll(boundaryMap, proci)
         {
-            const FieldField<Field, scalar>& procBouCoeffs
-            (
-                (proci == 0)
-              ? coarsestBouCoeffs
-              : otherBouCoeffs[proci-1]
-            );
-            const FieldField<Field, scalar>& procIntCoeffs
-            (
-                (proci == 0)
-              ? coarsestIntCoeffs
-              : otherIntCoeffs[proci-1]
-            );
-
-
             const labelList& bMap = boundaryMap[proci];
             forAll(bMap, procIntI)
             {
@@ -821,65 +859,105 @@ void Foam::GAMGSolver::procAgglomerateMatrix
                     }
 
 
-                    // Map data from processor to complete mesh
-
-                    scalarField& allBou = allInterfaceBouCoeffs[allIntI];
-                    scalarField& allInt = allInterfaceIntCoeffs[allIntI];
-
-                    const labelList& map = boundaryFaceMap[proci][procIntI];
-
-                    const scalarField& procBou = procBouCoeffs[procIntI];
-                    const scalarField& procInt = procIntCoeffs[procIntI];
-
-                    forAll(map, i)
-                    {
-                        label allFacei = map[i];
-                        if (allFacei < 0)
-                        {
-                            FatalErrorInFunction
-                                << "problem." << abort(FatalError);
-                        }
-                        allBou[allFacei] = procBou[i];
-                        allInt[allFacei] = procInt[i];
-                    }
                 }
-                else if (procBouCoeffs.set(procIntI))
+
+                const bool hasCoeffs =
+                (
+                    proci == 0
+                  ? coeffsOffsets[procIntI+1] > coeffsOffsets[procIntI]
+                                    : otherBouCoeffs[proci-1].set(procIntI) != nullptr
+                );
+
+                if (!hasCoeffs)
                 {
-                    // Boundary has become internal face
+                    continue;
+                }
 
-                    const labelList& map = boundaryFaceMap[proci][procIntI];
-                    const scalarField& procBou = procBouCoeffs[procIntI];
-                    const scalarField& procInt = procIntCoeffs[procIntI];
+                auto mapCoeffs =
+                [&](const UList<scalar>& procBou,
+                    const UList<scalar>& procInt)
+                {
+                    const labelList& map =
+                        boundaryFaceMap[proci][procIntI];
 
-                    forAll(map, i)
+                    if (allIntI != -1)
                     {
-                        if (map[i] >= 0)
+                        SubField<scalar> allBou
+                        (
+                            *allInterfaceBouCoeffs,
+                            (*allCoeffsOffsets)[allIntI+1]
+                              - (*allCoeffsOffsets)[allIntI],
+                            (*allCoeffsOffsets)[allIntI]
+                        );
+                        SubField<scalar> allInt
+                        (
+                            *allInterfaceIntCoeffs,
+                            (*allCoeffsOffsets)[allIntI+1]
+                              - (*allCoeffsOffsets)[allIntI],
+                            (*allCoeffsOffsets)[allIntI]
+                        );
+
+                        forAll(map, i)
                         {
                             label allFacei = map[i];
-
-                            if (coarsestMatrix.hasUpper())
+                            if (allFacei < 0)
                             {
-                                allMatrix.upper()[allFacei] = -procBou[i];
+                                FatalErrorInFunction
+                                    << "problem." << abort(FatalError);
                             }
-                            if (coarsestMatrix.hasLower())
-                            {
-                                allMatrix.lower()[allFacei] = -procInt[i];
-                            }
+                            allBou[allFacei] = procBou[i];
+                            allInt[allFacei] = procInt[i];
                         }
-                        else
+                    }
+                    else
+                    {
+                        forAll(map, i)
                         {
-                            label allFacei = -map[i]-1;
+                            if (map[i] >= 0)
+                            {
+                                label allFacei = map[i];
 
-                            if (coarsestMatrix.hasUpper())
-                            {
-                                allMatrix.upper()[allFacei] = -procInt[i];
+                                if (coarsestMatrix.hasUpper())
+                                {
+                                    allMatrix.upper()[allFacei] = -procBou[i];
+                                }
+                                if (coarsestMatrix.hasLower())
+                                {
+                                    allMatrix.lower()[allFacei] = -procInt[i];
+                                }
                             }
-                            if (coarsestMatrix.hasLower())
+                            else
                             {
-                                allMatrix.lower()[allFacei] = -procBou[i];
+                                label allFacei = -map[i]-1;
+
+                                if (coarsestMatrix.hasUpper())
+                                {
+                                    allMatrix.upper()[allFacei] = -procInt[i];
+                                }
+                                if (coarsestMatrix.hasLower())
+                                {
+                                    allMatrix.lower()[allFacei] = -procBou[i];
+                                }
                             }
                         }
                     }
+                };
+
+                if (proci == 0)
+                {
+                    const label start = coeffsOffsets[procIntI];
+                    const label size = coeffsOffsets[procIntI+1] - start;
+                    SubField<scalar> procBou(bouCoeffsData, size, start);
+                    SubField<scalar> procInt(intCoeffsData, size, start);
+                    mapCoeffs(procBou, procInt);
+                }
+                else
+                {
+                    mapCoeffs
+                    (
+                        otherBouCoeffs[proci-1][procIntI],
+                        otherIntCoeffs[proci-1][procIntI]
+                    );
                 }
             }
         }
@@ -921,14 +999,9 @@ void Foam::GAMGSolver::procAgglomerateMatrix
 )
 {
     autoPtr<lduMatrix> allMatrixPtr;
-    autoPtr<FieldField<Field, scalar>> allInterfaceBouCoeffs
-    (
-        new FieldField<Field, scalar>(0)
-    );
-    autoPtr<FieldField<Field, scalar>> allInterfaceIntCoeffs
-    (
-        new FieldField<Field, scalar>(0)
-    );
+    autoPtr<scalarField> allInterfaceBouCoeffs;
+    autoPtr<scalarField> allInterfaceIntCoeffs;
+    autoPtr<labelList> allCoeffsOffsets;
     autoPtr<PtrList<lduInterfaceField>> allPrimitiveInterfaces
     (
         new PtrList<lduInterfaceField>(0)
@@ -948,15 +1021,30 @@ void Foam::GAMGSolver::procAgglomerateMatrix
 
         // Resulting matrix
         allMatrixPtr,
-        allInterfaceBouCoeffs(),
-        allInterfaceIntCoeffs(),
+        allInterfaceBouCoeffs,
+        allInterfaceIntCoeffs,
+        allCoeffsOffsets,
         allPrimitiveInterfaces(),
         allInterfaces()
     );
 
     matrixLevels_.set(levelI, allMatrixPtr);
-    interfaceLevelsBouCoeffs_.set(levelI, allInterfaceBouCoeffs);
-    interfaceLevelsIntCoeffs_.set(levelI, allInterfaceIntCoeffs);
+
+    interfaceLevelsBouCoeffs_.set
+    (
+        levelI,
+        allInterfaceBouCoeffs.release()
+    );
+    interfaceLevelsIntCoeffs_.set
+    (
+        levelI,
+        allInterfaceIntCoeffs.release()
+    );
+    interfaceLevelsOffsets_.set
+    (
+        levelI,
+        allCoeffsOffsets.release()
+    );
     primitiveInterfaceLevels_.set(levelI, allPrimitiveInterfaces);
     interfaceLevels_.set(levelI, allInterfaces);
 }

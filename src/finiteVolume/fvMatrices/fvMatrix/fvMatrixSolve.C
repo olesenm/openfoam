@@ -169,32 +169,28 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveSegregated
 
         scalarField sourceCmpt(source.component(cmpt));
 
-        FieldField<Field, scalar> bouCoeffsCmpt
-        (
-            boundaryCoeffs_.component(cmpt)
-        );
-
-        FieldField<Field, scalar> intCoeffsCmpt
-        (
-            internalCoeffs_.component(cmpt)
-        );
+        // Extract scalar component from flat coefficient storage
+        scalarField bouCoeffsCmpt(boundaryCoeffs_.component(cmpt));
+        scalarField intCoeffsCmpt(internalCoeffs_.component(cmpt));
 
         lduInterfaceFieldPtrsList interfaces =
             psi.boundaryField().scalarInterfaces();
 
         // Use the initMatrixInterfaces and updateMatrixInterfaces to correct
         // bouCoeffsCmpt for the explicit part of the coupled boundary
-        // conditions
+        // conditions (using flat storage + offsets directly)
         {
             PrecisionAdaptor<solveScalar, scalar> sourceCmpt_ss(sourceCmpt);
             ConstPrecisionAdaptor<solveScalar, scalar> psiCmpt_ss(psiCmpt);
+            PrecisionAdaptor<solveScalar, scalar> bouCoeffsCmpt_ss(bouCoeffsCmpt);
 
             const label startRequest = UPstream::nRequests();
 
             initMatrixInterfaces
             (
                 true,
-                bouCoeffsCmpt,
+                bouCoeffsCmpt_ss(),
+                coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),
                 sourceCmpt_ss.ref(),
@@ -204,7 +200,8 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveSegregated
             updateMatrixInterfaces
             (
                 true,
-                bouCoeffsCmpt,
+                bouCoeffsCmpt_ss(),
+                coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),
                 sourceCmpt_ss.ref(),
@@ -215,13 +212,14 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveSegregated
 
         solverPerformance solverPerf;
 
-        // Solver call
+        // Solver call using flat storage + offsets directly
         solverPerf = lduMatrix::solver::New
         (
             psi.name() + pTraits<Type>::componentNames[cmpt],
             *this,
             bouCoeffsCmpt,
             intCoeffsCmpt,
+            coeffsOffset_,
             interfaces,
             solverControls
         )->solve(psiCmpt, sourceCmpt, cmpt);
@@ -280,8 +278,26 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveCoupled
     addBoundarySource(coupledMatrix.source(), false);
 
     coupledMatrix.interfaces() = psi.boundaryFieldRef().interfaces();
-    coupledMatrix.interfacesUpper() = boundaryCoeffs().component(0);
-    coupledMatrix.interfacesLower() = internalCoeffs().component(0);
+
+    // Extract component from flat storage
+    const scalarField bouCoeffsCmpt(boundaryCoeffs_.component(0));
+    const scalarField intCoeffsCmpt(internalCoeffs_.component(0));
+
+    // Create FieldField wrappers from flat storage for LduMatrix
+    const label nInterfaces = coeffsOffset_.size() - 1;
+    FieldField<Field, scalar> bouCoeffsFF(nInterfaces);
+    FieldField<Field, scalar> intCoeffsFF(nInterfaces);
+
+    for (label i = 0; i < nInterfaces; ++i)
+    {
+        const label start = coeffsOffset_[i];
+        const label len = coeffsOffset_[i+1] - coeffsOffset_[i];
+        bouCoeffsFF.set(i, new Field<scalar>(SubField<scalar>(bouCoeffsCmpt, len, start)));
+        intCoeffsFF.set(i, new Field<scalar>(SubField<scalar>(intCoeffsCmpt, len, start)));
+    }
+
+    coupledMatrix.interfacesUpper() = bouCoeffsFF;
+    coupledMatrix.interfacesLower() = intCoeffsFF;
 
     autoPtr<typename LduMatrix<Type, scalar, scalar>::solver>
     coupledMatrixSolver
@@ -374,10 +390,8 @@ Foam::tmp<Foam::Field<Type>> Foam::fvMatrix<Type>::residual() const
         scalarField boundaryDiagCmpt(psi_.size(), Zero);
         addBoundaryDiag(boundaryDiagCmpt, cmpt);
 
-        FieldField<Field, scalar> bouCoeffsCmpt
-        (
-            boundaryCoeffs_.component(cmpt)
-        );
+        // Extract scalar component from flat coefficient storage
+        scalarField bouCoeffsCmpt(boundaryCoeffs_.component(cmpt));
 
         res.replace
         (
@@ -387,6 +401,7 @@ Foam::tmp<Foam::Field<Type>> Foam::fvMatrix<Type>::residual() const
                 psiCmpt,
                 res.component(cmpt) - boundaryDiagCmpt*psiCmpt,
                 bouCoeffsCmpt,
+                coeffsOffset_,
                 psi_.boundaryField().scalarInterfaces(),
                 cmpt
             )

@@ -96,9 +96,9 @@ protected:
             //- Previous processor colours
             static autoPtr<labelList> procColoursPtr_;
 
-            //- Buffers for sending and receiving data
-            mutable FieldField<Field, solveScalar> sendBufs_;
-            mutable FieldField<Field, solveScalar> recvBufs_;
+            //- Flat buffers for sending and receiving interface data
+            mutable solveScalarField sendBufs_;
+            mutable solveScalarField recvBufs_;
             mutable DynamicList<UPstream::Request> recvRequests_;
 
             //- Interfaces to lower coloured processors
@@ -125,7 +125,8 @@ protected:
         //- Global interfaces. Per colour the interfaces that (might)
         //- influence it
 
-            mutable PtrList<FieldField<Field, solveScalar>> colourBufs_;
+            //- Flat colour-major storage for global interface data
+            mutable solveScalarField colourBufs_;
 
             //- Interfaces to non-processor lower coupled interfaces
             List<DynamicList<label>> lowerGlobalRecv_;
@@ -152,11 +153,20 @@ protected:
 
     // Private Member Functions
 
+        //- Return an interface view into flat or colour-major storage
+        SubField<solveScalar> interfaceBuffer
+        (
+            solveScalarField& buffer,
+            const label inti,
+            const label colouri = -1
+        ) const;
+
         //- Variant of lduMatrix::updateMatrixInterfaces on selected interfaces
         void updateMatrixInterfaces
         (
             const bool add,
-            const FieldField<Field, scalar>& coupleCoeffs,
+            const scalarField& coupleCoeffsData,
+            const labelUList& coeffsOffsets,
             const labelList& selectedInterfaces,
             const solveScalarField& psiif,
             solveScalarField& result,
@@ -199,7 +209,7 @@ protected:
         (
             solveScalarField& rD,
             const label inti,
-            const Field<solveScalar>& recvBuf
+            const UList<solveScalar>& recvBuf
         ) const;
 
         //- Update diagonal for all faces of a certain colour
@@ -214,7 +224,7 @@ protected:
         (
             solveScalarField& wA,
             const label inti,
-            const Field<solveScalar>& recvBuf
+            const UList<solveScalar>& recvBuf
         ) const;
 
         //- Update preconditioned variable walking forward on internal faces

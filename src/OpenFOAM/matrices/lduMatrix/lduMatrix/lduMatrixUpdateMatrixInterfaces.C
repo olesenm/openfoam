@@ -27,13 +27,15 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "lduMatrix.H"
+#include "SubField.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
 void Foam::lduMatrix::initMatrixInterfaces
 (
     const bool add,
-    const FieldField<Field, scalar>& coupleCoeffs,
+    const solveScalarField& interfaceCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const solveScalarField& psiif,
     solveScalarField& result,
@@ -52,6 +54,10 @@ void Foam::lduMatrix::initMatrixInterfaces
         {
             if (interfaces.set(interfacei))
             {
+                const label start = offsets[interfacei];
+                const label len = offsets[interfacei+1] - offsets[interfacei];
+                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                 interfaces[interfacei].initInterfaceMatrixUpdate
                 (
                     result,
@@ -59,7 +65,7 @@ void Foam::lduMatrix::initMatrixInterfaces
                     mesh().lduAddr(),
                     interfacei,
                     psiif,
-                    coupleCoeffs[interfacei],
+                    coeffs,
                     cmpt,
                     commsType
                 );
@@ -81,6 +87,10 @@ void Foam::lduMatrix::initMatrixInterfaces
         {
             if (interfaces.set(interfacei))
             {
+                const label start = offsets[interfacei];
+                const label len = offsets[interfacei+1] - offsets[interfacei];
+                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                 interfaces[interfacei].initInterfaceMatrixUpdate
                 (
                     result,
@@ -88,7 +98,7 @@ void Foam::lduMatrix::initMatrixInterfaces
                     mesh().lduAddr(),
                     interfacei,
                     psiif,
-                    coupleCoeffs[interfacei],
+                    coeffs,
                     cmpt,
                     UPstream::commsTypes::buffered
                 );
@@ -108,7 +118,8 @@ void Foam::lduMatrix::initMatrixInterfaces
 void Foam::lduMatrix::updateMatrixInterfaces
 (
     const bool add,
-    const FieldField<Field, scalar>& coupleCoeffs,
+    const solveScalarField& interfaceCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const solveScalarField& psiif,
     solveScalarField& result,
@@ -124,71 +135,18 @@ void Foam::lduMatrix::updateMatrixInterfaces
      && UPstream::nPollProcInterfaces
     )
     {
-        // Wait for some interface requests to become available and
-        // consume them. No guarantee that the finished requests actually
-        // correspond to any particular interface, but it is reasonably
-        // probable that some interfaces will be able to start consumption
-        // without waiting for all requests.
+        // Poll for completion and consume ready interfaces
 
         DynamicList<int> indices;  // (work array)
 
-        // const label maxPolling =
-        // (
-        //     (UPstream::nPollProcInterfaces < 0)
-        //   ? (UPstream::nRequests() - startRequest)
-        //   : UPstream::nPollProcInterfaces
-        // );
-
-        for
+        const label maxPolling =
         (
-            bool pollingActive = (UPstream::nPollProcInterfaces < 0);
-            (
-                pollingActive
-             && UPstream::waitSomeRequests(startRequest, -1, &indices)
-            );
-            /*nil*/
-        )
-        {
-            pollingActive = false;
+            (UPstream::nPollProcInterfaces < 0)
+          ? (UPstream::nRequests() - startRequest)
+          : UPstream::nPollProcInterfaces
+        );
 
-            forAll(interfaces, interfacei)
-            {
-                auto* intf = interfaces.get(interfacei);
-
-                if (intf && !intf->updatedMatrix())
-                {
-                    if (intf->ready())
-                    {
-                        intf->updateInterfaceMatrix
-                        (
-                            result,
-                            add,
-                            mesh().lduAddr(),
-                            interfacei,
-                            psiif,
-                            coupleCoeffs[interfacei],
-                            cmpt,
-                            commsType
-                        );
-                    }
-                    else
-                    {
-                        pollingActive = true;
-                    }
-                }
-            }
-        }
-
-        // [OLDER]
-        // Alternative for consuming interfaces as they become available.
-        // Within the loop, the ready() calls an MPI_Test
-        // that can trigger progression. However, a bit less reliably
-        // (and less efficient) since it is implies multiple calls to
-        // MPI_Test to progress the MPI transfer, but no guarantee that
-        // any of them will actually complete within nPollProcInterfaces
-        // calls.
-
-        for (label i = 0; i < UPstream::nPollProcInterfaces; ++i)
+        for (label cycle = 0; cycle < maxPolling; ++cycle)
         {
             bool allUpdated = true;
 
@@ -200,6 +158,10 @@ void Foam::lduMatrix::updateMatrixInterfaces
                 {
                     if (intf->ready())
                     {
+                        const label start = offsets[interfacei];
+                        const label len = offsets[interfacei+1] - offsets[interfacei];
+                        const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                         intf->updateInterfaceMatrix
                         (
                             result,
@@ -207,7 +169,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                             mesh().lduAddr(),
                             interfacei,
                             psiif,
-                            coupleCoeffs[interfacei],
+                            coeffs,
                             cmpt,
                             commsType
                         );
@@ -250,6 +212,10 @@ void Foam::lduMatrix::updateMatrixInterfaces
 
             if (intf && (noCheck || !intf->updatedMatrix()))
             {
+                const label start = offsets[interfacei];
+                const label len = offsets[interfacei+1] - offsets[interfacei];
+                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                 intf->updateInterfaceMatrix
                 (
                     result,
@@ -257,7 +223,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                     mesh().lduAddr(),
                     interfacei,
                     psiif,
-                    coupleCoeffs[interfacei],
+                    coeffs,
                     cmpt,
                     commsType
                 );
@@ -268,15 +234,19 @@ void Foam::lduMatrix::updateMatrixInterfaces
     {
         const lduSchedule& patchSchedule = this->patchSchedule();
 
-        // Loop over all the "normal" interfaces relating to standard patches
-        for (const auto& sched : patchSchedule)
+        // Loop over patches according to the schedule
+        forAll(patchSchedule, patchEvali)
         {
-            const label interfacei = sched.patch;
+            const label interfacei = patchSchedule[patchEvali].patch;
 
             if (interfaces.set(interfacei))
             {
-                if (sched.init)
+                if (patchSchedule[patchEvali].init)
                 {
+                    const label start = offsets[interfacei];
+                    const label len = offsets[interfacei+1] - offsets[interfacei];
+                    const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                     interfaces[interfacei].initInterfaceMatrixUpdate
                     (
                         result,
@@ -284,13 +254,17 @@ void Foam::lduMatrix::updateMatrixInterfaces
                         mesh().lduAddr(),
                         interfacei,
                         psiif,
-                        coupleCoeffs[interfacei],
+                        coeffs,
                         cmpt,
-                        commsType
+                        UPstream::commsTypes::buffered
                     );
                 }
                 else
                 {
+                    const label start = offsets[interfacei];
+                    const label len = offsets[interfacei+1] - offsets[interfacei];
+                    const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                     interfaces[interfacei].updateInterfaceMatrix
                     (
                         result,
@@ -298,9 +272,9 @@ void Foam::lduMatrix::updateMatrixInterfaces
                         mesh().lduAddr(),
                         interfacei,
                         psiif,
-                        coupleCoeffs[interfacei],
+                        coeffs,
                         cmpt,
-                        commsType
+                        UPstream::commsTypes::buffered
                     );
                 }
             }
@@ -317,6 +291,10 @@ void Foam::lduMatrix::updateMatrixInterfaces
         {
             if (interfaces.set(interfacei))
             {
+                const label start = offsets[interfacei];
+                const label len = offsets[interfacei+1] - offsets[interfacei];
+                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+
                 interfaces[interfacei].updateInterfaceMatrix
                 (
                     result,
@@ -324,7 +302,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                     mesh().lduAddr(),
                     interfacei,
                     psiif,
-                    coupleCoeffs[interfacei],
+                    coeffs,
                     cmpt,
                     UPstream::commsTypes::buffered
                 );

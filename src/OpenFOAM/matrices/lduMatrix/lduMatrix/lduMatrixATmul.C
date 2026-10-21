@@ -145,7 +145,8 @@ void Foam::lduMatrix::Amul
 (
     solveScalarField& Apsi,
     const tmp<solveScalarField>& tpsi,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
+    const solveScalarField& interfaceBouCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
 ) const
@@ -171,7 +172,8 @@ void Foam::lduMatrix::Amul
     initMatrixInterfaces
     (
         true,
-        interfaceBouCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         Apsi,
@@ -270,9 +272,7 @@ void Foam::lduMatrix::Amul
             ApsiPtr[cell] = diagPtr[cell]*psiPtr[cell];
         }
 
-
-        const label nFaces = upper().size();
-
+        const label nFaces = lduAddr().lowerAddr().size();
         for (label face=0; face<nFaces; face++)
         {
             ApsiPtr[uPtr[face]] += lowerPtr[face]*psiPtr[lPtr[face]];
@@ -285,7 +285,8 @@ void Foam::lduMatrix::Amul
     updateMatrixInterfaces
     (
         true,
-        interfaceBouCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         Apsi,
@@ -301,7 +302,8 @@ void Foam::lduMatrix::Tmul
 (
     solveScalarField& Tpsi,
     const tmp<solveScalarField>& tpsi,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const solveScalarField& interfaceBouCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
 ) const
@@ -325,7 +327,8 @@ void Foam::lduMatrix::Tmul
     initMatrixInterfaces
     (
         true,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         Tpsi,
@@ -338,7 +341,7 @@ void Foam::lduMatrix::Tmul
         TpsiPtr[cell] = diagPtr[cell]*psiPtr[cell];
     }
 
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
     for (label face=0; face<nFaces; face++)
     {
         TpsiPtr[uPtr[face]] += upperPtr[face]*psiPtr[lPtr[face]];
@@ -349,7 +352,8 @@ void Foam::lduMatrix::Tmul
     updateMatrixInterfaces
     (
         true,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         Tpsi,
@@ -364,7 +368,8 @@ void Foam::lduMatrix::Tmul
 void Foam::lduMatrix::sumA
 (
     solveScalarField& sumA,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
+    const solveScalarField& interfaceBouCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces
 ) const
 {
@@ -379,7 +384,7 @@ void Foam::lduMatrix::sumA
     const scalar* __restrict__ upperPtr = upper().begin();
 
     const label nCells = diag().size();
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
 
     #ifdef FOAM_OFFLOAD
     matrixOperation
@@ -411,14 +416,14 @@ void Foam::lduMatrix::sumA
     }
     #endif
 
-    // Add the interface internal coefficients to diagonal
-    // and the interface boundary coefficients to the sum-off-diagonal
+    // Subtract interface boundary coefficients from row sum
     forAll(interfaces, patchi)
     {
         if (interfaces.set(patchi))
         {
             const labelUList& pa = lduAddr().patchAddr(patchi);
-            const scalarField& pCoeffs = interfaceBouCoeffs[patchi];
+            const label start = offsets[patchi];
+            const SubField<solveScalar> pCoeffs(interfaceBouCoeffsData, pa.size(), start);
 
             const labelRange faceIndices(pa.size());
 
@@ -445,7 +450,8 @@ void Foam::lduMatrix::residual
     solveScalarField& rA,
     const solveScalarField& psi,
     const scalarField& source,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
+    const solveScalarField& interfaceBouCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
 ) const
@@ -479,7 +485,8 @@ void Foam::lduMatrix::residual
     initMatrixInterfaces
     (
         false,
-        interfaceBouCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         rA,
@@ -535,8 +542,7 @@ void Foam::lduMatrix::residual
         rAPtr[cell] = sourcePtr[cell] - diagPtr[cell]*psiPtr[cell];
     }
 
-
-    const label nFaces = upper().size();
+    const label nFaces = lduAddr().lowerAddr().size();
 
     for (label face=0; face<nFaces; face++)
     {
@@ -549,7 +555,8 @@ void Foam::lduMatrix::residual
     updateMatrixInterfaces
     (
         false,
-        interfaceBouCoeffs,
+        interfaceBouCoeffsData,
+        offsets,
         interfaces,
         psi,
         rA,
@@ -563,13 +570,25 @@ Foam::tmp<Foam::Field<Foam::solveScalar>> Foam::lduMatrix::residual
 (
     const solveScalarField& psi,
     const scalarField& source,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
+    const solveScalarField& interfaceBouCoeffsData,
+    const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
 ) const
 {
     auto trA = tmp<solveScalarField>::New(psi.size());
-    residual(trA.ref(), psi, source, interfaceBouCoeffs, interfaces, cmpt);
+
+    residual
+    (
+        trA.ref(),
+        psi,
+        source,
+        interfaceBouCoeffsData,
+        offsets,
+        interfaces,
+        cmpt
+    );
+
     return trA;
 }
 
@@ -588,7 +607,7 @@ Foam::tmp<Foam::scalarField> Foam::lduMatrix::H1() const
         const scalar* __restrict__ lowerPtr = lower().begin();
         const scalar* __restrict__ upperPtr = upper().begin();
 
-        const label nFaces = upper().size();
+        const label nFaces = lduAddr().lowerAddr().size();
 
         #ifdef FOAM_OFFLOAD
         matrixOperation

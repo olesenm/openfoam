@@ -46,8 +46,9 @@ Foam::PBiCG::PBiCG
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -56,8 +57,9 @@ Foam::PBiCG::PBiCG
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     )
@@ -91,7 +93,7 @@ Foam::solverPerformance Foam::PBiCG::solve
     solveScalarField wA(nCells);
 
     // --- Calculate A.psi
-    matrix_.Amul(wA, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+    matrix_.Amul(wA, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
     // --- Calculate initial residual field
     ConstPrecisionAdaptor<solveScalar, scalar> tsource(source);
@@ -133,7 +135,7 @@ Foam::solverPerformance Foam::PBiCG::solve
         //gsolveScalar* __restrict__ wTPtr = wT.begin();
 
         // --- Calculate T.psi
-        matrix_.Tmul(wT, psi, interfaceIntCoeffs_, interfaces_, cmpt);
+        matrix_.Tmul(wT, psi, interfaceIntCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
         // --- Calculate initial transpose residual field
         solveScalarField rT(tsource() - wT);
@@ -204,8 +206,8 @@ Foam::solverPerformance Foam::PBiCG::solve
 
 
             // --- Update preconditioned residuals
-            matrix_.Amul(wA, pA, interfaceBouCoeffs_, interfaces_, cmpt);
-            matrix_.Tmul(wT, pT, interfaceIntCoeffs_, interfaces_, cmpt);
+            matrix_.Amul(wA, pA, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
+            matrix_.Tmul(wT, pT, interfaceIntCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
             const solveScalar wApT = gSumProd(wA, pT, matrix().mesh().comm());
 

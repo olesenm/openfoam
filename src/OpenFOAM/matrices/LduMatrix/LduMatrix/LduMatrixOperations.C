@@ -104,7 +104,7 @@ Foam::LduMatrix<Type, DType, LUType>::H(const Field<Type>& psi) const
         const LUType* __restrict__ lowerPtr = lower().begin();
         const LUType* __restrict__ upperPtr = upper().begin();
 
-        const label nFaces = upper().size();
+        const label nFaces = lduAddr().lowerAddr().size();
 
         for (label face=0; face<nFaces; face++)
         {

@@ -48,8 +48,9 @@ Foam::DILUSmoother::DILUSmoother
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -58,8 +59,9 @@ Foam::DILUSmoother::DILUSmoother
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces
     ),
     rD_(matrix_.diag().size())
@@ -102,7 +104,8 @@ void Foam::DILUSmoother::smooth
             rA,
             psi,
             source,
-            interfaceBouCoeffs_,
+            interfaceBouCoeffsData_,
+            coeffsOffsets_,
             interfaces_,
             cmpt
         );

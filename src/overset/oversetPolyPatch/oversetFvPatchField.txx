@@ -262,6 +262,8 @@ void Foam::oversetFvPatchField<Type>::storeFringeCoefficients
         if (isA<coupledPolyPatch>(p))
         {
             const labelUList& fc = p.faceCells();
+            const auto intCoeffs = matrix.internalCoeffs(patchi);
+            const auto bouCoeffs = matrix.boundaryCoeffs(patchi);
             const label start = p.start();
 
             forAll(fc, i)
@@ -284,18 +286,10 @@ void Foam::oversetFvPatchField<Type>::storeFringeCoefficients
                 if ((ownCalc||neiCalc)  && (zonei == zoneId_))
                 {
                     fringeLowerCoeffs_[fringesFaces] =
-                        component
-                        (
-                            matrix.internalCoeffs()[patchi][facei],
-                            0
-                        );
+                        component(intCoeffs[facei], 0);
 
                     fringeUpperCoeffs_[fringesFaces] =
-                        component
-                        (
-                            matrix.boundaryCoeffs()[patchi][facei],
-                            0
-                        );
+                        component(bouCoeffs[facei], 0);
 
                     fringeFaces_[fringesFaces] = facei;
 
@@ -835,6 +829,7 @@ void Foam::oversetFvPatchField<Type>::manipulateMatrix
             const labelUList& lowerAddr = addr.lowerAddr();
             const scalarField& lower = matrix.lower();
             const scalarField& upper = matrix.upper();
+            const label nPatches = matrix.nPatches();
 
             forAll(lowerAddr, facei)
             {
@@ -891,10 +886,10 @@ void Foam::oversetFvPatchField<Type>::manipulateMatrix
                 }
             }
 
-            forAll(matrix.internalCoeffs(), patchi)
+            for (label patchi = 0; patchi < nPatches; ++patchi)
             {
                 const labelUList& fc = addr.patchAddr(patchi);
-                const Field<Type>& bouCoeffs = matrix.boundaryCoeffs()[patchi];
+                const auto bouCoeffs = matrix.boundaryCoeffs(patchi);
 
                 forAll(fc, i)
                 {
@@ -935,17 +930,14 @@ void Foam::oversetFvPatchField<Type>::manipulateMatrix
 
             // Make sure that diagonal is non-zero. Note: should add
             // boundaryCoeff ...
-            const FieldField<Field, Type>& internalCoeffs =
-                matrix.internalCoeffs();
-
             for (direction cmpt=0; cmpt<pTraits<Type>::nComponents; ++cmpt)
             {
                 // Replacement for m.addBoundaryDiag(norm, cmpt);
                 scalarField diag(matrix.diag());
-                forAll(internalCoeffs, patchi)
+                for (label patchi = 0; patchi < nPatches; ++patchi)
                 {
                     const labelUList& fc = addr.patchAddr(patchi);
-                    const Field<Type>& intCoeffs = internalCoeffs[patchi];
+                    const auto intCoeffs = matrix.internalCoeffs(patchi);
                     const scalarField cmptCoeffs(intCoeffs.component(cmpt));
                     forAll(fc, i)
                     {

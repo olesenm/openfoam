@@ -288,12 +288,11 @@ public:
             {
                 auto& intCoeffs = m.internalCoeffs();
                 auto& bouCoeffs = m.boundaryCoeffs();
-                const label n = intCoeffs.size();
+                const label n = m.psi().boundaryField().size();
 
                 typedef
                     typename std::remove_reference_t<decltype(m.source())>::
                     value_type value_type;
-                typedef Field<value_type> FieldType;
 
 #if defined(FOAM_OFFLOAD)
                 constexpr bool foam_offload = true;
@@ -303,52 +302,26 @@ public:
                 if constexpr (foam_offload)
                 {
                     //- Parallel via ListsRefWrap. See GeometricFieldExpression.
-
-                    // Split into internal and boundary expressions
+                    //  Flat storage: internalCoeffs()/boundaryCoeffs() are
+                    //  single contiguous fields, so evaluate the concatenation
+                    //  of all per-patch expressions into them in one pass.
                     std::vector<UpperExpr> intExprs;
                     std::vector<UpperExpr> bouExprs;
-                    DynamicList<label> intID;
-
                     intExprs.reserve(n);
                     bouExprs.reserve(n);
-                    intID.reserve(n);
                     for (label i = 0; i < n; ++i)
                     {
-                        const auto intExpr = internalCoeffs(i);
-                        if (intExpr.size())
-                        {
-                            intExprs.emplace_back(intExpr);
-                            intID.emplace_back(i);
-                            if (!intCoeffs.set(i))
-                            {
-                                intCoeffs.set(i, new FieldType(intExpr.size()));
-                            }
-                            const auto bouExpr = boundaryCoeffs(i);
-                            bouExprs.emplace_back(bouExpr);
-                            if (!bouCoeffs.set(i))
-                            {
-                                bouCoeffs.set(i, new FieldType(bouExpr.size()));
-                            }
-                        }
+                        intExprs.emplace_back(internalCoeffs(i));
+                        bouExprs.emplace_back(boundaryCoeffs(i));
                     }
 
-                    // Internal : register 'chunks' for destination container
-                    ListsRefWrap<FieldType> intExpr
-                    (
-                        intCoeffs,
-                        static_cast<const labelUList&>(intID)
-                    );
-                    // Internal : evaluate all at once
-                    ListsRefWrap<UpperExpr>(intExprs).evaluate(intExpr);
+                    // Internal : evaluate all patches at once
+                    ListsRefWrap<UpperExpr> intSrc(intExprs);
+                    ListRefWrap<value_type>(intCoeffs, intSrc);
 
-                    // Boundary : register 'chunks' for destination container
-                    ListsRefWrap<FieldType> bouExpr
-                    (
-                        bouCoeffs,
-                        static_cast<const labelUList&>(intID)
-                    );
-                    // Boundary : evaluate all at once
-                    ListsRefWrap<UpperExpr>(bouExprs).evaluate(bouExpr);
+                    // Boundary : evaluate all patches at once
+                    ListsRefWrap<UpperExpr> bouSrc(bouExprs);
+                    ListRefWrap<value_type>(bouCoeffs, bouSrc);
                 }
                 else
                 {
@@ -358,17 +331,11 @@ public:
                         const auto intExpr = internalCoeffs(i);
                         if (intExpr.size())
                         {
-                            if (!intCoeffs.set(i))
-                            {
-                                intCoeffs.set(i, new FieldType(intExpr.size()));
-                            }
-                            intExpr.evaluate(intCoeffs[i]);
+                            auto intSlice = m.internalCoeffs(i);
+                            intExpr.fill(intSlice);
                             const auto bouExpr = boundaryCoeffs(i);
-                            if (!bouCoeffs.set(i))
-                            {
-                                bouCoeffs.set(i, new FieldType(bouExpr.size()));
-                            }
-                            bouExpr.evaluate(bouCoeffs[i]);
+                            auto bouSlice = m.boundaryCoeffs(i);
+                            bouExpr.fill(bouSlice);
                         }
                     }
                 }
@@ -393,8 +360,8 @@ class fvMatrixRefWrap
     <
         fvMatrixRefWrap<Matrix>,
         ListRefWrap<typename Matrix::psiFieldType::value_type>, // diag
-        ListRefWrap<typename Matrix::psiFieldType::value_type>, // upper
-        ListRefWrap<typename Matrix::psiFieldType::value_type>, // lower
+        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // upper
+        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // lower
         GeometricFieldRefWrap<typename Matrix::faceFluxFieldType>,// fflux
         ListRefWrap<typename Matrix::psiFieldType::value_type>  // source
     >
@@ -411,8 +378,8 @@ public:
 
     //- Type to return for containers
     typedef ListRefWrap<value_type> DiagExpr;
-    typedef ListRefWrap<value_type> UpperExpr;
-    typedef ListRefWrap<value_type> LowerExpr;
+    typedef ListConstRefWrap<value_type> UpperExpr;
+    typedef ListConstRefWrap<value_type> LowerExpr;
     typedef GeometricFieldRefWrap
     <
         typename Matrix::faceFluxFieldType
@@ -591,44 +558,24 @@ public:
             return elems_.source();
         }
 
-        UpperExpr internalCoeffs(const label i)
+        UpperExpr internalCoeffs(const label patchi)
         {
-            return
-            (
-                elems_.internalCoeffs().set(i)
-              ? elems_.internalCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.internalCoeffs(patchi);
         }
 
-        UpperExpr internalCoeffs(const label i) const
+        UpperExpr internalCoeffs(const label patchi) const
         {
-            return
-            (
-                elems_.internalCoeffs().set(i)
-              ? elems_.internalCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.internalCoeffs(patchi);
         }
 
-        UpperExpr boundaryCoeffs(const label i)
+        UpperExpr boundaryCoeffs(const label patchi)
         {
-            return
-            (
-                elems_.boundaryCoeffs().set(i)
-              ? elems_.boundaryCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.boundaryCoeffs(patchi);
         }
 
-        UpperExpr boundaryCoeffs(const label i) const
+        UpperExpr boundaryCoeffs(const label patchi) const
         {
-            return
-            (
-                elems_.boundaryCoeffs().set(i)
-              ? elems_.boundaryCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.boundaryCoeffs(patchi);
         }
 
         FaceFluxExpr faceFluxCorrection() const
@@ -742,22 +689,12 @@ public:
 
         UpperExpr internalCoeffs(const label i) const
         {
-            return
-            (
-                elems_.internalCoeffs().set(i)
-              ? elems_.internalCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.internalCoeffs(i);
         }
 
         UpperExpr boundaryCoeffs(const label i) const
         {
-            return
-            (
-                elems_.boundaryCoeffs().set(i)
-              ? elems_.boundaryCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_.boundaryCoeffs(i);
         }
 
         FaceFluxExpr faceFluxCorrection() const
@@ -865,22 +802,12 @@ public:
 
         UpperExpr internalCoeffs(const label i) const
         {
-            return
-            (
-                elems_().internalCoeffs().set(i)
-              ? elems_().internalCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_().internalCoeffs(i);
         }
 
         UpperExpr boundaryCoeffs(const label i) const
         {
-            return
-            (
-                elems_().boundaryCoeffs().set(i)
-              ? elems_().boundaryCoeffs()[i]
-              : List<value_type>::null()
-            );
+            return elems_().boundaryCoeffs(i);
         }
 
         FaceFluxExpr faceFluxCorrection() const
@@ -1529,7 +1456,7 @@ public:
             // return List<value_type>::null();
             return UpperExpr
             (
-                m_.internalCoeffs()[i].size(),
+                m_.internalCoeffs(i).size(),
                 value_type(0)
             );
         }
@@ -1539,7 +1466,7 @@ public:
             // return List<value_type>::null();
             return UpperExpr
             (
-                m_.boundaryCoeffs()[i].size(),
+                m_.boundaryCoeffs(i).size(),
                 value_type(0)
             );
         }
@@ -2127,8 +2054,8 @@ void fvmLaplacianUncorrected
     forAll(vf.boundaryField(), patchi)
     {
         const auto& pvf = vf.boundaryField()[patchi];
-        auto& intCoeffs = fvm.internalCoeffs()[patchi];
-        auto& bouCoeffs = fvm.boundaryCoeffs()[patchi];
+        auto intCoeffs = fvm.internalCoeffs(patchi);
+        auto bouCoeffs = fvm.boundaryCoeffs(patchi);
 
         if (pvf.coupled())
         {

@@ -51,8 +51,9 @@ Foam::GAMGSolver::GAMGSolver
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -61,8 +62,9 @@ Foam::GAMGSolver::GAMGSolver
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     ),
@@ -88,7 +90,8 @@ Foam::GAMGSolver::GAMGSolver
     primitiveInterfaceLevels_(agglomeration_.size()),
     interfaceLevels_(agglomeration_.size()),
     interfaceLevelsBouCoeffs_(agglomeration_.size()),
-    interfaceLevelsIntCoeffs_(agglomeration_.size())
+    interfaceLevelsIntCoeffs_(agglomeration_.size()),
+    interfaceLevelsOffsets_(agglomeration_.size())
 {
     readControls();
 
@@ -267,12 +270,29 @@ Foam::GAMGSolver::GAMGSolver
         {
             if (directSolveCoarsest_)
             {
+                // Create temporary FieldField wrapper for LUscalarMatrix
+                const scalarField& bouData = interfaceLevelsBouCoeffs_[coarsestLevel];
+                const labelList& offsets = interfaceLevelsOffsets_[coarsestLevel];
+                const label nInterfaces = offsets.size() - 1;
+
+                FieldField<Field, scalar> bouCoeffsFF(nInterfaces);
+                forAll(bouCoeffsFF, i)
+                {
+                    const label start = offsets[i];
+                    const label size = offsets[i+1] - start;
+                    bouCoeffsFF.set
+                    (
+                        i,
+                        new scalarField(SubField<scalar>(bouData, size, start))
+                    );
+                }
+
                 coarsestLUMatrixPtr_.reset
                 (
                     new LUscalarMatrix
                     (
                         matrixLevels_[coarsestLevel],
-                        interfaceLevelsBouCoeffs_[coarsestLevel],
+                        bouCoeffsFF,
                         interfaceLevels_[coarsestLevel]
                     )
                 );
@@ -292,6 +312,7 @@ Foam::GAMGSolver::GAMGSolver
                         matrixLevels_[coarsestLevel],
                         interfaceLevelsBouCoeffs_[coarsestLevel],
                         interfaceLevelsIntCoeffs_[coarsestLevel],
+                        interfaceLevelsOffsets_[coarsestLevel],
                         interfaceLevels_[coarsestLevel],
                         coarseEntry->dict()
                     );
@@ -306,6 +327,7 @@ Foam::GAMGSolver::GAMGSolver
                             matrixLevels_[coarsestLevel],
                             interfaceLevelsBouCoeffs_[coarsestLevel],
                             interfaceLevelsIntCoeffs_[coarsestLevel],
+                            interfaceLevelsOffsets_[coarsestLevel],
                             interfaceLevels_[coarsestLevel],
                             PBiCGStabSolverDict(tolerance_, relTol_)
                         )
@@ -321,6 +343,7 @@ Foam::GAMGSolver::GAMGSolver
                             matrixLevels_[coarsestLevel],
                             interfaceLevelsBouCoeffs_[coarsestLevel],
                             interfaceLevelsIntCoeffs_[coarsestLevel],
+                            interfaceLevelsOffsets_[coarsestLevel],
                             interfaceLevels_[coarsestLevel],
                             PCGsolverDict(tolerance_, relTol_)
                         )
@@ -412,23 +435,33 @@ const Foam::lduInterfaceFieldPtrsList& Foam::GAMGSolver::interfaceLevel
 }
 
 
-const Foam::FieldField<Foam::Field, Foam::scalar>&
-Foam::GAMGSolver::interfaceBouCoeffsLevel
+const Foam::scalarField&
+Foam::GAMGSolver::interfaceBouCoeffsLevelData
 (
     const label i
 ) const
 {
-    return i ? interfaceLevelsBouCoeffs_[i-1] : interfaceBouCoeffs_;
+    return i ? interfaceLevelsBouCoeffs_[i-1] : interfaceBouCoeffsData_;
 }
 
 
-const Foam::FieldField<Foam::Field, Foam::scalar>&
-Foam::GAMGSolver::interfaceIntCoeffsLevel
+const Foam::scalarField&
+Foam::GAMGSolver::interfaceIntCoeffsLevelData
 (
     const label i
 ) const
 {
-    return i ? interfaceLevelsIntCoeffs_[i-1] : interfaceIntCoeffs_;
+    return i ? interfaceLevelsIntCoeffs_[i-1] : interfaceIntCoeffsData_;
+}
+
+
+const Foam::labelList&
+Foam::GAMGSolver::interfaceCoeffsLevelOffsets
+(
+    const label i
+) const
+{
+    return i ? interfaceLevelsOffsets_[i-1] : coeffsOffsets_;
 }
 
 

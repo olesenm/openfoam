@@ -39,8 +39,8 @@ License
 template<class Type>
 void Foam::GAMGAgglomeration::restrictField
 (
-    Field<Type>& cf,
-    const Field<Type>& ff,
+    UList<Type>& cf,
+    const UList<Type>& ff,
     const labelList& sort,
     const labelList& target,
     const labelList& targetStart
@@ -73,8 +73,8 @@ void Foam::GAMGAgglomeration::restrictField
 template<class Type>
 void Foam::GAMGAgglomeration::restrictField
 (
-    Field<Type>& cf,
-    const Field<Type>& ff,
+    UList<Type>& cf,
+    const UList<Type>& ff,
     const labelList& fineToCoarse
 ) const
 {

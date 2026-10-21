@@ -118,15 +118,27 @@ fusedGaussConvectionScheme<Type>::fvmDiv
         const fvsPatchScalarField& patchFlux = faceFlux.boundaryField()[patchi];
         const fvsPatchScalarField& pw = weights.boundaryField()[patchi];
 
-        auto& intCoeffs = fvm.internalCoeffs()[patchi];
-        auto& bouCoeffs = fvm.boundaryCoeffs()[patchi];
+        auto intCoeffs = fvm.internalCoeffs(patchi);
+        auto bouCoeffs = fvm.boundaryCoeffs(patchi);
 
-        //fvm.internalCoeffs()[patchi] = patchFlux*psf.valueInternalCoeffs(pw);
-        multiply(intCoeffs, patchFlux, psf.valueInternalCoeffs(pw)());
+        //fvm.internalCoeffs()[patchi] =
+        //    patchFlux*psf.valueInternalCoeffs(pw);
+        multiply
+        (
+            static_cast<Field<Type>&>(intCoeffs),
+            patchFlux,
+            psf.valueInternalCoeffs(pw)()
+        );
 
-        //fvm.boundaryCoeffs()[patchi] = -patchFlux*psf.valueBoundaryCoeffs(pw);
-        multiply(bouCoeffs, patchFlux, psf.valueBoundaryCoeffs(pw)());
-        bouCoeffs.negate();
+        //fvm.boundaryCoeffs()[patchi] =
+        //    -patchFlux*psf.valueBoundaryCoeffs(pw);
+        multiply
+        (
+            static_cast<Field<Type>&>(bouCoeffs),
+            patchFlux,
+            psf.valueBoundaryCoeffs(pw)()
+        );
+        static_cast<Field<Type>&>(bouCoeffs).negate();
     }
 
     if (tinterpScheme_().corrected())

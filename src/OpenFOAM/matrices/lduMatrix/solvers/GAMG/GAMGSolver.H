@@ -128,11 +128,14 @@ class GAMGSolver
         //- Hierarchy of interfaces in lduInterfaceFieldPtrs form
         PtrList<lduInterfaceFieldPtrsList> interfaceLevels_;
 
-        //- Hierarchy of interface boundary coefficients
-        PtrList<FieldField<Field, scalar>> interfaceLevelsBouCoeffs_;
+        //- Hierarchy of interface boundary coefficients (flat storage)
+        PtrList<scalarField> interfaceLevelsBouCoeffs_;
 
-        //- Hierarchy of interface internal coefficients
-        PtrList<FieldField<Field, scalar>> interfaceLevelsIntCoeffs_;
+        //- Hierarchy of interface internal coefficients (flat storage)
+        PtrList<scalarField> interfaceLevelsIntCoeffs_;
+
+        //- Hierarchy of interface coefficient offsets
+        PtrList<labelList> interfaceLevelsOffsets_;
 
         //- LU decomposed coarsest matrix
         autoPtr<LUscalarMatrix> coarsestLUMatrixPtr_;
@@ -155,17 +158,14 @@ class GAMGSolver
         //- Simplified access to matrix level
         const lduMatrix& matrixLevel(const label i) const;
 
-        //- Simplified access to interface boundary coeffs level
-        const FieldField<Field, scalar>& interfaceBouCoeffsLevel
-        (
-            const label i
-        ) const;
+        //- Simplified access to interface boundary coeffs data (flat storage)
+        const scalarField& interfaceBouCoeffsLevelData(const label i) const;
 
-        //- Simplified access to interface internal coeffs level
-        const FieldField<Field, scalar>& interfaceIntCoeffsLevel
-        (
-            const label i
-        ) const;
+        //- Simplified access to interface internal coeffs data (flat storage)
+        const scalarField& interfaceIntCoeffsLevelData(const label i) const;
+
+        //- Simplified access to interface coeffs offsets
+        const labelList& interfaceCoeffsLevelOffsets(const label i) const;
 
         //- Agglomerate coarse matrix. Supply mesh to use - so we can
         //  construct temporary matrix on the fine mesh (instead of the coarse
@@ -184,8 +184,9 @@ class GAMGSolver
             const lduInterfacePtrsList& coarseMeshInterfaces,
             PtrList<lduInterfaceField>& coarsePrimInterfaces,
             lduInterfaceFieldPtrsList& coarseInterfaces,
-            FieldField<Field, scalar>& coarseInterfaceBouCoeffs,
-            FieldField<Field, scalar>& coarseInterfaceIntCoeffs
+            scalarField& coarseInterfaceBouCoeffs,
+            scalarField& coarseInterfaceIntCoeffs,
+            const labelList& coeffsOffsets
         ) const;
 
         //- Collect matrices from other processors
@@ -195,8 +196,9 @@ class GAMGSolver
             const label comm,
 
             const lduMatrix& mat,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
-            const FieldField<Field, scalar>& interfaceIntCoeffs,
+            const scalarField& interfaceBouCoeffs,
+            const scalarField& interfaceIntCoeffs,
+            const labelList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
 
             PtrList<lduMatrix>& otherMats,
@@ -216,8 +218,9 @@ class GAMGSolver
 
             // Resulting matrix
             autoPtr<lduMatrix>& allMatrixPtr,
-            FieldField<Field, scalar>& allInterfaceBouCoeffs,
-            FieldField<Field, scalar>& allInterfaceIntCoeffs,
+            autoPtr<scalarField>& allInterfaceBouCoeffs,
+            autoPtr<scalarField>& allInterfaceIntCoeffs,
+            autoPtr<labelList>& allCoeffsOffsets,
             PtrList<lduInterfaceField>& allPrimitiveInterfaces,
             lduInterfaceFieldPtrsList& allInterfaces
         ) const;
@@ -236,7 +239,8 @@ class GAMGSolver
             solveScalarField& psi,
             solveScalarField& Apsi,
             const lduMatrix& m,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const direction cmpt
         ) const;
@@ -248,7 +252,8 @@ class GAMGSolver
             solveScalarField& psi,
             solveScalarField& Apsi,
             const lduMatrix& m,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const labelList& restrictAddressing,
             #ifdef FOAM_OFFLOAD
@@ -270,7 +275,8 @@ class GAMGSolver
             solveScalarField& field,
             solveScalarField& Acf,
             const lduMatrix& A,
-            const FieldField<Field, scalar>& interfaceLevelBouCoeffs,
+            const scalarField& interfaceLevelBouCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaceLevel,
             const solveScalarField& source,
             const direction cmpt
@@ -344,8 +350,9 @@ public:
         (
             const word& fieldName,
             const lduMatrix& matrix,
-            const FieldField<Field, scalar>& interfaceBouCoeffs,
-            const FieldField<Field, scalar>& interfaceIntCoeffs,
+            const scalarField& interfaceBouCoeffsData,
+            const scalarField& interfaceIntCoeffsData,
+            const labelUList& coeffsOffsets,
             const lduInterfaceFieldPtrsList& interfaces,
             const dictionary& solverControls
         );

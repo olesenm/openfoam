@@ -168,44 +168,46 @@ fusedGaussLaplacianScheme<Type, GType>::fvmLaplacianUncorrected
         const fvsPatchScalarField& pDeltaCoeffs =
             deltaCoeffs.boundaryField()[patchi];
 
-        auto& intCoeffs = fvm.internalCoeffs()[patchi];
-        auto& bouCoeffs = fvm.boundaryCoeffs()[patchi];
+        auto intCoeffs = fvm.internalCoeffs(patchi);
+        auto bouCoeffs = fvm.boundaryCoeffs(patchi);
 
         if (pvf.coupled())
         {
-            //intCoeffs = pGamma*pvf.gradientInternalCoeffs(pDeltaCoeffs);
+            //intCoeffs =
+            //    pGamma*pvf.gradientInternalCoeffs(pDeltaCoeffs);
             multiply
             (
-                intCoeffs,
+                static_cast<Field<Type>&>(intCoeffs),
                 pGamma,
                 pvf.gradientInternalCoeffs(pDeltaCoeffs)()
             );
-            //bouCoeffs = -pGamma*pvf.gradientBoundaryCoeffs(pDeltaCoeffs);
+            //bouCoeffs =
+            //    -pGamma*pvf.gradientBoundaryCoeffs(pDeltaCoeffs);
             multiply
             (
-                bouCoeffs,
+                static_cast<Field<Type>&>(bouCoeffs),
                 pGamma,
                 pvf.gradientBoundaryCoeffs(pDeltaCoeffs)()
             );
-            bouCoeffs.negate();
+            static_cast<Field<Type>&>(bouCoeffs).negate();
         }
         else
         {
             //intCoeffs = pGamma*pvf.gradientInternalCoeffs();
             multiply
             (
-                intCoeffs,
+                static_cast<Field<Type>&>(intCoeffs),
                 pGamma,
                 pvf.gradientInternalCoeffs()()
             );
-            //bouCoeffs = -pGamma*pvf.gradientBoundaryCoeffs();
+            //bouCoeffs = pGamma*pvf.gradientBoundaryCoeffs();
             multiply
             (
-                bouCoeffs,
+                static_cast<Field<Type>&>(bouCoeffs),
                 pGamma,
                 pvf.gradientBoundaryCoeffs()()
             );
-            bouCoeffs.negate();
+            static_cast<Field<Type>&>(bouCoeffs).negate();
         }
     }
 

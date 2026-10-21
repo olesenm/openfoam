@@ -27,6 +27,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "lduMatrix.H"
+#include "DynamicField.H"
 #include "IOstreams.H"
 #include "Switch.H"
 #include "objectRegistry.H"
@@ -70,22 +71,22 @@ Foam::lduMatrix::lduMatrix(const lduMatrix& A)
 {
     if (A.diagPtr_)
     {
-        diagPtr_ = std::make_unique<scalarField>(*(A.diagPtr_));
+        diagPtr_ = std::make_unique<DynamicField<scalar>>(*(A.diagPtr_));
     }
 
     if (A.upperPtr_)
     {
-        upperPtr_ = std::make_unique<scalarField>(*(A.upperPtr_));
+        upperPtr_ = std::make_unique<DynamicField<scalar>>(*(A.upperPtr_));
     }
 
     if (A.lowerPtr_)
     {
-        lowerPtr_ = std::make_unique<scalarField>(*(A.lowerPtr_));
+        lowerPtr_ = std::make_unique<DynamicField<scalar>>(*(A.lowerPtr_));
     }
 
     if (A.lowerCSRPtr_)
     {
-        lowerCSRPtr_ = std::make_unique<scalarField>(*(A.lowerCSRPtr_));
+        lowerCSRPtr_ = std::make_unique<DynamicField<scalar>>(*(A.lowerCSRPtr_));
     }
 
     // No need to copy work
@@ -120,24 +121,24 @@ Foam::lduMatrix::lduMatrix(lduMatrix& A, bool reuse)
         // Copy assignment
         if (A.diagPtr_)
         {
-            diagPtr_ = std::make_unique<scalarField>(*(A.diagPtr_));
+            diagPtr_ = std::make_unique<DynamicField<scalar>>(*(A.diagPtr_));
         }
 
         if (A.upperPtr_)
         {
-            upperPtr_ = std::make_unique<scalarField>(*(A.upperPtr_));
+            upperPtr_ = std::make_unique<DynamicField<scalar>>(*(A.upperPtr_));
         }
 
         if (A.lowerPtr_)
         {
-            lowerPtr_ = std::make_unique<scalarField>(*(A.lowerPtr_));
+            lowerPtr_ = std::make_unique<DynamicField<scalar>>(*(A.lowerPtr_));
         }
 
         // Note: no real need to keep lowerCSR except we use it (hasLowerCSR())
         //       to trigger certain actions
         if (A.lowerCSRPtr_)
         {
-            lowerCSRPtr_ = std::make_unique<scalarField>(*(A.lowerCSRPtr_));
+            lowerCSRPtr_ = std::make_unique<DynamicField<scalar>>(*(A.lowerCSRPtr_));
         }
     }
 }
@@ -153,15 +154,15 @@ Foam::lduMatrix::lduMatrix(const lduMesh& mesh, Istream& is)
 
     if (withLower)
     {
-        lowerPtr_ = std::make_unique<scalarField>(is);
+        lowerPtr_ = std::make_unique<DynamicField<scalar>>(is);
     }
     if (withDiag)
     {
-        diagPtr_ = std::make_unique<scalarField>(is);
+        diagPtr_ = std::make_unique<DynamicField<scalar>>(is);
     }
     if (withUpper)
     {
-        upperPtr_ = std::make_unique<scalarField>(is);
+        upperPtr_ = std::make_unique<DynamicField<scalar>>(is);
     }
     if (withLowerCSR)
     {
@@ -174,7 +175,7 @@ Foam::lduMatrix::lduMatrix(const lduMesh& mesh, Istream& is)
         }
         else
         {
-            lowerCSRPtr_ = std::make_unique<scalarField>(is);
+            lowerCSRPtr_ = std::make_unique<DynamicField<scalar>>(is);
         }
     }
 }
@@ -217,7 +218,7 @@ Foam::scalarField& Foam::lduMatrix::diag()
     if (!diagPtr_)
     {
         diagPtr_ =
-            std::make_unique<scalarField>(lduAddr().size(), Foam::zero{});
+            std::make_unique<DynamicField<scalar>>(lduAddr().size(), Foam::zero{});
     }
 
     return *diagPtr_;
@@ -232,7 +233,7 @@ Foam::scalarField& Foam::lduMatrix::diag(label size)
         // {
         //     size = lduAddr().size();
         // }
-        diagPtr_ = std::make_unique<scalarField>(size, Foam::zero{});
+        diagPtr_ = std::make_unique<DynamicField<scalar>>(size, Foam::zero{});
     }
 
     return *diagPtr_;
@@ -265,7 +266,7 @@ Foam::scalarField& Foam::lduMatrix::upper()
     {
         if (lowerPtr_)
         {
-            upperPtr_ = std::make_unique<scalarField>(*lowerPtr_);
+            upperPtr_ = std::make_unique<DynamicField<scalar>>(*lowerPtr_);
         }
         else
         {
@@ -273,7 +274,7 @@ Foam::scalarField& Foam::lduMatrix::upper()
             lowerCSRPtr_.reset(nullptr);
 
             upperPtr_ =
-                std::make_unique<scalarField>
+                std::make_unique<DynamicField<scalar>>
                 (
                     lduAddr().lowerAddr().size(),
                     Foam::zero{}
@@ -291,7 +292,7 @@ Foam::scalarField& Foam::lduMatrix::upper(label nCoeffs)
     {
         if (lowerPtr_)
         {
-            upperPtr_ = std::make_unique<scalarField>(*lowerPtr_);
+            upperPtr_ = std::make_unique<DynamicField<scalar>>(*lowerPtr_);
         }
         else
         {
@@ -302,7 +303,7 @@ Foam::scalarField& Foam::lduMatrix::upper(label nCoeffs)
             // {
             //     nCoeffs = lduAddr().lowerAddr().size();
             // }
-            upperPtr_ = std::make_unique<scalarField>(nCoeffs, Foam::zero{});
+            upperPtr_ = std::make_unique<DynamicField<scalar>>(nCoeffs, Foam::zero{});
         }
     }
 
@@ -338,12 +339,12 @@ Foam::scalarField& Foam::lduMatrix::lower()
 
         if (upperPtr_)
         {
-            lowerPtr_ = std::make_unique<scalarField>(*upperPtr_);
+            lowerPtr_ = std::make_unique<DynamicField<scalar>>(*upperPtr_);
         }
         else
         {
             lowerPtr_ =
-                std::make_unique<scalarField>
+                std::make_unique<DynamicField<scalar>>
                 (
                     lduAddr().lowerAddr().size(),
                     Foam::zero{}
@@ -363,7 +364,7 @@ Foam::scalarField& Foam::lduMatrix::lower(label nCoeffs)
 
         if (upperPtr_)
         {
-            lowerPtr_ = std::make_unique<scalarField>(*upperPtr_);
+            lowerPtr_ = std::make_unique<DynamicField<scalar>>(*upperPtr_);
         }
         else
         {
@@ -372,7 +373,7 @@ Foam::scalarField& Foam::lduMatrix::lower(label nCoeffs)
             //     nCoeffs = lduAddr().lowerAddr().size();
             // }
             lowerPtr_ =
-                std::make_unique<scalarField>(nCoeffs, Foam::zero{});
+                std::make_unique<DynamicField<scalar>>(nCoeffs, Foam::zero{});
         }
     }
 
@@ -386,7 +387,7 @@ const Foam::scalarField& Foam::lduMatrix::lowerCSR() const
     {
         const label nLower = lduAddr().losortAddr().size();
 
-        lowerCSRPtr_ = std::make_unique<scalarField>(nLower);
+        lowerCSRPtr_ = std::make_unique<DynamicField<scalar>>(nLower);
 
         if (lowerPtr_)
         {
@@ -414,7 +415,7 @@ Foam::scalarField& Foam::lduMatrix::lowerCSR()
     {
         const label nLower = lduAddr().losortAddr().size();
 
-        lowerCSRPtr_ = std::make_unique<scalarField>(nLower);
+        lowerCSRPtr_ = std::make_unique<DynamicField<scalar>>(nLower);
 
         if (lowerPtr_)
         {

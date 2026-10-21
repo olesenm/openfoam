@@ -295,7 +295,7 @@ public:
     #ifdef FOAM_OFFLOAD
     static void createSort
     (
-        const labelList& list, 
+        const labelList& list,
         labelList& sort
     );
 
@@ -556,8 +556,8 @@ public:
             template<class Type>
             void restrictField
             (
-                Field<Type>& cf,
-                const Field<Type>& ff,
+                UList<Type>& cf,
+                const UList<Type>& ff,
                 const labelList& sort,
                 const labelList& target,
                 const labelList& targetStart
@@ -577,8 +577,8 @@ public:
             template<class Type>
             void restrictField
             (
-                Field<Type>& cf,
-                const Field<Type>& ff,
+                UList<Type>& cf,
+                const UList<Type>& ff,
                 const labelList& fineToCoarse
             ) const;
 

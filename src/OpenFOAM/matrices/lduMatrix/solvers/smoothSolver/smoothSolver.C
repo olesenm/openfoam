@@ -50,8 +50,9 @@ Foam::smoothSolver::smoothSolver
 (
     const word& fieldName,
     const lduMatrix& matrix,
-    const FieldField<Field, scalar>& interfaceBouCoeffs,
-    const FieldField<Field, scalar>& interfaceIntCoeffs,
+    const scalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceIntCoeffsData,
+    const labelUList& coeffsOffsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const dictionary& solverControls
 )
@@ -60,8 +61,9 @@ Foam::smoothSolver::smoothSolver
     (
         fieldName,
         matrix,
-        interfaceBouCoeffs,
-        interfaceIntCoeffs,
+        interfaceBouCoeffsData,
+        interfaceIntCoeffsData,
+        coeffsOffsets,
         interfaces,
         solverControls
     )
@@ -101,8 +103,9 @@ Foam::solverPerformance Foam::smoothSolver::solve
         (
             fieldName_,
             matrix_,
-            interfaceBouCoeffs_,
-            interfaceIntCoeffs_,
+            interfaceBouCoeffsData_,
+            interfaceIntCoeffsData_,
+            coeffsOffsets_,
             interfaces_,
             controlDict_
         );
@@ -129,7 +132,7 @@ Foam::solverPerformance Foam::smoothSolver::solve
             solveScalarField temp(psi.size());
 
             // Calculate A.psi
-            matrix_.Amul(Apsi, psi, interfaceBouCoeffs_, interfaces_, cmpt);
+            matrix_.Amul(Apsi, psi, interfaceBouCoeffsData_, coeffsOffsets_, interfaces_, cmpt);
 
             // Calculate normalisation factor
             normFactor = this->normFactor(psi, tsource(), Apsi, temp);
@@ -169,8 +172,9 @@ Foam::solverPerformance Foam::smoothSolver::solve
             (
                 fieldName_,
                 matrix_,
-                interfaceBouCoeffs_,
-                interfaceIntCoeffs_,
+                interfaceBouCoeffsData_,
+                interfaceIntCoeffsData_,
+                coeffsOffsets_,
                 interfaces_,
                 controlDict_
             );
@@ -191,7 +195,8 @@ Foam::solverPerformance Foam::smoothSolver::solve
                     (
                         psi,
                         source,
-                        interfaceBouCoeffs_,
+                        interfaceBouCoeffsData_,
+                        coeffsOffsets_,
                         interfaces_,
                         cmpt
                     );

@@ -121,8 +121,6 @@ void waWallFunctionFvPatchScalarField::manipulateMatrix
     scalarField& Diag = matrix.diag();
     scalarField& lower = matrix.lower();
     scalarField& upper = matrix.upper();
-    FieldField<Field, scalar>& internalCoeffs = matrix.internalCoeffs();
-    FieldField<Field, scalar>& boundaryCoeffs = matrix.boundaryCoeffs();
     const fvMesh& mesh = patch().boundaryMesh().mesh();
     const labelUList& faceCells = patch().faceCells();
 
@@ -226,12 +224,15 @@ void waWallFunctionFvPatchScalarField::manipulateMatrix
             else
             {
                 const label patchi = mesh.boundaryMesh().whichPatch(facei);
-                if (internalCoeffs[patchi].size())
+                auto internalCoeffs = matrix.internalCoeffs(patchi);
+                auto boundaryCoeffs = matrix.boundaryCoeffs(patchi);
+
+                if (internalCoeffs.size())
                 {
                     label patchFacei =
                         mesh.boundaryMesh()[patchi].whichFace(facei);
-                    internalCoeffs[patchi][patchFacei] = Zero;
-                    boundaryCoeffs[patchi][patchFacei] = Zero;
+                    internalCoeffs[patchFacei] = Zero;
+                    boundaryCoeffs[patchFacei] = Zero;
                 }
             }
         }

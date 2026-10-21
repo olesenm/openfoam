@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -915,17 +916,22 @@ void Foam::cyclicAMIFvPatchField<Type>::manipulateMatrix
     {
         const label index = this->patch().index();
 
+        // Save old matrix boundary coefficients
+        const Field<Type> oldIntCoeffs(matrix.internalCoeffs());
+        const Field<Type> oldBndCoeffs(matrix.boundaryCoeffs());
+        const labelList oldCoeffsOffset(matrix.coeffsOffset());
+
         const label globalPatchID =
             matrix.lduMeshAssembly().patchLocalToGlobalMap()[mat][index];
 
         const Field<scalar> intCoeffsCmpt
         (
-            matrix.internalCoeffs()[globalPatchID].component(cmpt)
+            matrix.internalCoeffs(globalPatchID).component(cmpt)
         );
 
         const Field<scalar> boundCoeffsCmpt
         (
-            matrix.boundaryCoeffs()[globalPatchID].component(cmpt)
+            matrix.boundaryCoeffs(globalPatchID).component(cmpt)
         );
 
         tmp<Field<scalar>> tintCoeffs(coeffs(matrix, intCoeffsCmpt, mat));
@@ -964,14 +970,9 @@ void Foam::cyclicAMIFvPatchField<Type>::manipulateMatrix
         // matrix.flux()
         if (matrix.psi(mat).mesh().fluxRequired(this->internalField().name()))
         {
-            matrix.internalCoeffs().set
-            (
-                globalPatchID, intCoeffs*pTraits<Type>::one
-            );
-            matrix.boundaryCoeffs().set
-            (
-                globalPatchID, bndCoeffs*pTraits<Type>::one
-            );
+            // Copy the internal and boundary coefficients to the assembly
+            // matrix. Note that the sizes of intCoeffs and bndCoeffs have
+            // changed!
 
             const label nbrPathID =
                 cyclicAMIPatch_.cyclicAMIPatch().neighbPatchID();
@@ -980,14 +981,68 @@ void Foam::cyclicAMIFvPatchField<Type>::manipulateMatrix
                 matrix.lduMeshAssembly().patchLocalToGlobalMap()
                     [mat][nbrPathID];
 
-            matrix.internalCoeffs().set
-            (
-                nbrGlobalPatchID, intCoeffs*pTraits<Type>::one
-            );
-            matrix.boundaryCoeffs().set
-            (
-                nbrGlobalPatchID, bndCoeffs*pTraits<Type>::one
-            );
+
+            // Work offsets into sizes, correct, and update
+            labelList newOffset(matrix.coeffsOffset().size());
+            {
+                labelList newSizes(matrix.nPatches());
+                forAll(newSizes, patchi)
+                {
+                    newSizes[patchi] =
+                       matrix.coeffsOffset()[patchi+1]
+                     - matrix.coeffsOffset()[patchi];
+                }
+                newSizes[globalPatchID] = intCoeffs.size();
+                newSizes[nbrGlobalPatchID] = intCoeffs.size();
+                newOffset[0] = 0;
+                for (label i = 1; i < newOffset.size(); ++i)
+                {
+                    newOffset[i] = newOffset[i-1] + newSizes[i-1];
+                }
+            }
+
+            // New offsets and resize internal and boundary coefficients
+            matrix.coeffsOffset() = newOffset;
+            matrix.internalCoeffs().resize_nocopy(matrix.coeffsOffset().last());
+            matrix.boundaryCoeffs().resize_nocopy(matrix.coeffsOffset().last());
+
+            // Insert new coefficients
+            for (label patchi = 0; patchi < matrix.nPatches(); ++patchi)
+            {
+                if (patchi == globalPatchID)
+                {
+                    matrix.internalCoeffs(globalPatchID) =
+                        intCoeffs*pTraits<Type>::one;
+                    matrix.boundaryCoeffs(globalPatchID) =
+                        bndCoeffs*pTraits<Type>::one;
+                }
+                else if (patchi == nbrGlobalPatchID)
+                {
+                    matrix.internalCoeffs(nbrGlobalPatchID) =
+                        intCoeffs*pTraits<Type>::one;
+                    matrix.boundaryCoeffs(nbrGlobalPatchID) =
+                        bndCoeffs*pTraits<Type>::one;
+                }
+                else
+                {
+                    // Existing patch from old coefficients
+                    const label oldOffset = oldCoeffsOffset[patchi];
+                    matrix.internalCoeffs(patchi) =
+                        SubList<Type>
+                        (
+                            oldIntCoeffs,
+                            oldCoeffsOffset[patchi+1] - oldOffset,
+                            oldOffset
+                        );
+                    matrix.boundaryCoeffs(patchi) =
+                        SubList<Type>
+                        (
+                            oldBndCoeffs,
+                            oldCoeffsOffset[patchi+1] - oldOffset,
+                            oldOffset
+                        );
+                }
+            }
         }
     }
 }
@@ -1002,12 +1057,10 @@ Foam::cyclicAMIFvPatchField<Type>::coeffs
     const label mat
 ) const
 {
+    const auto& matrixAssembly = matrix.lduMeshAssembly();
     const label index(this->patch().index());
 
-    const label nSubFaces
-    (
-        matrix.lduMeshAssembly().cellBoundMap()[mat][index].size()
-    );
+    const label nSubFaces(matrixAssembly.cellBoundMap()[mat][index].size());
 
     auto tmapCoeffs = tmp<Field<scalar>>::New(nSubFaces, Zero);
     auto& mapCoeffs = tmapCoeffs.ref();
@@ -1022,7 +1075,7 @@ Foam::cyclicAMIFvPatchField<Type>::coeffs
         for(label i=0; i<w.size(); i++)
         {
             const label localFaceId =
-                matrix.lduMeshAssembly().facePatchFaceMap()[mat][index][subFaceI];
+                matrixAssembly.facePatchFaceMap()[mat][index][subFaceI];
             mapCoeffs[subFaceI] = w[i]*coeffs[localFaceId];
             subFaceI++;
         }

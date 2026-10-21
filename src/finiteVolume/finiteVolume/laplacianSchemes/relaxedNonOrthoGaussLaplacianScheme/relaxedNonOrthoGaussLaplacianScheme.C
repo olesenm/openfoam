@@ -74,15 +74,15 @@ relaxedNonOrthoGaussLaplacianScheme<Type, GType>::fvmLaplacianUncorrected
 
         if (pvf.coupled())
         {
-            fvm.internalCoeffs()[patchi] =
+            fvm.internalCoeffs(patchi) =
                 pGamma*pvf.gradientInternalCoeffs(pDeltaCoeffs);
-            fvm.boundaryCoeffs()[patchi] =
+            fvm.boundaryCoeffs(patchi) =
                -pGamma*pvf.gradientBoundaryCoeffs(pDeltaCoeffs);
         }
         else
         {
-            fvm.internalCoeffs()[patchi] = pGamma*pvf.gradientInternalCoeffs();
-            fvm.boundaryCoeffs()[patchi] = -pGamma*pvf.gradientBoundaryCoeffs();
+            fvm.internalCoeffs(patchi) = pGamma*pvf.gradientInternalCoeffs();
+            fvm.boundaryCoeffs(patchi) = -pGamma*pvf.gradientBoundaryCoeffs();
         }
     }
 

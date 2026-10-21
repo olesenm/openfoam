@@ -887,12 +887,12 @@ void Foam::cyclicACMIFvPatchField<Type>::manipulateMatrix
 
         const Field<scalar> intCoeffsCmpt
         (
-            matrix.internalCoeffs()[globalPatchID].component(cmpt)
+            matrix.internalCoeffs(globalPatchID).component(cmpt)
         );
 
         const Field<scalar> boundCoeffsCmpt
         (
-            matrix.boundaryCoeffs()[globalPatchID].component(cmpt)
+            matrix.boundaryCoeffs(globalPatchID).component(cmpt)
         );
 
         tmp<Field<scalar>> tintCoeffs(coeffs(matrix, intCoeffsCmpt, mat));
@@ -931,14 +931,10 @@ void Foam::cyclicACMIFvPatchField<Type>::manipulateMatrix
         // matrix.flux()
         if (matrix.psi(mat).mesh().fluxRequired(this->internalField().name()))
         {
-            matrix.internalCoeffs().set
-            (
-                globalPatchID, intCoeffs*pTraits<Type>::one
-            );
-            matrix.boundaryCoeffs().set
-            (
-                globalPatchID, bndCoeffs*pTraits<Type>::one
-            );
+            matrix.internalCoeffs(globalPatchID) =
+                intCoeffs*pTraits<Type>::one;
+            matrix.boundaryCoeffs(globalPatchID) =
+                bndCoeffs*pTraits<Type>::one;
 
             const label nbrPathID =
                 cyclicACMIPatch_.cyclicACMIPatch().neighbPatchID();
@@ -947,14 +943,10 @@ void Foam::cyclicACMIFvPatchField<Type>::manipulateMatrix
                 matrix.lduMeshAssembly().patchLocalToGlobalMap()
                 [mat][nbrPathID];
 
-            matrix.internalCoeffs().set
-            (
-                nbrGlobalPatchID, intCoeffs*pTraits<Type>::one
-            );
-            matrix.boundaryCoeffs().set
-            (
-                nbrGlobalPatchID, bndCoeffs*pTraits<Type>::one
-            );
+            matrix.internalCoeffs(nbrGlobalPatchID) =
+                intCoeffs*pTraits<Type>::one;
+            matrix.boundaryCoeffs(nbrGlobalPatchID) =
+                bndCoeffs*pTraits<Type>::one;
         }
     }
 }

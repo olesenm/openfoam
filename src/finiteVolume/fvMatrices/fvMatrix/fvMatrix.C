@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2016-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,6 +32,7 @@ License
 
 #include "volFields.H"
 #include "surfaceFields.H"
+#include "SubField.H"
 #include "calculatedFvPatchFields.H"
 #include "extrapolatedCalculatedFvPatchFields.H"
 #include "coupledFvPatchFields.H"
@@ -54,7 +56,7 @@ void Foam::fvMatrix<Type>::addToInternalField
     const labelUList& sort,
     const labelUList& sortStart,
     #endif
-    const Field<Type2>& pf,
+    const UList<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
@@ -153,7 +155,7 @@ void Foam::fvMatrix<Type>::subtractFromInternalField
     const labelUList& sort,
     const labelUList& sortStart,
     #endif
-    const Field<Type2>& pf,
+    const UList<Type2>& pf,
     Field<Type2>& intf
 ) const
 {
@@ -269,7 +271,7 @@ void Foam::fvMatrix<Type>::addBoundaryDiag
                     #else
                     lduAddr().patchAddr(patchi),
                     #endif
-                    internalCoeffs_[patchi].component(solveCmpt),
+                    internalCoeffs(patchi).component(solveCmpt),
                     diag
                 );
             }
@@ -299,7 +301,7 @@ void Foam::fvMatrix<Type>::addCmptAvBoundaryDiag(scalarField& diag) const
                     #else
                     lduAddr().patchAddr(patchi),
                     #endif
-                    cmptAv(internalCoeffs_[patchi]),
+                    cmptAv(internalCoeffs(patchi)),
                     diag
                 );
             }
@@ -327,7 +329,7 @@ void Foam::fvMatrix<Type>::addBoundarySource
 
             if (patchi != -1)
             {
-                const Field<Type>& pbc = boundaryCoeffs_[patchi];
+                const SubField<Type> pbc = boundaryCoeffs(patchi);
 
                 if (!ptf.coupled())
                 {
@@ -609,21 +611,27 @@ void Foam::fvMatrix<Type>::setValuesFromList
 
         forAll(mesh.boundaryMesh(), patchi)
         {
-            if (!internalCoeffs_[patchi].size())
+            SubField<Type> iCoeffs = internalCoeffs(patchi);
+            SubField<Type> bCoeffs = boundaryCoeffs(patchi);
+
+            if (!iCoeffs.size())
+            {
                 continue;
+            }
 
             const labelUList& pcells = mesh.boundary()[patchi].faceCells();
             const label nPatchFaces = pcells.size();
-            labelRange patchIndices(nPatchFaces);
+
+            const labelRange patchIndices(nPatchFaces);
 
             // Resolve the PtrList element references on the host. Indexing
             // internalCoeffs_[patchi] inside the device lambda would invoke
             // UPtrList::operator[] -> at() -> FatalError, which nvc++ cannot
             // compile for the device. Capture raw pointers instead.
-            Type* const intPtr   = internalCoeffs_[patchi].data();
-            Type* const bndPtr   = boundaryCoeffs_[patchi].data();
+            Type* const intPtr = iCoeffs.data();
+            Type* const bndPtr = bCoeffs.data();
             const label* const pcellsPtr = pcells.cdata();
-            const label* const maskPtr   = cellMask.cdata();
+            const label* const maskPtr = cellMask.cdata();
 
             apply_policy(nPatchFaces, [&](auto policy)
             {
@@ -690,13 +698,14 @@ void Foam::fvMatrix<Type>::setValuesFromList
                 }
                 else
                 {
-                    if (internalCoeffs_[patchi].size())
+                    SubField<Type> iCoeffs = internalCoeffs(patchi);
+                    if (iCoeffs.size())
                     {
                         const label patchFacei =
                             mesh.boundaryMesh()[patchi].whichFace(facei);
 
-                        internalCoeffs_[patchi][patchFacei] = Zero;
-                        boundaryCoeffs_[patchi][patchFacei] = Zero;
+                        iCoeffs[patchFacei] = Zero;
+                        boundaryCoeffs(patchi)[patchFacei] = Zero;
                     }
                 }
             }
@@ -768,27 +777,20 @@ Foam::fvMatrix<Type>::fvMatrix
     nMatrix_(0),
     dimensions_(ds),
     source_(psi.size(), Zero),
-    internalCoeffs_(psi.mesh().boundary().size()),
-    boundaryCoeffs_(psi.mesh().boundary().size())
+    internalCoeffs_(psi.mesh().nBoundaryFaces(), Zero),
+    boundaryCoeffs_(psi.mesh().nBoundaryFaces(), Zero),
+    coeffsOffset_(psi.mesh().boundary().size() + 1, 0)
 {
     DebugInFunction
         << "Constructing fvMatrix<Type> for field " << psi_.name() << endl;
 
     checkImplicit();
 
+    // Populate offset array for per-patch coefficient access
     forAll(psi.mesh().boundary(), patchi)
     {
-        internalCoeffs_.set
-        (
-            patchi,
-            new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-        );
-
-        boundaryCoeffs_.set
-        (
-            patchi,
-            new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-        );
+        const label patchSize = psi.mesh().boundary()[patchi].size();
+        coeffsOffset_[patchi+1] = coeffsOffset_[patchi] + patchSize;
     }
 
     auto& psiRef = this->psi(0);
@@ -809,7 +811,8 @@ Foam::fvMatrix<Type>::fvMatrix(const fvMatrix<Type>& fvm)
     dimensions_(fvm.dimensions_),
     source_(fvm.source_),
     internalCoeffs_(fvm.internalCoeffs_),
-    boundaryCoeffs_(fvm.boundaryCoeffs_)
+    boundaryCoeffs_(fvm.boundaryCoeffs_),
+    coeffsOffset_(fvm.coeffsOffset_)
 {
     DebugInFunction
         << "Copying fvMatrix<Type> for field " << psi_.name() << endl;
@@ -835,7 +838,8 @@ Foam::fvMatrix<Type>::fvMatrix(const tmp<fvMatrix<Type>>& tmat)
     dimensions_(tmat().dimensions_),
     source_(tmat.constCast().source_, tmat.movable()),
     internalCoeffs_(tmat.constCast().internalCoeffs_, tmat.movable()),
-    boundaryCoeffs_(tmat.constCast().boundaryCoeffs_, tmat.movable())
+    boundaryCoeffs_(tmat.constCast().boundaryCoeffs_, tmat.movable()),
+    coeffsOffset_(tmat.constCast().coeffsOffset_, tmat.movable())
 {
     DebugInFunction
         << "Copy/move fvMatrix<Type> for field " << psi_.name() << endl;
@@ -881,7 +885,7 @@ void Foam::fvMatrix<Type>::setInterfaces
     PtrDynList<lduInterfaceField>& newInterfaces
 )
 {
-    interfaces.setSize(internalCoeffs_.size());
+    interfaces.setSize(coeffsOffset_.size() - 1);
     for (label fieldi = 0; fieldi < nMatrices(); fieldi++)
     {
         const auto& bpsi = this->psi(fieldi).boundaryField();
@@ -1068,130 +1072,122 @@ void Foam::fvMatrix<Type>::mapContributions
 template<class Type>
 void Foam::fvMatrix<Type>::setBounAndInterCoeffs()
 {
-    // If it is a multi-fvMatrix needs correct internalCoeffs and
-    // boundaryCoeffs size
-    if (nMatrix_ > 0)
+    // Count number of interfaces and offsets
+    label interfaceI = 0;
+    for (label i = 0; i < nMatrices(); i++)
     {
-        label interfaceI(0);
-        for (label fieldi = 0; fieldi < nMatrices(); fieldi++)
-        {
-            const auto& psi = this->psi(fieldi);
-
-            forAll(psi.mesh().boundary(), patchi)
-            {
-                interfaceI++;
-            }
-        }
-        internalCoeffs_.setSize(interfaceI);
-        boundaryCoeffs_.setSize(interfaceI);
-
-        interfaceI = 0;
-        for (label fieldi = 0; fieldi < nMatrices(); fieldi++)
-        {
-            const auto& psi = this->psi(fieldi);
-
-            forAll(psi.mesh().boundary(), patchi)
-            {
-                internalCoeffs_.set
-                (
-                    interfaceI,
-                    new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-                );
-
-                boundaryCoeffs_.set
-                (
-                    interfaceI,
-                    new Field<Type>(psi.mesh().boundary()[patchi].size(), Zero)
-                );
-                interfaceI++;
-            }
-        }
+        interfaceI += this->psi(i).mesh().boundary().size();
     }
 
-    for (label i=0; i < nMatrices(); ++i)
+    // Sizes in terms of new ordering
+    labelList sizes(interfaceI, 0);
+    for (label i = 0; i < nMatrices(); i++)
     {
-        const auto& bpsi = this->psi(i).boundaryField();
-
-        // Cache to-be implicit internal/boundary
-        FieldField<Field, Type> boundary(bpsi.size());
-        FieldField<Field, Type> internal(bpsi.size());
-
-        label implicit = 0;
-        forAll(bpsi, patchI)
-        {
-            label globalPatchId = lduMeshPtr()->patchMap()[i][patchI];
-            if (globalPatchId == -1)
-            {
-                boundary.set
-                (
-                    implicit,
-                    matrix(i).boundaryCoeffs()[patchI].clone()
-                );
-                internal.set
-                (
-                    implicit,
-                    matrix(i).internalCoeffs()[patchI].clone()
-                );
-                implicit++;
-            }
-        }
-
-        // Update non-implicit patches (re-order)
-        forAll(bpsi, patchI)
+        const auto& boundary = this->psi(i).mesh().boundary();
+        forAll(boundary, patchI)
         {
             label globalPatchId = lduMeshPtr()->patchMap()[i][patchI];
             if (globalPatchId != -1)
             {
-                if (matrix(i).internalCoeffs().set(patchI))
-                {
-                    internalCoeffs_.set
-                    (
-                        globalPatchId,
-                        matrix(i).internalCoeffs()[patchI].clone()
-                    );
-                }
-
-                if (matrix(i).boundaryCoeffs().set(patchI))
-                {
-                    boundaryCoeffs_.set
-                    (
-                        globalPatchId,
-                        matrix(i).boundaryCoeffs()[patchI].clone()
-                    );
-                }
+                sizes[globalPatchId] = boundary[patchI].size();
             }
-        }
-
-        // Store implicit patches at the end of the list
-        implicit = 0;
-        forAll(bpsi, patchI)
-        {
-            label globalPatchId = lduMeshPtr()->patchMap()[i][patchI];
-            if (globalPatchId == -1)
+            else
             {
-                const label implicitPatchId =
-                     lduMeshPtr()->patchLocalToGlobalMap()[i][patchI];
-
-                internalCoeffs_.set
-                (
-                    implicitPatchId, internal[implicit].clone()
-                );
-                boundaryCoeffs_.set
-                (
-                    implicitPatchId, boundary[implicit].clone()
-                );
-
-                implicit++;
+                globalPatchId =
+                    lduMeshPtr()->patchLocalToGlobalMap()[i][patchI];
+                sizes[globalPatchId] = boundary[patchI].size();
             }
         }
     }
 
-//    forAll(internalCoeffs_, patchI)
-//    {
-//         DebugVar(patchI)
-//         DebugVar(internalCoeffs_[patchI])
-//         DebugVar(boundaryCoeffs_[patchI])
-//    }
+    // Sum up to get offsets
+    labelList offsets(sizes.size()+1);
+    offsets[0] = 0;
+    for (label i = 1; i <= sizes.size(); i++)
+    {
+        offsets[i] = offsets[i-1] + sizes[i-1];
+    }
+
+    // Construct new internal/boundary in new order:
+    // - global patches first (according to patchMap())
+    // - implicit patches next (according to patchLocalToGlobalMap())
+
+    Field<Type> newInternalCoeffs(offsets.last());
+    Field<Type> newBoundaryCoeffs(offsets.last());
+
+    // Preserved patches first
+    for (label i = 0; i < nMatrices(); i++)
+    {
+        const auto& boundary = this->psi(i).mesh().boundary();
+        const auto& matrix = this->matrix(i);
+        forAll(boundary, patchI)
+        {
+            const label globalPatchId = lduMeshPtr()->patchMap()[i][patchI];
+            if (globalPatchId != -1)
+            {
+                const auto srcInt = matrix.internalCoeffs(patchI);
+                SubList<Type>
+                (
+                    newInternalCoeffs,
+                    srcInt.size(),
+                    offsets[globalPatchId]
+                ) = srcInt;
+
+                const auto srcBnd = matrix.boundaryCoeffs(patchI);
+                SubList<Type>
+                (
+                    newBoundaryCoeffs,
+                    srcBnd.size(),
+                    offsets[globalPatchId]
+                ) = srcBnd;
+            }
+        }
+    }
+
+    // Implicit patches next
+    for (label i = 0; i < nMatrices(); i++)
+    {
+        const auto& boundary = this->psi(i).mesh().boundary();
+        const auto& matrix = this->matrix(i);
+        forAll(boundary, patchI)
+        {
+            if (lduMeshPtr()->patchMap()[i][patchI] == -1)
+            {
+                const label globalPatchId =
+                    lduMeshPtr()->patchLocalToGlobalMap()[i][patchI];
+
+                const auto srcInt = matrix.internalCoeffs(patchI);
+                SubList<Type>
+                (
+                    newInternalCoeffs,
+                    srcInt.size(),
+                    offsets[globalPatchId]
+                ) = srcInt;
+
+                const auto srcBnd = matrix.boundaryCoeffs(patchI);
+                SubList<Type>
+                (
+                    newBoundaryCoeffs,
+                    srcBnd.size(),
+                    offsets[globalPatchId]
+                ) = srcBnd;
+            }
+        }
+    }
+
+    internalCoeffs_ = std::move(newInternalCoeffs);
+    boundaryCoeffs_ = std::move(newBoundaryCoeffs);
+    coeffsOffset_ = std::move(offsets);
+
+    // Pout<< "source:" << flatOutput(source_) << endl;
+    // for (label patchi = 0; patchi < coeffsOffset_.size()-1; ++patchi)
+    // {
+    //     Pout<< "patch:" << patchi
+    //         << " offset: " << coeffsOffset_[patchi]
+    //         << " to " << coeffsOffset_[patchi+1] << endl;
+    //     Pout<< "    internalCoeffs: " << flatOutput(internalCoeffs(patchi)) << endl;
+    //     Pout<< "    boundaryCoeffs: " << flatOutput(boundaryCoeffs(patchi)) << endl;
+    // }
 }
 
 
@@ -1564,11 +1560,11 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
         if (ptf.size())
         {
-            const Field<Type>& iCoeffs = internalCoeffs_[patchi];
+            const SubField<Type> iCoeffs = internalCoeffs(patchi);
 
             if (ptf.coupled())
             {
-                const Field<Type>& pCoeffs = boundaryCoeffs_[patchi];
+                const SubField<Type> pCoeffs = boundaryCoeffs(patchi);
 
                 // For coupled boundaries add the diagonal and
                 // off-diagonal contributions
@@ -1582,12 +1578,12 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
                 const labelUList& patchSort =
                     lduAddr().patchSortAddr(patchi);
 
-                auto dFun = [&](const label, const label facei)
+                auto dFun = [iCoeffs](const label, const label facei)
                 {
                     return component(iCoeffs[facei], 0);
                 };
 
-                auto sumOffFun = [&](const label, const label facei)
+                auto sumOffFun = [pCoeffs](const label, const label facei)
                 {
                     return mag(component(pCoeffs[facei], 0));
                 };
@@ -1662,7 +1658,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
                 const labelUList& patchSort =
                     lduAddr().patchSortAddr(patchi);
 
-                auto faceOp = [&](const label, const label facei)
+                auto faceOp = [iCoeffs](const label, const label facei)
                 {
                     return cmptMax(cmptMag(iCoeffs[facei]));
                 };
@@ -1783,7 +1779,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
 
         if (ptf.size())
         {
-            const Field<Type>& iCoeffs = internalCoeffs_[patchi];
+            const SubField<Type> iCoeffs = internalCoeffs(patchi);
 
             if (ptf.coupled())
             {
@@ -1797,7 +1793,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
                 const labelUList& patchSort =
                     lduAddr().patchSortAddr(patchi);
 
-                auto faceOp = [&](const label, const label facei)
+                auto faceOp = [iCoeffs](const label, const label facei)
                 {
                     return component(iCoeffs[facei], 0);
                 };
@@ -1848,7 +1844,7 @@ void Foam::fvMatrix<Type>::relax(const scalar alpha)
                 const labelUList& patchSort =
                     lduAddr().patchSortAddr(patchi);
 
-                auto faceOp = [&](const label, const label facei)
+                auto faceOp = [iCoeffs](const label, const label facei)
                 {
                     return cmptMin(iCoeffs[facei]);
                 };
@@ -1955,7 +1951,7 @@ Foam::tmp<Foam::Field<Type>> Foam::fvMatrix<Type>::DD() const
                 #else
                 lduAddr().patchAddr(patchi),
                 #endif
-                internalCoeffs_[patchi],
+                internalCoeffs(patchi),
                 tdiag.ref()
             );
         }
@@ -2065,7 +2061,7 @@ Foam::tmp<Foam::volScalarField> Foam::fvMatrix<Type>::H1() const
                 #else
                 lduAddr().patchAddr(patchi),
                 #endif
-                boundaryCoeffs_[patchi].component(0),
+                boundaryCoeffs(patchi).component(0),
                 H1_
             );
         }
@@ -2110,61 +2106,65 @@ flux() const
     auto& fieldFlux = tfieldFlux.ref();
     fieldFlux.setOriented();
 
+    auto& ffbf = fieldFlux.boundaryFieldRef();
 
-    FieldField<Field, Type> InternalContrib = internalCoeffs_;
-
+    const label nPatches = psi_.boundaryField().size();
     label fieldi = 0;
+
     if (!useImplicit_)
     {
-        forAll(InternalContrib, patchi)
+        // Direct computation without intermediate FieldField storage
+        forAll(ffbf, patchi)
         {
-            InternalContrib[patchi] =
+            // Internal contribution: internalCoeffs * patchInternalField
+            ffbf[patchi] =
                 cmptMultiply
                 (
-                    InternalContrib[patchi],
+                    Field<Type>(internalCoeffs(patchi)),
                     psi_.boundaryField()[patchi].patchInternalField()
                 );
-        }
-    }
-    else
-    {
-        FieldField<Field, Type> fluxInternalContrib(internalCoeffs_);
 
-        mapContributions(fieldi, fluxInternalContrib, InternalContrib, true);
-    }
-
-    FieldField<Field, Type> NeighbourContrib = boundaryCoeffs_;
-
-    if (!useImplicit_)
-    {
-        forAll(NeighbourContrib, patchi)
-        {
+            // Neighbour contribution: boundaryCoeffs * patchNeighbourField
             if (psi_.boundaryField()[patchi].coupled())
             {
-                NeighbourContrib[patchi] =
+                ffbf[patchi] -=
                     cmptMultiply
                     (
-                        NeighbourContrib[patchi],
+                        Field<Type>(boundaryCoeffs(patchi)),
                         psi_.boundaryField()[patchi].patchNeighbourField()
                     );
             }
+            else
+            {
+                ffbf[patchi] -= Field<Type>(boundaryCoeffs(patchi));
+            }
+            //DebugVar(gSum(ffbf[patchi]))
         }
     }
     else
     {
-        FieldField<Field, Type> fluxBoundaryContrib(boundaryCoeffs_);
+        // Implicit case - needs intermediate storage for mapContributions
+        FieldField<Field, Type> InternalContrib(nPatches);
+        FieldField<Field, Type> fluxInternalContrib(nPatches);
+        forAll(fluxInternalContrib, patchi)
+        {
+            InternalContrib.set(patchi, new Field<Type>(internalCoeffs(patchi)));
+            fluxInternalContrib.set(patchi, new Field<Type>(internalCoeffs(patchi)));
+        }
+        mapContributions(fieldi, fluxInternalContrib, InternalContrib, true);
 
+        FieldField<Field, Type> NeighbourContrib(nPatches);
+        FieldField<Field, Type> fluxBoundaryContrib(nPatches);
+        forAll(fluxBoundaryContrib, patchi)
+        {
+            NeighbourContrib.set(patchi, new Field<Type>(boundaryCoeffs(patchi)));
+            fluxBoundaryContrib.set(patchi, new Field<Type>(boundaryCoeffs(patchi)));
+        }
         mapContributions(fieldi, fluxBoundaryContrib, NeighbourContrib, false);
-    }
-
-
-    {
-        auto& ffbf = fieldFlux.boundaryFieldRef();
 
         forAll(ffbf, patchi)
         {
             ffbf[patchi] = InternalContrib[patchi] - NeighbourContrib[patchi];
-            //DebugVar(gSum(ffbf[patchi]))
         }
     }
 
@@ -2430,15 +2430,15 @@ void Foam::fvMatrix<Type>::operator*=
     lduMatrix::operator*=(dsf.field());
     source_ *= dsf.field();
 
-    forAll(boundaryCoeffs_, patchi)
+    forAll(psi_.boundaryField(), patchi)
     {
         scalarField pisf
         (
             dsf.mesh().boundary()[patchi].patchInternalField(dsf.field())
         );
 
-        internalCoeffs_[patchi] *= pisf;
-        boundaryCoeffs_[patchi] *= pisf;
+        internalCoeffs(patchi) *= pisf;
+        boundaryCoeffs(patchi) *= pisf;
     }
 
     if (faceFluxCorrectionPtr_)
@@ -3671,14 +3671,22 @@ Foam::fvMatrix<Type>::fvMatrix
     nMatrix_(0),
     dimensions_(expr.dimensions()),
     source_(psi.size(), Zero),
-    internalCoeffs_(psi.mesh().boundary().size()),
-    boundaryCoeffs_(psi.mesh().boundary().size())
+    internalCoeffs_(psi.mesh().nBoundaryFaces(), Zero),
+    boundaryCoeffs_(psi.mesh().nBoundaryFaces(), Zero),
+    coeffsOffset_(psi.mesh().boundary().size() + 1, 0)
 {
     DebugInFunction
         << "Constructing fvMatrix<Type> from expression for field "
         << psi_.name() << endl;
 
     checkImplicit();
+
+    // Populate offset array for per-patch coefficient access
+    forAll(psi.mesh().boundary(), patchi)
+    {
+        const label patchSize = psi.mesh().boundary()[patchi].size();
+        coeffsOffset_[patchi+1] = coeffsOffset_[patchi] + patchSize;
+    }
 
     // Fill in diag,upper,lower etc.
     expr.evaluate(*this);

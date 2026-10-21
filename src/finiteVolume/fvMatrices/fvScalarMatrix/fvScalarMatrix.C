@@ -49,10 +49,10 @@ void Foam::fvMatrix<Foam::scalar>::setComponentReference
     {
         if (Pstream::master())
         {
-            internalCoeffs_[patchi][facei] +=
+            internalCoeffs(patchi)[facei] +=
                 diag()[psi_.mesh().boundary()[patchi].faceCells()[facei]];
 
-            boundaryCoeffs_[patchi][facei] +=
+            boundaryCoeffs(patchi)[facei] +=
                 diag()[psi_.mesh().boundary()[patchi].faceCells()[facei]]
                *value;
         }
@@ -100,6 +100,7 @@ Foam::fvMatrix<Foam::scalar>::solver
                 *this,
                 boundaryCoeffs_,
                 internalCoeffs_,
+                coeffsOffset_,
                 interfaces,
                 solverControls
             )
@@ -243,13 +244,14 @@ Foam::solverPerformance Foam::fvMatrix<Foam::scalar>::solveSegregated
     }
     scalarField& psi = tpsi.ref();
 
-    // Solver call
+    // Solver call using flat storage + offsets
     solverPerformance solverPerf = lduMatrix::solver::New
     (
         this->psi(0).name(),
         *this,
         boundaryCoeffs_,
         internalCoeffs_,
+        coeffsOffset_,
         interfaces,
         solverControls
     )->solve(psi, totalSource);
@@ -321,13 +323,16 @@ Foam::tmp<Foam::scalarField> Foam::fvMatrix<Foam::scalar>::residual() const
     ConstPrecisionAdaptor<solveScalar, scalar> tpsi(psif);
     const solveScalarField& psi = tpsi();
 
+    // Calculate residual using flat storage + offsets
+    ConstPrecisionAdaptor<solveScalar, scalar> tboundaryCoeffs(boundaryCoeffs_);
     tmp<solveScalarField> tres
     (
         lduMatrix::residual
         (
             psi,
             source_ - boundaryDiag*psif,
-            boundaryCoeffs_,
+            tboundaryCoeffs(),
+            coeffsOffset_,
             psi_.boundaryField().scalarInterfaces(),
             0
         )

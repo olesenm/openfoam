@@ -40,9 +40,9 @@ namespace GAMG
 template<class Type, bool nonNegative>
 struct restrictT
 {
-    Field<Type>& cf_;
+    UList<Type>& cf_;
 
-    const Field<Type>& ff_;
+    const UList<Type>& ff_;
 
     const labelList& sort_;
     const labelList& target_;
@@ -52,8 +52,8 @@ struct restrictT
 
     restrictT
     (
-        Field<Type>& cf,
-        const Field<Type>& ff,
+        UList<Type>& cf,
+        const UList<Type>& ff,
         const labelList& sort,
         const labelList& target,
         const labelList& targetStart

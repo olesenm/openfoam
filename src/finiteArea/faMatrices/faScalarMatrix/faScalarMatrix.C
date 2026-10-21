@@ -44,9 +44,9 @@ void Foam::faMatrix<Foam::scalar>::setComponentReference
 {
     const labelUList& faceLabels = psi_.mesh().boundary()[patchI].edgeFaces();
 
-    internalCoeffs_[patchI][edgeI] += diag()[faceLabels[edgeI]];
+    internalCoeffs(patchI)[edgeI] += diag()[faceLabels[edgeI]];
 
-    boundaryCoeffs_[patchI][edgeI] = value;
+    boundaryCoeffs(patchI)[edgeI] = value;
 }
 
 
@@ -82,6 +82,7 @@ Foam::solverPerformance Foam::faMatrix<Foam::scalar>::solve
         *this,
         boundaryCoeffs_,
         internalCoeffs_,
+        coeffsOffset_,
         psi_.boundaryField().scalarInterfaces(),
         solverControls
     )->solve(psi.primitiveFieldRef(), totalSource);
@@ -111,13 +112,16 @@ Foam::tmp<Foam::scalarField> Foam::faMatrix<Foam::scalar>::residual() const
     ConstPrecisionAdaptor<solveScalar, scalar> tpsi(psif);
     const solveScalarField& psi = tpsi();
 
+    // Calculate residual using flat storage + offsets
+    ConstPrecisionAdaptor<solveScalar, scalar> tboundaryCoeffs(boundaryCoeffs_);
     tmp<solveScalarField> tres
     (
         lduMatrix::residual
         (
             psi,
             source_ - boundaryDiag*psif,
-            boundaryCoeffs_,
+            tboundaryCoeffs(),
+            coeffsOffset_,
             psi_.boundaryField().scalarInterfaces(),
             0
         )
