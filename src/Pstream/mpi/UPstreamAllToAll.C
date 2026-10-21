@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,16 +36,17 @@ License
 
 #undef  Pstream_CommonRoutines
 #define Pstream_CommonRoutines(Native, TaggedType)                            \
-void Foam::UPstream::allToAll                                                 \
+void Foam::UPstream::allToAll_n                                               \
 (                                                                             \
     const UList<Native>& sendData,                                            \
     UList<Native>& recvData,                                                  \
+    const int count,                                                          \
     const int communicator                                                    \
 )                                                                             \
 {                                                                             \
     PstreamDetail::allToAll                                                   \
     (                                                                         \
-        sendData, recvData, TaggedType, communicator                          \
+        sendData, recvData, count, TaggedType, communicator                   \
     );                                                                        \
 }
 
@@ -62,17 +64,18 @@ Pstream_CommonRoutines(int64_t, MPI_INT64_T);
 
 #undef  Pstream_CommonRoutines
 #define Pstream_CommonRoutines(Native, TaggedType)                            \
-void Foam::UPstream::allToAllConsensus                                        \
+void Foam::UPstream::allToAllConsensus_n                                      \
 (                                                                             \
     const UList<Native>& sendData,                                            \
     UList<Native>& recvData,                                                  \
+    const int count,                                                          \
     const int tag,                                                            \
     const int communicator                                                    \
 )                                                                             \
 {                                                                             \
     PstreamDetail::allToAllConsensus                                          \
     (                                                                         \
-        sendData, recvData, TaggedType, tag, communicator                     \
+        sendData, recvData, count, TaggedType, tag, communicator              \
     );                                                                        \
 }                                                                             \
                                                                               \

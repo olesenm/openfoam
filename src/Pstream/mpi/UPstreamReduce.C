@@ -49,7 +49,7 @@ static std::unique_ptr<unsigned long[]> workBufferPtr;
 // Get/resize the work buffer as needed for the given data type/count
 // combination. Return {pointer, num_bytes} like a std::span
 static inline std::pair<void*, int>
-getWorkBuffer(MPI_Datatype datatype, int count)
+getWorkBuffer(int num_bytes)
 {
     // Min length (in blocks) to avoid many initial re-allocations
     constexpr int min_nblocks = 32;
@@ -58,13 +58,6 @@ getWorkBuffer(MPI_Datatype datatype, int count)
     static int nblocks(0);
 
     using block_type = decltype(workBufferPtr)::element_type;
-
-    const int num_bytes = [datatype,count]()
-    {
-        int size;
-        MPI_Type_size(datatype, &size);
-        return (size * count);
-    }();
 
     // Number of blocks needed to cover num_bytes
     if
@@ -80,6 +73,22 @@ getWorkBuffer(MPI_Datatype datatype, int count)
     }
 
     return { workBufferPtr.get(), num_bytes };
+}
+
+
+// Get/resize the work buffer as needed for the given data type/count
+// combination. Return {pointer, num_bytes} like a std::span
+static inline std::pair<void*, int>
+getWorkBuffer(MPI_Datatype datatype, int count)
+{
+    const int num_bytes = [datatype,count]()
+    {
+        int size;
+        MPI_Type_size(datatype, &size);
+        return (size * count);
+    }();
+
+    return getWorkBuffer(num_bytes);
 }
 
 
@@ -174,9 +183,9 @@ void Foam::UPstream::mpi_reduce
     (
         FOAM_UNLIKELY
         (
-            !is_basic_dataType(dataTypeId)
-         || !is_reduce_opCode(opCodeId)
-         || (values == nullptr)
+            !is_basic_dataType(dataTypeId) ||
+            !is_reduce_opCode(opCodeId) ||
+            (values == nullptr)
         )
     )
     {
@@ -291,9 +300,8 @@ void Foam::UPstream::mpi_reduce
 
 static void mpiReduce_bool
 (
-    void* values,                          // Type checking done by caller
+    bool values[],
     int count,
-    MPI_Datatype datatype,                 // always MPI_C_BOOL
     MPI_Op optype,                         // bool (and | or | xor)
     const int communicator                 // Index into MPICommunicators_
 )
@@ -303,26 +311,42 @@ static void mpiReduce_bool
         // Nothing to do - ignore
         return;
     }
+    if
+    (
+        FOAM_UNLIKELY
+        (
+            // !is_basic_dataType(dataTypeId) ||  <<- is 'bool'
+            // !is_reduce_opCode(opCodeId) ||     <<- local caller as and/or
+            (values == nullptr)
+        )
+    )
+    {
+        FatalErrorInFunction
+            << "Bad input for reduce<bool>(): likely a programming problem\n"
+            << "    nullptr for values\n"
+            << Foam::abort(FatalError);
+    }
 
     // Workaround for missing/broken in-place handling.
     // Use a local buffer to send the data from.
     // - probably not thread-safe
 
     #ifndef Foam_vendor_supports_INPLACE_REDUCE
-    auto [send_buffer, num_bytes] = getWorkBuffer(datatype, count);
+    auto [send_buffer, num_bytes] = getWorkBuffer(count);  // sizeof(bool) == 1
     std::memcpy(send_buffer, values, num_bytes);
     #else
-    void* send_buffer = values;  // ie, in-place
+    auto* send_buffer = values;  // ie, in-place
     #endif
 
     // Regular reduce
     {
         PstreamDetail::reduce
         (
-            send_buffer,
-            values,
+            // Stick to the <void*> template interface...
+            static_cast<void*>(send_buffer),
+            static_cast<void*>(values),
             count,
-            datatype,
+            MPI_C_BOOL,  // MPI_Datatype = bool
             optype,
             communicator
         );
@@ -352,9 +376,9 @@ void Foam::UPstream::mpi_allreduce
     (
         FOAM_UNLIKELY
         (
-            !is_basic_dataType(dataTypeId)
-         || !is_reduce_opCode(opCodeId)
-         || (values == nullptr)
+            !is_basic_dataType(dataTypeId) ||
+            !is_reduce_opCode(opCodeId) ||
+            (values == nullptr)
         )
     )
     {
@@ -490,9 +514,9 @@ void Foam::UPstream::mpi_scan_reduce
     (
         FOAM_UNLIKELY
         (
-            !is_basic_dataType(dataTypeId)
-         || !is_reduce_opCode(opCodeId)
-         || (values == nullptr)
+            !is_basic_dataType(dataTypeId) ||
+            !is_reduce_opCode(opCodeId) ||
+            (values == nullptr)
         )
     )
     {
@@ -578,13 +602,13 @@ void Foam::UPstream::reduceOr(bool values[], label count, int communicator)
 
 void Foam::UPstream::mpiReduceAnd(bool values[], label count, int communicator)
 {
-    mpiReduce_bool(values, int(count), MPI_C_BOOL, MPI_LAND, communicator);
+    mpiReduce_bool(values, int(count), MPI_LAND, communicator);
 }
 
 
 void Foam::UPstream::mpiReduceOr(bool values[], label count, int communicator)
 {
-    mpiReduce_bool(values, int(count), MPI_C_BOOL, MPI_LOR, communicator);
+    mpiReduce_bool(values, int(count), MPI_LOR, communicator);
 }
 
 

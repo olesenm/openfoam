@@ -212,12 +212,43 @@ int main(int argc, char *argv[])
     {
         typedef std::pair<label,vector> valueType;
 
+        Info<< "Type: " << error::demangle<valueType>()
+            << " contiguous:" << is_contiguous_v<valueType> << nl;
+
         valueType sendData(UPstream::myProcNo(), vector::one);
 
-        List<valueType> countValues
-        (
-            Pstream::listGatherValues(sendData)
-        );
+        List<valueType> countValues;
+
+        if constexpr (is_contiguous_v<valueType>)
+        {
+            countValues = UPstream::listGatherValues(sendData);
+        }
+        else
+        {
+            countValues = Pstream::listGatherValues(sendData);
+        }
+
+        Pout<< "listGather: " << flatOutput(countValues) << nl;
+    }
+
+    {
+        typedef Tuple2<label,label> valueType;
+
+        Info<< "Type: " << error::demangle<valueType>()
+            << " contiguous:" << is_contiguous_v<valueType> << nl;
+
+        valueType sendData(UPstream::myProcNo(), 1);
+
+        List<valueType> countValues;
+
+        if constexpr (is_contiguous_v<Tuple2<label,label>>)
+        {
+            countValues = UPstream::listGatherValues(sendData);
+        }
+        else
+        {
+            countValues = Pstream::listGatherValues(sendData);
+        }
 
         Pout<< "listGather: " << flatOutput(countValues) << nl;
     }

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2015 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -394,6 +395,7 @@ void Foam::PstreamDetail::allToAll
 (
     const UList<Type>& sendData,
     UList<Type>& recvData,
+    const int count,
     MPI_Datatype datatype,
     const int communicator,
 
@@ -406,8 +408,10 @@ void Foam::PstreamDetail::allToAll
 
     const bool immediate = (req);
 
-    if (!UPstream::is_rank(communicator))
+    // Nothing to do, also nothing to receive.
+    if (!UPstream::is_rank(communicator) || (count < 1))
     {
+        recvData = Foam::zero{};
         return;
     }
 
@@ -425,21 +429,26 @@ void Foam::PstreamDetail::allToAll
         }
         Perr<< " numProc:" << numProc
             << " sendData:" << sendData.size()
+            << " count:" << count
             << " with comm:" << communicator
             << " warnComm:" << UPstream::warnComm
             << endl;
         error::printStack(Perr);
     }
 
+
     if
     (
-        (sendData.size() != numProc || recvData.size() != numProc)
+        const int expectedSize = (count*numProc);
+        (sendData.size() != expectedSize)
+     || (recvData.size() != expectedSize)
     )
     {
         FatalErrorInFunction
-            << "Have " << numProc << " ranks, but size of sendData:"
-            << sendData.size() << " or recvData:" << recvData.size()
-            << " is different!"
+            << "Have " << numProc << " ranks, with count=" << count
+            << " but size of sendData:" << sendData.size()
+            << " or recvData:" << recvData.size()
+            << " is different than expected " << expectedSize
             << Foam::abort(FatalError);
     }
 
@@ -462,13 +471,11 @@ void Foam::PstreamDetail::allToAll
         returnCode =
             MPI_Ialltoall
             (
-                // NOTE: const_cast is a temporary hack for
-                // backward-compatibility with versions of OpenMPI < 1.7.4
-                const_cast<Type*>(sendData.cdata()),
-                1,                      // one element per rank
+                sendData.cdata(),
+                count,       // count elements per rank
                 datatype,
                 recvData.data(),
-                1,                      // one element per rank
+                count,       // count elements per rank
                 datatype,
                 PstreamGlobals::MPICommunicators_[communicator],
                &request
@@ -485,13 +492,11 @@ void Foam::PstreamDetail::allToAll
         returnCode =
             MPI_Alltoall
             (
-                // NOTE: const_cast is a temporary hack for
-                // backward-compatibility with versions of OpenMPI < 1.7.4
-                const_cast<Type*>(sendData.cdata()),
-                1,                      // one element per rank
+                sendData.cdata(),
+                count,       // count elements per rank
                 datatype,
                 recvData.data(),
-                1,                      // one element per rank
+                count,       // count elements per rank
                 datatype,
                 PstreamGlobals::MPICommunicators_[communicator]
             );
@@ -665,6 +670,7 @@ void Foam::PstreamDetail::allToAllConsensus
 (
     const UList<Type>& sendData,
     UList<Type>& recvData,
+    const int count,
     MPI_Datatype datatype,
     const int tag,
     const int communicator
@@ -674,9 +680,11 @@ void Foam::PstreamDetail::allToAllConsensus
 
     const bool initialBarrier = (UPstream::tuning_NBX_ > 0);
 
-    if (!UPstream::is_rank(communicator))
+    // Nothing to do, also nothing to receive.
+    if (!UPstream::is_rank(communicator) || (count < 1))
     {
-        return;  // Process not in communicator
+        recvData = Foam::zero{};
+        return;
     }
 
     const label myProci = UPstream::myProcNo(communicator);
@@ -693,12 +701,18 @@ void Foam::PstreamDetail::allToAllConsensus
         error::printStack(Perr);
     }
 
-    if (sendData.size() != numProc || recvData.size() != numProc)
+    if
+    (
+        const int expectedSize = (count*numProc);
+        (sendData.size() != expectedSize)
+     || (recvData.size() != expectedSize)
+    )
     {
         FatalErrorInFunction
-            << "Have " << numProc << " ranks, but size of sendData:"
-            << sendData.size() << " or recvData:" << recvData.size()
-            << " is different!"
+            << "Have " << numProc << " ranks, with count=" << count
+            << " but size of sendData:" << sendData.size()
+            << " or recvData:" << recvData.size()
+            << " is different than expected " << expectedSize
             << Foam::abort(FatalError);
     }
 
@@ -714,8 +728,9 @@ void Foam::PstreamDetail::allToAllConsensus
     }
 
     // Fake send/recv for myself
+    for (label i = count*myProci; i < count*(myProci+1); ++i)
     {
-        recvData[myProci] = sendData[myProci];
+        recvData[i] = sendData[i];
     }
 
     // Implementation description
@@ -754,18 +769,21 @@ void Foam::PstreamDetail::allToAllConsensus
     // Start nonblocking synchronous send to destination rank
     for (label proci = 0; proci < numProc; ++proci)
     {
-        if (sendData[proci] == zeroValue)
+        bool is_zero = true;
+        for (label i = count*proci; i < count*(proci+1); ++i)
         {
-            // Do not send/recv empty data
+            is_zero = is_zero && (sendData[i] == zeroValue);
         }
-        else if (proci != myProci)
+
+        // Do not send/recv empty data, and do not send to self
+        if (!is_zero && (proci != myProci))
         {
-            // Has data to send
+            // Has non-zero data to send
 
             MPI_Issend
             (
-               &sendData[proci],
-                1,              // one element per rank
+                (sendData.cdata() + count*proci),
+                count,   // Elements per rank
                 datatype,
                 proci,
                 tag,
@@ -801,15 +819,16 @@ void Foam::PstreamDetail::allToAllConsensus
             // Message found, receive into dest buffer location
             const int proci = status.MPI_SOURCE;
 
-            // Only send/recv a single (fundamental) data type
-            int count(0);
-            MPI_Get_count(&status, datatype, &count);
+            // Only send/recv fundamental data types - check the counts
+            int recv_count(0);
+            MPI_Get_count(&status, datatype, &recv_count);
 
-            if (FOAM_UNLIKELY(count != 1))
+            if (FOAM_UNLIKELY(recv_count != count))
             {
                 FatalErrorInFunction
                     << "Incorrect message size from proc=" << proci
-                    << ". Expected 1 but had " << count << nl
+                    << ". Expected " << count << " but had "
+                    << recv_count << nl
                     << exit(FatalError);
             }
 
@@ -817,8 +836,8 @@ void Foam::PstreamDetail::allToAllConsensus
 
             MPI_Recv
             (
-               &recvData[proci],
-                count,          // count=1 (see above)
+                (recvData.data() + count*proci),
+                count,   // Elements per rank (or recv_count : see above)
                 datatype,
                 proci,
                 tag,
@@ -901,13 +920,10 @@ void Foam::PstreamDetail::allToAllConsensus
     recvBufs.clear();
 
     // Fake send/recv for myself - parallel or non-parallel
+    if (const auto iter = sendBufs.find(myProci); iter.good())
     {
-        const auto iter = sendBufs.find(myProci);
-        if (iter.good())
-        {
-            // Do myself: insert_or_assign
-            recvBufs(iter.key()) = iter.val();
-        }
+        // Do myself: insert_or_assign
+        recvBufs(iter.key()) = iter.val();
     }
 
     if (!UPstream::is_parallel(communicator))

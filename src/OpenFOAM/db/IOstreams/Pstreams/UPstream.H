@@ -1731,6 +1731,22 @@ public:
         #define Pstream_declareMethods(Type)                                  \
                                                                               \
         /*!\brief Exchange \c Type data with all ranks in communicator     */ \
+        /*! The data arrays have size == (\p count times number of ranks). */ \
+        /*! \em non-parallel : simple copy of \p sendData to \p recvData   */ \
+        static void allToAll_n                                                \
+        (                                                                     \
+            /*! [in] \p count elements at [count*proci] are sent to proci */  \
+            const UList<Type>& sendData,                                      \
+            /*! [out] The data received from the other ranks */               \
+            UList<Type>& recvData,                                            \
+            /*! Elements per rank */                                          \
+            const int count,                                                  \
+            /*! The communicator */                                           \
+            const int communicator                                            \
+        );                                                                    \
+                                                                              \
+        /*!\brief Exchange \c Type data with all ranks in communicator     */ \
+        /*! The data arrays have size == (number of ranks).                */ \
         /*! \em non-parallel : simple copy of \p sendData to \p recvData   */ \
         static void allToAll                                                  \
         (                                                                     \
@@ -1739,7 +1755,10 @@ public:
             /*! [out] The data received from the other ranks */               \
             UList<Type>& recvData,                                            \
             const int communicator = UPstream::worldComm                      \
-        );                                                                    \
+        )                                                                     \
+        {                                                                     \
+            allToAll_n(sendData, recvData, 1, communicator);                  \
+        }                                                                     \
                                                                               \
         /*!\brief Exchange \em non-zero \c Type data between ranks [NBX]   */ \
         /*! \p recvData is always initially assigned zero and no non-zero  */ \
@@ -1749,6 +1768,21 @@ public:
         /*! since the implementation uses probing with ANY_SOURCE !!       */ \
         /*! An initial barrier may help to avoid synchronisation problems  */ \
         /*! caused elsewhere (See "nbx.tuning" opt switch)                 */ \
+        static void allToAllConsensus_n                                       \
+        (                                                                     \
+            /*! Send \em non-zero \p count values [count*proci] to proci */   \
+            const UList<Type>& sendData,                                      \
+            /*! [out] The non-zero values received from each rank */          \
+            UList<Type>& recvData,                                            \
+            /*! Elements per rank */                                          \
+            const int count,                                                  \
+            /*! Message tag for the communication */                          \
+            const int tag,                                                    \
+            /*! The communicator */                                           \
+            const int communicator = UPstream::worldComm                      \
+        );                                                                    \
+                                                                              \
+        /*!\brief Exchange \em non-zero \c Type data between ranks [NBX]   */ \
         static void allToAllConsensus                                         \
         (                                                                     \
             /*! [in] The \em non-zero value at [proci] is sent to proci */    \
@@ -1758,7 +1792,10 @@ public:
             /*! Message tag for the communication */                          \
             const int tag,                                                    \
             const int communicator = UPstream::worldComm                      \
-        );                                                                    \
+        )                                                                     \
+        {                                                                     \
+            allToAllConsensus_n(sendData, recvData, 1, tag, communicator);    \
+        }                                                                     \
                                                                               \
         /*!\brief Exchange \c Type data between ranks [NBX]                */ \
         /*! \p recvData map is always cleared initially so a simple check  */ \
@@ -1797,6 +1834,60 @@ public:
         Pstream_declareMethods(int64_t);
 
         #undef Pstream_declareMethods
+
+        //- Exchange \c Type data with all ranks in communicator.
+        //- Compile-time limited to int32/int64.
+        // \em non-parallel : simple copy of \p sendData to \p recvData
+        template<class Type, unsigned N>
+        static void allToAll
+        (
+            //- The values at [proci] are sent to proci
+            const UList<FixedList<Type, N>>& sendData,
+            //- The data received from the other ranks
+            UList<FixedList<Type, N>>& recvData,
+            const int communicator = UPstream::worldComm
+        );
+
+        //- Exchange \c Type data with all ranks in communicator.
+        //- Compile-time limited to int32/int64.
+        // \em non-parallel : simple copy of \p sendData to \p recvData
+        template<class Type>
+        static void allToAll
+        (
+            //- The values at [proci] are sent to proci
+            const UList<Pair<Type>>& sendData,
+            //- The data received from the other ranks
+            UList<Pair<Type>>& recvData,
+            const int communicator = UPstream::worldComm
+        );
+
+        //- Exchange \c Type data with all ranks in communicator.
+        //- Compile-time limited to int32/int64.
+        template<class Type, unsigned N>
+        static void allToAllConsensus
+        (
+            //- The \em non-zero values at [proci] are sent to proci
+            const UList<FixedList<Type, N>>& sendData,
+            //- The non-zero values received from each rank
+            UList<FixedList<Type, N>>& recvData,
+            //- Message tag for the communication
+            const int tag,
+            const int communicator = UPstream::worldComm
+        );
+
+        //- Exchange \c Type data with all ranks in communicator.
+        //- Compile-time limited to int32/int64.
+        template<class Type>
+        static void allToAllConsensus
+        (
+            //- The \em non-zero values at [proci] are sent to proci
+            const UList<Pair<Type>>& sendData,
+            //- The non-zero values received from each rank
+            UList<Pair<Type>>& recvData,
+            //- Message tag for the communication
+            const int tag,
+            const int communicator = UPstream::worldComm
+        );
 
 
     // Low-level gather/scatter routines

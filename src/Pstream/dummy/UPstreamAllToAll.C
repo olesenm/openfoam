@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -35,16 +36,17 @@ License
 
 #undef  Pstream_CommonRoutines
 #define Pstream_CommonRoutines(Type)                                          \
-void Foam::UPstream::allToAll                                                 \
+void Foam::UPstream::allToAll_n                                               \
 (                                                                             \
     const UList<Type>& sendData,                                              \
     UList<Type>& recvData,                                                    \
+    const int count,                                                          \
     const int communicator                                                    \
 )                                                                             \
 {                                                                             \
-    recvData.deepCopy(sendData);                                              \
+    if (count < 1) recvData = Foam::zero{};                                   \
+    else recvData.deepCopy(sendData);                                         \
 }
-
 
 Pstream_CommonRoutines(int32_t);
 Pstream_CommonRoutines(int64_t);
@@ -56,16 +58,19 @@ Pstream_CommonRoutines(int64_t);
 
 #undef  Pstream_CommonRoutines
 #define Pstream_CommonRoutines(Type)                                          \
-void Foam::UPstream::allToAllConsensus                                        \
+void Foam::UPstream::allToAllConsensus_n                                      \
 (                                                                             \
     const UList<Type>& sendData,                                              \
     UList<Type>& recvData,                                                    \
+    const int count,                                                          \
     const int tag,                                                            \
     const int communicator                                                    \
 )                                                                             \
 {                                                                             \
-    recvData.deepCopy(sendData);                                              \
+    if (count < 1) recvData = Foam::zero{};                                   \
+    else recvData.deepCopy(sendData);                                         \
 }                                                                             \
+                                                                              \
 void Foam::UPstream::allToAllConsensus                                        \
 (                                                                             \
     const Map<Type>& sendData,                                                \

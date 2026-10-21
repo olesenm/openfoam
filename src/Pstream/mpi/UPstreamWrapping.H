@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2012-2016 OpenFOAM Foundation
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -97,12 +98,13 @@ void scanReduce
     const int exclusive                 // Use Exscan instead of Scan
 );
 
-// MPI_Alltoall or MPI_Ialltoall with one element per rank
+// MPI_Alltoall or MPI_Ialltoall with count element per rank
 template<class Type>
 void allToAll
 (
     const UList<Type>& sendData,
     UList<Type>& recvData,
+    const int count,                    // number of elements per rank
     MPI_Datatype datatype,
     const int communicator,             // Communicator
     UPstream::Request* req = nullptr    // Non-null for non-blocking
@@ -133,6 +135,7 @@ void allToAllConsensus
 (
     const UList<Type>& sendData,
     UList<Type>& recvData,
+    const int count,
     MPI_Datatype datatype,
     const int tag,                      // Message tag
     const int communicator              // Communicator

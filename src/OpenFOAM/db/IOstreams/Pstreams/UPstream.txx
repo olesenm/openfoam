@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2021-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -662,6 +663,170 @@ T Foam::UPstream::mpiScan
     T work(localValue);
     UPstream::mpiScan<opCode>(&work, 1, communicator, exclusive);
     return work;
+}
+
+
+// * * * * * * * * * * * * * * * * * Details * * * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+namespace PstreamDetail
+{
+
+// Dispatch for allToAll_n or allToAllConsensus_n etc.
+// The Container is FixedList<T,Count> or Pair<T> etc.
+//
+// The AllToAllOp is invoked as op(sends, recvs, Count) with the flattened
+// lists, and performs the actual communication.
+template<class Container, class T, int Count, class AllToAllOp>
+void allToAll_fixedWidth
+(
+    const UList<Container>& sendData,
+    UList<Container>& recvData,
+    const int communicator,
+    AllToAllOp&& op
+)
+{
+    // Restrict to known and supported integral types.
+    // This could be improved/expanded in the future if needed
+
+    if constexpr
+    (
+        std::is_same_v<int32_t, T>
+     || std::is_same_v<int64_t, T>
+    )
+    {
+        // Not involved
+        if (!UPstream::is_rank(communicator))
+        {
+            recvData = Foam::zero{};
+            return;
+        }
+        else if (!UPstream::is_parallel(communicator))
+        {
+            recvData.deepCopy(sendData);
+            return;
+        }
+
+        // Wrap content into the flattened UList representation
+        // used by the base-level operation.
+        // Note that pointer to Container content is also the pointer
+        // to its 0th element for these fixed-width types.
+        // The const_cast is only due to the UList API requirements
+
+        const UList<T> sends
+        (
+            const_cast<T*>
+            (reinterpret_cast<const T*>(sendData.cdata())),
+            (Count*sendData.size())
+        );
+        UList<T> recvs
+        (
+            reinterpret_cast<T*>(recvData.data()),
+            (Count*recvData.size())
+        );
+
+        op(sends, recvs, Count);
+    }
+    else
+    {
+        static_assert
+        (
+            stdFoam::dependent_false_v<T>,
+            "Currently restricted to integral types (int32|int64)"
+        );
+    }
+}
+
+} // End namespace PstreamDetail
+} // End namespace Foam
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// The allToAll variants
+
+template<class T, unsigned N>
+void Foam::UPstream::allToAll
+(
+    const UList<FixedList<T, N>>& sendData,
+    UList<FixedList<T, N>>& recvData,
+    const int communicator
+)
+{
+    PstreamDetail::allToAll_fixedWidth<FixedList<T, N>, T, int(N)>
+    (
+        sendData, recvData, communicator,
+        [=](const UList<T>& sends, UList<T>& recvs, int count)
+        {
+            UPstream::allToAll_n(sends, recvs, count, communicator);
+        }
+    );
+}
+
+
+template<class T>
+void Foam::UPstream::allToAll
+(
+    const UList<Pair<T>>& sendData,
+    UList<Pair<T>>& recvData,
+    const int communicator
+)
+{
+    PstreamDetail::allToAll_fixedWidth<Pair<T>, T, 2>
+    (
+        sendData, recvData, communicator,
+        [=](const UList<T>& sends, UList<T>& recvs, int count)
+        {
+            UPstream::allToAll_n(sends, recvs, count, communicator);
+        }
+    );
+}
+
+
+template<class T, unsigned N>
+void Foam::UPstream::allToAllConsensus
+(
+    const UList<FixedList<T, N>>& sendData,
+    UList<FixedList<T, N>>& recvData,
+    const int tag,
+    const int communicator
+)
+{
+    PstreamDetail::allToAll_fixedWidth<FixedList<T, N>, T, int(N)>
+    (
+        sendData, recvData, communicator,
+        [=](const UList<T>& sends, UList<T>& recvs, int count)
+        {
+            UPstream::allToAllConsensus_n
+            (
+                sends, recvs, count, tag, communicator
+            );
+        }
+    );
+}
+
+
+template<class T>
+void Foam::UPstream::allToAllConsensus
+(
+    const UList<Pair<T>>& sendData,
+    UList<Pair<T>>& recvData,
+    const int tag,
+    const int communicator
+)
+{
+    PstreamDetail::allToAll_fixedWidth<Pair<T>, T, 2>
+    (
+        sendData, recvData, communicator,
+        [=](const UList<T>& sends, UList<T>& recvs, int count)
+        {
+            UPstream::allToAllConsensus_n
+            (
+                sends, recvs, count, tag, communicator
+            );
+        }
+    );
 }
 
 
