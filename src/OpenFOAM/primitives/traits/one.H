@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -82,7 +83,12 @@ public:
     constexpr operator double() const noexcept { return 1; }
 
     //- Component-wise or element-wise access returns one
-    one operator[](const label) const noexcept { return one{}; }
+    template<class T>
+    constexpr one operator[](const T&) const noexcept { return one{}; }
+
+    //- Unary functor returns one
+    template<class T>
+    constexpr one operator()(const T&) const noexcept { return one{}; }
 };
 
 

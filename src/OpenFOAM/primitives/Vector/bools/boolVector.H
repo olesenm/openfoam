@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -58,6 +59,12 @@ class boolVector
 :
     public FixedList<bool, 3>
 {
+    // Typedefs
+
+        //- The data content type
+        typedef FixedList<bool, 3> tuple_type;
+
+
 public:
 
     // Typedefs
@@ -81,16 +88,16 @@ public:
     // Generated Methods
 
         //- Copy construct
-        boolVector(const boolVector&) = default;
-
-        //- Copy assignment
-        boolVector& operator=(const boolVector&) = default;
+        constexpr boolVector(const boolVector&) = default;
 
         //- Move construct
-        boolVector(boolVector&&) = default;
+        constexpr boolVector(boolVector&&) = default;
+
+        //- Copy assignment
+        constexpr boolVector& operator=(const boolVector&) = default;
 
         //- Move assignment
-        boolVector& operator=(boolVector&&) = default;
+        constexpr boolVector& operator=(boolVector&&) = default;
 
         //- The front() accessor (from FixedList) has no purpose
         void front() = delete;
@@ -102,16 +109,25 @@ public:
     // Constructors
 
         //- Default construct, zero-initialized (ie, false)
-        inline boolVector();
+        constexpr boolVector() : tuple_type(false) {}
 
         //- Uniform construct with specified value
-        inline explicit boolVector(const bool val);
+        constexpr explicit boolVector(bool val) : tuple_type(val) {}
 
         //- Construct from three components
-        inline boolVector(const bool vx, const bool vy, const bool vz);
+        inline constexpr boolVector(bool vx, bool vy, bool vz);
 
         //- Construct from Istream
         inline explicit boolVector(Istream& is);
+
+
+    // Factory Methods
+
+        //- Return a boolVector with uniform components.
+        static constexpr boolVector uniform(bool val) noexcept
+        {
+            return boolVector(val);
+        }
 
 
     // Member Functions
@@ -121,17 +137,17 @@ public:
         //- True if all components are set
         //
         //  \note Method name compatibility with bitSet
-        inline bool all() const noexcept;
+        inline constexpr bool all() const noexcept;
 
         //- True if any components are set
         //
         //  \note Method name compatibility with bitSet
-        inline bool any() const noexcept;
+        inline constexpr bool any() const noexcept;
 
         //- True if no components are set
         //
         //  \note Method name compatibility with bitSet
-        inline bool none() const noexcept;
+        inline constexpr bool none() const noexcept;
 
         //- Count number of items set.
         //  \param on can be set to false to count the number of unset bits
@@ -144,22 +160,22 @@ public:
     // Component Access
 
         //- The x component
-        bool x() const noexcept { return get<0>(); }
+        constexpr bool x() const noexcept { return get<0>(); }
 
         //- The y component
-        bool y() const noexcept { return get<1>(); }
+        constexpr bool y() const noexcept { return get<1>(); }
 
         //- The z component
-        bool z() const noexcept { return get<2>(); }
+        constexpr bool z() const noexcept { return get<2>(); }
 
         //- The x component
-        bool& x() noexcept { return get<0>(); }
+        constexpr bool& x() noexcept { return get<0>(); }
 
         //- The y component
-        bool& y() noexcept { return get<1>(); }
+        constexpr bool& y() noexcept { return get<1>(); }
 
         //- The z component
-        bool& z() noexcept { return get<2>(); }
+        constexpr bool& z() noexcept { return get<2>(); }
 
 
     // Edit
@@ -173,7 +189,7 @@ public:
     // Operators
 
         //- Assignment of all entries to the given value
-        inline void operator=(const bool value);
+        inline void operator=(bool value);
 };
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //

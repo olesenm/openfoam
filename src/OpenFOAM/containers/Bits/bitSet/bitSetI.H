@@ -275,14 +275,76 @@ Foam::bitSet::cend() const noexcept
 }
 
 
-inline Foam::label Foam::bitSet::find_first() const noexcept
+inline Foam::label Foam::bitSet::find_first(label pos) const noexcept
 {
-    if (const label blocki = first_block(); blocki >= 0)
+    if (pos >= size())
     {
-        label pos = (blocki * elem_per_block);
+        // out-of-range
+        return -1;
+    }
 
-        // Detect first '1' bit within the block
+    if (pos <= 0)
+    {
+        // Special case (search from the beginning): use block-wise search
 
+        if (const label blocki = find_first_block(); blocki >= 0)
+        {
+            label index_found = (blocki * elem_per_block);
+
+            // Detect first '1' bit within the block
+            for
+            (
+                unsigned int blockval = blocks_.cdata()[blocki];
+                blockval;
+                blockval >>= 1u
+            )
+            {
+                if (blockval & 1u)
+                {
+                    return index_found;
+                }
+                ++index_found;
+            }
+        }
+
+        return -1;
+    }
+
+    const label nblocks = this->num_blocks();
+
+    // The corresponding block/offset
+    label blocki = block_index(pos);
+
+    // Check the first (partial) block, if needed.
+    if (unsigned int off = sub_index(pos); off > 0)
+    {
+        label index_found = pos;
+
+        // No extra size() guard needed on index_found
+        for
+        (
+            unsigned int blockval = (blocks_.cdata()[blocki] >> off);
+            blockval;
+            blockval >>= 1u
+        )
+        {
+            if (blockval & 1u)
+            {
+                return index_found;
+            }
+            ++index_found;
+        }
+
+        // Continue with the next block
+        ++blocki;
+    }
+
+    // Block-wise search
+    for (; blocki < nblocks; ++blocki)
+    {
+        label index_found = (blocki * elem_per_block);
+
+        // No extra size() guard needed on index_found
         for
         (
             unsigned int blockval = blocks_.cdata()[blocki];
@@ -292,9 +354,9 @@ inline Foam::label Foam::bitSet::find_first() const noexcept
         {
             if (blockval & 1u)
             {
-                return pos;
+                return index_found;
             }
-            ++pos;
+            ++index_found;
         }
     }
 
@@ -302,41 +364,136 @@ inline Foam::label Foam::bitSet::find_first() const noexcept
 }
 
 
-inline Foam::label Foam::bitSet::find_first_not() const noexcept
+inline Foam::label Foam::bitSet::find_next(label pos) const noexcept
 {
-    if (const label blocki = first_not_block(); blocki >= 0)
+    if (pos >= -1 && pos < size())
     {
-        label pos = (blocki * elem_per_block);
+        // Search one position beyond the specified one
+        return find_first(pos+1);
+    }
+    else
+    {
+        // out-of-range
+        return -1;
+    }
+}
 
-        // Detect first '0' bit within the block (check the complement)
 
-        // No special masking for the final block, that was already checked
-        // in the first_not_block() call.
+inline Foam::label Foam::bitSet::find_first_not(label pos) const noexcept
+{
+    if (pos >= size())
+    {
+        // out-of-range
+        return -1;
+    }
 
-        for
-        (
-            unsigned int blockval = ~(blocks_.cdata()[blocki]);
-            blockval;
-            blockval >>= 1u
-        )
+    if (pos <= 0)
+    {
+        // Special case (search from the beginning): use block-wise search
+
+        if (const label blocki = find_first_not_block(); blocki >= 0)
+        {
+            label index_found = (blocki * elem_per_block);
+
+            // Detect first '0' bit within the block (check the complement)
+            // No special masking - already done by find_first_not_block()
+
+            for
+            (
+                unsigned int blockval = ~(blocks_.cdata()[blocki]);
+                blockval;
+                blockval >>= 1u
+            )
+            {
+                if (blockval & 1u)
+                {
+                    return index_found;
+                }
+                ++index_found;
+            }
+        }
+
+        return -1;
+    }
+
+    const label nblocks = this->num_blocks();
+
+    // Mask of the valid (in-range) bits in the final block.
+    // == 0 if no masking is required
+    const unsigned int emask = mask_lower(sub_index(size()));
+
+    // The corresponding block/offset
+    label blocki = block_index(pos);
+
+    // Check the first (partial) block, if needed.
+    if (unsigned int off = sub_index(pos); off > 0)
+    {
+        label index_found = pos;
+        unsigned int blockval = ~(blocks_.cdata()[blocki]);
+
+        // Mask out any out-of-range bits for the final block
+        if (emask && blocki == nblocks-1)
+        {
+            blockval &= emask;
+        }
+
+        for (blockval >>= off; blockval; blockval >>= 1u)
         {
             if (blockval & 1u)
             {
-                return pos;
+                return index_found;
             }
-            ++pos;
+            ++index_found;
+        }
+
+        // Continue with the next block
+        ++blocki;
+    }
+
+    // Block-wise search
+    for (; blocki < nblocks; ++blocki)
+    {
+        label index_found = (blocki * elem_per_block);
+        unsigned int blockval = ~(blocks_.cdata()[blocki]);
+
+        // Mask out any out-of-range bits for the final block
+        if (emask && blocki == nblocks-1)
+        {
+            blockval &= emask;
+        }
+
+        for (; blockval; blockval >>= 1u)
+        {
+            if (blockval & 1u)
+            {
+                return index_found;
+            }
+            ++index_found;
         }
     }
 
     return -1;
+}
+
+
+inline Foam::label Foam::bitSet::find_next_not(label pos) const noexcept
+{
+    if (pos >= -1 && pos < size())
+    {
+        // Search one position beyond the specified one
+        return find_first_not(pos+1);
+    }
+    else
+    {
+        // out-of-range
+        return -1;
+    }
 }
 
 
 inline Foam::label Foam::bitSet::find_last() const noexcept
 {
-    // Process block-wise, detecting any '1' bits
-
-    for (label blocki = num_blocks(size())-1; blocki >= 0; --blocki)
+    if (const label blocki = find_last_block(); blocki >= 0)
     {
         if (unsigned int blockval = blocks_.cdata()[blocki]; blockval)
         {
@@ -356,52 +513,30 @@ inline Foam::label Foam::bitSet::find_last() const noexcept
 }
 
 
-inline Foam::label Foam::bitSet::find_next(label pos) const noexcept
+inline Foam::label Foam::bitSet::find_last_not() const noexcept
 {
-    ++pos;
-    if (pos < 0 || pos >= size())
+    if (const label blocki = find_last_not_block(); blocki >= 0)
     {
-        return -1;
-    }
+        unsigned int blockval = ~(blocks_.cdata()[blocki]);
 
-    // The corresponding block/offset
-    label blocki = pos / elem_per_block;
-    unsigned int off = pos % elem_per_block;
-
-    for
-    (
-        unsigned int blockval = (blocks_.cdata()[blocki] >> off);
-        blockval;
-        blockval >>= 1u
-    )
-    {
-        if (blockval & 1u)
+        // Mask out any out-of-range bits for the final block
+        if (blocki == this->num_blocks()-1)
         {
-            return pos;
-        }
-        ++pos;
-    }
-
-    // Normal block-wise search. Starting at the next block
-
-    const label nblocks = num_blocks(size());
-    for (++blocki; blocki < nblocks; ++blocki)
-    {
-        label pos = (blocki * elem_per_block);
-
-        for
-        (
-            unsigned int blockval = blocks_.cdata()[blocki];
-            blockval;
-            blockval >>= 1u
-        )
-        {
-            if (blockval & 1u)
+            if (unsigned int emask = mask_lower(sub_index(size())); emask)
             {
-                return pos;
+                blockval &= emask;
             }
-            ++pos;
         }
+
+        label index_found = (blocki * elem_per_block) - 1;
+
+        while (blockval)
+        {
+            blockval >>= 1u;
+            ++index_found;
+        }
+
+        return index_found;
     }
 
     return -1;
@@ -413,19 +548,19 @@ inline Foam::label Foam::bitSet::find_next(label pos) const noexcept
 inline bool Foam::bitSet::all() const noexcept
 {
     if (empty()) return true;  // SIC. boost convention
-    return (-1 == first_not_block());
+    return (-1 == find_first_not_block());
 }
 
 
 inline bool Foam::bitSet::any() const noexcept
 {
-    return (-1 != first_block());
+    return (-1 != find_first_block());
 }
 
 
 inline bool Foam::bitSet::none() const noexcept
 {
-    return (-1 == first_block());
+    return (-1 == find_first_block());
 }
 
 
@@ -553,10 +688,9 @@ inline Foam::label Foam::bitSet::unset
 }
 
 
-inline Foam::bitSet& Foam::bitSet::unset(const bitSet& other)
+inline void Foam::bitSet::unset(const bitSet& other)
 {
     minusEq(other);
-    return *this;
 }
 
 
@@ -582,6 +716,34 @@ inline void Foam::bitSet::flip(const label i)
     {
         reference(this, i).flip();
     }
+}
+
+
+inline void Foam::bitSet::extract(bitSet& target, label pos, label len) const
+{
+    extract_copy(*this, target, pos, len);
+}
+
+
+inline void Foam::bitSet::extract(bitSet& target, const labelRange& range) const
+{
+    extract_copy(*this, target, range);
+}
+
+
+inline Foam::bitSet Foam::bitSet::extract(label pos, label len) const
+{
+    bitSet output;
+    extract_copy(*this, output, pos, len);
+    return output;
+}
+
+
+inline Foam::bitSet Foam::bitSet::extract(const labelRange& range) const
+{
+    bitSet output;
+    extract_copy(*this, output, range);
+    return output;
 }
 
 
@@ -662,6 +824,36 @@ inline Foam::bitSet& Foam::bitSet::operator-=(const bitSet& other)
 {
     minusEq(other);
     return *this;
+}
+
+
+inline Foam::bitSet& Foam::bitSet::operator<<=(label n)
+{
+    left_shiftEq(n);
+    return *this;
+}
+
+
+inline Foam::bitSet& Foam::bitSet::operator>>=(label n)
+{
+    right_shiftEq(n);
+    return *this;
+}
+
+
+inline Foam::bitSet Foam::bitSet::operator<<(label n) const
+{
+    bitSet result(*this);
+    result <<= n;
+    return result;
+}
+
+
+inline Foam::bitSet Foam::bitSet::operator>>(label n) const
+{
+    bitSet result(*this);
+    result >>= n;
+    return result;
 }
 
 

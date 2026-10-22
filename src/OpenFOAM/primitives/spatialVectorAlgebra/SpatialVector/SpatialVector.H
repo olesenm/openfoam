@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -67,7 +68,6 @@ class SpatialVector
 :
     public VectorSpace<SpatialVector<Cmpt>, Cmpt, 6>
 {
-
 public:
 
     //- Component labeling enumeration
@@ -95,20 +95,20 @@ public:
         SpatialVector() = default;
 
         //- Construct initialized to zero
-        inline SpatialVector(const Foam::zero);
+        inline constexpr SpatialVector(Foam::zero);
 
         //- Construct given VectorSpace of the same rank
         inline SpatialVector(const typename SpatialVector::vsType&);
 
         //- Construct from the angular and linear vector components
-        inline SpatialVector
+        inline constexpr SpatialVector
         (
             const Vector<Cmpt>& w,
             const Vector<Cmpt>& l
         );
 
         //- Construct given 6 components
-        inline SpatialVector
+        inline constexpr SpatialVector
         (
             const Cmpt& wx,
             const Cmpt& wy,
@@ -126,30 +126,30 @@ public:
 
     // Component Access
 
-        const Cmpt& wx() const noexcept { return this->v_[WX]; }
-        const Cmpt& wy() const noexcept { return this->v_[WY]; }
-        const Cmpt& wz() const noexcept { return this->v_[WZ]; }
+        constexpr const Cmpt& wx() const noexcept { return this->v_[WX]; }
+        constexpr const Cmpt& wy() const noexcept { return this->v_[WY]; }
+        constexpr const Cmpt& wz() const noexcept { return this->v_[WZ]; }
 
-        const Cmpt& lx() const noexcept { return this->v_[LX]; }
-        const Cmpt& ly() const noexcept { return this->v_[LY]; }
-        const Cmpt& lz() const noexcept { return this->v_[LZ]; }
+        constexpr const Cmpt& lx() const noexcept { return this->v_[LX]; }
+        constexpr const Cmpt& ly() const noexcept { return this->v_[LY]; }
+        constexpr const Cmpt& lz() const noexcept { return this->v_[LZ]; }
 
-        Cmpt& wx() noexcept { return this->v_[WX]; }
-        Cmpt& wy() noexcept { return this->v_[WY]; }
-        Cmpt& wz() noexcept { return this->v_[WZ]; }
+        constexpr Cmpt& wx() noexcept { return this->v_[WX]; }
+        constexpr Cmpt& wy() noexcept { return this->v_[WY]; }
+        constexpr Cmpt& wz() noexcept { return this->v_[WZ]; }
 
-        Cmpt& lx() noexcept { return this->v_[LX]; }
-        Cmpt& ly() noexcept { return this->v_[LY]; }
-        Cmpt& lz() noexcept { return this->v_[LZ]; }
+        constexpr Cmpt& lx() noexcept { return this->v_[LX]; }
+        constexpr Cmpt& ly() noexcept { return this->v_[LY]; }
+        constexpr Cmpt& lz() noexcept { return this->v_[LZ]; }
 
 
     // Sub-vector access
 
         //- Return the angular part of the spatial vector as a vector
-        inline Vector<Cmpt> w() const;
+        inline constexpr Vector<Cmpt> w() const;
 
         //- Return the linear part of the spatial vector as a vector
-        inline Vector<Cmpt> l() const;
+        inline constexpr Vector<Cmpt> l() const;
 
 
     // Member Operators
@@ -160,6 +160,13 @@ public:
 
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
+
+// SpatialVector does not have a 'rank' so not detected as a
+// vector-space quantity with contiguous forwarding for its cmptType
+
+// Still required here (unlike Vector, Tensor, etc) since SpatialVector
+// does not (yet) define its own 'rank', so the generalized cmptType
+// forwarding in contiguous.H (which is gated on 'rank') does not apply.
 
 //- Data are contiguous if component type is contiguous
 template<class Cmpt>

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -70,17 +71,20 @@ public:
 
     // Member Constants
 
+        //- The number of rows
         static constexpr direction mRows = Mrows;
+
+        //- The number of columns
         static constexpr direction nCols = Ncols;
 
 
     // Static Member Functions
 
         //- The number of rows
-        static direction m() noexcept { return Mrows; }
+        static constexpr direction m() noexcept { return Mrows; }
 
         //- The number of columns
-        static direction n() noexcept { return Ncols; }
+        static constexpr direction n() noexcept { return Ncols; }
 
         //- An identity matrix for square matrix-spaces
         inline static msType identity();
@@ -187,17 +191,37 @@ public:
         //- Default construct
         MatrixSpace() = default;
 
+        //- Copy construct
+        constexpr MatrixSpace(const MatrixSpace&) = default;
+
+        //- Move construct
+        constexpr MatrixSpace(MatrixSpace&&) = default;
+
+        //- Copy assignment
+        constexpr MatrixSpace& operator=(const MatrixSpace&) = default;
+
+        //- Move assignment
+        constexpr MatrixSpace& operator=(MatrixSpace&&) = default;
+
 
     // Constructors
 
         //- Construct initialized to zero
-        inline MatrixSpace(Foam::zero);
+        inline constexpr MatrixSpace(Foam::zero);
 
         //- Construct as copy of a VectorSpace with the same size
         template<class Form2, class Cmpt2>
-        inline explicit MatrixSpace
+        inline constexpr explicit MatrixSpace
         (
             const VectorSpace<Form2, Cmpt2, Mrows*Ncols>&
+        );
+
+        //- Aggregate initialization, forwarded to VectorSpace
+        template<class... Args>
+        inline constexpr explicit MatrixSpace
+        (
+            Foam::direct_construct_t,
+            Args&&... vals
         );
 
         //- Construct from a block of another matrix space
@@ -218,41 +242,41 @@ public:
 
     // Member Functions
 
-        //- Fast const element access using compile-time addressing
+        //- Access the matrix-space element: compile-time check of indices
         template<direction Row, direction Col>
-        inline const Cmpt& elmt() const noexcept;
+        inline constexpr const Cmpt& elmt() const noexcept;
 
-        //- Fast element access using compile-time addressing
+        //- Access the matrix-space element: compile-time check of indices
         template<direction Row, direction Col>
-        inline Cmpt& elmt() noexcept;
+        inline constexpr Cmpt& elmt() noexcept;
 
 
         // Const element access functions for a 3x3
         // Compile-time errors are generated for inappropriate use
 
-            const Cmpt& xx() const noexcept { return elmt<0,0>(); }
-            const Cmpt& xy() const noexcept { return elmt<0,1>(); }
-            const Cmpt& xz() const noexcept { return elmt<0,2>(); }
-            const Cmpt& yx() const noexcept { return elmt<1,0>(); }
-            const Cmpt& yy() const noexcept { return elmt<1,1>(); }
-            const Cmpt& yz() const noexcept { return elmt<1,2>(); }
-            const Cmpt& zx() const noexcept { return elmt<2,0>(); }
-            const Cmpt& zy() const noexcept { return elmt<2,1>(); }
-            const Cmpt& zz() const noexcept { return elmt<2,2>(); }
+            constexpr const Cmpt& xx() const noexcept { return elmt<0,0>(); }
+            constexpr const Cmpt& xy() const noexcept { return elmt<0,1>(); }
+            constexpr const Cmpt& xz() const noexcept { return elmt<0,2>(); }
+            constexpr const Cmpt& yx() const noexcept { return elmt<1,0>(); }
+            constexpr const Cmpt& yy() const noexcept { return elmt<1,1>(); }
+            constexpr const Cmpt& yz() const noexcept { return elmt<1,2>(); }
+            constexpr const Cmpt& zx() const noexcept { return elmt<2,0>(); }
+            constexpr const Cmpt& zy() const noexcept { return elmt<2,1>(); }
+            constexpr const Cmpt& zz() const noexcept { return elmt<2,2>(); }
 
 
         // Element access functions for a 3x3
         // Compile-time errors are generated for inappropriate use
 
-            Cmpt& xx() noexcept { return elmt<0,0>(); }
-            Cmpt& xy() noexcept { return elmt<0,1>(); }
-            Cmpt& xz() noexcept { return elmt<0,2>(); }
-            Cmpt& yx() noexcept { return elmt<1,0>(); }
-            Cmpt& yy() noexcept { return elmt<1,1>(); }
-            Cmpt& yz() noexcept { return elmt<1,2>(); }
-            Cmpt& zx() noexcept { return elmt<2,0>(); }
-            Cmpt& zy() noexcept { return elmt<2,1>(); }
-            Cmpt& zz() noexcept { return elmt<2,2>(); }
+            constexpr Cmpt& xx() noexcept { return elmt<0,0>(); }
+            constexpr Cmpt& xy() noexcept { return elmt<0,1>(); }
+            constexpr Cmpt& xz() noexcept { return elmt<0,2>(); }
+            constexpr Cmpt& yx() noexcept { return elmt<1,0>(); }
+            constexpr Cmpt& yy() noexcept { return elmt<1,1>(); }
+            constexpr Cmpt& yz() noexcept { return elmt<1,2>(); }
+            constexpr Cmpt& zx() noexcept { return elmt<2,0>(); }
+            constexpr Cmpt& zy() noexcept { return elmt<2,1>(); }
+            constexpr Cmpt& zz() noexcept { return elmt<2,2>(); }
 
 
         //- Return the transpose of the matrix

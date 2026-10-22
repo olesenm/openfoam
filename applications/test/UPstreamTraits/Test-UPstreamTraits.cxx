@@ -36,10 +36,13 @@ Description
 #include "barycentric.H"
 #include "complex.H"
 #include "vector.H"
+#include "vector2D.H"
 #include "tensor.H"
+#include "treeBoundBox.H"
 #include "uLabel.H"
 #include "MinMax.H"
 #include "Switch.H"
+#include "Tuple2.H"
 #include "IOstreams.H"
 #include "UPstream.H"
 
@@ -382,6 +385,22 @@ int check_simple(std::string_view name = std::string_view())
 
 int main()
 {
+    // contiguous_element must resolve arithmetic types directly
+    // (self pass-through), without requiring any pTraits<T>
+    // specialization. 'long double' and 'unsigned char' have none.
+    static_assert
+    (
+        std::is_same_v<long double, contiguous_element_t<long double>>
+    );
+    static_assert
+    (
+        std::is_same_v<unsigned char, contiguous_element_t<unsigned char>>
+    );
+    static_assert
+    (
+        std::is_same_v<bool, contiguous_element_t<bool>>
+    );
+
     printPstreamTraits<bool>();
     printPstreamTraits<label>();
 
@@ -406,6 +425,11 @@ int main()
 
     check_simple<floatVector>("vector<float>");
 
+    printPstreamTraits<Vector2D<float>>();
+    printPstreamTraits<Vector2D<double>>();
+    printPstreamTraits<boundBox>();
+    printPstreamTraits<treeBoundBox>();
+
     printPstreamTraits<scalar>();
     printPstreamTraits<double>();
     printPstreamTraits<doubleVector>();
@@ -424,7 +448,25 @@ int main()
 
     // This will not identify properly at the moment...
     printPstreamTraits<FixedList<doubleVector, 4>>();
+    printPstreamTraits<FixedList<word, 4>>();
     printPstreamTraits<labelPair>();
+    printPstreamTraits<Pair<int32_t>>();
+    printPstreamTraits<Pair<int64_t>>();
+    printPstreamTraits<Pair<float_t>>();
+    printPstreamTraits<Pair<double>>();
+    printPstreamTraits<Pair<word>>();
+    printPstreamTraits<Pair<floatVector>>();
+    printPstreamTraits<Pair<doubleVector>>();
+
+    printPstreamTraits<Tuple2<scalar,scalar>>();
+    printPstreamTraits<Tuple2<scalar,label>>();
+    printPstreamTraits<Tuple2<scalar,vector>>();
+    printPstreamTraits<Tuple2<float,floatVector>>();
+    printPstreamTraits<Tuple2<floatVector,floatVector>>();
+    printPstreamTraits<Tuple2<float,Pair<float>>>();
+    printPstreamTraits<Tuple2<float,FixedList<float,3>>>();
+    printPstreamTraits<scalarMinMax>();
+
 
     Info<< nl
         << "========" << nl
@@ -452,7 +494,6 @@ int main()
     printOpCodeTraits<bool>(std::plus<>{}, "sum");
     printOpCodeTraits<vector>(std::plus<>{}, "sum");
 
-
     // Expect success
     Info<< nl << "expect success" << nl;
     print_data_opType<vector>(maxOp<scalar>(), "maxOp(scalar)");
@@ -473,6 +514,14 @@ int main()
     Info<< nl << "false positives" << nl;
     print_data_opType<void>(maxOp<bool>(), "maxOp(bool, void)");
     print_data_opType<float>(bitOrOp<unsigned>(), "bitOrOp(unsigned, float)");
+
+    Info<< nl << "expect failure" << nl;
+    print_data_opType<boundBox>(minOp<boundBox>(), "minOp(boundBox)");
+    print_data_opType<treeBoundBox>(maxOp<treeBoundBox>(), "maxOp(tbb)");
+
+    print_data_opType<boundBox>(sumOp<boundBox>(), "sumOp(boundBox)");
+    print_data_opType<treeBoundBox>(sumOp<treeBoundBox>(), "sumOp(tbb)");
+
 
     Info<< nl << "End\n" << endl;
 

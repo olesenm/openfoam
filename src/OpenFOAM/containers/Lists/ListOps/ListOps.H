@@ -611,44 +611,6 @@ template<class Type1, class Type2, class BinaryPredicate>
 bool equal(const UList<Type1>& a, const UList<Type2>& b, BinaryPredicate pred);
 
 
-// Public classes
-
-//- A list compare binary predicate for normal sort
-template<class ListType>
-struct less
-{
-    const ListType& values;
-
-    less(const ListType& list)
-    :
-        values(list)
-    {}
-
-    bool operator()(const label a, const label b) const
-    {
-        return (values[a] < values[b]);
-    }
-};
-
-
-//- A list compare binary predicate for reverse sort
-template<class ListType>
-struct greater
-{
-    const ListType& values;
-
-    greater(const ListType& list)
-    :
-        values(list)
-    {}
-
-    bool operator()(const label a, const label b) const
-    {
-        return (values[b] < values[a]);
-    }
-};
-
-
 //- Fill an identity map with (map[i] == i)
 //  Optionally with an alternative start index, so that (map[i] == i+start)
 FOAM_DEPRECATED_STRICT(2023-10, "Foam::identity(...)")

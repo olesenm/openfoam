@@ -35,6 +35,7 @@ Description
 #include "boolVector.H"
 #include "complexVector.H"
 #include "labelVector.H"
+#include "vector2D.H"
 #include "IOstreams.H"
 #include "FixedList.H"
 #include "Random.H"
@@ -333,6 +334,33 @@ int main(int argc, char *argv[])
         });
 
         testNormalise(vfld2);
+    }
+
+    Info<< nl
+        << "Test constexpr evaluation" << nl;
+    {
+        // constexpr: vector magSqr (free function)
+        constexpr scalar magSqr123 = magSqr(vector(1, 2, 3));
+        static_assert(magSqr123 == 14, "magSqr(vector) should be constexpr");
+        Info<< "constexpr magSqr(vector(1,2,3)) = " << magSqr123 << nl;
+
+        // constexpr: Vector2D magSqr()/distSqr() member functions
+        constexpr vector2D v2a(3, 4);
+        constexpr vector2D v2b(0, 0);
+
+        constexpr scalar magSqr2D = v2a.magSqr();
+        constexpr scalar distSqr2D = v2a.distSqr(v2b);
+
+        static_assert(magSqr2D == 25, "Vector2D::magSqr() should be constexpr");
+        static_assert
+        (
+            distSqr2D == 25,
+            "Vector2D::distSqr() should be constexpr"
+        );
+
+        Info<< "constexpr vector2D(3,4).magSqr() = " << magSqr2D << nl
+            << "constexpr vector2D(3,4).distSqr(vector2D(0,0)) = "
+            << distSqr2D << nl;
     }
 
     Info<< nl

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,7 +40,6 @@ SourceFiles
 #ifndef Foam_Barycentric_H
 #define Foam_Barycentric_H
 
-#include "contiguous.H"
 #include "VectorSpace.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -83,10 +83,10 @@ public:
     // Constructors
 
         //- Construct initialized to zero
-        inline Barycentric(const Foam::zero);
+        inline constexpr Barycentric(Foam::zero);
 
         //- Construct from components
-        inline Barycentric
+        inline constexpr Barycentric
         (
             const Cmpt& va,
             const Cmpt& vb,
@@ -102,15 +102,15 @@ public:
 
     // Component Access
 
-        const Cmpt& a() const noexcept { return this->v_[A]; }
-        const Cmpt& b() const noexcept { return this->v_[B]; }
-        const Cmpt& c() const noexcept { return this->v_[C]; }
-        const Cmpt& d() const noexcept { return this->v_[D]; }
+        constexpr const Cmpt& a() const noexcept { return this->v_[A]; }
+        constexpr const Cmpt& b() const noexcept { return this->v_[B]; }
+        constexpr const Cmpt& c() const noexcept { return this->v_[C]; }
+        constexpr const Cmpt& d() const noexcept { return this->v_[D]; }
 
-        Cmpt& a() noexcept { return this->v_[A]; }
-        Cmpt& b() noexcept { return this->v_[B]; }
-        Cmpt& c() noexcept { return this->v_[C]; }
-        Cmpt& d() noexcept { return this->v_[D]; }
+        constexpr Cmpt& a() noexcept { return this->v_[A]; }
+        constexpr Cmpt& b() noexcept { return this->v_[B]; }
+        constexpr Cmpt& c() noexcept { return this->v_[C]; }
+        constexpr Cmpt& d() noexcept { return this->v_[D]; }
 
 
     // Operations
@@ -122,17 +122,21 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
-//- Data are contiguous if component type is contiguous
-template<class Cmpt>
-struct is_contiguous<Barycentric<Cmpt>> : is_contiguous<Cmpt> {};
-
-//- Data are contiguous label if component type is label
-template<class Cmpt>
-struct is_contiguous_label<Barycentric<Cmpt>> : is_contiguous_label<Cmpt> {};
-
-//- Data are contiguous scalar if component type is scalar
-template<class Cmpt>
-struct is_contiguous_scalar<Barycentric<Cmpt>> : is_contiguous_scalar<Cmpt> {};
+// Contiguous traits handled by generalized traits using cmptType (SEPT-2026)
+//
+// OLD CODE:
+//
+// //- Data are contiguous if component type is contiguous
+// template<class Cmpt>
+// struct is_contiguous<Barycentric<Cmpt>> : is_contiguous<Cmpt> {};
+//
+// //- Data are contiguous label if component type is label
+// template<class Cmpt>
+// struct is_contiguous_label<Barycentric<Cmpt>> : is_contiguous_label<Cmpt> {};
+//
+// //- Data are contiguous scalar if component type is scalar
+// template<class Cmpt>
+// struct is_contiguous_scalar<Barycentric<Cmpt>> : is_contiguous_scalar<Cmpt> {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

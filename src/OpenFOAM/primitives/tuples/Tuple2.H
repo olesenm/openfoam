@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2019-2026 OpenCFD Ltd.
+    Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,6 +32,7 @@ Description
     A 2-tuple for storing two objects of dissimilar types.
     The container is similar in purpose to std::pair, but does not expose
     its members directly.
+    The 2-tuple is considered contiguous if members are both contiguous.
 
 See also
     Foam::Pair for storing two objects of identical types.
@@ -48,6 +50,16 @@ See also
 
 namespace Foam
 {
+
+// Forward Declarations
+template<class T1, class T2> class Tuple2;
+
+template<class T1, class T2>
+Istream& operator>>(Istream&, Tuple2<T1,T2>&);
+
+template<class T1, class T2>
+Ostream& operator<<(Ostream&, const Tuple2<T1,T2>&);
+
 
 /*---------------------------------------------------------------------------*\
                            Class Tuple2 Declaration
@@ -84,10 +96,10 @@ public:
         Tuple2() = default;
 
         //- Copy construct
-        Tuple2(const Tuple2&) = default;
+        constexpr Tuple2(const Tuple2&) = default;
 
         //- Move construct
-        Tuple2(Tuple2&&) = default;
+        constexpr Tuple2(Tuple2&&) = default;
 
         //- Copy assignment
         Tuple2& operator=(const Tuple2&) = default;
@@ -99,37 +111,31 @@ public:
     // Constructors
 
         //- Copy construct from components
-        Tuple2(const T1& f, const T2& s)
+        constexpr Tuple2(const T1& f, const T2& s)
         :
             tuple_(f, s)
         {}
 
         //- Move construct from components
-        Tuple2(T1&& f, T2&& s)
+        constexpr Tuple2(T1&& f, T2&& s)
         :
             tuple_(std::move(f), std::move(s))
         {}
 
         //- Copy construct from std::pair
-        Tuple2(const std::pair<T1,T2>& tup)
+        constexpr Tuple2(const std::pair<T1,T2>& tup)
         :
             tuple_(tup)
         {}
 
         //- Move construct from std::pair
-        Tuple2(std::pair<T1,T2>&& tup)
+        constexpr Tuple2(std::pair<T1,T2>&& tup)
         :
             tuple_(std::move(tup))
         {}
 
-        //- Construct from Istream
-        explicit Tuple2(Istream& is)
-        {
-            is.readBegin("Tuple2");
-            is >> tuple_.first >> tuple_.second;
-            is.readEnd("Tuple2");
-            is.check(FUNCTION_NAME);
-        }
+        //- Construct from Istream, as (first second) components
+        explicit Tuple2(Istream& is) { is >> *this; }
 
 
     // Member Functions
@@ -178,15 +184,96 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+namespace ListPolicy
+{
+
+//- No compoundToken for List of arbitrary Tuple2,
+//- so no implicit binary file IO (can still use MPI send/recv etc.)
+template<class T1, class T2>
+struct allow_contiguous<Tuple2<T1, T2>> : std::false_type {};
+
+} // End namespace ListPolicy
+
+
+//- Tuple2 is contiguous if both of its components are contiguous
+template<class T1, class T2>
+struct is_contiguous<Tuple2<T1, T2>>
+:
+    std::bool_constant<is_contiguous_v<T1> && is_contiguous_v<T2>>
+{};
+
+//- Is Tuple2 composed of labels
+template<class T1, class T2>
+struct is_contiguous_label<Tuple2<T1, T2>>
+:
+    std::bool_constant
+    <is_contiguous_label<T1>::value && is_contiguous_label<T2>::value>
+{};
+
+//- Is Tuple composed of scalars
+template<class T1, class T2>
+struct is_contiguous_scalar<Tuple2<T1, T2>>
+:
+    std::bool_constant
+    <is_contiguous_scalar<T1>::value && is_contiguous_scalar<T2>::value>
+{};
+
+//- If Tuple has common base element type
+template<class T1, class T2>
+struct contiguous_element<Tuple2<T1, T2>>
+{
+    using type = std::conditional_t
+    <
+        std::is_same_v<contiguous_element_t<T1>, contiguous_element_t<T2>>,
+        contiguous_element_t<T1>,
+        Tuple2<T1, T2>  // Fallback: pass-through
+    >;
+};
+
 //- Hashing for Tuple2 data
 template<class T1, class T2>
 struct Hash<Tuple2<T1, T2>>
 {
     unsigned operator()(const Tuple2<T1, T2>& obj, unsigned seed=0) const
     {
-        return Hash<T2>()(obj.second(), Hash<T1>()(obj.first(), seed));
+        if constexpr (is_contiguous_v<Tuple2<T1, T2>>)
+        {
+            return Foam::Hasher(&obj, sizeof(obj), seed);
+        }
+        else
+        {
+            return Hash<T2>()(obj.second(), Hash<T1>()(obj.first(), seed));
+        }
     }
 };
+
+
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
+
+//- Read Tuple2 from Istream
+template<class T1, class T2>
+inline Istream& operator>>(Istream& is, Tuple2<T1,T2>& t)
+{
+    is.readBegin("Tuple2");
+    is >> t.first() >> t.second();
+    is.readEnd("Tuple2");
+
+    is.check(FUNCTION_NAME);
+    return is;
+}
+
+
+//- Write Tuple2 to Ostream
+template<class T1, class T2>
+inline Ostream& operator<<(Ostream& os, const Tuple2<T1,T2>& t)
+{
+    os  << token::BEGIN_LIST
+        << t.first() << token::SPACE << t.second()
+        << token::END_LIST;
+
+    os.check(FUNCTION_NAME);
+    return os;
+}
 
 
 // * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * * //
@@ -198,8 +285,7 @@ inline Tuple2<T2, T1> reverse(const Tuple2<T1,T2>& t)
     return Tuple2<T2, T1>(t.second(), t.first());
 }
 
-
-// * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * Comparators * * * * * * * * * * * * * * * * //
 
 // Comparing first only
 
@@ -299,32 +385,6 @@ struct maxFirstEqOp
         if (x.first < y.first) x = y;
     }
 };
-
-
-// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
-
-//- Read Tuple2 from Istream
-template<class T1, class T2>
-inline Istream& operator>>(Istream& is, Tuple2<T1,T2>& t)
-{
-    is.readBegin("Tuple2");
-    is >> t.first() >> t.second();
-    is.readEnd("Tuple2");
-
-    is.check(FUNCTION_NAME);
-    return is;
-}
-
-
-//- Write Tuple2 to Ostream
-template<class T1, class T2>
-inline Ostream& operator<<(Ostream& os, const Tuple2<T1,T2>& t)
-{
-    os  << token::BEGIN_LIST
-        << t.first() << token::SPACE << t.second()
-        << token::END_LIST;
-    return os;
-}
 
 
 // * * * * * * * * * * * * * * * ADL Lookups * * * * * * * * * * * * * * * * //

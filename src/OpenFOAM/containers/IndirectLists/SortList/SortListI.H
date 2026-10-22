@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -74,10 +75,8 @@ inline void Foam::SortList<T>::reverse()
 template<class T>
 inline void Foam::SortList<T>::reset()
 {
-    auto& addr = this->indices();
-
-    addr.resize_nocopy(this->values().size());
-    Foam::identity(addr, 0);
+    this->indices().resize_nocopy(this->values().size());
+    Foam::identity(this->indices());
 }
 
 
@@ -86,15 +85,11 @@ template<class Compare>
 inline void Foam::SortList<T>::sort(const Compare& comp)
 {
     auto& vals = this->values();
-    auto& addr = this->indices();
 
-    addr.resize_nocopy(vals.size());
-    Foam::identity(addr, 0);
-
-    std::stable_sort
+    Foam::sortedOrder
     (
-        addr.begin(),
-        addr.end(),
+        vals,
+        this->indices(),
         [&](label a, label b) -> bool { return comp(vals[a], vals[b]); }
     );
 }
@@ -117,12 +112,11 @@ inline void Foam::SortList<T>::uniqueSort()
 template<class T>
 inline void Foam::SortList<T>::reverseSort()
 {
-    // Reverse sorted order for indices
     Foam::sortedOrder
     (
         this->values(),
         this->indices(),
-        typename UList<T>::greater(this->values())
+        ListOps::greater(this->values())
     );
 }
 

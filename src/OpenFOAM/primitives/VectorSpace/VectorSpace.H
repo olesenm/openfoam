@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2019-2026 OpenCFD Ltd.
+    Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -47,6 +48,7 @@ SourceFiles
 #ifndef Foam_VectorSpace_H
 #define Foam_VectorSpace_H
 
+#include "contiguous.H"
 #include "direction.H"
 #include "scalar.H"
 #include "word.H"
@@ -56,25 +58,6 @@ SourceFiles
 
 namespace Foam
 {
-
-// Forward Declarations
-
-template<class Form, class Cmpt, direction Ncmpts> class VectorSpace;
-
-template<class Form, class Cmpt, direction Ncmpts>
-Istream& operator>>
-(
-    Istream& is,
-    VectorSpace<Form, Cmpt, Ncmpts>& vs
-);
-
-template<class Form, class Cmpt, direction Ncmpts>
-Ostream& operator<<
-(
-    Ostream& os,
-    const VectorSpace<Form, Cmpt, Ncmpts>& vs
-);
-
 
 /*---------------------------------------------------------------------------*\
                          Class VectorSpace Declaration
@@ -99,6 +82,10 @@ public:
 
     //- The type to represent the size of a VectorSpace
     typedef direction size_type;
+
+    // #ifdef FULLDEBUG
+    // static_assert(Ncmpts, "Number of components must be non-zero, positive");
+    // #endif
 
 
     // Static Constants
@@ -163,20 +150,37 @@ public:
         VectorSpace() = default;
 
         //- Copy construct
-        VectorSpace(const VectorSpace&) = default;
+        constexpr VectorSpace(const VectorSpace&) = default;
 
         //- Move construct
-        VectorSpace(VectorSpace&&) = default;
+        constexpr VectorSpace(VectorSpace&&) = default;
+
+        //- Copy assignment
+        constexpr VectorSpace& operator=(const VectorSpace&) = default;
+
+        //- Move assignment
+        constexpr VectorSpace& operator=(VectorSpace&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline VectorSpace(Foam::zero);
+        inline constexpr VectorSpace(Foam::zero);
 
         //- Copy construct of a VectorSpace with the same size
         template<class Form2, class Cmpt2>
-        inline explicit VectorSpace(const VectorSpace<Form2, Cmpt2, Ncmpts>&);
+        inline constexpr explicit VectorSpace
+        (
+            const VectorSpace<Form2, Cmpt2, Ncmpts>&
+        );
+
+        //- Aggregate initialization using Ncmpts arguments
+        template<class... Args>
+        inline constexpr explicit VectorSpace
+        (
+            Foam::direct_construct_t,
+            Args&&... vals
+        );
 
         //- Construct from Istream
         explicit VectorSpace(Istream& is);
@@ -187,23 +191,35 @@ public:
         //- The number of elements in the VectorSpace = Ncmpts.
         static constexpr direction size() noexcept { return Ncmpts; }
 
-        inline const Cmpt& component(const direction) const;
-        inline Cmpt& component(const direction);
+        //- The maximum size, corresponds to the VectorSpace = Ncmpts.
+        static constexpr direction max_size() noexcept { return Ncmpts; }
 
+        //- Access the vector-space component
+        inline constexpr const Cmpt& component(const direction) const;
+
+        //- Access the vector-space component
+        inline constexpr Cmpt& component(const direction);
+
+        //- Copy out the value of the vector-space component
         inline void component(Cmpt&, const direction) const;
+
+        //- Copy in the value of the vector-space component
         inline void replace(const direction, const Cmpt&);
 
         //- Return const pointer to the first data element
-        const Cmpt* cdata() const noexcept { return v_; }
+        constexpr const Cmpt* cdata() const noexcept { return v_; }
 
         //- Return pointer to the first data element
-        Cmpt* data() noexcept { return v_; }
+        constexpr Cmpt* data() noexcept { return v_; }
 
         //- Assign all components to given value
-        inline void fill(const Cmpt& s);
+        inline constexpr void fill(const Cmpt& s);
 
-        //- Return a VectorSpace with all elements = s
-        inline static Form uniform(const Cmpt& s);
+        //- Return a vector-space Form with uniform components.
+        //
+        //  \note only constexpr if Form itself has a constexpr default
+        //        constructor, otherwise it remains a runtime call.
+        inline static constexpr Form uniform(const Cmpt& s);
 
         template<class SubVector, direction BStart>
         inline const ConstBlock<SubVector, BStart> block() const;
@@ -211,23 +227,24 @@ public:
 
     // Member Operators
 
-        inline const Cmpt& operator[](const direction) const;
-        inline Cmpt& operator[](const direction);
+        //- Access the vector-space component
+        inline constexpr const Cmpt& operator[](const direction) const;
 
-        //- Copy assignment
-        VectorSpace& operator=(const VectorSpace&) = default;
-
-        //- Move assignment
-        VectorSpace& operator=(VectorSpace&&) = default;
+        //- Access the vector-space component
+        inline constexpr Cmpt& operator[](const direction);
 
         inline void operator+=(const VectorSpace<Form, Cmpt, Ncmpts>&);
         inline void operator-=(const VectorSpace<Form, Cmpt, Ncmpts>&);
 
         //- Copy assign from a VectorSpace with the same size
         template<class Form2, class Cmpt2>
-        inline void operator=(const VectorSpace<Form2, Cmpt2, Ncmpts>&);
+        inline constexpr void operator=
+        (
+            const VectorSpace<Form2, Cmpt2, Ncmpts>& vs
+        );
 
-        inline void operator=(Foam::zero);
+        //- Assign all components to zero
+        inline constexpr void operator=(Foam::zero);
         inline void operator*=(const scalar);
         inline void operator/=(const scalar);
 
@@ -244,37 +261,22 @@ public:
     // Random access iterators (const and non-const)
 
         //- Return an iterator (pointer) to begin of VectorSpace
-        iterator begin() noexcept { return v_; }
+        constexpr iterator begin() noexcept { return v_; }
 
         //- Return const_iterator (const pointer) to begin of VectorSpace
-        const_iterator begin() const noexcept { return v_; }
+        constexpr const_iterator begin() const noexcept { return v_; }
 
         //- Return const_iterator (const pointer) to begin of VectorSpace
-        const_iterator cbegin() const noexcept { return v_; }
+        constexpr const_iterator cbegin() const noexcept { return v_; }
 
         //- Return an iterator (pointer) to end of VectorSpace
-        iterator end() noexcept { return (v_ + Ncmpts); }
+        constexpr iterator end() noexcept { return (v_ + Ncmpts); }
 
         //- Return const_iterator (const pointer) to end of VectorSpace
-        const_iterator end() const noexcept { return (v_ + Ncmpts); }
+        constexpr const_iterator end() const noexcept { return (v_ + Ncmpts); }
 
         //- Return const_iterator (const pointer) to end of VectorSpace
-        const_iterator cend() const noexcept { return (v_ + Ncmpts); }
-
-
-    // IOstream Operators
-
-        friend Istream& operator>> <Form, Cmpt, Ncmpts>
-        (
-            Istream&,
-            VectorSpace<Form, Cmpt, Ncmpts>&
-        );
-
-        friend Ostream& operator<< <Form, Cmpt, Ncmpts>
-        (
-            Ostream&,
-            const VectorSpace<Form, Cmpt, Ncmpts>&
-        );
+        constexpr const_iterator cend() const noexcept { return (v_ + Ncmpts); }
 };
 
 
@@ -283,6 +285,23 @@ public:
 //- A word representation of a VectorSpace
 template<class Form, class Cmpt, direction Ncmpts>
 word name(const VectorSpace<Form, Cmpt, Ncmpts>& vs);
+
+
+// * * * * * * * * * * * * * * * IOstream Operators * * * * * * * * * * * * //
+
+template<class Form, class Cmpt, direction Ncmpts>
+Istream& operator>>
+(
+    Istream& is,
+    VectorSpace<Form, Cmpt, Ncmpts>& vs
+);
+
+template<class Form, class Cmpt, direction Ncmpts>
+Ostream& operator<<
+(
+    Ostream& os,
+    const VectorSpace<Form, Cmpt, Ncmpts>& vs
+);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

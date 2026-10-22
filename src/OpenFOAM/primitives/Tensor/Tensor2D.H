@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -87,35 +88,41 @@ public:
         Tensor2D() = default;
 
         //- Copy construct
-        Tensor2D(const Tensor2D&) = default;
+        constexpr Tensor2D(const Tensor2D&) = default;
+
+        //- Move construct
+        constexpr Tensor2D(Tensor2D&&) = default;
 
         //- Copy assignment
-        Tensor2D& operator=(const Tensor2D&) = default;
+        constexpr Tensor2D& operator=(const Tensor2D&) = default;
+
+        //- Move assignment
+        constexpr Tensor2D& operator=(Tensor2D&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline Tensor2D(Foam::zero);
+        inline constexpr Tensor2D(Foam::zero);
 
         //- Construct given VectorSpace
         inline Tensor2D(const VectorSpace<Tensor2D<Cmpt>, Cmpt, 4>& vs);
 
         //- Construct given SymmTensor2D
-        inline Tensor2D(const SymmTensor2D<Cmpt>& st);
+        inline constexpr Tensor2D(const SymmTensor2D<Cmpt>& st);
 
         //- Construct given SphericalTensor2D
-        inline Tensor2D(const SphericalTensor2D<Cmpt>& st);
+        inline constexpr Tensor2D(const SphericalTensor2D<Cmpt>& st);
 
         //- Construct given the two row vectors
-        inline Tensor2D
+        inline constexpr Tensor2D
         (
             const Vector2D<Cmpt>& x,
             const Vector2D<Cmpt>& y
         );
 
         //- Construct given the four components
-        inline Tensor2D
+        inline constexpr Tensor2D
         (
             const Cmpt txx, const Cmpt txy,
             const Cmpt tyx, const Cmpt tyy
@@ -129,28 +136,28 @@ public:
 
     // Component Access
 
-        const Cmpt& xx() const noexcept { return this->v_[XX]; }
-        const Cmpt& xy() const noexcept { return this->v_[XY]; }
-        const Cmpt& yx() const noexcept { return this->v_[YX]; }
-        const Cmpt& yy() const noexcept { return this->v_[YY]; }
+        constexpr const Cmpt& xx() const noexcept { return this->v_[XX]; }
+        constexpr const Cmpt& xy() const noexcept { return this->v_[XY]; }
+        constexpr const Cmpt& yx() const noexcept { return this->v_[YX]; }
+        constexpr const Cmpt& yy() const noexcept { return this->v_[YY]; }
 
-        Cmpt& xx() noexcept { return this->v_[XX]; }
-        Cmpt& xy() noexcept { return this->v_[XY]; }
-        Cmpt& yx() noexcept { return this->v_[YX]; }
-        Cmpt& yy() noexcept { return this->v_[YY]; }
+        constexpr Cmpt& xx() noexcept { return this->v_[XX]; }
+        constexpr Cmpt& xy() noexcept { return this->v_[XY]; }
+        constexpr Cmpt& yx() noexcept { return this->v_[YX]; }
+        constexpr Cmpt& yy() noexcept { return this->v_[YY]; }
 
 
     // Column-vector access
 
         //- Extract vector for column 0
-        inline Vector2D<Cmpt> cx() const;
+        inline constexpr Vector2D<Cmpt> cx() const;
 
         //- Extract vector for column 1
-        inline Vector2D<Cmpt> cy() const;
+        inline constexpr Vector2D<Cmpt> cy() const;
 
         //- Extract vector for given column: compile-time check of index
         template<direction Idx>
-        inline Vector2D<Cmpt> col() const;
+        inline constexpr Vector2D<Cmpt> col() const;
 
         //- Extract vector for given column (0,1): runtime check of index
         inline Vector2D<Cmpt> col(const direction c) const;
@@ -169,14 +176,14 @@ public:
     // Row-vector access
 
         //- Extract vector for row 0
-        inline Vector2D<Cmpt> x() const;
+        inline constexpr Vector2D<Cmpt> x() const;
 
         //- Extract vector for row 1
-        inline Vector2D<Cmpt> y() const;
+        inline constexpr Vector2D<Cmpt> y() const;
 
         //- Extract vector for given row: compile-time check of index
         template<direction Idx>
-        inline Vector2D<Cmpt> row() const;
+        inline constexpr Vector2D<Cmpt> row() const;
 
         //- Extract vector for given row (0,1): runtime check of index
         inline Vector2D<Cmpt> row(const direction r) const;
@@ -201,7 +208,7 @@ public:
         inline void diag(const Vector2D<Cmpt>& v);
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Tensor Operations
@@ -251,17 +258,21 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
-//- Data are contiguous if component type is contiguous
-template<class Cmpt>
-struct is_contiguous<Tensor2D<Cmpt>> : is_contiguous<Cmpt> {};
-
-//- Data are contiguous label if component type is label
-template<class Cmpt>
-struct is_contiguous_label<Tensor2D<Cmpt>> : is_contiguous_label<Cmpt> {};
-
-//- Data are contiguous scalar if component type is scalar
-template<class Cmpt>
-struct is_contiguous_scalar<Tensor2D<Cmpt>> : is_contiguous_scalar<Cmpt> {};
+// Contiguous traits handled by generalized traits using cmptType (SEPT-2026)
+//
+// OLD CODE:
+//
+// //- Data are contiguous if component type is contiguous
+// template<class Cmpt>
+// struct is_contiguous<Tensor2D<Cmpt>> : is_contiguous<Cmpt> {};
+//
+// //- Data are contiguous label if component type is label
+// template<class Cmpt>
+// struct is_contiguous_label<Tensor2D<Cmpt>> : is_contiguous_label<Cmpt> {};
+//
+// //- Data are contiguous scalar if component type is scalar
+// template<class Cmpt>
+// struct is_contiguous_scalar<Tensor2D<Cmpt>> : is_contiguous_scalar<Cmpt> {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

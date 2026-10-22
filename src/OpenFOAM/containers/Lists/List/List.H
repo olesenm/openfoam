@@ -190,6 +190,10 @@ public:
         //- Construct from an initializer list
         List(std::initializer_list<T> list);
 
+        //- Construct (pseudo-aggregate) from a parameter list
+        template<class... Args>
+        explicit List(Foam::direct_construct_t, Args&&... vals);
+
         //- Move construct from List
         inline List(List<T>&& list) noexcept;
 
@@ -286,8 +290,8 @@ public:
         inline void push_back(const IndirectListBase<T, Addr>& list);
 
         //- Append an element if not already in the list.
-        //  \return the change in list length
-        inline label push_uniq(const T& val);
+        //  \return True if it was added
+        inline bool push_uniq(const T& val);
 
         //- Reduce size by 1 or more elements. Can be called on an empty list.
         inline void pop_back(label n = 1);
@@ -411,7 +415,7 @@ public:
 
         //- Same as push_uniq()
         FOAM_DEPRECATED_FOR(2022-10, "push_uniq()")
-        label appendUniq(const T& val) { return this->push_uniq(val); }
+        bool appendUniq(const T& val) { return this->push_uniq(val); }
 
         //- Alias for resize()
         void setSize(label n) { this->resize(n); }
@@ -477,20 +481,39 @@ labelList identity(const IntRange<IntType>& range)
 }
 
 
-//- Return the (stable) sort order for the list
+//- Return the sort order for the given input,
+//- using the ListOps::less wrapper for the comparator
 template<class T>
 labelList sortedOrder(const UList<T>& input);
 
-//- Generate the (stable) sort order for the list
+//- Determine the sort order for the given input,
+//- using the ListOps::less wrapper for the comparator
 template<class T>
 void sortedOrder(const UList<T>& input, labelList& order);
 
-//- Sort using specified list compare predicate
+//- Determine the sort order for the given input length,
+//- using the specified comparator
 template<class T, class ListComparePredicate>
 void sortedOrder
 (
+    //! The input list \em only provides a length (contents are not used)
     const UList<T>& input,
+    //! [out] The indices for the sorted order
     labelList& order,
+    //! The binary comparator
+    const ListComparePredicate& comp
+);
+
+//- Determine the sort order for the given input length,
+//- using the specified comparator
+template<class ListComparePredicate>
+void sortedOrder
+(
+    //! The input length addressable in the comparison
+    const label length,
+    //! [out] The indices for the sorted order
+    labelList& order,
+    //! The binary comparator
     const ListComparePredicate& comp
 );
 

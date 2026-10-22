@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -102,23 +103,23 @@ public:
         quadraticEqn() = default;
 
         //- Construct initialized to zero
-        inline quadraticEqn(const Foam::zero);
+        inline constexpr quadraticEqn(Foam::zero);
 
         //- Construct from components
-        inline quadraticEqn(const scalar a, const scalar b, const scalar c);
+        inline constexpr quadraticEqn(scalar a, scalar b, scalar c);
 
 
     // Member Functions
 
     // Access
 
-        scalar a() const noexcept { return this->v_[A]; }
-        scalar b() const noexcept { return this->v_[B]; }
-        scalar c() const noexcept { return this->v_[C]; }
+        constexpr scalar a() const noexcept { return this->v_[A]; }
+        constexpr scalar b() const noexcept { return this->v_[B]; }
+        constexpr scalar c() const noexcept { return this->v_[C]; }
 
-        scalar& a() noexcept { return this->v_[A]; }
-        scalar& b() noexcept { return this->v_[B]; }
-        scalar& c() noexcept { return this->v_[C]; }
+        constexpr scalar& a() noexcept { return this->v_[A]; }
+        constexpr scalar& b() noexcept { return this->v_[B]; }
+        constexpr scalar& c() noexcept { return this->v_[C]; }
 
 
     // Evaluate

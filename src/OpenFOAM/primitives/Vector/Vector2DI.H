@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt>::Vector2D(Foam::zero)
+inline constexpr Foam::Vector2D<Cmpt>::Vector2D(Foam::zero)
 :
     Vector2D::vsType(Foam::zero{})
 {}
@@ -46,11 +47,26 @@ inline Foam::Vector2D<Cmpt>::Vector2D
 
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt>::Vector2D(const Cmpt& vx, const Cmpt& vy)
-{
-    this->x() = vx;
-    this->y() = vy;
-}
+inline constexpr Foam::Vector2D<Cmpt>::Vector2D
+(
+    const Cmpt& vx,
+    const Cmpt& vy
+)
+:
+    // aggregate initialization
+    Vector2D::vsType(Foam::direct_construct_t{}, vx, vy)
+{}
+
+
+template<class Cmpt>
+inline constexpr Foam::Vector2D<Cmpt>::Vector2D
+(
+    const Vector<Cmpt>& vs
+)
+:
+    // aggregate initialization
+    Vector2D::vsType(Foam::direct_construct_t{}, vs.x(), vs.y())
+{}
 
 
 template<class Cmpt>
@@ -63,7 +79,7 @@ inline Foam::Vector2D<Cmpt>::Vector2D(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::scalar Foam::Vector2D<Cmpt>::magSqr() const
+inline constexpr Foam::scalar Foam::Vector2D<Cmpt>::magSqr() const
 {
     return
     (
@@ -76,12 +92,12 @@ inline Foam::scalar Foam::Vector2D<Cmpt>::magSqr() const
 template<class Cmpt>
 inline Foam::scalar Foam::Vector2D<Cmpt>::mag() const
 {
-    return ::sqrt(this->magSqr());
+    return std::sqrt(this->magSqr());
 }
 
 
 template<class Cmpt>
-inline Foam::scalar
+inline constexpr Foam::scalar
 Foam::Vector2D<Cmpt>::distSqr(const Vector2D<Cmpt>& v2) const
 {
     return
@@ -95,7 +111,7 @@ Foam::Vector2D<Cmpt>::distSqr(const Vector2D<Cmpt>& v2) const
 template<class Cmpt>
 inline Foam::scalar Foam::Vector2D<Cmpt>::dist(const Vector2D<Cmpt>& v2) const
 {
-    return ::sqrt(this->distSqr(v2));
+    return std::sqrt(this->distSqr(v2));
 }
 
 
@@ -152,29 +168,24 @@ Foam::Vector2D<Cmpt>::less_yx(const Vector2D<Cmpt>& a, const Vector2D<Cmpt>& b)
 }
 
 
-// * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //
-
-namespace Foam
-{
-
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
 template<class Cmpt>
-inline Cmpt operator&(const Vector2D<Cmpt>& v1, const Vector2D<Cmpt>& v2)
+inline constexpr Cmpt
+Foam::Vector2D<Cmpt>::inner(const Vector2D<Cmpt>& b) const
 {
-    return Cmpt(v1.x()*v2.x() + v1.y()*v2.y());
+    return (x()*b.x() + y()*b.y());
 }
 
 
 template<class Cmpt>
-inline scalar Vector2D<Cmpt>::perp(const Vector2D<Cmpt>& b) const
+inline constexpr Cmpt
+Foam::Vector2D<Cmpt>::perp(const Vector2D<Cmpt>& b) const
 {
     return x()*b.y() - y()*b.x();
 }
 
 
 template<class Cmpt>
-inline bool Vector2D<Cmpt>::isClose
+inline bool Foam::Vector2D<Cmpt>::isClose
 (
     const Vector2D<Cmpt>& b,
     const scalar tol
@@ -184,15 +195,53 @@ inline bool Vector2D<Cmpt>::isClose
 }
 
 
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+
+// * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
+
+//- Linear interpolation of vectors a and b by factor t
 template<class Cmpt>
-inline Vector2D<Cmpt> operator*(const Cmpt& s, const Vector2D<Cmpt>& v)
+inline constexpr Vector2D<Cmpt> lerp
+(
+    const Vector2D<Cmpt>& a,
+    const Vector2D<Cmpt>& b,
+    const scalar t
+)
+{
+    const scalar onet = (1-t);
+
+    return Vector2D<Cmpt>
+    (
+        onet*a.x() + t*b.x(),
+        onet*a.y() + t*b.y()
+    );
+}
+
+
+// * * * * * * * * * * * * * * * Global Operators  * * * * * * * * * * * * * //
+
+template<class Cmpt>
+inline constexpr Cmpt
+operator&(const Vector2D<Cmpt>& v1, const Vector2D<Cmpt>& v2)
+{
+    return v1.inner(v2);
+}
+
+
+template<class Cmpt>
+inline constexpr Vector2D<Cmpt>
+operator*(const Cmpt& s, const Vector2D<Cmpt>& v)
 {
     return Vector2D<Cmpt>(s*v.x(), s*v.y());
 }
 
 
 template<class Cmpt>
-inline Vector2D<Cmpt> operator*(const Vector2D<Cmpt>& v, const Cmpt& s)
+inline constexpr Vector2D<Cmpt>
+operator*(const Vector2D<Cmpt>& v, const Cmpt& s)
 {
     return s*v;
 }

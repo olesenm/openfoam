@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2014 OpenFOAM Foundation
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -43,44 +44,72 @@ Foam::Ostream& Foam::IndirectListBase<T, Addr>::writeList
 
     const label len = list.size();
 
-    if (os.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+    // Unlikely to have IndirectList<char> ...
+
+    constexpr bool with_contiguous
+    (
+        is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+    );
+    constexpr bool use_uniformity
+    (
+        is_contiguous_v<T> && ListPolicy::has_uniformity<T>::value
+    );
+    constexpr bool no_linebreak
+    (
+        is_contiguous_v<T> || ListPolicy::no_linebreak<T>::value
+    );
+
+    if constexpr (with_contiguous)
     {
-        // Binary and contiguous
-        os << nl << len << nl;
-
-        if (len)
+        if (os.format() == IOstreamOption::BINARY)
         {
-            // The TOTAL number of bytes to be written.
-            // - possibly add start delimiter
-            os.beginRawWrite(len*sizeof(T));
+            // Binary and contiguous
+            os << nl << len << nl;
 
-            // Contents
-            for (label i=0; i < len; ++i)
+            if (len)
             {
-                os.writeRaw
-                (
-                    reinterpret_cast<const char*>(&(list[i])),
-                    sizeof(T)
-                );
+                // The TOTAL number of bytes to be written.
+                // - possibly add start delimiter
+                os.beginRawWrite(len*sizeof(T));
+
+                // Contents
+                for (label i=0; i < len; ++i)
+                {
+                    os.writeRaw
+                    (
+                        reinterpret_cast<const char*>(&(list[i])),
+                        sizeof(T)
+                    );
+                }
+
+                // End delimiter and/or cleanup.
+                os.endRawWrite();
             }
 
-            // End delimiter and/or cleanup.
-            os.endRawWrite();
+            os.check(FUNCTION_NAME);
+            return os;
         }
     }
-    else if (is_contiguous_v<T> && len > 1 && list.uniform())
+
+    if constexpr (use_uniformity)
     {
-        // Two or more entries, and all entries have identical values.
-        os << len << token::BEGIN_BLOCK << list[0] << token::END_BLOCK;
+        if (len > 1 && list.uniform())
+        {
+            // Two or more entries, all with identical values.
+            os << len << token::BEGIN_BLOCK << list[0] << token::END_BLOCK;
+
+            os.check(FUNCTION_NAME);
+            return os;
+        }
     }
-    else if
+
+    // Generic output
+    // (non-binary or non-contiguous, non-uniform)
+
+    if
     (
         (len <= 1 || !shortLen)
-     ||
-        (
-            (len <= shortLen)
-         && (is_contiguous_v<T> || Foam::ListPolicy::no_linebreak<T>::value)
-        )
+     || (len <= shortLen && no_linebreak)
     )
     {
         // Single-line output

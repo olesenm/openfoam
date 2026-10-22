@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt>::Vector(Foam::zero)
+inline constexpr Foam::Vector<Cmpt>::Vector(Foam::zero)
 :
     Vector::vsType(Foam::zero{})
 {}
@@ -37,7 +38,7 @@ inline Foam::Vector<Cmpt>::Vector(Foam::zero)
 
 template<class Cmpt>
 template<class Cmpt2>
-inline Foam::Vector<Cmpt>::Vector
+inline constexpr Foam::Vector<Cmpt>::Vector
 (
     const VectorSpace<Vector<Cmpt2>, Cmpt2, 3>& vs
 )
@@ -47,17 +48,16 @@ inline Foam::Vector<Cmpt>::Vector
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt>::Vector
+inline constexpr Foam::Vector<Cmpt>::Vector
 (
     const Cmpt& vx,
     const Cmpt& vy,
     const Cmpt& vz
 )
-{
-    this->x() = vx;
-    this->y() = vy;
-    this->z() = vz;
-}
+:
+    // aggregate initialization
+    Vector::vsType(Foam::direct_construct_t{}, vx, vy, vz)
+{}
 
 
 template<class Cmpt>
@@ -65,6 +65,14 @@ inline Foam::Vector<Cmpt>::Vector(Istream& is)
 :
     Vector::vsType(is)
 {}
+
+
+template<class Cmpt>
+inline constexpr Foam::Vector<Cmpt>
+Foam::Vector<Cmpt>::uniform(const Cmpt& s)
+{
+    return Vector<Cmpt>(s, s, s);
+}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -80,7 +88,7 @@ inline const Foam::Vector<Cmpt>& Foam::Vector<Cmpt>::centre
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::Vector<Cmpt>::magSqr() const
+inline constexpr Foam::scalar Foam::Vector<Cmpt>::magSqr() const
 {
     return
     (
@@ -94,12 +102,13 @@ inline Foam::scalar Foam::Vector<Cmpt>::magSqr() const
 template<class Cmpt>
 inline Foam::scalar Foam::Vector<Cmpt>::mag() const
 {
-    return ::sqrt(this->magSqr());
+    return std::sqrt(this->magSqr());
 }
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::Vector<Cmpt>::distSqr(const Vector<Cmpt>& v2) const
+inline constexpr Foam::scalar
+Foam::Vector<Cmpt>::distSqr(const Vector<Cmpt>& v2) const
 {
     return
     (
@@ -113,7 +122,7 @@ inline Foam::scalar Foam::Vector<Cmpt>::distSqr(const Vector<Cmpt>& v2) const
 template<class Cmpt>
 inline Foam::scalar Foam::Vector<Cmpt>::dist(const Vector<Cmpt>& v2) const
 {
-    return ::sqrt(this->distSqr(v2));
+    return std::sqrt(this->distSqr(v2));
 }
 
 
@@ -150,7 +159,7 @@ Foam::Vector<Cmpt>::removeCollinear(const Vector<Cmpt>& unitVec)
 // * * * * * * * * * * * * * * * Member Operations * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Cmpt Foam::Vector<Cmpt>::inner(const Vector<Cmpt>& v2) const
+inline constexpr Cmpt Foam::Vector<Cmpt>::inner(const Vector<Cmpt>& v2) const
 {
     const Vector<Cmpt>& v1 = *this;
 
@@ -159,7 +168,7 @@ inline Cmpt Foam::Vector<Cmpt>::inner(const Vector<Cmpt>& v2) const
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt>
+inline constexpr Foam::Vector<Cmpt>
 Foam::Vector<Cmpt>::cross(const Vector<Cmpt>& v2) const
 {
     const Vector<Cmpt>& v1 = *this;
@@ -256,7 +265,7 @@ namespace Foam
 
 //- Linear interpolation of vectors a and b by factor t
 template<class Cmpt>
-inline Vector<Cmpt> lerp
+inline constexpr Vector<Cmpt> lerp
 (
     const Vector<Cmpt>& a,
     const Vector<Cmpt>& b,
@@ -270,6 +279,24 @@ inline Vector<Cmpt> lerp
         onet*a.x() + t*b.x(),
         onet*a.y() + t*b.y(),
         onet*a.z() + t*b.z()
+    );
+}
+
+
+//- Linear interpolation of vectors a and b by factor t
+template<class Cmpt>
+inline constexpr Vector<Cmpt> lerp
+(
+    const Vector<Cmpt>& a,
+    const Vector<Cmpt>& b,
+    const Vector<scalar>& t
+)
+{
+    return Vector<Cmpt>
+    (
+        lerp(a.x(), b.x(), t.x()),
+        lerp(a.y(), b.y(), t.y()),
+        lerp(a.z(), b.z(), t.z())
     );
 }
 
@@ -290,28 +317,32 @@ public:
 
 
 template<class Cmpt>
-inline Cmpt operator&(const Vector<Cmpt>& v1, const Vector<Cmpt>& v2)
+inline constexpr Cmpt
+operator&(const Vector<Cmpt>& v1, const Vector<Cmpt>& v2)
 {
     return v1.inner(v2);
 }
 
 
 template<class Cmpt>
-inline Vector<Cmpt> operator^(const Vector<Cmpt>& v1, const Vector<Cmpt>& v2)
+inline constexpr Vector<Cmpt>
+operator^(const Vector<Cmpt>& v1, const Vector<Cmpt>& v2)
 {
     return v1.cross(v2);
 }
 
 
 template<class Cmpt>
-inline Vector<Cmpt> operator*(const Cmpt& s, const Vector<Cmpt>& v)
+inline constexpr Vector<Cmpt>
+operator*(const Cmpt& s, const Vector<Cmpt>& v)
 {
     return Vector<Cmpt>(s*v.x(), s*v.y(), s*v.z());
 }
 
 
 template<class Cmpt>
-inline Vector<Cmpt> operator*(const Vector<Cmpt>& v, const Cmpt& s)
+inline constexpr Vector<Cmpt>
+operator*(const Vector<Cmpt>& v, const Cmpt& s)
 {
     return s*v;
 }

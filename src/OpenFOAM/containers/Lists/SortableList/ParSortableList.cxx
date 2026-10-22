@@ -31,7 +31,7 @@ License
 
 namespace Foam
 {
-defineTypeNameAndDebug(ParSortableListName, 0);
+    defineTypeNameAndDebug(ParSortableListBase, 0);
 }
 
 

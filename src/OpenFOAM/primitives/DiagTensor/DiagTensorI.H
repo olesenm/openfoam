@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,9 +33,9 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::DiagTensor<Cmpt>::DiagTensor(Foam::zero)
+inline constexpr Foam::DiagTensor<Cmpt>::DiagTensor(Foam::zero)
 :
-    VectorSpace<DiagTensor<Cmpt>, Cmpt, 3>(Foam::zero{})
+    DiagTensor::vsType(Foam::zero{})
 {}
 
 
@@ -45,37 +46,35 @@ inline Foam::DiagTensor<Cmpt>::DiagTensor
     const VectorSpace<DiagTensor<Cmpt2>, Cmpt2, 3>& vs
 )
 :
-    VectorSpace<DiagTensor<Cmpt>, Cmpt, 3>(vs)
+    DiagTensor::vsType(vs)
 {}
 
 
 template<class Cmpt>
-inline Foam::DiagTensor<Cmpt>::DiagTensor(const SphericalTensor<Cmpt>& st)
-{
-    this->v_[XX] = st.ii();
-    this->v_[YY] = st.ii();
-    this->v_[ZZ] = st.ii();
-}
+inline constexpr
+Foam::DiagTensor<Cmpt>::DiagTensor(const SphericalTensor<Cmpt>& st)
+:
+    DiagTensor(st.ii(), st.ii(), st.ii())
+{}
 
 
 template<class Cmpt>
-inline Foam::DiagTensor<Cmpt>::DiagTensor
+inline constexpr Foam::DiagTensor<Cmpt>::DiagTensor
 (
     const Cmpt& vxx,
     const Cmpt& vyy,
     const Cmpt& vzz
 )
-{
-    this->v_[XX] = vxx;
-    this->v_[YY] = vyy;
-    this->v_[ZZ] = vzz;
-}
+:
+    // aggregate initialization
+    DiagTensor::vsType(Foam::direct_construct_t{}, vxx, vyy, vzz)
+{}
 
 
 template<class Cmpt>
 inline Foam::DiagTensor<Cmpt>::DiagTensor(Istream& is)
 :
-    VectorSpace<DiagTensor<Cmpt>, Cmpt, 3>(is)
+    DiagTensor::vsType(is)
 {}
 
 
@@ -89,7 +88,7 @@ inline Foam::Vector<Cmpt> Foam::DiagTensor<Cmpt>::diag() const
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::DiagTensor<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::DiagTensor<Cmpt>::diagSqr() const
 {
     return
     (
@@ -169,7 +168,7 @@ inline DiagTensor<Cmpt> diag(const SymmTensor<Cmpt>& st)
 
 
 template<class Cmpt>
-inline Foam::scalar magSqr(const DiagTensor<Cmpt>& t)
+inline constexpr Foam::scalar magSqr(const DiagTensor<Cmpt>& t)
 {
     return t.diagSqr();
 }

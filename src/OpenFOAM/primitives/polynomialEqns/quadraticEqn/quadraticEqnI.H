@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,23 +28,22 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::quadraticEqn::quadraticEqn(const Foam::zero)
+inline constexpr Foam::quadraticEqn::quadraticEqn(Foam::zero)
 :
-    VectorSpace<quadraticEqn, scalar, 3>(Foam::zero{})
+    quadraticEqn::vsType(Foam::zero{})
 {}
 
 
-inline Foam::quadraticEqn::quadraticEqn
+inline constexpr Foam::quadraticEqn::quadraticEqn
 (
-    const scalar a,
-    const scalar b,
-    const scalar c
+    scalar a,
+    scalar b,
+    scalar c
 )
-{
-    this->v_[A] = a;
-    this->v_[B] = b;
-    this->v_[C] = c;
-}
+:
+    // aggregate initialization
+    quadraticEqn::vsType(Foam::direct_construct_t{}, a, b, c)
+{}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //

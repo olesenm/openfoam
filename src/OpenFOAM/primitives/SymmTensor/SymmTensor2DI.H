@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SymmTensor2D<Cmpt>::SymmTensor2D(Foam::zero)
+inline constexpr Foam::SymmTensor2D<Cmpt>::SymmTensor2D(Foam::zero)
 :
     SymmTensor2D::vsType(Foam::zero{})
 {}
@@ -48,23 +49,24 @@ inline Foam::SymmTensor2D<Cmpt>::SymmTensor2D
 
 
 template<class Cmpt>
-inline Foam::SymmTensor2D<Cmpt>::SymmTensor2D(const SphericalTensor2D<Cmpt>& st)
-{
-    this->v_[XX] = st.ii(); this->v_[XY] = Zero;
-    this->v_[YY] = st.ii();
-}
+inline constexpr Foam::SymmTensor2D<Cmpt>::SymmTensor2D
+(
+    const SphericalTensor2D<Cmpt>& st
+)
+:
+    SymmTensor2D(st.ii(), Zero, st.ii())
+{}
 
 
 template<class Cmpt>
-inline Foam::SymmTensor2D<Cmpt>::SymmTensor2D
+inline constexpr Foam::SymmTensor2D<Cmpt>::SymmTensor2D
 (
     const Cmpt txx, const Cmpt txy,
                     const Cmpt tyy
 )
-{
-    this->v_[XX] = txx; this->v_[XY] = txy;
-                        this->v_[YY] = tyy;
-}
+:
+    SymmTensor2D::vsType(Foam::direct_construct_t{}, txx, txy, tyy)
+{}
 
 
 template<class Cmpt>
@@ -91,7 +93,7 @@ inline void Foam::SymmTensor2D<Cmpt>::diag(const Vector2D<Cmpt>& v)
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::SymmTensor2D<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::SymmTensor2D<Cmpt>::diagSqr() const
 {
     return
     (

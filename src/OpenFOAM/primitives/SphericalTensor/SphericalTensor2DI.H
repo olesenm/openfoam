@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D(Foam::zero)
+inline constexpr Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D(Foam::zero)
 :
     SphericalTensor2D::vsType(Foam::zero{})
 {}
@@ -48,10 +49,12 @@ inline Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D
 
 
 template<class Cmpt>
-inline Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D(const Cmpt& stii)
-{
-    this->v_[II] = stii;
-}
+inline constexpr
+Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D(const Cmpt& stii)
+:
+    // aggregate initialization
+    SphericalTensor2D::vsType(Foam::direct_construct_t{}, stii)
+{}
 
 
 template<class Cmpt>
@@ -64,7 +67,7 @@ inline Foam::SphericalTensor2D<Cmpt>::SphericalTensor2D(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::scalar Foam::SphericalTensor2D<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::SphericalTensor2D<Cmpt>::diagSqr() const
 {
     return 2*Foam::magSqr(this->ii());
 }

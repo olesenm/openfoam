@@ -767,7 +767,7 @@ void test_eigen_funcs(const tensor2D& T)
 
     Info<< "# Return an eigenvector of a given tensor2D in a given direction"
         << " corresponding to a given eigenvalue:" << nl;
-    const Vector2D<complex> standardBasis(pTraits<complex>::one, Zero);
+    const Vector2D<complex> standardBasis(complex::one, Zero);
     const Vector2D<complex> EVec(eigenVector(T, EVals.x(), standardBasis));
     Info<< EVec << endl;
 

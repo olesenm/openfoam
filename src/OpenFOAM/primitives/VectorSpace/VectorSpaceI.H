@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,25 +31,54 @@ License
 #include "products.H"
 #include "VectorSpaceOps.H"
 #include "ops.H"
-#include <type_traits>
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace(Foam::zero)
+inline constexpr Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace
+(
+    Foam::zero
+)
+:
+    v_{}
 {
-    VectorSpaceOps<Ncmpts>::fill_n(this->begin(), Cmpt(Foam::zero{}));
+    // For scalar types, already value-initialized to zero (by v_{} above)
+    // so no further assignment is needed.
+    if constexpr (!std::is_scalar_v<Cmpt>)
+    {
+        VectorSpaceOps<Ncmpts>::fill_n(this->begin(), Cmpt(Foam::zero{}));
+    }
 }
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
 template<class Form2, class Cmpt2>
-inline Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace
+inline constexpr Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace
 (
     const VectorSpace<Form2, Cmpt2, Ncmpts>& vs
 )
+:
+    v_{}
 {
     VectorSpaceOps<Ncmpts>::copy_n(vs.cbegin(), this->begin());
+}
+
+
+template<class Form, class Cmpt, Foam::direction Ncmpts>
+template<class... Args>
+inline constexpr Foam::VectorSpace<Form, Cmpt, Ncmpts>::VectorSpace
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    v_{ static_cast<Cmpt>(std::forward<Args>(vals))... }
+{
+    static_assert
+    (
+        (sizeof...(Args) == Ncmpts),
+        "Number of arguments != number of components"
+    );
 }
 
 
@@ -73,7 +103,7 @@ inline Foam::VectorSpace<Form, Cmpt, Ncmpts>::ConstBlock<SubVector, BStart>
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::component
+inline constexpr const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::component
 (
     const direction d
 ) const
@@ -92,7 +122,7 @@ inline const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::component
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::component
+inline constexpr Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::component
 (
     const direction d
 )
@@ -151,18 +181,19 @@ inline void Foam::VectorSpace<Form, Cmpt, Ncmpts>::replace
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline void Foam::VectorSpace<Form, Cmpt, Ncmpts>::fill(const Cmpt& s)
+inline constexpr void Foam::VectorSpace<Form, Cmpt, Ncmpts>::fill(const Cmpt& s)
 {
     VectorSpaceOps<Ncmpts>::fill_n(this->begin(), s);
 }
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline Form Foam::VectorSpace<Form, Cmpt, Ncmpts>::uniform(const Cmpt& s)
+inline constexpr Form
+Foam::VectorSpace<Form, Cmpt, Ncmpts>::uniform(const Cmpt& s)
 {
-    Form v;
-    v.fill(s);
-    return v;
+    Form result;
+    result.fill(s);
+    return result;
 }
 
 
@@ -179,7 +210,7 @@ Foam::VectorSpace<Form, Cmpt, Ncmpts>::block() const
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator[]
+inline constexpr const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator[]
 (
     const direction d
 ) const
@@ -198,7 +229,7 @@ inline const Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator[]
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator[]
+inline constexpr Cmpt& Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator[]
 (
     const direction d
 )
@@ -270,7 +301,7 @@ ConstBlock<SubVector, BStart>::operator()
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
 template<class Form2, class Cmpt2>
-inline void Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator=
+inline constexpr void Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator=
 (
     const VectorSpace<Form2, Cmpt2, Ncmpts>& vs
 )
@@ -300,7 +331,8 @@ inline void Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator-=
 
 
 template<class Form, class Cmpt, Foam::direction Ncmpts>
-inline void Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator=(Foam::zero)
+inline constexpr void
+Foam::VectorSpace<Form, Cmpt, Ncmpts>::operator=(Foam::zero)
 {
     VectorSpaceOps<Ncmpts>::fill_n(this->begin(), Cmpt(Foam::zero{}));
 }
@@ -397,14 +429,20 @@ inline typename powProduct<Form, 2>::type pow
 
 
 template<class Form, class Cmpt, direction Ncmpts>
-inline scalar magSqr
+inline constexpr scalar magSqr
 (
     const VectorSpace<Form, Cmpt, Ncmpts>& vs
 )
 {
-    scalar ms = magSqr(vs.v_[0]);
-    VectorSpaceOps<Ncmpts,1>::SeqOp(ms, vs, plusEqMagSqrOp2<scalar, Cmpt>());
-    return ms;
+    // constexpr-friendly "+=" binary operation of magSqr
+    const auto bop =
+        [](scalar& s, const Cmpt& cmpt) constexpr { s += magSqr(cmpt); };
+
+    scalar result = magSqr(vs.v_[0]);
+
+    VectorSpaceOps<Ncmpts,1>::SeqOp(result, vs, bop);
+
+    return result;
 }
 
 
@@ -414,7 +452,7 @@ inline scalar mag
     const VectorSpace<Form, Cmpt, Ncmpts>& vs
 )
 {
-    return ::sqrt(magSqr(static_cast<const Form&>(vs)));
+    return std::sqrt(magSqr(static_cast<const Form&>(vs)));
 }
 
 

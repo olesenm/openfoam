@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -53,8 +54,8 @@ namespace Foam
 
 typedef SphericalTensor<scalar> sphericalTensor;
 
-static const sphericalTensor oneThirdI(1.0/3.0);
-static const sphericalTensor twoThirdsI(2.0/3.0);
+static constexpr sphericalTensor oneThirdI(1.0/3.0);
+static constexpr sphericalTensor twoThirdsI(2.0/3.0);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

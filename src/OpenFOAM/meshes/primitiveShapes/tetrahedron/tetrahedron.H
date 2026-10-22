@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -84,6 +85,8 @@ class tetPoints
 :
     public FixedList<point, 4>
 {
+    typedef FixedList<point, 4> tuple_type;
+
 public:
 
     // Generated Methods
@@ -101,7 +104,7 @@ public:
     // Constructors
 
         //- Construct from four points
-        inline tetPoints
+        inline constexpr tetPoints
         (
             const point& p0,
             const point& p1,
@@ -110,10 +113,10 @@ public:
         );
 
         //- Construct from point references
-        inline explicit tetPoints(const tetPointRef& pts);
+        inline constexpr explicit tetPoints(const tetPointRef& pts);
 
         //- Construct from four points
-        inline tetPoints(const FixedList<point, 4>& pts);
+        inline constexpr tetPoints(const FixedList<point, 4>& pts);
 
         //- Copy construct from subset of points
         inline tetPoints
@@ -126,28 +129,28 @@ public:
     // Member Functions
 
         //- The first vertex
-        const point& a() const noexcept { return get<0>(); }
+        constexpr const point& a() const noexcept { return get<0>(); }
 
         //- The second vertex
-        const point& b() const noexcept { return get<1>(); }
+        constexpr const point& b() const noexcept { return get<1>(); }
 
         //- The third vertex
-        const point& c() const noexcept { return get<2>(); }
+        constexpr const point& c() const noexcept { return get<2>(); }
 
         //- The fourth vertex
-        const point& d() const noexcept { return get<3>(); }
+        constexpr const point& d() const noexcept { return get<3>(); }
 
         //- The first vertex
-        point& a() noexcept { return get<0>(); }
+        constexpr point& a() noexcept { return get<0>(); }
 
         //- The second vertex
-        point& b() noexcept { return get<1>(); }
+        constexpr point& b() noexcept { return get<1>(); }
 
         //- The third vertex
-        point& c() noexcept { return get<2>(); }
+        constexpr point& c() noexcept { return get<2>(); }
 
         //- The fourth vertex
-        point& d() noexcept { return get<3>(); }
+        constexpr point& d() noexcept { return get<3>(); }
 
         //- Return as tetrahedron reference
         inline tetPointRef tet() const;
@@ -201,7 +204,7 @@ public:
 
                 scalar total() const noexcept { return vol_; }
 
-                inline void operator()(const tetPoints&);
+                inline void operator()(const tetPoints& tet);
             };
 
             //- Store resulting tets
@@ -210,9 +213,13 @@ public:
                 tetIntersectionList& tets_;
                 label& nTets_;
 
-                inline storeOp(tetIntersectionList&, label&);
+                constexpr storeOp(tetIntersectionList& tets, label& nTets)
+                :
+                    tets_(tets),
+                    nTets_(nTets)
+                {}
 
-                inline void operator()(const tetPoints&);
+                void operator()(const tetPoints& tet) { tets_[nTets_++] = tet; }
             };
 
 private:
@@ -263,7 +270,7 @@ public:
     // Constructors
 
         //- Construct from four points
-        inline tetrahedron
+        inline constexpr tetrahedron
         (
             const Point& p0,
             const Point& p1,
@@ -272,7 +279,7 @@ public:
         );
 
         //- Construct from four points
-        inline tetrahedron(const FixedList<Point, 4>& pts);
+        inline constexpr tetrahedron(const FixedList<Point, 4>& pts);
 
         //- Construct from four points in the list of points
         inline tetrahedron
@@ -290,16 +297,16 @@ public:
     // Access
 
         //- Return vertex a
-        const Point& a() const noexcept { return a_; }
+        constexpr const Point& a() const noexcept { return a_; }
 
         //- Return vertex b
-        const Point& b() const noexcept { return b_; }
+        constexpr const Point& b() const noexcept { return b_; }
 
         //- Return vertex c
-        const Point& c() const noexcept { return c_; }
+        constexpr const Point& c() const noexcept { return c_; }
 
         //- Return vertex d
-        const Point& d() const noexcept { return d_; }
+        constexpr const Point& d() const noexcept { return d_; }
 
         //- Return i-th face
         inline triPointRef tri(const label facei) const;

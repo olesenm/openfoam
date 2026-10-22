@@ -149,10 +149,10 @@ public:
         inline constexpr complex(const scalar r, const scalar i) noexcept;
 
         //- Implicit construct from std::complex (float)
-        inline complex(const std::complex<float>& c);
+        inline constexpr complex(const std::complex<float>& c);
 
         //- Implicit construct from std::complex (double)
-        inline complex(const std::complex<double>& c);
+        inline constexpr complex(const std::complex<double>& c);
 
         //- Construct from Istream
         explicit complex(Istream& is);
@@ -178,17 +178,17 @@ public:
     // Methods
 
         //- Complex conjugate
-        inline complex conjugate() const;
+        inline constexpr complex conjugate() const;
 
         //- The magnitude (L2-norm) of complex.
         //- Called magnitude() instead mag(), which looks too much like imag()
         inline scalar magnitude() const;
 
         //- The L2-norm squared of complex
-        inline scalar magSqr() const noexcept;
+        inline constexpr scalar magSqr() const noexcept;
 
         //- The sum of real/imag components
-        inline scalar cmptSum() const noexcept;
+        inline constexpr scalar cmptSum() const noexcept;
 
 
     // Member Operators

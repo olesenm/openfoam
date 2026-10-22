@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -25,12 +26,10 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include <type_traits>
-
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Form, class Cmpt, Foam::direction Mrows, Foam::direction Ncols>
-inline Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
+inline constexpr Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
 (
     Foam::zero
 )
@@ -41,12 +40,24 @@ inline Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
 
 template<class Form, class Cmpt, Foam::direction Mrows, Foam::direction Ncols>
 template<class Form2, class Cmpt2>
-inline Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
+inline constexpr Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
 (
     const VectorSpace<Form2, Cmpt2, Mrows*Ncols>& vs
 )
 :
     MatrixSpace::vsType(vs)
+{}
+
+
+template<class Form, class Cmpt, Foam::direction Mrows, Foam::direction Ncols>
+template<class... Args>
+inline constexpr Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::MatrixSpace
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    MatrixSpace::vsType(Foam::direct_construct_t{}, std::forward<Args>(vals)...)
 {}
 
 
@@ -125,8 +136,8 @@ Block(msType& matrix)
 
 template<class Form, class Cmpt, Foam::direction Mrows, Foam::direction Ncols>
 template<Foam::direction Row, Foam::direction Col>
-inline const Cmpt& Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::elmt()
-const noexcept
+inline constexpr const Cmpt&
+Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::elmt() const noexcept
 {
     static_assert(Row < Mrows && Col < Ncols, "Address outside matrix");
     return this->v_[Row*Ncols + Col];
@@ -135,8 +146,8 @@ const noexcept
 
 template<class Form, class Cmpt, Foam::direction Mrows, Foam::direction Ncols>
 template<Foam::direction Row, Foam::direction Col>
-inline Cmpt& Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::elmt()
-noexcept
+inline constexpr Cmpt&
+Foam::MatrixSpace<Form, Cmpt, Mrows, Ncols>::elmt() noexcept
 {
     static_assert(Row < Mrows && Col < Ncols, "Address outside matrix");
     return this->v_[Row*Ncols + Col];

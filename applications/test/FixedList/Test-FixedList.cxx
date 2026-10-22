@@ -39,6 +39,7 @@ See also
 #include "FixedList.H"
 #include "Fstream.H"
 #include "List.H"
+#include "Random.H"
 #include "IPstream.H"
 #include "OPstream.H"
 
@@ -99,6 +100,7 @@ is_pair()
 
 int main(int argc, char *argv[])
 {
+    argList::noBanner();
     argList::noCheckProcessorDirectories();
 
     argList::addBoolOption("assign");
@@ -140,6 +142,24 @@ int main(int argc, char *argv[])
         a = 10; b = 20; c = 30;
 
         Info<< "set via structured binding: " << values << nl;
+    }
+
+    // Identity and sorting...
+    {
+        Info<< "identity: " << values << nl;
+        FixedList<label, 8> values;
+        Foam::identity(values);
+        Info<< "identity: " << values << nl;
+
+        FixedList<scalar, 5> unsorted({4.3, 2.5, 5.8, 1.12, 3.2});
+        Info<< "unsorted: " << unsorted << nl;
+
+        FixedList<label, 5> order(-1);
+        Foam::sortedOrder(unsorted, order);
+        Info<< "order: " << order << nl;
+
+        Foam::sort(unsorted);
+        Info<< "sorted: " << unsorted << nl;
     }
 
 

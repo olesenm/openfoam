@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -69,6 +70,16 @@ Description
       Used as a building block for uniform aggregate types.<br>
       Combines UPstream_user_dataType and UPstream_alias_dataType into a
       single trait.
+
+    - \c UPstream_cmptType trait :<br>
+      The resolved element/component type to use for the aggregate
+      handling in UPstream_basic_dataType/UPstream_dataType below.
+      Prefers \c contiguous_element (which has no \c pTraits
+      dependency and handles arithmetic, is_contiguous_label,
+      is_contiguous_scalar types directly), but falls back to
+      \c pTraits_cmptType (the \c VectorSpace-derived component type)
+      for other types (eg, Vector, Tensor) that \c contiguous_element
+      alone does not resolve.
     .
 
 \*---------------------------------------------------------------------------*/
@@ -77,6 +88,8 @@ Description
 #define Foam_UPstreamTraits_H
 
 #include "UPstream.H"
+#include "contiguous.H"
+#include "pTraits.H"
 #include <cstdint>
 #include <ios>  // For streamsize
 #include <type_traits>
@@ -351,33 +364,69 @@ struct UPstream_any_dataType
 
 // ------------------------------------------------------------------------- //
 
+//- The resolved element/component type used for UPstream aggregate handling.
+//  (eg, UPstream_basic_dataType/UPstream_dataType).
+//
+//  Normally switches based on \c contiguous_element, either as the
+//  base template (arithmetic, contiguous label/scalar) or an explicit
+//  specialization.
+//  When the \c contiguous_element does not provide a better answer
+//  (ie, is simply a pass-through type) it tries with
+//  \c pTraits_cmptType handling, which is a specially wrapped version
+//  for \c VectorSpace type of items.
+//
+//  NB: the \c !std::is_arithmetic_v<T> guard on the fallback specialization
+//  is essential. It prevents \c pTraits_cmptType (and hence \c pTraits)
+//  from being instantiated for basic arithmetic types, which are not all
+//  guaranteed to have a pTraits specialization (eg, "long double").
+template<class T, class = void>
+struct UPstream_cmptType
+{
+    using type = contiguous_element_t<T>;
+};
+
+//- \see UPstream_cmptType
+template<class T>
+struct UPstream_cmptType
+<
+    T,
+    std::enable_if_t
+    <
+      !std::is_arithmetic_v<T>
+    && std::is_same_v<T, contiguous_element_t<T>>
+    >
+>
+{
+    using type = typename pTraits_cmptType<T>::type;
+};
+
+
 //- UPstream fundamental/aliased (excludes user-defined) data type
 //- or a component aggregate of the same.
 //
 // True for the following conditions:
 // - The \c Type is directly supported
-// - The \c cmptType (eg, from VectorSpace) exists and is directly supported
+// - The \c component type (see UPstream_cmptType) exists
+//   and is directly supported
 // - Fallback to byte-wise representation (ie, for contiguous)
 // .
+//
+//  Since a non-aggregate type is simply its own UPstream_cmptType,
+//  the aggregate and non-aggregate handling collapses into the same
+//  expression (in terms of UPstream_cmptType), with only the size()
+//  multiplier needing to distinguish the two cases.
 template<class T>
 struct UPstream_basic_dataType
 :
     std::bool_constant
     <
-        // non-aggregate type
-        UPstream_alias_dataType<T>::value
-        // aggregate type
-     || UPstream_alias_dataType<typename pTraits_cmptType<T>::type>::value
+        UPstream_alias_dataType<typename UPstream_cmptType<T>::type>::value
     >
 {
     //- The underlying data type (if supported) or byte
-    using base = std::conditional_t
-    <
-        UPstream_alias_dataType<T>::value,
-        typename UPstream_alias_dataType<T>::base,  // <- non-aggregate
+    using base =
         typename UPstream_alias_dataType
-        <typename pTraits_cmptType<T>::type>::base  // <- aggregate
-    >;
+        <typename UPstream_cmptType<T>::type>::base;
 
     //- The corresponding UPstream::dataTypes enumeration
     static constexpr auto datatype_id =
@@ -386,7 +435,7 @@ struct UPstream_basic_dataType
     //- The size in terms of the number of underlying data elements
     static constexpr std::streamsize size(std::streamsize n) noexcept
     {
-        if constexpr (UPstream_alias_dataType<T>::value)
+        if constexpr (std::is_same_v<T, typename UPstream_cmptType<T>::type>)
         {
             // non-aggregate: no multiplier
             return n;
@@ -417,16 +466,26 @@ template<> struct UPstream_basic_dataType<void> : UPstream_mpi_dataType<void>
 //
 // True for the following conditions:
 // - The \c Type is directly supported
-// - The \c cmptType (eg, from VectorSpace) exists and is directly supported
+// - The \c cmptType (eg, from UPstream_cmptType) exists and is
+//   directly supported
 // - Fallback to byte-wise representation (ie, for contiguous)
 // .
+//
+//  Unlike UPstream_basic_dataType, this cannot use is_UPstream_aggregate
+//  (based on \c UPstream_cmptType alone) to select between \c T and its
+//  \c cmptType: some non-arithmetic aggregate types (eg, Vector<float>)
+//  are themselves directly supported as an MPI user-defined type despite
+//  having a distinct \c cmptType, and must remain undecomposed (count 1).
+//  The distinguishing condition is therefore whether \c T itself is
+//  already directly supported (\c UPstream_any_dataType<T>), not whether
+//  it differs from its \c cmptType.
 template<class T>
 struct UPstream_dataType
 :
     std::bool_constant
     <
         UPstream_any_dataType<T>::value
-     || UPstream_any_dataType<typename pTraits_cmptType<T>::type>::value
+     || UPstream_any_dataType<typename UPstream_cmptType<T>::type>::value
     >
 {
     //- The underlying data type (if supported) or byte
@@ -435,7 +494,7 @@ struct UPstream_dataType
         UPstream_any_dataType<T>::value,
         typename UPstream_any_dataType<T>::base,   // <- non-aggregate
         typename UPstream_any_dataType
-        <typename pTraits_cmptType<T>::type>::base  // <- aggregate
+        <typename UPstream_cmptType<T>::type>::base  // <- aggregate
     >;
 
     //- The corresponding UPstream::dataTypes enumeration

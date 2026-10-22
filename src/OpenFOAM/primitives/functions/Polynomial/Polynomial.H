@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -102,7 +103,7 @@ public:
     // Constructors
 
         //- Default construct, with all coefficients = 0
-        Polynomial();
+        constexpr Polynomial();
 
         //- Construct from an initializer list of coefficients
         Polynomial(std::initializer_list<scalar> coeffs);

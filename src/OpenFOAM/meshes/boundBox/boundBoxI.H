@@ -104,35 +104,36 @@ inline Foam::point Foam::boundBox::octCorner(direction octant) const
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::boundBox::boundBox()
+inline constexpr Foam::boundBox::boundBox()
 :
-    min_(invertedBox.min()),
-    max_(invertedBox.max())
+    // An invertedBox
+    min_(point::uniform(boundBox::greatDim())),
+    max_(point::uniform(-boundBox::greatDim()))
 {}
 
 
-inline Foam::boundBox::boundBox(Foam::zero_one)
+inline constexpr Foam::boundBox::boundBox(Foam::zero_one)
 :
-    min_(point::zero),
-    max_(point::one)
+    min_(point::uniform(0)),
+    max_(point::uniform(1))
 {}
 
 
-inline Foam::boundBox::boundBox(const point& p)
+inline constexpr Foam::boundBox::boundBox(const point& p)
 :
     min_(p),
     max_(p)
 {}
 
 
-inline Foam::boundBox::boundBox(const point& min, const point& max)
+inline constexpr Foam::boundBox::boundBox(const point& min, const point& max)
 :
     min_(min),
     max_(max)
 {}
 
 
-inline Foam::boundBox::boundBox(const Pair<point>& bb)
+inline constexpr Foam::boundBox::boundBox(const Pair<point>& bb)
 :
     min_(bb.first()),
     max_(bb.second())
@@ -408,15 +409,16 @@ inline int Foam::boundBox::nDim() const
 
 inline void Foam::boundBox::reset()
 {
-    min_ = invertedBox.min();
-    max_ = invertedBox.max();
+    // An invertedBox
+    min_ = point::uniform(boundBox::greatDim());
+    max_ = point::uniform(-boundBox::greatDim());
 }
 
 
 inline void Foam::boundBox::reset(Foam::zero_one)
 {
-    min_ = point::zero;
-    max_ = point::one;
+    min_ = point::uniform(0);
+    max_ = point::uniform(1);
 }
 
 

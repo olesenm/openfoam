@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,7 +28,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "error.H"
-#include "ListPolicy.H"
 
 // <algorithm> already included by stdFoam.H
 #include <execution>
@@ -71,9 +71,6 @@ inline constexpr Foam::UList<T>::UList(T* __restrict__ ptr, label len) noexcept
 template<class T>
 inline void Foam::UList<T>::fill_uniform(const T& val)
 {
-    // Can dispatch with
-    // - std::execution::par_unseq
-    // - std::execution::unseq
     #ifdef FOAM_OFFLOAD
     if constexpr(is_contiguous_v<T> && !std::is_same_v<T,bool>)
     {
@@ -87,10 +84,7 @@ inline void Foam::UList<T>::fill_uniform(const T& val)
     else
     #endif
     {
-        std::fill_n
-        (
-            this->v_, this->size_, val
-        );
+        std::fill_n(this->v_, this->size_, val);
     }
 }
 
@@ -98,41 +92,39 @@ inline void Foam::UList<T>::fill_uniform(const T& val)
 template<class T>
 inline void Foam::UList<T>::fill_uniform(Foam::zero)
 {
+    // Avoid ambiguous casting from Foam::zero
+    #ifdef FOAM_OFFLOAD
     if constexpr (std::is_arithmetic_v<T>)
     {
-        // Can dispatch with
-        // - std::execution::par_unseq
-        // - std::execution::unseq
-        #ifdef FOAM_OFFLOAD
         apply_policy(this->size_, [&](auto policy)
         {
             std::fill_n(policy, this->v_, this->size_, T(0));
         });
-        #else
-        std::fill_n
-        (
-            this->v_, this->size_, T(0)
-        );
-        #endif
-
     }
     else if constexpr (is_contiguous_v<T>)
     {
-        // Can dispatch with
-        // - std::execution::par_unseq
-        // - std::execution::unseq
-        #ifdef FOAM_OFFLOAD
+        constexpr auto val = char(0);
+
+        // Use byte-wise filling for contiguous data
         apply_policy(this->size_bytes(), [&](auto policy)
         {
-            std::fill_n(policy, this->data_bytes(), this->size_bytes(), char(0));
+            std::fill_n(policy, this->data_bytes(), this->size_bytes(), val);
         });
-        #else
-        std::fill_n
-        (
-            this->data_bytes(), this->size_bytes(), char(0)
-        );
-        #endif
     }
+    #else
+    if constexpr (std::is_scalar_v<T>)
+    {
+        // Avoid ambiguous casting from Foam::zero
+        std::fill_n(this->v_, this->size_, T(0));
+    }
+    else if constexpr (is_contiguous_v<T>)
+    {
+        constexpr auto val = char(0);
+
+        // Use byte-wise filling for contiguous data
+        std::fill_n(this->data_bytes(), this->size_bytes(), val);
+    }
+    #endif
     else
     {
         // May also have special triggers when assigning non-contiguous
@@ -275,11 +267,18 @@ inline bool Foam::UList<T>::uniform() const
     // notation in the writeList() method.
     // - requires 'operator!=' to be defined for the type.
 
-    return
-    (
-        Foam::ListPolicy::uniformity::UNIFORM
-     == Foam::ListPolicy::check_uniformity(this->v_, this->v_ + size_)
-    );
+    if constexpr (Foam::ListPolicy::has_uniformity<T>::value)
+    {
+        return
+        (
+            Foam::ListPolicy::uniformity::UNIFORM
+         == Foam::ListPolicy::check_uniformity(this->v_, this->v_ + size_)
+        );
+    }
+    else
+    {
+        return false;
+    }
 }
 
 

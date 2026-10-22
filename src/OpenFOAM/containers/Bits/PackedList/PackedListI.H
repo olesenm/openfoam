@@ -96,12 +96,12 @@ inline bool Foam::PackedList<Width>::setValue_unsafe
 ) noexcept
 {
     // Reference to the block content
-    auto& ref_ = blocks_.data()[pos / elem_per_block];
+    auto& ref_ = blocks_.data()[block_index(pos)];
 
     // The bit shift to access the given sub-portion
-    const unsigned shift = (Width * (pos % elem_per_block));
+    const unsigned bshift = (Width * sub_index(pos));
 
-    const unsigned int mask = (max_value << shift);
+    const unsigned int mask = (max_value << bshift);
     const unsigned int prev = ref_;
 
     if (val >= max_value)
@@ -111,7 +111,7 @@ inline bool Foam::PackedList<Width>::setValue_unsafe
     else
     {
         ref_ &= ~mask;
-        ref_ |= mask & (val << shift);
+        ref_ |= mask & (val << bshift);
     }
 
     return (prev != ref_);
@@ -123,11 +123,11 @@ inline void Foam::PackedList<Width>::clear_trailing_bits() noexcept
 {
     // Mask off any partial rubbish in final block
 
-    if (const unsigned int off = size() % elem_per_block; off)
+    if (const unsigned int endOffset = sub_index(size()); endOffset)
     {
-        const unsigned int blk = size() / elem_per_block;
+        unsigned int blk = block_index(size());
 
-        blocks_.data()[blk] &= mask_lower(off);
+        blocks_.data()[blk] &= mask_lower(endOffset);
     }
 }
 
@@ -146,7 +146,7 @@ inline bool Foam::PackedList<Width>::trim(label minpos)
         minpos = orig;   // Don't allow allow accidental growth!
     }
 
-    for (label blocki = num_blocks(size())-1; blocki >= 0; --blocki)
+    for (label blocki = this->num_blocks()-1; blocki >= 0; --blocki)
     {
         // Truncate to the block begin
         size_ = blocki * elem_per_block;
@@ -176,14 +176,15 @@ inline bool Foam::PackedList<Width>::trim(label minpos)
 
 
 template<unsigned Width>
-inline Foam::label Foam::PackedList<Width>::first_block() const noexcept
+inline Foam::label
+Foam::PackedList<Width>::find_first_block() const noexcept
 {
     if (size())
     {
         // Note: use cdata()[..] instead of blocks_[] to ensure noexcept
         // even when UList is compiled in full debug
 
-        const label nblocks = num_blocks(size());
+        const label nblocks = this->num_blocks();
         const auto* block_ptr = blocks_.cdata();
 
         for (label blocki = 0; blocki < nblocks; ++blocki)
@@ -200,7 +201,8 @@ inline Foam::label Foam::PackedList<Width>::first_block() const noexcept
 
 
 template<unsigned Width>
-inline Foam::label Foam::PackedList<Width>::first_not_block() const noexcept
+inline Foam::label
+Foam::PackedList<Width>::find_first_not_block() const noexcept
 {
     if (!size())
     {
@@ -210,31 +212,46 @@ inline Foam::label Foam::PackedList<Width>::first_not_block() const noexcept
     // Check on complement (changes 0 <-> 1).
     // If any 1's now appear, there was a 0 bit before
 
-    const label nblocks = num_blocks(size());
+    const label nblocks = this->num_blocks();
     const auto* block_ptr = blocks_.cdata();
 
-    // Extra bits in the final block?
-    if (const unsigned int off = size() % elem_per_block; off)
-    {
-        for (label blocki = 0; blocki < nblocks-1; ++blocki)
-        {
-            if (~(block_ptr[blocki]))
-            {
-                return blocki;
-            }
-        }
+    // Mask of the addressable bits within a fully packed block.
+    constexpr unsigned int fullMask = mask_lower(elem_per_block);
 
-        // The final block needs masking
-        if (~(block_ptr[nblocks-1]) & mask_lower(off))
+    // All blocks preceding the final one are fully packed
+    for (label blocki = 0; blocki < nblocks-1; ++blocki)
+    {
+        if (~(block_ptr[blocki]) & fullMask)
         {
-            return nblocks-1;
+            return blocki;
         }
     }
-    else
+
+    // The final block: mask to the number of elements actually used,
+    // or the full valid-bits mask if it happens to be completely filled
+    const unsigned int endOffset = sub_index(size());
+    const unsigned int emask = (endOffset ? mask_lower(endOffset) : fullMask);
+
+    if (~(block_ptr[nblocks-1]) & emask)
     {
-        for (label blocki = 0; blocki < nblocks; ++blocki)
+        return nblocks-1;
+    }
+
+    return -1;
+}
+
+
+template<unsigned Width>
+inline Foam::label
+Foam::PackedList<Width>::find_last_block() const noexcept
+{
+    if (size())
+    {
+        const auto* block_ptr = blocks_.cdata();
+
+        for (label blocki = this->num_blocks()-1; blocki >= 0; --blocki)
         {
-            if (~(block_ptr[blocki]))
+            if (block_ptr[blocki])  // ie, blocks_[blocki] but noexcept
             {
                 return blocki;
             }
@@ -242,6 +259,116 @@ inline Foam::label Foam::PackedList<Width>::first_not_block() const noexcept
     }
 
     return -1;
+}
+
+
+template<unsigned Width>
+inline Foam::label
+Foam::PackedList<Width>::find_last_not_block() const noexcept
+{
+    if (!size())
+    {
+        return -1;
+    }
+
+    // Check on complement (changes 0 <-> 1).
+    // If any 1's now appear, there was a 0 bit before
+
+    const label nblocks = this->num_blocks();
+    const auto* block_ptr = blocks_.cdata();
+
+    // Mask of the addressable bits within a fully packed block.
+    constexpr unsigned int fullMask = mask_lower(elem_per_block);
+
+    label blocki = (nblocks - 1);
+
+    // The final block: mask to the number of elements actually used,
+    // or the full valid-bits mask if it happens to be completely filled
+
+    const unsigned int endOffset = sub_index(size());
+    const unsigned int emask = (endOffset ? mask_lower(endOffset) : fullMask);
+
+    {
+        if (~(block_ptr[blocki]) & emask)
+        {
+            return blocki;
+        }
+        --blocki;
+    }
+
+    // Remaining (fully packed) blocks
+    for (; blocki >= 0; --blocki)
+    {
+        if (~(block_ptr[blocki]) & fullMask)
+        {
+            return blocki;
+        }
+    }
+
+    return -1;
+}
+
+
+template<unsigned Width>
+inline void Foam::PackedList<Width>::fill_range
+(
+    const labelRange& slice,
+    unsigned int val
+)
+{
+    // Fill value for complete blocks
+    const unsigned int blockval = repeated_value(val);
+
+    // The more difficult case - everything in between.
+    // 1. sequence may begin/end in the same block
+    // 2. Cover more than one block
+    //    a. with partial coverage in the first block
+    //    b. with partial coverage in the end block
+
+    // The begin block, bitmask for partial blocks (0 if unneeded)
+    const unsigned int bblock = block_index(slice.begin_value());
+    const unsigned int bmask  = mask_lower(sub_index(slice.begin_value()));
+
+    // The end block, bitmask for partial blocks (0 if unneeded)
+    const unsigned int eblock = block_index(slice.end_value());
+    const unsigned int emask  = mask_lower(sub_index(slice.end_value()));
+
+    if (bblock == eblock)
+    {
+        // Same block - fill between the begin/end bits.
+        // Example:
+        // bmask = 0000000000001111  (lower bits)
+        // emask = 0000111111111111  (lower bits)
+        // -> set  0000111111110000  (xor)
+
+        const unsigned int m = (emask^bmask);
+        blocks_[bblock] = ((blocks_[bblock] & ~m) | (blockval & m));
+    }
+    else
+    {
+        unsigned blocki = bblock;
+
+        if (bmask)
+        {
+            // The first (partial) block
+            // - only retain things below bmask, fill in the rest.
+            blocks_[blocki] = ((blocks_[blocki] & bmask) | (blockval & ~bmask));
+            ++blocki;
+        }
+
+        // Continue with block-wise fill
+        for (; blocki < eblock; ++blocki)
+        {
+            blocks_[blocki] = blockval;
+        }
+
+        if (emask)
+        {
+            // The last (partial) block.
+            // - only retain things above emask, fill in the rest.
+            blocks_[eblock] = ((blocks_[eblock] & ~emask) | (blockval & emask));
+        }
+    }
 }
 
 
@@ -367,8 +494,8 @@ inline Foam::PackedList<Width>::reference::reference
     const label pos
 ) noexcept
 :
-    ref_(parent->blocks_.data()[pos / elem_per_block]),
-    shift_(Width * (pos % elem_per_block))
+    ref_(parent->blocks_.data()[block_index(pos)]),
+    shift_(Width * sub_index(pos))
 {}
 
 
@@ -483,8 +610,9 @@ inline void Foam::PackedList<Width>::resize_fill
     const label oldLen = num_blocks(size());
     const label newLen = num_blocks(numElem);
 
-    // Extend and resize
-    reserve(numElem);
+    // Extend and resize. Using reserve_exact() instead of reserve() to
+    // minimize over-allocation
+    reserve_exact(numElem);
     size_ = numElem;
 
     // If addressing space shrinks:
@@ -542,9 +670,9 @@ inline void Foam::PackedList<Width>::resize
             }
 
             // Finish previous partial block, preserve existing value
-            if (const unsigned int off = oldSize % elem_per_block; off)
+            if (const unsigned int off = sub_index(oldSize); off)
             {
-                const unsigned int blk = oldSize / elem_per_block;
+                const unsigned int blk = block_index(oldSize);
                 const unsigned int mask = mask_lower(off);
 
                 blocks_[blk] &= mask;
@@ -594,13 +722,15 @@ inline void Foam::PackedList<Width>::reserve(const label numElem)
     const label oldLen = blocks_.size();
     const label newLen = num_blocks(numElem);
 
+    constexpr label minSize = 16;
+
     // Allocate more capacity if necessary
     if (oldLen < newLen)
     {
         blocks_.resize
         (
-            // SizeMin=16, allocation doubling
-            Foam::max(16, Foam::max(newLen, 2*oldLen)),
+            // Allocation doubling with min-size
+            Foam::max(minSize, Foam::max(newLen, 2*oldLen)),
             0u
         );
     }
@@ -613,13 +743,14 @@ inline void Foam::PackedList<Width>::reserve_exact(const label numElem)
     const label oldLen = blocks_.size();
     const label newLen = num_blocks(numElem);
 
+    constexpr label minSize = 16;
+
     // Allocate more capacity if necessary
     if (oldLen < newLen)
     {
         blocks_.resize
         (
-            // SizeMin=16
-            Foam::max(16, newLen),
+            Foam::max(minSize, newLen),
             0u
         );
     }
@@ -653,8 +784,7 @@ template<unsigned Width>
 inline void Foam::PackedList<Width>::shrink_to_fit()
 {
     // Any unneeded space allocated?
-    const label nblocks = num_blocks(size());
-    if (nblocks < blocks_.size())
+    if (const label nblocks = this->num_blocks(); nblocks < blocks_.size())
     {
         blocks_.resize(nblocks);
     }
@@ -733,8 +863,8 @@ inline unsigned int Foam::PackedList<Width>::get(const label i) const noexcept
     else
     {
         // The corresponding block/offset
-        const label blocki = i / elem_per_block;
-        const unsigned int off = i % elem_per_block;
+        const label blocki = block_index(i);
+        const unsigned int off = sub_index(i);
 
         if constexpr (Width <= 1)
         {
@@ -843,7 +973,7 @@ inline void Foam::PackedList<Width>::fill(const unsigned int val) noexcept
         return;  // Trivial case
     }
 
-    const label nblocks = num_blocks(size());
+    const label nblocks = this->num_blocks();
 
     // Fill value for complete blocks
     const unsigned int blockval = (val ? repeated_value(val) : 0u);
@@ -857,6 +987,48 @@ inline void Foam::PackedList<Width>::fill(const unsigned int val) noexcept
     {
         clear_trailing_bits();
     }
+}
+
+template<unsigned Width>
+inline void Foam::PackedList<Width>::extract
+(
+    PackedList<Width>& target,
+    label pos,
+    label len
+) const
+{
+    extract_copy(*this, target, pos, len);
+}
+
+
+template<unsigned Width>
+inline void Foam::PackedList<Width>::extract
+(
+    PackedList<Width>& target,
+    const labelRange& range
+) const
+{
+    extract_copy(*this, target, range);
+}
+
+
+template<unsigned Width>
+inline Foam::PackedList<Width>
+Foam::PackedList<Width>::extract(label pos, label len) const
+{
+    PackedList<Width> output;
+    extract_copy(*this, output, pos, len);
+    return output;
+}
+
+
+template<unsigned Width>
+inline Foam::PackedList<Width>
+Foam::PackedList<Width>::extract(const labelRange& range) const
+{
+    PackedList<Width> output;
+    extract_copy(*this, output, range);
+    return output;
 }
 
 
@@ -922,6 +1094,46 @@ inline bool Foam::PackedList<Width>::operator!=
 ) const noexcept
 {
     return !(this->equal(list));
+}
+
+
+template<unsigned Width>
+inline bool Foam::PackedList<Width>::operator<
+(
+    const PackedList<Width>& other
+) const noexcept
+{
+    return (this->compare(other) < 0);
+}
+
+
+template<unsigned Width>
+inline bool Foam::PackedList<Width>::operator>
+(
+    const PackedList<Width>& other
+) const noexcept
+{
+    return (this->compare(other) > 0);
+}
+
+
+template<unsigned Width>
+inline bool Foam::PackedList<Width>::operator<=
+(
+    const PackedList<Width>& other
+) const noexcept
+{
+    return (this->compare(other) <= 0);
+}
+
+
+template<unsigned Width>
+inline bool Foam::PackedList<Width>::operator>=
+(
+    const PackedList<Width>& other
+) const noexcept
+{
+    return (this->compare(other) >= 0);
 }
 
 

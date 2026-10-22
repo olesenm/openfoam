@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2019-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,24 +30,23 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Barycentric2D<Cmpt>::Barycentric2D(const Foam::zero)
+inline constexpr Foam::Barycentric2D<Cmpt>::Barycentric2D(Foam::zero)
 :
-    Barycentric2D::vsType(Zero)
+    Barycentric2D::vsType(Foam::zero{})
 {}
 
 
 template<class Cmpt>
-inline Foam::Barycentric2D<Cmpt>::Barycentric2D
+inline constexpr Foam::Barycentric2D<Cmpt>::Barycentric2D
 (
     const Cmpt& va,
     const Cmpt& vb,
     const Cmpt& vc
 )
-{
-    this->v_[A] = va;
-    this->v_[B] = vb;
-    this->v_[C] = vc;
-}
+:
+    // aggregate initialization
+    Barycentric2D::vsType(Foam::direct_construct_t{}, va, vb, vc)
+{}
 
 
 template<class Cmpt>

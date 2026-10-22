@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -105,8 +106,8 @@ public:
         inline void clear();
 
         //- Append an element if not already in the list.
-        //  \return the change in list length
-        inline label push_uniq(const word& val);
+        //  \return True if it was added
+        inline bool push_uniq(const word& val);
 
         //- Return the hash of words/indices for inspection
         inline const HashTable<label>& lookup() const;
@@ -194,7 +195,7 @@ public:
 
         //- Same as push_uniq()
         FOAM_DEPRECATED_FOR(2022-10, "push_uniq method")
-        label appendUniq(const word& val) { return this->push_uniq(val); }
+        bool appendUniq(const word& val) { return this->push_uniq(val); }
 };
 
 

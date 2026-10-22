@@ -45,7 +45,6 @@ SourceFiles
 
 #include "vector.H"
 #include "tensor.H"
-#include "contiguous.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -174,11 +173,15 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
-//- Contiguous data for triad
-template<> struct is_contiguous<triad> : std::true_type {};
-
-//- Contiguous 'scalar' data for triad
-template<> struct is_contiguous_scalar<triad> : std::true_type {};
+// Contiguous traits handled by generalized traits using cmptType (SEPT-2026)
+//
+// OLD CODE:
+//
+// //- Contiguous data for triad
+// template<> struct is_contiguous<triad> : std::true_type {};
+//
+// //- Contiguous 'scalar' data for triad
+// template<> struct is_contiguous_scalar<triad> : std::true_type {};
 
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //

@@ -343,6 +343,25 @@ Foam::List<T>::List(std::initializer_list<T> list)
 
 
 template<class T>
+template<class... Args>
+Foam::List<T>::List
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    UList<T>()
+{
+    if constexpr (sizeof...(Args) > 0)
+    {
+        doAlloc(label(sizeof...(Args)));
+        auto* iter = this->data();
+        ((*iter++ = std::forward<Args>(vals)), ...);
+    }
+}
+
+
+template<class T>
 template<int SizeMin>
 Foam::List<T>::List(DynamicList<T, SizeMin>&& list)
 :
@@ -378,14 +397,14 @@ template<class T>
 void Foam::List<T>::resize(const label len, const T& val)
 {
     const label oldLen = this->size_;
- 
+
     if (oldLen == len)
     {
         return;
     }
- 
+
     resize_copy(oldLen, len);
- 
+
     // Fill trailing part with new values
     if (oldLen < this->size_)
     {
@@ -554,26 +573,18 @@ void Foam::List<T>::operator=(DynamicField<T, SizeMin>&& list)
 
 // * * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * //
 
-template<class T>
-Foam::labelList Foam::sortedOrder
-(
-    const UList<T>& list
-)
-{
-    labelList order;
-    Foam::sortedOrder(list, order, typename UList<T>::less(list));
-    return order;
-}
-
-
-template<class T>
+template<class ListComparePredicate>
 void Foam::sortedOrder
 (
-    const UList<T>& list,
-    labelList& order
+    const label length,
+    labelList& order,
+    const ListComparePredicate& comp
 )
 {
-    Foam::sortedOrder(list, order, typename UList<T>::less(list));
+    // Indices must match the input length
+    order.resize_nocopy(length);
+    Foam::identity(order, 0);
+    Foam::stableSort(order, comp);
 }
 
 
@@ -585,11 +596,23 @@ void Foam::sortedOrder
     const ListComparePredicate& comp
 )
 {
-    // List lengths must be identical. Old content is overwritten
-    order.resize_nocopy(list.size());
+    Foam::sortedOrder(list.size(), order, comp);
+}
 
-    Foam::identity(order, 0);
-    Foam::stableSort(order, comp);
+
+template<class T>
+void Foam::sortedOrder(const UList<T>& list, labelList& order)
+{
+    Foam::sortedOrder(list.size(), order, ListOps::less(list));
+}
+
+
+template<class T>
+Foam::labelList Foam::sortedOrder(const UList<T>& list)
+{
+    labelList order;
+    Foam::sortedOrder(list.size(), order, ListOps::less(list));
+    return order;
 }
 
 

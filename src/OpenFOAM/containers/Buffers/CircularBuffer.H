@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -333,9 +334,9 @@ public:
         template<class Addr>
         inline void push_back(const IndirectListBase<T, Addr>& list);
 
-        //- Append an element if not already in the buffer.
-        //  \return the change in the buffer length
-        inline label push_uniq(const T& val);
+        //- Append an element if not already in the list.
+        //  \return True if it was added
+        inline bool push_uniq(const T& val);
 
 
     // Other Operations
@@ -417,7 +418,7 @@ public:
         public:
 
             using difference_type = label;
-            using value_type = const T;
+            using value_type = std::remove_cv_t<T>;
             using pointer = const T*;
             using reference = const T&;
             using iterator_category = std::forward_iterator_tag;

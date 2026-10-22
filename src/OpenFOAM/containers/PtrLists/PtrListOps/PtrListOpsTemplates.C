@@ -36,7 +36,7 @@ Foam::labelList Foam::sortedOrder
 )
 {
     labelList order;
-    Foam::sortedOrder(list, order, typename UPtrList<T>::less(list));
+    Foam::sortedOrder(list, order, PtrListOps::less(list));
     return order;
 }
 
@@ -48,7 +48,7 @@ void Foam::sortedOrder
     labelList& order
 )
 {
-    Foam::sortedOrder(list, order, typename UPtrList<T>::less(list));
+    Foam::sortedOrder(list, order, PtrListOps::less(list));
 }
 
 

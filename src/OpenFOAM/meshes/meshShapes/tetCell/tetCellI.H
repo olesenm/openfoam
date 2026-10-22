@@ -55,30 +55,27 @@ inline void Foam::tetCell::checkFaceIndex(label facei)
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::tetCell::tetCell()
+inline constexpr Foam::tetCell::tetCell()
 :
-    FixedList<label, 4>(-1)
+    tuple_type(-1)
 {}
 
 
-inline Foam::tetCell::tetCell(label p0, label p1, label p2, label p3)
-{
-    get<0>() = p0;
-    get<1>() = p1;
-    get<2>() = p2;
-    get<3>() = p3;
-}
+inline constexpr Foam::tetCell::tetCell(label p0, label p1, label p2, label p3)
+:
+    tuple_type(Foam::direct_construct_t{}, p0, p1, p2, p3)
+{}
 
 
 inline Foam::tetCell::tetCell(std::initializer_list<label> list)
 :
-    FixedList<label, 4>(list)
+    tuple_type(list)
 {}
 
 
-inline Foam::tetCell::tetCell(const FixedList<label, 4>& list)
+inline constexpr Foam::tetCell::tetCell(const FixedList<label, 4>& list)
 :
-    FixedList<label, 4>(list)
+    tuple_type(list)
 {}
 
 
@@ -88,7 +85,7 @@ inline Foam::tetCell::tetCell
     const FixedList<label, 4>& indices
 )
 :
-    FixedList<label, 4>(list, indices)
+    tuple_type(list, indices)
 {}
 
 
@@ -99,13 +96,13 @@ inline Foam::tetCell::tetCell
     const FixedList<label, 4>& indices
 )
 :
-    FixedList<label, 4>(list, indices)
+    tuple_type(list, indices)
 {}
 
 
 inline Foam::tetCell::tetCell(Istream& is)
 :
-    FixedList<label, 4>(is)
+    tuple_type(is)
 {}
 
 

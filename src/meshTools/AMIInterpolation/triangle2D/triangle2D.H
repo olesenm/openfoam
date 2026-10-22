@@ -27,7 +27,7 @@ Class
     Foam::triangle2D
 
 Description
-    2-D triangle and queries
+    2-D triangle and queries. Conceptually a "triPoints2D"
 
 SourceFiles
     triangle2DI.H
@@ -35,8 +35,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef triangle2D_H
-#define triangle2D_H
+#ifndef Foam_triangle2D_H
+#define Foam_triangle2D_H
 
 #include "vector.H"
 #include "vector2D.H"
@@ -54,6 +54,8 @@ class triangle2D
 :
     public FixedList<vector2D, 3>
 {
+    typedef FixedList<vector2D, 3> tuple_type;
+
     // Private Data
 
         //- Area
@@ -175,8 +177,11 @@ public:
         //- Return true if triB overlaps
         bool overlaps(const triangle2D& triB) const;
 
+        //- Flip triangle orientation by swapping second and third vertices
+        inline void flip();
+
         //- Return the triangle area
-        inline scalar area() const noexcept;
+        inline constexpr scalar area() const noexcept;
 
         //- Return the triangle centre
         inline vector2D centre() const;

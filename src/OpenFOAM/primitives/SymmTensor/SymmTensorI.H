@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -31,7 +32,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::SymmTensor<Cmpt>::SymmTensor(Foam::zero)
+inline constexpr Foam::SymmTensor<Cmpt>::SymmTensor(Foam::zero)
 :
     SymmTensor::vsType(Foam::zero{})
 {}
@@ -49,12 +50,11 @@ inline Foam::SymmTensor<Cmpt>::SymmTensor
 
 
 template<class Cmpt>
-inline Foam::SymmTensor<Cmpt>::SymmTensor(const SphericalTensor<Cmpt>& st)
-{
-    this->v_[XX] = st.ii(); this->v_[XY] = Zero; this->v_[XZ] = Zero;
-    this->v_[YY] = st.ii(); this->v_[YZ] = Zero;
-    this->v_[ZZ] = st.ii();
-}
+inline constexpr
+Foam::SymmTensor<Cmpt>::SymmTensor(const SphericalTensor<Cmpt>& st)
+:
+    SymmTensor(st.ii(), Zero, Zero, st.ii(), Zero, st.ii())
+{}
 
 
 template<class Cmpt>
@@ -71,17 +71,22 @@ inline Foam::SymmTensor<Cmpt>::SymmTensor
 
 
 template<class Cmpt>
-inline Foam::SymmTensor<Cmpt>::SymmTensor
+inline constexpr Foam::SymmTensor<Cmpt>::SymmTensor
 (
     const Cmpt txx, const Cmpt txy, const Cmpt txz,
                     const Cmpt tyy, const Cmpt tyz,
                                     const Cmpt tzz
 )
-{
-    this->v_[XX] = txx; this->v_[XY] = txy; this->v_[XZ] = txz;
-                        this->v_[YY] = tyy; this->v_[YZ] = tyz;
-                                            this->v_[ZZ] = tzz;
-}
+:
+    // aggregate initialization
+    SymmTensor::vsType
+    (
+        Foam::direct_construct_t{},
+        txx, txy, txz,
+             tyy, tyz,
+                  tzz
+    )
+{}
 
 
 template<class Cmpt>
@@ -94,21 +99,21 @@ inline Foam::SymmTensor<Cmpt>::SymmTensor(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::x() const
+inline constexpr Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::x() const
 {
     return Vector<Cmpt>(this->v_[XX], this->v_[XY], this->v_[XZ]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::y() const
+inline constexpr Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::y() const
 {
     return Vector<Cmpt>(this->v_[XY], this->v_[YY], this->v_[YZ]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::z() const
+inline constexpr Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::z() const
 {
     return Vector<Cmpt>(this->v_[XZ], this->v_[YZ], this->v_[ZZ]);
 }
@@ -116,7 +121,7 @@ inline Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::z() const
 
 template<class Cmpt>
 template<Foam::direction Idx>
-inline Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::row() const
+inline constexpr Foam::Vector<Cmpt> Foam::SymmTensor<Cmpt>::row() const
 {
     if (Idx == 0) return x();
     else if (Idx == 1) return y();
@@ -227,7 +232,7 @@ inline void Foam::SymmTensor<Cmpt>::subtractDiag(const Vector<Cmpt>& v)
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::SymmTensor<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::SymmTensor<Cmpt>::diagSqr() const
 {
     return
     (

@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -78,16 +79,16 @@ public:
     // Generated Methods
 
         //- Copy construct
-        triFace(const triFace&) = default;
+        constexpr triFace(const triFace&) = default;
 
         //- Move construct
-        triFace(triFace&&) = default;
+        constexpr triFace(triFace&&) = default;
 
         //- Copy assignment
-        triFace& operator=(const triFace&) = default;
+        constexpr triFace& operator=(const triFace&) = default;
 
         //- Move assignment
-        triFace& operator=(triFace&&) = default;
+        constexpr triFace& operator=(triFace&&) = default;
 
         //- The front() accessor (from FixedList) has no purpose
         void front() = delete;
@@ -99,10 +100,10 @@ public:
     // Constructors
 
         //- Default construct, with invalid vertex labels (-1)
-        inline triFace();
+        inline constexpr triFace();
 
         //- Construct from three vertex labels
-        inline triFace(label p0, label p1, label p2) noexcept;
+        inline constexpr triFace(label p0, label p1, label p2) noexcept;
 
         //- Construct from an initializer list of three vertex labels
         inline explicit triFace(std::initializer_list<label> list);
@@ -126,22 +127,22 @@ public:
     // Access
 
         //- The first vertex
-        label a() const noexcept { return get<0>(); }
+        constexpr label a() const noexcept { return get<0>(); }
 
         //- The second vertex
-        label b() const noexcept { return get<1>(); }
+        constexpr label b() const noexcept { return get<1>(); }
 
         //- The third vertex
-        label c() const noexcept { return get<2>(); }
+        constexpr label c() const noexcept { return get<2>(); }
 
         //- The first vertex
-        label& a() noexcept { return get<0>(); }
+        constexpr label& a() noexcept { return get<0>(); }
 
         //- The second vertex
-        label& b() noexcept { return get<1>(); }
+        constexpr label& b() noexcept { return get<1>(); }
 
         //- The third vertex
-        label& c() noexcept { return get<2>(); }
+        constexpr label& c() noexcept { return get<2>(); }
 
 
     // Queries

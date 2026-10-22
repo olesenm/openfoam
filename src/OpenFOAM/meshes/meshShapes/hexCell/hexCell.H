@@ -63,6 +63,9 @@ class hexCell
 :
     public FixedList<label, 8>
 {
+    //- Storage type
+    typedef FixedList<label, 8> tuple_type;
+
     // Static Data Members
 
         //- The model faces for HEX
@@ -98,13 +101,13 @@ public:
     // Constructors
 
         //- Default construct, with invalid point labels (-1)
-        inline hexCell();
+        inline constexpr hexCell();
 
         //- Construct from an initializer list of eight point labels
         inline explicit hexCell(std::initializer_list<label> list);
 
         //- Construct from FixedList of eight point labels
-        inline hexCell(const FixedList<label, 8>& list);
+        inline constexpr hexCell(const FixedList<label, 8>& list);
 
         //- Copy construct from a subset of point labels
         inline hexCell

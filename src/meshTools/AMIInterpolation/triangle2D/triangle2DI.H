@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,6 +29,13 @@ License
 #include "OFstream.H"
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+inline void Foam::triangle2D::flip()
+{
+    // swap pt1 <-> pt2
+    std::swap(tuple_type::get<0>(), tuple_type::get<2>());
+}
+
 
 inline void Foam::triangle2D::writeOBJ
 (
@@ -190,7 +198,7 @@ inline bool Foam::triangle2D::lineIntersects
 }
 
 
-inline Foam::scalar Foam::triangle2D::area() const noexcept
+inline constexpr Foam::scalar Foam::triangle2D::area() const noexcept
 {
     return area_;
 }

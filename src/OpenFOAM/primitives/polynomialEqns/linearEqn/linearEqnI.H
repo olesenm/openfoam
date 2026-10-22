@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -28,17 +29,17 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::linearEqn::linearEqn(const Foam::zero)
+inline constexpr Foam::linearEqn::linearEqn(Foam::zero)
 :
-    VectorSpace<linearEqn, scalar, 2>(Foam::zero{})
+    linearEqn::vsType(Foam::zero{})
 {}
 
 
-inline Foam::linearEqn::linearEqn(const scalar a, const scalar b)
-{
-    this->v_[A] = a;
-    this->v_[B] = b;
-}
+inline constexpr Foam::linearEqn::linearEqn(scalar a, scalar b)
+:
+    // aggregate initialization
+    linearEqn::vsType(Foam::direct_construct_t{}, a, b)
+{}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //

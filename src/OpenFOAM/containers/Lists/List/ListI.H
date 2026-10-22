@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -337,17 +338,15 @@ inline void Foam::List<T>::push_back(const IndirectListBase<T, Addr>& list)
 
 
 template<class T>
-inline Foam::label Foam::List<T>::push_uniq(const T& val)
+inline bool Foam::List<T>::push_uniq(const T& val)
 {
-    if (this->contains(val))
-    {
-        return 0;
-    }
-    else
+    if (!this->contains(val))
     {
         this->push_back(val);
-        return 1;  // Increased list length by one
+        return true;
     }
+
+    return false;
 }
 
 

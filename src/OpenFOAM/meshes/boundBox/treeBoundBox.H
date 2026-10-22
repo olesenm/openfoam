@@ -185,16 +185,22 @@ public:
         treeBoundBox() = default;
 
         //- Copy construct
-        treeBoundBox(const treeBoundBox&) = default;
+        constexpr treeBoundBox(const treeBoundBox&) = default;
+
+        //- Move construct
+        constexpr treeBoundBox(treeBoundBox&&) = default;
 
         //- Copy assignment
-        treeBoundBox& operator=(const treeBoundBox&) = default;
+        constexpr treeBoundBox& operator=(const treeBoundBox&) = default;
+
+        //- Move assignment
+        constexpr treeBoundBox& operator=(treeBoundBox&&) = default;
 
         //- Copy construct from a boundBox
-        explicit treeBoundBox(const boundBox& bb) : boundBox(bb) {}
+        explicit constexpr treeBoundBox(const boundBox& bb) : boundBox(bb) {}
 
         //- Copy assignment from a boundBox
-        void operator=(const boundBox& bb)
+        constexpr void operator=(const boundBox& bb)
         {
             static_cast<boundBox&>(*this) = bb;
         }
@@ -203,19 +209,19 @@ public:
     // Constructors
 
         //- Construct a bounding box containing a single initial point
-        inline explicit treeBoundBox(const point& p);
+        inline explicit constexpr treeBoundBox(const point& p);
 
         //- Construct a 0/1 unit bounding box
-        inline explicit treeBoundBox(Foam::zero_one);
+        inline explicit constexpr treeBoundBox(Foam::zero_one);
 
         //- Construct from bound box min/max points
-        inline treeBoundBox(const point& min, const point& max);
+        inline constexpr treeBoundBox(const point& min, const point& max);
 
         ///TBD: Construct from bound box min/max points
         ///inline explicit treeBoundBox(const MinMax<point>& bb);
 
         //- Construct from bound box min/max points
-        inline explicit treeBoundBox(const Pair<point>& bb);
+        inline explicit constexpr treeBoundBox(const Pair<point>& bb);
 
         //- Construct with extent of two bounding boxes
         inline treeBoundBox(const boundBox& a, const boundBox& b);
@@ -455,15 +461,16 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
+//- The treeBoundBox has the same representation as boundBox
+template<>
+struct contiguous_element<treeBoundBox> : contiguous_element<boundBox> {};
+
 //- Contiguous data for treeBoundBox
 template<> struct is_contiguous<treeBoundBox> : is_contiguous<boundBox> {};
 
 //- Contiguous scalar data for treeBoundBox
-template<> struct is_contiguous_scalar<treeBoundBox>
-:
-    is_contiguous_scalar<boundBox>
-{};
-
+template<>
+struct is_contiguous_scalar<treeBoundBox> : is_contiguous_scalar<boundBox> {};
 
 // * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
 

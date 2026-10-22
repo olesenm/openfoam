@@ -327,8 +327,8 @@ public:
         inline void push_back(DynamicField<T, AnySizeMin>&& list);
 
         //- Append an element if not already in the list.
-        //  \return the change in list length
-        inline label push_uniq(const T& val);
+        //  \return True if it was added
+        inline bool push_uniq(const T& val);
 
         //- Reduce size by 1 or more elements. Can be called on an empty list.
         inline void pop_back(label n = 1);
@@ -476,7 +476,7 @@ public:
 
         //- Same as push_uniq()
         FOAM_DEPRECATED_FOR(2022-10, "push_uniq()")
-        label appendUniq(const T& val) { return this->push_uniq(val); }
+        bool appendUniq(const T& val) { return this->push_uniq(val); }
 };
 
 
@@ -528,6 +528,54 @@ template<class T, int SizeMinA, int SizeMinB>
 inline void Swap(DynamicList<T, SizeMinA>& a, DynamicList<T, SizeMinB>& b)
 {
     a.swap(b);
+}
+
+
+//- Determine the sort order (for the given input length)
+//- using the specified comparator
+template<int SizeMin, class ListComparePredicate>
+void sortedOrder
+(
+    //! The input length addressable in the comparison
+    const label length,
+    //! [out] The indices for the sorted order
+    DynamicList<label, SizeMin>& order,
+    //! The binary comparator
+    const ListComparePredicate& comp
+)
+{
+    // Indices must match the input length
+    order.resize_nocopy(length);
+    Foam::identity(order, 0);
+    Foam::stableSort(order, comp);
+}
+
+//- Determine the sort order for the given input length,
+//- using the specified comparator
+template<class T, int SizeMin, class ListComparePredicate>
+void sortedOrder
+(
+    //! The input list \em only provides a length (contents are not used)
+    const UList<T>& input,
+    //! [out] The indices for the sorted order
+    DynamicList<label, SizeMin>& order,
+    //! The binary comparator
+    const ListComparePredicate& comp
+)
+{
+    Foam::sortedOrder(input.size(), order, comp);
+}
+
+//- Determine the sort order for the given input,
+//- using the ListOps::less wrapper for the comparator
+template<class T, int SizeMin>
+void sortedOrder
+(
+    const UList<T>& input,
+    DynamicList<label, SizeMin>& order
+)
+{
+    Foam::sortedOrder(input.size(), order, ListOps::less(input));
 }
 
 } // End namespace Foam

@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -207,7 +208,7 @@ void Foam::sort(UPtrList<T>& list)
         list.begin_ptr(),
         list.end_ptr(),
         // Compare less, with nullptr protect and sort nullptr to end
-        [](const T* const a, const T* const b) -> bool
+        [](const T* a, const T* b) -> bool
         {
             return (a && b) ? (*a < *b) : !b;
         }
@@ -222,7 +223,11 @@ void Foam::sort(UPtrList<T>& list, const Compare& comp)
     (
         list.begin_ptr(),
         list.end_ptr(),
-        typename UPtrList<T>::template value_compare<Compare>(comp)
+        // Use wrapped compare, with nullptr protect and sort nullptr to end
+        [&comp](const T* a, const T* b) -> bool
+        {
+            return (a && b) ? comp(*a, *b) : !b;
+        }
     );
 }
 

@@ -148,72 +148,6 @@ public:
         class const_iterator;
 
 
-    // Public Classes
-
-        //- A wrapper for a binary comparison of values that interjects
-        //- pointer dereferencing with null pointer guards.
-        //  It will also sort any null pointers to the end
-        //  (eg, rubbish that can be truncated)
-        template<class Compare>
-        struct value_compare
-        {
-            const Compare& comp;
-
-            explicit value_compare(const Compare& cmp) noexcept
-            :
-                comp(cmp)
-            {}
-
-            //- Compare dereferenced pointers
-            bool operator()(const T* a, const T* b) const
-            {
-                return (a && b) ? comp(*a, *b) : !b;
-            }
-        };
-
-        //- A UPtrList compare binary predicate for normal sort order.
-        //- Null entries (if any) sort to the end.
-        struct less
-        {
-            const UPtrList<T>& values;
-
-            explicit less(const UPtrList<T>& list) noexcept
-            :
-                values(list)
-            {}
-
-            //- Compare dereferenced pointer locations for normal sort.
-            bool operator()(label ai, label bi) const
-            {
-                const auto* a = values.get(ai);
-                const auto* b = values.get(bi);
-
-                return (a && b) ? (*a < *b) : !b;
-            }
-        };
-
-        //- A UPtrList compare binary predicate for reverse sort order.
-        //  Null entries (if any) sort to the end.
-        struct greater
-        {
-            const UPtrList<T>& values;
-
-            explicit greater(const UPtrList<T>& list) noexcept
-            :
-                values(list)
-            {}
-
-            //- Compare dereferenced pointer locations for reverse sort
-            bool operator()(label ai, label bi) const
-            {
-                const auto* a = values.get(ai);
-                const auto* b = values.get(bi);
-
-                return (a && b) ? (*b < *a) : !a;
-            }
-        };
-
-
     // Constructors
 
         //- Default construct
@@ -659,6 +593,77 @@ public:
 
 
 // * * * * * * * * * * * * * * Global Functions  * * * * * * * * * * * * * * //
+
+namespace PtrListOps
+{
+
+//- A UPtrList compare binary predicate for normal sort order.
+//- Null entries (if any) sort to the end.
+template<class PtrListType>
+struct less
+{
+    //- Captured reference to a pointer list of values
+    const PtrListType& values;
+
+    //- Capture reference to a pointer list of values
+    constexpr less(PtrListType& list) noexcept : values(list) {}
+
+    //- Compare dereferenced pointer locations for normal sort.
+    bool operator()(label ai, label bi) const
+    {
+        const auto* a = values.get(ai);
+        const auto* b = values.get(bi);
+
+        return (a && b) ? (*a < *b) : !b;
+    }
+};
+
+//- A UPtrList compare binary predicate for reverse sort order.
+//  Null entries (if any) sort to the end.
+template<class PtrListType>
+struct greater
+{
+    //- Captured reference to a pointer list of values
+    const PtrListType& values;
+
+    //- Capture reference to a pointer list of values
+    constexpr greater(PtrListType& list) noexcept : values(list) {}
+
+    //- Compare dereferenced pointer locations for reverse sort
+    bool operator()(label ai, label bi) const
+    {
+        const auto* a = values.get(ai);
+        const auto* b = values.get(bi);
+
+        return (a && b) ? (*b < *a) : !a;
+    }
+};
+
+
+// General wrapper for comparison (if needed)
+//
+// //- A wrapper for a binary comparison of values.
+// //- Interjects pointer dereferencing with null pointer guards.
+// //  Sorts any null pointers to the end (eg, rubbish that can be truncated)
+// //
+// template<class T, class Compare>
+// struct value_compare
+// {
+//     //- Captured reference to comparator
+//     const Compare& comp;
+//
+//     //- Capture reference to binary comparator
+//     constexpr value_compare(const Compare& cmp) noexcept : comp(cmp) {}
+//
+//     //- Compare dereferenced pointers
+//     bool operator()(const T* a, const T* b) const
+//     {
+//         return (a && b) ? comp(*a, *b) : !b;
+//     }
+// };
+
+} // End namespace PtrListOps
+
 
 //- Inplace (stable) sorting of pointer list.
 //  This sort function includes null pointer guards and will also sort

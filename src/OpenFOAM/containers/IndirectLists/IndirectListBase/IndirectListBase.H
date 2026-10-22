@@ -371,7 +371,7 @@ public:
         public:
 
             using difference_type = label;
-            using value_type = const T;
+            using value_type = std::remove_cv_t<T>;
             using pointer = const T*;
             using reference = const T&;
             using iterator_category = std::forward_iterator_tag;

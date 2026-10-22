@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,7 +30,7 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Tensor2D<Cmpt>::Tensor2D(Foam::zero)
+inline constexpr Foam::Tensor2D<Cmpt>::Tensor2D(Foam::zero)
 :
     Tensor2D::vsType(Foam::zero{})
 {}
@@ -46,43 +47,58 @@ inline Foam::Tensor2D<Cmpt>::Tensor2D
 
 
 template<class Cmpt>
-inline Foam::Tensor2D<Cmpt>::Tensor2D(const SymmTensor2D<Cmpt>& st)
-{
-    this->v_[XX] = st.xx(); this->v_[XY] = st.xy();
-    this->v_[YX] = st.xy(); this->v_[YY] = st.yy();
-}
+inline constexpr Foam::Tensor2D<Cmpt>::Tensor2D(const SymmTensor2D<Cmpt>& st)
+:
+    Tensor2D
+    (
+        st.xx(), st.xy(),
+        st.xy(), st.yy()
+    )
+{}
 
 
 template<class Cmpt>
-inline Foam::Tensor2D<Cmpt>::Tensor2D(const SphericalTensor2D<Cmpt>& st)
-{
-    this->v_[XX] = st.ii(); this->v_[XY] = Zero;
-    this->v_[YX] = Zero;    this->v_[YY] = st.ii();
-}
+inline constexpr
+Foam::Tensor2D<Cmpt>::Tensor2D(const SphericalTensor2D<Cmpt>& st)
+:
+    Tensor2D
+    (
+        st.ii(), Zero,
+        Zero, st.ii()
+    )
+{}
 
 
 template<class Cmpt>
-inline Foam::Tensor2D<Cmpt>::Tensor2D
+inline constexpr Foam::Tensor2D<Cmpt>::Tensor2D
 (
-    const Vector2D<Cmpt>& x,
-    const Vector2D<Cmpt>& y
+    const Vector2D<Cmpt>& rx,
+    const Vector2D<Cmpt>& ry
 )
-{
-    this->v_[XX] = x.x(); this->v_[XY] = x.y();
-    this->v_[YX] = y.x(); this->v_[YY] = y.y();
-}
+:
+    Tensor2D
+    (
+        rx.x(), rx.y(),
+        ry.x(), ry.y()
+    )
+{}
 
 
 template<class Cmpt>
-inline Foam::Tensor2D<Cmpt>::Tensor2D
+inline constexpr Foam::Tensor2D<Cmpt>::Tensor2D
 (
     const Cmpt txx, const Cmpt txy,
     const Cmpt tyx, const Cmpt tyy
 )
-{
-    this->v_[XX] = txx; this->v_[XY] = txy;
-    this->v_[YX] = tyx; this->v_[YY] = tyy;
-}
+:
+    // aggregate initialization
+    Tensor2D::vsType
+    (
+        Foam::direct_construct_t{},
+        txx, txy,
+        tyx, tyy
+    )
+{}
 
 
 template<class Cmpt>
@@ -95,26 +111,26 @@ inline Foam::Tensor2D<Cmpt>::Tensor2D(Istream& is)
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::x() const
+inline constexpr Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::x() const
 {
     return Vector2D<Cmpt>(this->v_[XX], this->v_[XY]);
 }
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::y() const
+inline constexpr Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::y() const
 {
     return Vector2D<Cmpt>(this->v_[YX], this->v_[YY]);
 }
 
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::cx() const
+inline constexpr Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::cx() const
 {
     return Vector2D<Cmpt>(this->v_[XX], this->v_[YX]);
 }
 
 template<class Cmpt>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::cy() const
+inline constexpr Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::cy() const
 {
     return Vector2D<Cmpt>(this->v_[XY], this->v_[YY]);
 }
@@ -122,7 +138,7 @@ inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::cy() const
 
 template<class Cmpt>
 template<Foam::direction Idx>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::col() const
+inline constexpr Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::col() const
 {
     if (Idx == 0) return cx();
     else if (Idx == 1) return cy();
@@ -150,7 +166,7 @@ inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::col(const direction c) const
 
 template<class Cmpt>
 template<Foam::direction Idx>
-inline Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::row() const
+inline constexpr  Foam::Vector2D<Cmpt> Foam::Tensor2D<Cmpt>::row() const
 {
     if (Idx == 0) return x();
     else if (Idx == 1) return y();
@@ -287,7 +303,7 @@ inline void Foam::Tensor2D<Cmpt>::diag(const Vector2D<Cmpt>& v)
 
 
 template<class Cmpt>
-inline Foam::scalar Foam::Tensor2D<Cmpt>::diagSqr() const
+inline constexpr Foam::scalar Foam::Tensor2D<Cmpt>::diagSqr() const
 {
     return
     (

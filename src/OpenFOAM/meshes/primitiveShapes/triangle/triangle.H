@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -96,13 +97,18 @@ public:
     // Constructors
 
         //- Construct from three points
-        inline triPoints(const point& p0, const point& p1, const point& p2);
+        inline constexpr triPoints
+        (
+            const point& p0,
+            const point& p1,
+            const point& p2
+        );
 
         //- Construct from point references
-        inline explicit triPoints(const triPointRef& pts);
+        inline constexpr explicit triPoints(const triPointRef& pts);
 
         //- Construct from three points
-        inline triPoints(const FixedList<point, 3>& pts);
+        inline constexpr triPoints(const FixedList<point, 3>& pts);
 
         //- Copy construct from subset of points
         inline triPoints
@@ -115,31 +121,31 @@ public:
         inline triPoints
         (
             const UList<point>& points,
-            const label p0,
-            const label p1,
-            const label p2
+            label p0,
+            label p1,
+            label p2
         );
 
 
     // Member Functions
 
         //- The first vertex
-        const point& a() const noexcept { return get<0>(); }
+        constexpr const point& a() const noexcept { return get<0>(); }
 
         //- The second vertex
-        const point& b() const noexcept { return get<1>(); }
+        constexpr const point& b() const noexcept { return get<1>(); }
 
         //- The third vertex
-        const point& c() const noexcept { return get<2>(); }
+        constexpr const point& c() const noexcept { return get<2>(); }
 
         //- The first vertex
-        point& a() noexcept { return get<0>(); }
+        constexpr point& a() noexcept { return get<0>(); }
 
         //- The second vertex
-        point& b() noexcept { return get<1>(); }
+        constexpr point& b() noexcept { return get<1>(); }
 
         //- The third vertex
-        point& c() noexcept { return get<2>(); }
+        constexpr point& c() noexcept { return get<2>(); }
 
         //- Flip triangle orientation by swapping second and third vertices
         inline void flip();
@@ -214,8 +220,7 @@ public:
             //- Dummy
             struct dummyOp
             {
-                void operator()(const triPoints&) const noexcept
-                {}
+                void operator()(const triPoints&) const noexcept {}
             };
 
             //- Sum resulting areas
@@ -227,7 +232,7 @@ public:
 
                 scalar total() const noexcept { return area_; }
 
-                inline void operator()(const triPoints&);
+                void operator()(const triPoints& tri) { area_ += tri.mag(); }
             };
 
             //- Store resulting tris
@@ -236,9 +241,13 @@ public:
                 triIntersectionList& tris_;
                 label& nTris_;
 
-                inline storeOp(triIntersectionList&, label&);
+                constexpr storeOp(triIntersectionList& tris, label& nTris)
+                :
+                    tris_(tris),
+                    nTris_(nTris)
+                {}
 
-                inline void operator()(const triPoints&);
+                void operator()(const triPoints& tri) { tris_[nTris_++] = tri; }
             };
 
 
@@ -283,10 +292,15 @@ public:
     // Constructors
 
         //- Construct from three points
-        inline triangle(const Point& p0, const Point& p1, const Point& p2);
+        inline constexpr triangle
+        (
+            const Point& p0,
+            const Point& p1,
+            const Point& p2
+        );
 
         //- Construct from three points
-        inline triangle(const FixedList<Point, 3>& pts);
+        inline constexpr triangle(const FixedList<Point, 3>& pts);
 
         //- Construct from three points out of the list of points
         //  The indices could be from triFace etc.
@@ -314,13 +328,13 @@ public:
     // Access
 
         //- The first vertex
-        const Point& a() const noexcept { return a_; }
+        constexpr const Point& a() const noexcept { return a_; }
 
         //- The second vertex
-        const Point& b() const noexcept { return b_; }
+        constexpr const Point& b() const noexcept { return b_; }
 
         //- The third vertex
-        const Point& c() const noexcept { return c_; }
+        constexpr const Point& c() const noexcept { return c_; }
 
 
     // Triangle properties (static calculations)

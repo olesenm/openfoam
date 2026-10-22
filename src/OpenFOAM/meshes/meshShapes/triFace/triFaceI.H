@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2013 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -60,29 +61,27 @@ inline int Foam::triFace::compare(const triFace& a, const triFace& b)
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::triFace::triFace()
+inline constexpr Foam::triFace::triFace()
 :
-    FixedList<label, 3>(-1)
+    tuple_type(-1)
 {}
 
 
-inline Foam::triFace::triFace(label p0, label p1, label p2) noexcept
-{
-    a() = p0;
-    b() = p1;
-    c() = p2;
-}
+inline constexpr Foam::triFace::triFace(label p0, label p1, label p2) noexcept
+:
+    tuple_type(Foam::direct_construct_t{}, p0, p1, p2)
+{}
 
 
 inline Foam::triFace::triFace(std::initializer_list<label> list)
 :
-    FixedList<label, 3>(list)
+    tuple_type(list)
 {}
 
 
 inline Foam::triFace::triFace(const labelUList& list)
 :
-    FixedList<label, 3>(list)
+    tuple_type(list)
 {}
 
 
@@ -92,13 +91,13 @@ inline Foam::triFace::triFace
     const FixedList<label, 3>& indices
 )
 :
-    FixedList<label, 3>(list, indices)
+    tuple_type(list, indices)
 {}
 
 
 inline Foam::triFace::triFace(Istream& is)
 :
-    FixedList<label, 3>(is)
+    tuple_type(is)
 {}
 
 
@@ -224,7 +223,7 @@ inline Foam::triFace Foam::triFace::reverseFace() const
 
 inline Foam::label Foam::triFace::which(const label vertex) const
 {
-    return FixedList<label, 3>::find(vertex);
+    return tuple_type::find(vertex);
 }
 
 

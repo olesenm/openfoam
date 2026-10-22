@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
     {
         List<label> ident(25);
-        Foam::identity(ident, 0);
+        Foam::identity(ident);
 
         print(ident);
 

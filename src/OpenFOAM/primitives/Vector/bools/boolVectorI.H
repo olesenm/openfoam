@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,52 +28,33 @@ License
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-inline Foam::boolVector::boolVector()
+inline constexpr Foam::boolVector::boolVector(bool vx, bool vy, bool vz)
 :
-    FixedList<bool, 3>(false)
+    tuple_type(Foam::direct_construct_t{}, vx, vy, vz)
 {}
-
-
-inline Foam::boolVector::boolVector(const bool val)
-:
-    FixedList<bool, 3>(val)
-{}
-
-
-inline Foam::boolVector::boolVector
-(
-    const bool vx,
-    const bool vy,
-    const bool vz
-)
-{
-    x() = vx;
-    y() = vy;
-    z() = vz;
-}
 
 
 inline Foam::boolVector::boolVector(Istream& is)
 :
-    FixedList<bool, 3>(is)
+    tuple_type(is)
 {}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-inline bool Foam::boolVector::all() const noexcept
+inline constexpr bool Foam::boolVector::all() const noexcept
 {
     return (x() && y() && z());
 }
 
 
-inline bool Foam::boolVector::any() const noexcept
+inline constexpr bool Foam::boolVector::any() const noexcept
 {
     return (x() || y() || z());
 }
 
 
-inline bool Foam::boolVector::none() const noexcept
+inline constexpr bool Foam::boolVector::none() const noexcept
 {
     return !any();
 }
@@ -107,9 +89,9 @@ inline void Foam::boolVector::flip()
 
 // * * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * //
 
-inline void Foam::boolVector::operator=(const bool value)
+inline void Foam::boolVector::operator=(bool value)
 {
-    FixedList<bool, 3>::operator=(value);
+    static_cast<tuple_type&>(*this) = value;
 }
 
 

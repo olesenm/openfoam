@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 
     {
         List<label> ident(15);
-        Foam::identity(ident, 0);
+        Foam::identity(ident);
 
         Info<<"Ident:";
         forAllConstIters(ident, iter)

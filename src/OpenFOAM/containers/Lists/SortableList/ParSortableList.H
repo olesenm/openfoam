@@ -42,7 +42,8 @@ Description
     Can also be constructed from size, filled at ease and then sort()'ed.
 
 SourceFiles
-    ParSortableList.C
+    ParSortableList.cxx
+    ParSortableList.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -56,12 +57,21 @@ SourceFiles
 namespace Foam
 {
 
-
 /*---------------------------------------------------------------------------*\
-                        Class ParSortableListName Declaration
+                     Class ParSortableListBase Declaration
 \*---------------------------------------------------------------------------*/
 
-TemplateName(ParSortableList);
+//- Template invariant parts for ParSortableList
+class ParSortableListBase
+{
+public:
+
+    //- Runtime type information
+    ClassName("ParSortableList");
+
+    //- Default construct
+    ParSortableListBase() noexcept = default;
+};
 
 
 /*---------------------------------------------------------------------------*\
@@ -71,7 +81,7 @@ TemplateName(ParSortableList);
 template<class Type>
 class ParSortableList
 :
-    public ParSortableListName,
+    public ParSortableListBase,
     public List<Type>
 {
     // Private data
@@ -206,7 +216,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "ParSortableList.C"
+    #include "ParSortableList.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

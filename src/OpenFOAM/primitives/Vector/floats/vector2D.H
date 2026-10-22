@@ -48,14 +48,6 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-//! \class Foam::floatVector2D
-//! \brief A Vector2D of values with float precision
-typedef Vector2D<float> floatVector2D;
-
-//! \class Foam::doubleVector2D
-//! \brief A Vector2D of values with double precision
-typedef Vector2D<double> doubleVector2D;
-
 // With float or double precision (depending on compilation)
 typedef Vector2D<scalar> vector2D;
 

@@ -6,7 +6,8 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
-    Copyright (C) 2015-2026 OpenCFD Ltd.
+    Copyright (C) 2015-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -376,29 +377,6 @@ Foam::label Foam::inplaceMapValue
 }
 
 
-template<class T>
-Foam::labelList Foam::duplicateOrder
-(
-    const UList<T>& input
-)
-{
-    labelList order;
-    duplicateOrder(input, order, typename UList<T>::less(input));
-    return order;
-}
-
-
-template<class T>
-void Foam::duplicateOrder
-(
-    const UList<T>& input,
-    labelList& order
-)
-{
-    duplicateOrder(input, order, typename UList<T>::less(input));
-}
-
-
 template<class T, class ListComparePredicate>
 void Foam::duplicateOrder
 (
@@ -415,40 +393,24 @@ void Foam::duplicateOrder
 
     Foam::sortedOrder(input, order, comp);
 
-    const label last = (order.size()-1);
+    // Transcribe the order in-place by testing each location's
+    // corresponding prev and next input values.
+
+    const label last = (input.size()-1);
     label count = 0;
-    for (label i = 0; i < last; ++i)
+    for (label i = 0; i <= last; ++i)  // [SIC] inclusive loop to len-1
     {
-        if (input[order[i]] == input[order[i+1]])
+        if
+        (
+            (i > 0 && input[order[i-1]] == input[order[i]])     // == prev ?
+         || (i < last && input[order[i]] == input[order[i+1]])  // == next ?
+        )
         {
             order[count] = order[i];
             ++count;
         }
     }
     order.resize(count);
-}
-
-
-template<class T>
-Foam::labelList Foam::uniqueOrder
-(
-    const UList<T>& input
-)
-{
-    labelList order;
-    uniqueOrder(input, order, typename UList<T>::less(input));
-    return order;
-}
-
-
-template<class T>
-void Foam::uniqueOrder
-(
-    const UList<T>& input,
-    labelList& order
-)
-{
-    uniqueOrder(input, order, typename UList<T>::less(input));
 }
 
 
@@ -484,9 +446,7 @@ Foam::List<T> Foam::uniqueSort(const UList<T>& input)
 {
     List<T> output(input);
 
-    const label len = output.size();
-
-    if (len > 1)
+    if (const label len = output.size(); len > 1)
     {
         Foam::stableSort(output);
 
@@ -506,14 +466,56 @@ Foam::List<T> Foam::uniqueSort(const UList<T>& input)
 }
 
 
+template<class T>
+Foam::labelList Foam::duplicateOrder
+(
+    const UList<T>& input
+)
+{
+    labelList order;
+    duplicateOrder(input, order, ListOps::less(input));
+    return order;
+}
+
+
+template<class T>
+void Foam::duplicateOrder
+(
+    const UList<T>& input,
+    labelList& order
+)
+{
+    duplicateOrder(input, order, ListOps::less(input));
+}
+
+
+template<class T>
+Foam::labelList Foam::uniqueOrder
+(
+    const UList<T>& input
+)
+{
+    labelList order;
+    uniqueOrder(input, order, ListOps::less(input));
+    return order;
+}
+
+
+template<class T>
+void Foam::uniqueOrder
+(
+    const UList<T>& input,
+    labelList& order
+)
+{
+    uniqueOrder(input, order, ListOps::less(input));
+}
+
+
 template<class ListType>
 void Foam::inplaceUniqueSort(ListType& input)
 {
-    inplaceUniqueSort
-    (
-        input,
-        typename UList<typename ListType::value_type>::less(input)
-    );
+    inplaceUniqueSort(input, ListOps::less(input));
 }
 
 
@@ -768,7 +770,7 @@ void Foam::invertManyToMany
     // The output list sizes
     labelList sizes(len, Foam::zero{});
 
-    for (const InputIntListType& sublist : input)
+    for (const auto& sublist : input)
     {
         forAll(sublist, idx)
         {
@@ -787,7 +789,7 @@ void Foam::invertManyToMany
     sizes = 0;
     forAll(input, listi)
     {
-        const InputIntListType& sublist = input[listi];
+        const auto& sublist = input[listi];
 
         forAll(sublist, idx)
         {

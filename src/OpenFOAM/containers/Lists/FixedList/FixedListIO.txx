@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -36,16 +37,33 @@ License
 template<class T, unsigned N>
 void Foam::FixedList<T, N>::writeEntry(Ostream& os) const
 {
-    const word tag("List<" + word(pTraits<T>::typeName) + '>');
-    if (token::compound::isCompound(tag))
+    if constexpr (std::is_same_v<char, std::remove_cv_t<T>>)
     {
-        os  << tag << token::SPACE;
-        if constexpr (is_contiguous_v<T>)
+        // Char data has a compound type:
+        os  << word("List<char>");
+
+        // Need size too so that List<Type>::readList parses correctly
+        os << static_cast<label>(N);
+    }
+    else
+    {
+        const word tag("List<" + word(pTraits<T>::typeName) + '>');
+        if (token::compound::isCompound(tag))
         {
-            if (os.format() == IOstreamOption::BINARY)
+            os  << tag << token::SPACE;
+
+            constexpr bool with_contiguous
+            (
+                is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+            );
+
+            if constexpr (with_contiguous)
             {
-                // Need size too so that List<Type>::readList parses correctly
-                os << static_cast<label>(N);
+                if (os.format() == IOstreamOption::BINARY)
+                {
+                    // Need size too so that List<Type>::readList parses correctly
+                    os << static_cast<label>(N);
+                }
             }
         }
     }
@@ -93,57 +111,91 @@ Foam::Ostream& Foam::FixedList<T, N>::writeList
     // small and we prefer a consistent appearance.
     // Eg, FixedList<T,2> or Pair<T> as "(-1 -1)", never as "2{-1}"
 
-    if (os.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
+    if constexpr (std::is_same_v<char, std::remove_cv_t<T>>)
     {
-        // Binary and contiguous. Size is always non-zero
+        // Special treatment for char data (binary I/O only)
+        const auto oldFmt = os.format(IOstreamOption::BINARY);
 
+        // Size is always non-zero
         // write(...) includes surrounding start/end delimiters
         os.write(list.cdata_bytes(), list.size_bytes());
-    }
-    else if
-    (
-        (N <= 1 || !shortLen)
-     ||
-        (
-            (N <= unsigned(shortLen))
-         && (is_contiguous_v<T> || Foam::ListPolicy::no_linebreak<T>::value)
-        )
-    )
-    {
-        // Single-line output
 
-        // Start delimiter
-        os << token::BEGIN_LIST;
+        os.format(oldFmt);
 
-        // Contents
-        for (unsigned i=0; i<N; ++i)
-        {
-            if (i) os << token::SPACE;
-            os << list[i];
-        }
-
-        // End delimiter
-        os << token::END_LIST;
+        os.check(FUNCTION_NAME);
+        return os;
     }
     else
     {
-        // Multi-line output
+        constexpr bool with_contiguous
+        (
+            is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value
+        );
+        // Do not use uniformity...
+        constexpr bool no_linebreak
+        (
+            is_contiguous_v<T> || ListPolicy::no_linebreak<T>::value
+        );
 
-        // Start delimiter
-        os << nl << token::BEGIN_LIST << nl;
-
-        // Contents
-        for (unsigned i=0; i<N; ++i)
+        if constexpr (with_contiguous)
         {
-            os << list[i] << nl;
+            if (os.format() == IOstreamOption::BINARY)
+            {
+                // Binary and contiguous.
+                // Size is always non-zero
+
+                // write(...) includes surrounding start/end delimiters
+                os.write(list.cdata_bytes(), list.size_bytes());
+
+                os.check(FUNCTION_NAME);
+                return os;
+            }
         }
 
-        // End delimiter
-        os << token::END_LIST << nl;
-    }
+        // Generic output
+        // (non-binary, non-uniform)
 
-    os.check(FUNCTION_NAME);
-    return os;
+        if
+        (
+            (N <= 1 || !shortLen)
+         || (N <= unsigned(shortLen) && no_linebreak)
+        )
+        {
+            // Single-line output
+
+            // Start delimiter
+            os << token::BEGIN_LIST;
+
+            // Contents
+            for (unsigned i=0; i<N; ++i)
+            {
+                if (i) os << token::SPACE;
+                os << list[i];
+            }
+
+            // End delimiter
+            os << token::END_LIST;
+        }
+        else
+        {
+            // Multi-line output
+
+            // Start delimiter
+            os << nl << token::BEGIN_LIST << nl;
+
+            // Contents
+            for (unsigned i=0; i<N; ++i)
+            {
+                os << list[i] << nl;
+            }
+
+            // End delimiter
+            os << token::END_LIST << nl;
+        }
+
+        os.check(FUNCTION_NAME);
+        return os;
+    }
 }
 
 
@@ -157,26 +209,54 @@ Foam::Istream& Foam::FixedList<T, N>::readList
 
     is.fatalCheck(FUNCTION_NAME);
 
-    if (is.format() == IOstreamOption::BINARY && is_contiguous_v<T>)
-    {
-        // Binary and contiguous. Length is non-zero
+    constexpr bool with_contiguous
+    (
+        (std::is_same_v<char, std::remove_cv_t<T>>)
+     || (is_contiguous_v<T> && ListPolicy::allow_contiguous<T>::value)
+    );
 
-        Detail::readContiguous<T>
-        (
-            is,
-            list.data_bytes(),
-            list.size_bytes()
-        );
+    if constexpr (std::is_same_v<char, std::remove_cv_t<T>>)
+    {
+        // Special treatment for char data (binary I/O only)
+        const auto oldFmt = is.format(IOstreamOption::BINARY);
+
+        // read(...) includes surrounding start/end delimiters
+        is.read(list.data_bytes(), list.size_bytes());
 
         is.fatalCheck
         (
-            "FixedList<T, N>::readList(Istream&) : "
-            "reading the binary block"
+            "FixedList<char, N>::readList(Istream&) : "
+            "[binary block]"
         );
+
+        is.format(oldFmt);
         return is;
     }
     else
     {
+        if constexpr (with_contiguous)
+        {
+            if (is.format() == IOstreamOption::BINARY)
+            {
+                // Binary and contiguous. Length is non-zero
+                Detail::readContiguous<T>
+                (
+                    is,
+                    list.data_bytes(),
+                    list.size_bytes()
+                );
+                is.fatalCheck
+                (
+                    "FixedList<T, N>::readList(Istream&) : "
+                    "[binary block]"
+                );
+                return is;
+            }
+        }
+
+
+        // Generic reading (non-binary or non-contiguous)
+
         token tok(is);
 
         is.fatalCheck
@@ -246,9 +326,9 @@ Foam::Istream& Foam::FixedList<T, N>::readList
 
         // End of contents marker
         is.readEndList("FixedList");
-    }
 
-    return is;
+        return is;
+    }
 }
 
 

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -74,21 +75,21 @@ public:
         linearEqn() = default;
 
         //- Construct initialized to zero
-        inline linearEqn(const Foam::zero);
+        inline constexpr linearEqn(Foam::zero);
 
         //- Construct from components
-        inline linearEqn(const scalar a, const scalar b);
+        inline constexpr linearEqn(scalar a, scalar b);
 
 
     // Member Functions
 
     // Access
 
-        scalar a() const noexcept { return this->v_[A]; }
-        scalar b() const noexcept { return this->v_[B]; }
+        constexpr scalar a() const noexcept { return this->v_[A]; }
+        constexpr scalar b() const noexcept { return this->v_[B]; }
 
-        scalar& a() noexcept { return this->v_[A]; }
-        scalar& b() noexcept { return this->v_[B]; }
+        constexpr scalar& a() noexcept { return this->v_[A]; }
+        constexpr scalar& b() noexcept { return this->v_[B]; }
 
 
     // Evaluate

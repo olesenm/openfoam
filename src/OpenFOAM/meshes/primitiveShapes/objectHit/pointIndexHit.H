@@ -85,24 +85,27 @@ class PointIndexHit
 
 public:
 
-    // Public Typedefs
+    // Properties
 
         //- The point type
         typedef PointType point_type;
+
+        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
+        static constexpr label bad_index() noexcept { return labelMin; }
 
 
     // Constructors
 
         //- Default construct. A zero point, with no hit and index = -1
-        PointIndexHit()
+        constexpr PointIndexHit()
         :
             hit_(false),
-            point_(Zero),
+            point_(Foam::zero{}),
             index_(-1)
         {}
 
         //- Construct from a point, with no hit and index = -1
-        explicit PointIndexHit(const point_type& p)
+        explicit constexpr PointIndexHit(const point_type& p)
         :
             hit_(false),
             point_(p),
@@ -110,7 +113,11 @@ public:
         {}
 
         //- Construct from hitPoint with index = -1 or specified
-        explicit PointIndexHit(const PointHit<point_type>& p, label index = -1)
+        explicit constexpr PointIndexHit
+        (
+            const PointHit<point_type>& p,
+            label index = -1
+        )
         :
             hit_(p.hit()),
             point_(p.point()),
@@ -118,7 +125,7 @@ public:
         {}
 
         //- Copy construct with different index
-        PointIndexHit(const PointIndexHit<point_type>& p, label index)
+        constexpr PointIndexHit(const PointIndexHit<point_type>& p, label index)
         :
             hit_(p.hit()),
             point_(p.point()),
@@ -126,7 +133,7 @@ public:
         {}
 
         //- Construct from components
-        PointIndexHit(bool success, const point_type& p, label index)
+        constexpr PointIndexHit(bool success, const point_type& p, label index)
         :
             hit_(success),
             point_(p),
@@ -140,45 +147,24 @@ public:
         }
 
 
-    // Properties
-
-        //- A constant to signal a \em "bad" index. Currently Foam::labelMin
-        static constexpr label bad_index() noexcept { return labelMin; }
-
-
     // Member Functions
 
     // Access
 
         //- Is there a hit?
-        bool hit() const noexcept
-        {
-            return hit_;
-        }
+        constexpr bool hit() const noexcept { return hit_; }
 
         //- Considered \em "bad" if the index() is equal to bad_index()
-        bool bad() const noexcept
-        {
-            return index_ == bad_index();
-        }
+        constexpr bool bad() const noexcept { return index_ == bad_index(); }
 
         //- Return the hit index
-        label index() const noexcept
-        {
-            return index_;
-        }
+        constexpr label index() const noexcept { return index_; }
 
         //- Return point, no checks
-        const point_type& point() const noexcept
-        {
-            return point_;
-        }
+        constexpr const point_type& point() const noexcept { return point_; }
 
         //- Access the point, no checks
-        point_type& point() noexcept
-        {
-            return point_;
-        }
+        constexpr point_type& point() noexcept { return point_; }
 
         //- Return hit point. Fatal if not hit.
         const point_type& hitPoint() const
@@ -204,14 +190,6 @@ public:
             return point_;
         }
 
-        //- The point, no checks. Same as point()
-        //  \deprecated(2020-10) use point()
-        const point_type& rawPoint() const noexcept { return point_; }
-
-        //- The point, no checks. Same as point()
-        //  \deprecated(2020-10) use point()
-        point_type& rawPoint() noexcept { return point_; }
-
 
     // Edit
 
@@ -220,7 +198,7 @@ public:
         void reset()
         {
             hit_ = false;
-            point_ = Zero;
+            point_ = Foam::zero{};
             index_ = -1;
         }
 
@@ -242,6 +220,13 @@ public:
             point_ = p;
         }
 
+        //- Set the point and index
+        void setPoint(const point_type& p, label index)
+        {
+            point_ = p;
+            index_ = index;
+        }
+
         //- Set the index
         void setIndex(label index) noexcept
         {
@@ -252,6 +237,13 @@ public:
         void setBad() noexcept
         {
             index_ = bad_index();
+        }
+
+        //- Set the index as \em hit without changing the point
+        void hitIndex(label index) noexcept
+        {
+            index_ = index;
+            hit_ = true;
         }
 
         //- Set the point as \em hit without changing the hit-index
@@ -281,6 +273,23 @@ public:
 
 
     // Member Operators
+
+        //- Comparison operator, for sorting
+        //  1. hit (true) sorts before miss (false)
+        //  2. normal comparison on index
+        //  3. tie-breaker (point_a < point_b)
+        bool operator<(const PointIndexHit& rhs) const
+        {
+            if (hit_ != rhs.hit_)
+            {
+                return hit_;
+            }
+            if (index_ != rhs.index_)
+            {
+                return index_ < rhs.index_;
+            }
+            return point_ < rhs.point_;
+        }
 
         //- Test for equality of all components
         bool operator==(const PointIndexHit& rhs) const
@@ -346,6 +355,17 @@ public:
             is.check(FUNCTION_NAME);
             return is;
         }
+
+
+    // Housekeeping
+
+        //- The point, no checks. Same as point()
+        //  \deprecated(2020-10) use point()
+        const point_type& rawPoint() const noexcept { return point_; }
+
+        //- The point, no checks. Same as point()
+        //  \deprecated(2020-10) use point()
+        point_type& rawPoint() noexcept { return point_; }
 };
 
 

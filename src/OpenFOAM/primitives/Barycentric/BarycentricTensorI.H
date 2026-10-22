@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2017 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,35 +30,29 @@ License
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Cmpt>
-inline Foam::BarycentricTensor<Cmpt>::BarycentricTensor(const Foam::zero)
+inline constexpr Foam::BarycentricTensor<Cmpt>::BarycentricTensor(Foam::zero)
 :
-    BarycentricTensor::msType(Zero)
+    BarycentricTensor::msType(Foam::zero{})
 {}
 
 
 template<class Cmpt>
-inline Foam::BarycentricTensor<Cmpt>::BarycentricTensor
+inline constexpr Foam::BarycentricTensor<Cmpt>::BarycentricTensor
 (
     const Barycentric<Cmpt>& x,
     const Barycentric<Cmpt>& y,
     const Barycentric<Cmpt>& z
 )
-{
-    this->v_[XA] = x.a();
-    this->v_[XB] = x.b();
-    this->v_[XC] = x.c();
-    this->v_[XD] = x.d();
-
-    this->v_[YA] = y.a();
-    this->v_[YB] = y.b();
-    this->v_[YC] = y.c();
-    this->v_[YD] = y.d();
-
-    this->v_[ZA] = z.a();
-    this->v_[ZB] = z.b();
-    this->v_[ZC] = z.c();
-    this->v_[ZD] = z.d();
-}
+:
+    // aggregate initialization
+    BarycentricTensor::msType
+    (
+        Foam::direct_construct_t{},
+        x.a(), x.b(), x.c(), x.d(),
+        y.a(), y.b(), y.c(), y.d(),
+        z.a(), z.b(), z.c(), z.d()
+    )
+{}
 
 
 template<class Cmpt>

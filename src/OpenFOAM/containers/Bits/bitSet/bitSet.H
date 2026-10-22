@@ -108,6 +108,35 @@ protected:
         //  The size grows to accommodate new \em on bits.
         void xorEq(const bitSet& other);
 
+        //- Shift bits left by \p n positions,
+        //- discarding bits pushed past the end and filling vacated
+        //- bits with 0. The size is unchanged.
+        void left_shiftEq(label n);
+
+        //- Shift bits right by \p n positions,
+        //- discarding bits pushed past the end and filling vacated
+        //- bits with 0. The size is unchanged.
+        void right_shiftEq(label n);
+
+        //- Extract/copy a sub-section from \p source into \p target bitSet,
+        //- resizing and overwriting any existing content.
+        static void extract_copy
+        (
+            const bitSet& source,
+            bitSet& target,
+            const labelRange& range
+        );
+
+        //- Extract/copy a sub-section from \p source into \p target bitSet,
+        //- resizing and overwriting any existing content.
+        static void extract_copy
+        (
+            const bitSet& source,
+            bitSet& target,
+            label pos,
+            label len = -1
+        );
+
 
     // Constructors
 
@@ -290,29 +319,52 @@ public:
         //  implying no filtering.
         inline bool empty_or_test(label i) const noexcept;
 
-        //- Locate the first bit that is set.
-        //  \return the location or -1 if there are no bits set.
+        //- Locate the first bit that is set, starting at (and including)
+        //- the specified position (default: 0).
+        //  \return the location or -1 if there are no further bits set.
         //
         //  \note Method name compatibility with boost::dynamic_bitset
-        inline label find_first() const noexcept;
+        inline label find_first(label pos = 0) const noexcept;
 
         //- Locate the first bit that is unset.
         //  \return the location or -1 if the set is empty or all bits are on.
-        //
-        //  \note Provided for symmetry with find_first()
-        inline label find_first_not() const noexcept;
+        inline label find_first_not(label pos = 0) const noexcept;
 
-        //- Locate the last bit set.
+        //- Same as find_first_not()
+        //  \note Method name compatibility with boost::dynamic_bitset
+        label find_first_off(label pos = 0) const noexcept
+        {
+            return find_first_not(pos);
+        }
+
         //  \return the location or -1 if there are no bits set.
         //
         //  \note Provided for symmetry with find_first()
         inline label find_last() const noexcept;
+
+        //- Locate the last bit that is unset.
+        //  \return the location or -1 if the set is empty or all bits are on.
+        //
+        //  \note Provided for symmetry with find_last(), find_first_not()
+        inline label find_last_not() const noexcept;
 
         //- Locate the next bit set, starting one beyond the specified position
         //  \return the location or -1 if there are no further bits set.
         //
         //  \note Method name compatibility with boost::dynamic_bitset
         inline label find_next(label pos) const noexcept;
+
+        //- Locate the next unset bit,
+        //- starting one beyond the specified position
+        //  \return the location or -1 if there are no further bits set.
+        inline label find_next_not(label pos) const noexcept;
+
+        //- Same as find_next_not()
+        //  \note Method name compatibility with boost::dynamic_bitset
+        label find_next_off(label pos) const noexcept
+        {
+            return find_next_not(pos);
+        }
 
         //- The indices of the \a on bits as a sorted labelList.
         //  \param offset apply an optional offset to the values
@@ -330,6 +382,20 @@ public:
         //  When the output is a bool, this is more efficient than unpack()
         List<bool> values() const;
 
+        //- Extract a sub-section \b copy as a new bitSet
+        inline bitSet extract(label pos, label len = -1) const;
+
+        //- Extract a sub-section \b copy as a new bitSet
+        inline bitSet extract(const labelRange& range) const;
+
+        //- Extract/copy a sub-section into the \p target bitSet,
+        //- overwriting any existing content in \p target.
+        inline void extract(bitSet& target, label pos, label len = -1) const;
+
+        //- Extract/copy a sub-section into the \p target bitSet,
+        //- overwriting any existing content in \p target.
+        inline void extract(bitSet& target, const labelRange& range) const;
+
 
     // Assignment
 
@@ -339,23 +405,22 @@ public:
         //- Copy assign all entries from a list of bools.
         void assign(const UList<bool>& bools);
 
+        //- Copy/assign all values of \p source to the current set
+        //- at the given \p offset, overwriting existing content in that range.
+        //  If the offset + source ends exceeds the current size,
+        //  the contents will grow, even if filled with zero bits.
+        void assign(const label offset, const bitSet& source);
+
 
     // Setting single or multiple values
 
-        //- Assign a single index/value
+        //- Assign a single index/value, or a range with value
         using PackedList<1>::set;
 
         //- Set specified bits from another bitset.
         //  The current set size may grow to accommodate any new bits
         //  (auto-vivifies).
         inline void set(const bitSet& bitset);
-
-        //- Set the specified range of bits
-        //  The current set size may grow to accommodate any new bits
-        //  (auto-vivifies).
-        //  \note this operation is generally more efficient than calling
-        //      set(pos) on individual bits.
-        void set(const labelRange& range);
 
         //- Test for \em True value at specified position
         //- and change the value at that position.
@@ -367,7 +432,7 @@ public:
 
     // Unsetting single or multiple values
 
-        //- Unset a single index
+        //- Unset a single index, or a range
         using PackedList<1>::unset;
 
         //- Unset (subtract) the bits specified in the other bitset, which is
@@ -380,12 +445,11 @@ public:
         //
         //  A and B can have different sizes.
         //  Does not change the original set size.
-        inline bitSet& unset(const bitSet& other);
+        inline void unset(const bitSet& other);
 
-        //- Unset the specified range of bits specified, never auto-vivifies.
-        //  \note this operation can be more efficient than calling
-        //      unset(pos) on individual bits.
-        void unset(const labelRange& range);
+        //- Unset (subtract) the bits specified in the other bitset,
+        //- at the specified offset of the current.
+        void unset(const label offset, const bitSet& other);
 
 
     // Edit
@@ -604,6 +668,26 @@ public:
         //  The operands may have dissimilar sizes,
         //  never changes the original set size.
         inline bitSet& operator-=(const bitSet& other);
+
+        //- Shift bits to the left by \p n positions.
+        //  For each bit in the bitset, the bit at position pos takes on
+        //  the previous value of the bit at position (pos - n), or zero if
+        //  no such bit exists.
+        //  Does not change the size.
+        inline bitSet& operator<<=(label n);
+
+        //- Shift bits to the right by \p n positions.
+        //  For each bit in the bitset, the bit at position pos takes on
+        //  the previous value of the bit at position (pos + n), or zero if
+        //  no such bit exists.
+        //  Does not change the size.
+        inline bitSet& operator>>=(label n);
+
+        //- Return a shifted copy of \c *this
+        inline bitSet operator<<(label n) const;
+
+        //- Return a shifted copy of \c *this
+        inline bitSet operator>>(label n) const;
 
 
     // Reading/writing

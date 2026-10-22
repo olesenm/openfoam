@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,7 +40,7 @@ Note
     provide two other alternatives.
 
 SourceFiles
-    SortableList.C
+    SortableList.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -57,7 +58,7 @@ namespace Foam
                         Class SortableList Declaration
 \*---------------------------------------------------------------------------*/
 
-template<class T>
+template<class T, bool Forward=true>
 class SortableList
 :
     public List<T>
@@ -68,6 +69,24 @@ class SortableList
         labelList indices_;
 
 
+    // Private Member Functions
+
+        //- The comparator for logically normal ordering:
+        //- ListOps::less if Forward, ListOps::greater otherwise
+        auto normalCompareOp() const
+        {
+            if constexpr (Forward) { return ListOps::less(*this); }
+            else { return ListOps::greater(*this); }
+        }
+
+        //- The comparator for logically inverse ordering:
+        //- ListOps::greater if Forward, ListOps::less otherwise
+        auto inverseCompareOp() const
+        {
+            if constexpr (Forward) { return ListOps::greater(*this); }
+            else { return ListOps::less(*this); }
+        }
+
 public:
 
     // Constructors
@@ -77,21 +96,21 @@ public:
 
         //- Construct given size, sort later.
         //  The indices remain empty until the list is sorted
-        inline explicit SortableList(const label size);
+        inline explicit SortableList(label len);
 
         //- Construct zero-initialized with given size, sort later.
         //  The indices remain empty until the list is sorted
-        inline SortableList(const label size, Foam::zero);
+        inline SortableList(label len, Foam::zero);
 
         //- Construct given size and initial value, sorting later.
         //  The indices remain empty until the list is sorted
-        inline SortableList(const label size, const T& val);
+        inline SortableList(label len, const T& val);
 
         //- Copy construct
-        inline SortableList(const SortableList<T>& lst);
+        inline SortableList(const SortableList& lst);
 
         //- Move construct
-        inline SortableList(SortableList<T>&& lst);
+        inline SortableList(SortableList&& lst);
 
         //- Copy construct from UList, sorting immediately
         explicit inline SortableList(const UList<T>& values);
@@ -106,19 +125,16 @@ public:
     // Member Functions
 
         //- Return the list of sorted indices. Updated every sort
-        const labelList& indices() const noexcept
-        {
-            return indices_;
-        }
+        const labelList& indices() const noexcept { return indices_; }
 
         //- Return non-const access to the sorted indices. Updated every sort
-        labelList& indices() noexcept
-        {
-            return indices_;
-        }
+        labelList& indices() noexcept { return indices_; }
 
         //- Clear the list and the indices
         inline void clear();
+
+        //- Clear the indices
+        inline void shrink_to_fit();
 
         //- Clear the indices and return a reference to the underlying List
         inline List<T>& shrink();
@@ -134,11 +150,8 @@ public:
         //- Forward partial sort the list until the middle point
         void partialSort(label n, label start=0);
 
-        //- Reverse partial sort the list until the middle point
-        void partialReverseSort(label n, label start=0);
-
         //- Swap content with another SortableList in constant time
-        inline void swap(SortableList<T>& other);
+        inline void swap(SortableList& other);
 
 
     // Member Operators
@@ -150,13 +163,13 @@ public:
         inline void operator=(const UList<T>& lst);
 
         //- Assignment operator. Takes linear time
-        inline void operator=(const SortableList<T>& lst);
+        inline void operator=(const SortableList& lst);
 
         //- Move assignment, removing indices. Takes linear time
         inline void operator=(List<T>&& lst);
 
         //- Move operator (constant time)
-        inline void operator=(SortableList<T>&& lst);
+        inline void operator=(SortableList&& lst);
 
         //- Assignment to an initializer list
         void operator=(std::initializer_list<T> lst);
@@ -176,7 +189,7 @@ public:
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "SortableList.C"
+    #include "SortableList.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

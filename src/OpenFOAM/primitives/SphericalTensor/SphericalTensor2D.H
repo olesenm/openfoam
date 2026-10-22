@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,7 +43,6 @@ SourceFiles
 #ifndef Foam_SphericalTensor2D_H
 #define Foam_SphericalTensor2D_H
 
-#include "contiguous.H"
 #include "VectorSpace.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -90,16 +90,23 @@ public:
         SphericalTensor2D() = default;
 
         //- Copy construct
-        SphericalTensor2D(const SphericalTensor2D&) = default;
+        constexpr SphericalTensor2D(const SphericalTensor2D&) = default;
+
+        //- Move construct
+        constexpr SphericalTensor2D(SphericalTensor2D&&) = default;
 
         //- Copy assignment
-        SphericalTensor2D& operator=(const SphericalTensor2D&) = default;
+        constexpr SphericalTensor2D&
+        operator=(const SphericalTensor2D&) = default;
+
+        //- Move assignment
+        constexpr SphericalTensor2D& operator=(SphericalTensor2D&&) = default;
 
 
     // Constructors
 
         //- Construct initialized to zero
-        inline SphericalTensor2D(Foam::zero);
+        inline constexpr SphericalTensor2D(Foam::zero);
 
         //- Construct given VectorSpace
         inline SphericalTensor2D
@@ -108,7 +115,7 @@ public:
         );
 
         //- Construct given the component
-        inline explicit SphericalTensor2D(const Cmpt& tii);
+        inline constexpr explicit SphericalTensor2D(const Cmpt& tii);
 
         //- Construct from Istream
         inline explicit SphericalTensor2D(Istream& is);
@@ -118,15 +125,15 @@ public:
 
     // Component Access
 
-        const Cmpt& ii() const noexcept { return this->v_[II]; }
+        constexpr const Cmpt& ii() const noexcept { return this->v_[II]; }
 
-        Cmpt& ii() noexcept { return this->v_[II]; }
+        constexpr Cmpt& ii() noexcept { return this->v_[II]; }
 
 
     // Diagonal access and manipulation
 
         //- The L2-norm squared of the diagonal
-        inline scalar diagSqr() const;
+        inline constexpr scalar diagSqr() const;
 
 
     // Tensor Operations
@@ -138,23 +145,27 @@ public:
 
 // * * * * * * * * * * * * * * * * * Traits  * * * * * * * * * * * * * * * * //
 
-//- Data are contiguous if component type is contiguous
-template<class Cmpt>
-struct is_contiguous<SphericalTensor2D<Cmpt>> : is_contiguous<Cmpt> {};
-
-//- Data are contiguous label if component type is label
-template<class Cmpt>
-struct is_contiguous_label<SphericalTensor2D<Cmpt>>
-:
-    is_contiguous_label<Cmpt>
-{};
-
-//- Data are contiguous scalar if component type is scalar
-template<class Cmpt>
-struct is_contiguous_scalar<SphericalTensor2D<Cmpt>>
-:
-    is_contiguous_scalar<Cmpt>
-{};
+// Contiguous traits handled by generalized traits using cmptType (SEPT-2026)
+//
+// OLD CODE:
+//
+// //- Data are contiguous if component type is contiguous
+// template<class Cmpt>
+// struct is_contiguous<SphericalTensor2D<Cmpt>> : is_contiguous<Cmpt> {};
+//
+// //- Data are contiguous label if component type is label
+// template<class Cmpt>
+// struct is_contiguous_label<SphericalTensor2D<Cmpt>>
+// :
+//     is_contiguous_label<Cmpt>
+// {};
+//
+// //- Data are contiguous scalar if component type is scalar
+// template<class Cmpt>
+// struct is_contiguous_scalar<SphericalTensor2D<Cmpt>>
+// :
+//     is_contiguous_scalar<Cmpt>
+// {};
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
