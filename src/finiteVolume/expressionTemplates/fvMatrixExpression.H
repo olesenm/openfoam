@@ -290,10 +290,6 @@ public:
                 auto& bouCoeffs = m.boundaryCoeffs();
                 const label n = m.psi().boundaryField().size();
 
-                typedef
-                    typename std::remove_reference_t<decltype(m.source())>::
-                    value_type value_type;
-
 #if defined(FOAM_OFFLOAD)
                 constexpr bool foam_offload = true;
 #else
@@ -317,11 +313,12 @@ public:
 
                     // Internal : evaluate all patches at once
                     ListsRefWrap<UpperExpr> intSrc(intExprs);
-                    ListRefWrap<value_type>(intCoeffs, intSrc);
+                    // Do not resize storage referenced by the patch expressions.
+                    intSrc.fill(intCoeffs);
 
                     // Boundary : evaluate all patches at once
                     ListsRefWrap<UpperExpr> bouSrc(bouExprs);
-                    ListRefWrap<value_type>(bouCoeffs, bouSrc);
+                    bouSrc.fill(bouCoeffs);
                 }
                 else
                 {
@@ -360,8 +357,16 @@ class fvMatrixRefWrap
     <
         fvMatrixRefWrap<Matrix>,
         ListRefWrap<typename Matrix::psiFieldType::value_type>, // diag
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // upper
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // lower
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // upper
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // lower
         GeometricFieldRefWrap<typename Matrix::faceFluxFieldType>,// fflux
         ListRefWrap<typename Matrix::psiFieldType::value_type>  // source
     >
@@ -378,8 +383,9 @@ public:
 
     //- Type to return for containers
     typedef ListRefWrap<value_type> DiagExpr;
-    typedef ListConstRefWrap<value_type> UpperExpr;
-    typedef ListConstRefWrap<value_type> LowerExpr;
+    // Retain temporary coefficient slices without copying their storage.
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> UpperExpr;
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> LowerExpr;
     typedef GeometricFieldRefWrap
     <
         typename Matrix::faceFluxFieldType
@@ -605,8 +611,16 @@ class fvMatrixConstRefWrap
     <
         fvMatrixConstRefWrap<Matrix>,
         ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // diag
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // upper
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // lower
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // upper
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // lower
         GeometricFieldConstRefWrap<typename Matrix::faceFluxFieldType>, // fflux
         ListConstRefWrap<typename Matrix::psiFieldType::value_type>  // source
     >
@@ -623,8 +637,8 @@ public:
 
     //- Type to return for containers
     typedef ListConstRefWrap<value_type> DiagExpr;
-    typedef ListConstRefWrap<value_type> UpperExpr;
-    typedef ListConstRefWrap<value_type> LowerExpr;
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> UpperExpr;
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> LowerExpr;
     typedef GeometricFieldConstRefWrap
     <
         typename Matrix::faceFluxFieldType
@@ -718,8 +732,16 @@ class fvMatrixConstTmpWrap
     <
         fvMatrixConstTmpWrap<Matrix>,
         ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // diag
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // upper
-        ListConstRefWrap<typename Matrix::psiFieldType::value_type>, // lower
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // upper
+        ListConstRefWrap
+        <
+            typename Matrix::psiFieldType::value_type,
+            const SubField<typename Matrix::psiFieldType::value_type>
+        >, // lower
         GeometricFieldConstRefWrap<typename Matrix::faceFluxFieldType>, // fflux
         ListConstRefWrap<typename Matrix::psiFieldType::value_type>  // source
     >
@@ -736,8 +758,8 @@ public:
 
     //- Type to return for containers
     typedef ListConstRefWrap<value_type> DiagExpr;
-    typedef ListConstRefWrap<value_type> UpperExpr;
-    typedef ListConstRefWrap<value_type> LowerExpr;
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> UpperExpr;
+    typedef ListConstRefWrap<value_type, const SubField<value_type>> LowerExpr;
     typedef GeometricFieldConstRefWrap
     <
         typename Matrix::faceFluxFieldType

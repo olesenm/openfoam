@@ -89,7 +89,7 @@ typedef UList<label> labelUList;    //!< A UList of labels
 namespace Expression
 {
 template<class E> class ListExpression;
-template<class T> class ListConstRefWrap;
+template<class T, class Storage = const UList<T>&> class ListConstRefWrap;
 }
 
 /*---------------------------------------------------------------------------*\

@@ -403,13 +403,13 @@ public:
                       Class ListConstRefWrap Declaration
 \*---------------------------------------------------------------------------*/
 
-//- Expression wrap of const reference to UList
-template<class T>
+//- Expression wrap of a const list reference or a by-value non-owning view
+template<class T, class Storage>
 class ListConstRefWrap
 :
-    public ListExpression<ListConstRefWrap<T>>
+    public ListExpression<ListConstRefWrap<T, Storage>>
 {
-    const UList<T>& elems_;
+    Storage elems_;
 
 public:
 
