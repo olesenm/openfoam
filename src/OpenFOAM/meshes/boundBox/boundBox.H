@@ -501,22 +501,63 @@ public:
             //- Uses worldComm (default) or the specified communicator.
             inline boundBox returnReduce(int communicator = -1) const;
 
-            //- Parallel reduction of min/max values for multiple boxes.
-            //- Uses worldComm (default) or the specified communicator.
+            //- Parallel reduction of min/max values for multiple boxes
+            //- using the specified communicator.
             static void reduce
             (
                 boundBox bbs[],
-                label count,
-                int communicator = -1
+                label count,    //!< Number of boxes (globally consistent)
+                int communicator
             );
 
-            //- Parallel reduction of min/max values for multiple boxes.
-            //- Uses worldComm (default) or the specified communicator.
+            //- Parallel reduction of min/max values for multiple boxes
+            //- using the specified communicator.
             static void reduce
             (
                 treeBoundBox bbs[],
-                label count,
-                int communicator = -1
+                label count,    //!< Number of boxes (globally consistent)
+                int communicator
+            );
+
+            //- In-place all-gather of bounding boxes, with the local
+            //- contribution at the corresponding position in the list.
+            //- The list length matches the number of ranks.
+            static void allGather
+            (
+                //! [in,out] the per-rank bounding boxes
+                UList<boundBox>& bbs,
+                int communicator
+            );
+
+            //- In-place all-gather of bounding boxes, with the local
+            //- contribution at the corresponding position in the list.
+            //- The list length matches the number of ranks.
+            static void allGather
+            (
+                //! [in,out] the per-rank bounding boxes
+                UList<treeBoundBox>& bbs,
+                int communicator
+            );
+
+            //- In-place all-gather of bounding boxes, with the specified
+            //- local contribution to the list.
+            //- The list length matches the number of ranks.
+            static void allGather
+            (
+                //! [out] the per-rank bounding boxes
+                UList<boundBox>& bbs,
+                const boundBox& localBb,    //!< Local contribution (my rank)
+                int communicator
+            );
+
+            //- In-place all-gather of bounding boxes, with the specified
+            //- local contribution to the list.
+            //- The list length matches the number of ranks.
+            static void allGather
+            (
+                UList<treeBoundBox>& bbs,
+                const boundBox& localBb,    //!< Local contribution (my rank)
+                int communicator
             );
 
             //- Parallel broadcast of contents.

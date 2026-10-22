@@ -42,6 +42,12 @@ namespace
 {
 
 // Broadcast contents (single or multiple boxes)
+//
+// Note: UPstreamTraits correctly maps boundBox/treeBoundBox
+// (elements and counts). Eg, { data-type="double[3]" count=2 }
+//
+// Do *NOT* need to adjust counts here.
+
 template<class BoundBoxType, class IntType>
 void broadcastBoxes_impl
 (
@@ -60,8 +66,6 @@ void broadcastBoxes_impl
         return;
     }
 
-    // Note: UPstream_dataType<boundBox> will be "type_6double" etc
-    // (for the min/max point pair), so no need to adjust the count here.
     UPstream::broadcast(bbs, count, communicator);
 }
 
@@ -115,6 +119,11 @@ void reduceBoxes_impl
 
         forAll(work, i) { bbs[i].max() = work[i]; }
     }
+
+    // FUTURE NOTE:
+    // - could perhaps optimize by inverting min values (multiply by -1),
+    //   perform a <max> operation on the entire contents.
+    //   Subsequently re-invert the min values.
 }
 
 } // End anonymous namespace
@@ -455,6 +464,131 @@ void Foam::boundBox::reduce
 )
 {
     reduceBoxes_impl(bbs, count, communicator);
+}
+
+
+// Note: UPstreamTraits correctly maps boundBox/treeBoundBox
+// (elements and counts). Eg, { data-type="double[3]" count=2 }
+//
+// Do *NOT* need to adjust counts here.
+
+void Foam::boundBox::allGather
+(
+    UList<boundBox>& bbs,
+    int communicator
+)
+{
+    // For consistency with other routines
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto nproc = UPstream::nProcs(communicator);
+
+        if (FOAM_UNLIKELY(bbs.size() != nproc))
+        {
+            FatalErrorInFunction
+                << "Attempted to allGather "
+                << bbs.size() << " boxes on " << nproc << " ranks"
+                << exit(FatalError);
+        }
+
+        // Allgather for contiguous types - one element per rank
+        UPstream::mpiAllGather(bbs.data(), 1, communicator);
+    }
+}
+
+
+void Foam::boundBox::allGather
+(
+    UList<treeBoundBox>& bbs,
+    int communicator
+)
+{
+    // For consistency with other routines
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto nproc = UPstream::nProcs(communicator);
+
+        if (FOAM_UNLIKELY(bbs.size() != nproc))
+        {
+            FatalErrorInFunction
+                << "Attempted to allGather "
+                << bbs.size() << " boxes on " << nproc << " ranks"
+                << exit(FatalError);
+        }
+
+        // Allgather for contiguous types - one element per rank
+        UPstream::mpiAllGather(bbs.data(), 1, communicator);
+    }
+}
+
+
+void Foam::boundBox::allGather
+(
+    UList<boundBox>& bbs,
+    const boundBox& localBb,
+    int communicator
+)
+{
+    // For consistency with other routines
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto proci = UPstream::myProcNo(communicator);
+        const auto nproc = UPstream::nProcs(communicator);
+
+        if (FOAM_UNLIKELY(bbs.size() < nproc))
+        {
+            FatalErrorInFunction
+                << "Attempted to allGather "
+                << bbs.size() << " boxes on " << nproc << " ranks"
+                << exit(FatalError);
+        }
+
+        {
+            bbs[proci] = localBb;  // Local contribution
+        }
+
+        // Allgather for contiguous types - one element per rank
+        UPstream::mpiAllGather(bbs.data(), 1, communicator);
+    }
+}
+
+
+void Foam::boundBox::allGather
+(
+    UList<treeBoundBox>& bbs,
+    const boundBox& localBb,
+    int communicator
+)
+{
+    // For consistency with other routines
+    if (communicator < 0) communicator = UPstream::worldComm;
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto proci = UPstream::myProcNo(communicator);
+        const auto nproc = UPstream::nProcs(communicator);
+
+        if (FOAM_UNLIKELY(bbs.size() < nproc))
+        {
+            FatalErrorInFunction
+                << "Attempted to allGather "
+                << bbs.size() << " boxes on " << nproc << " ranks"
+                << exit(FatalError);
+        }
+
+        {
+            bbs[proci] = localBb;  // Local contribution
+        }
+
+        // Allgather for contiguous types - one element per rank
+        UPstream::mpiAllGather(bbs.data(), 1, communicator);
+    }
 }
 
 
