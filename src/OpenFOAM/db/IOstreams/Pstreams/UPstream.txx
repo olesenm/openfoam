@@ -106,7 +106,7 @@ void Foam::UPstream::mpiGather
         // Perform any fallback copying here, while we still know the Type
         if (sendData && recvData && (sendData != recvData))
         {
-            std::memmove(recvData, sendData, count*sizeof(Type));
+            std::copy_n(sendData, count, recvData);
         }
     }
     else
@@ -149,7 +149,7 @@ void Foam::UPstream::mpiScatter
         // Perform any fallback copying here, while we still know the Type
         if (sendData && recvData && (sendData != recvData))
         {
-            std::memmove(recvData, sendData, count*sizeof(Type));
+            std::copy_n(sendData, count, recvData);
         }
     }
     else
@@ -354,7 +354,7 @@ void Foam::UPstream::mpiGatherv
             if (sendData && recvData && (sendData != recvData))
             {
                 // recvCounts[0] may be invalid - use sendCount instead
-                std::memmove(recvData, sendData, sendCount*sizeof(Type));
+                std::copy_n(sendData, sendCount, recvData);
             }
         }
         // Nothing further to do
@@ -415,7 +415,7 @@ void Foam::UPstream::mpiScatterv
         {
             if (sendData && recvData && (sendData != recvData))
             {
-                std::memmove(recvData, sendData, recvCount*sizeof(Type));
+                std::copy_n(sendData, recvCount, recvData);
             }
         }
         // Nothing further to do
