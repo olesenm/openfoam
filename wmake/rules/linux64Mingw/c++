@@ -13,7 +13,8 @@ ifneq (,$(strip $(WM_COMPILE_OPTION)))
 endif
 
 c++FLAGS    = \
-    $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
+    $(c++ARCH) $(c++DEVICE) $(GFLAGS) \
+    $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
     $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS)
 
 # In many (most) installations, the tbb library isn't really available

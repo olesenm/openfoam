@@ -1,15 +1,20 @@
 #------------------------------------------------------------------------------
 # AMD compiler - a clang variant
-include $(GENERAL_RULES)/Amd-gpu/c++
+#------------------------------------------------------------------------------
+include $(GENERAL_RULES)/Clang/c++
+
+CC         := amdclang++$(COMPILER_VERSION) -std=c++17
 
 c++ARCH    := -m64 -pthread
+c++DEVICE  := --hipstdpar --offload-arch=$(ROCM_GPU) -DFOAM_OFFLOAD
 
 ifneq (,$(strip $(WM_COMPILE_OPTION)))
     sinclude $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
 endif
 
 c++FLAGS    = \
-    $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
+    $(c++ARCH) $(c++DEVICE) $(GFLAGS) \
+    $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
     $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS) -fPIC
 
 Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $< -o $@
@@ -17,6 +22,6 @@ cctoo       = $(Ctoo)
 cpptoo      = $(Ctoo)
 cxxtoo      = $(Ctoo)
 
-include $(GENERAL_RULES)/Amd-gpu/link-c++
+include $(GENERAL_RULES)/Amd/link-c++
 
 #------------------------------------------------------------------------------

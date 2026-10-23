@@ -6,6 +6,7 @@ SUFFIXES   += .C .cc .cpp .cxx
 CC         := nvc++$(COMPILER_VERSION) -std=c++17
 
 c++ARCH    :=
+c++DEVICE  :=
 c++DBUG    :=
 c++OPT     := -O2
 ptFLAGS    := -DNoRepository
@@ -35,5 +36,6 @@ sinclude $(GENERAL_RULES)/common/c++$(WM_COMPILE_OPTION)
 #998-D: function XX is hidden by YY -- virtual function override intended?
 #1098-D: unknown attribute "fallthrough"
 #1428-D: [offset_in_non_POD_nonstandard]
+#3293-D: ... parallelization_not_supported
 #
 #------------------------------------------------------------------------------

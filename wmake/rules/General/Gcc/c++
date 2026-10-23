@@ -9,6 +9,7 @@ SUFFIXES   += .C .cc .cpp .cxx
 CC         := g++$(COMPILER_VERSION) -std=c++17
 
 c++ARCH    :=
+c++DEVICE  :=
 c++DBUG    :=
 c++OPT     := -O2
 ptFLAGS    := -DNoRepository -ftemplate-depth=1000

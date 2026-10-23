@@ -1,14 +1,17 @@
 #------------------------------------------------------------------------------
-include $(GENERAL_RULES)/Nvidia-gpu/c++
+include $(GENERAL_RULES)/Nvidia/c++
 
 c++ARCH    := -m64
+c++DEVICE  := -stdpar=gpu -gpu=cc90,mem:unified,managed -DFOAM_OFFLOAD
+c++WARN    += --diag_suppress=3293
 
 ifneq (,$(strip $(WM_COMPILE_OPTION)))
     sinclude $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
 endif
 
 c++FLAGS    = \
-    $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
+    $(c++ARCH) $(c++DEVICE) $(GFLAGS) \
+    $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
     $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS) -fPIC
 
 Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $< -o $@
@@ -16,6 +19,14 @@ cctoo       = $(Ctoo)
 cpptoo      = $(Ctoo)
 cxxtoo      = $(Ctoo)
 
-include $(GENERAL_RULES)/Nvidia-gpu/link-c++
+include $(GENERAL_RULES)/Nvidia/link-c++
 
+#------------------------------------------------------------------------------
+# Warnings
+# --------
+# Run with --display_error_number to get numbers
+# and --diag_suppress=XXX to suppress
+#
+#3293-D: ... parallelization_not_supported
+#
 #------------------------------------------------------------------------------

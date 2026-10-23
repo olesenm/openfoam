@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-include $(GENERAL_RULES)/Nvidia-gpu/c
+include $(GENERAL_RULES)/Nvidia/c
 
 cARCH      := -m64
 
@@ -13,6 +13,6 @@ cFLAGS      = \
 
 ctoo        = $(WM_SCHEDULER) $(cc) $(cFLAGS) -c $< -o $@
 
-include $(GENERAL_RULES)/Nvidia-gpu/link-c
+include $(GENERAL_RULES)/Nvidia/link-c
 
 #------------------------------------------------------------------------------
