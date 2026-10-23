@@ -57,8 +57,9 @@ typedef SphericalTensor2D<scalar> sphericalTensor2D;
 //- Identity tensor
 static constexpr sphericalTensor2D I2D(1);
 
-static constexpr sphericalTensor2D oneThirdI2D(1.0/3.0);
-static constexpr sphericalTensor2D twoThirdsI2D(2.0/3.0);
+// Note: these are constexpr but some compilers don't like that ...
+static const sphericalTensor2D oneThirdI2D(1.0/3.0);
+static const sphericalTensor2D twoThirdsI2D(2.0/3.0);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

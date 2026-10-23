@@ -54,8 +54,9 @@ namespace Foam
 
 typedef SphericalTensor<scalar> sphericalTensor;
 
-static constexpr sphericalTensor oneThirdI(1.0/3.0);
-static constexpr sphericalTensor twoThirdsI(2.0/3.0);
+// Note: these are constexpr but some compilers don't like that ...
+static const sphericalTensor oneThirdI(1.0/3.0);
+static const sphericalTensor twoThirdsI(2.0/3.0);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
