@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,7 +27,6 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "ListOps.H"
 #include "SubList.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
@@ -308,7 +308,19 @@ inline Foam::label Foam::CompactListList<T>::toLocal
 template<class T>
 inline Foam::label Foam::CompactListList<T>::findRow(const label i) const
 {
-    return (i < 0 || i >= totalSize()) ? -1 : findLower(offsets_, i+1);
+    if (i < 0 || i >= totalSize())
+    {
+        return -1;
+    }
+
+    // Find last (offset <= i)
+    // - same as Foam::findLower(offsets_, i+1)
+
+    return static_cast<label>
+    (
+        std::upper_bound(offsets_.cbegin(), offsets_.cend(), i)
+      - offsets_.cbegin() - 1  //< uses (-1) for start instead of end index
+    );
 }
 
 

@@ -6,7 +6,9 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
-    Copyright (C) 2017-2026 OpenCFD Ltd.
+    Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
+    Copyright (C) 2026 Mark Olesen
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -37,8 +39,8 @@ Description
     Various utility functions to work on Lists.
 
 SourceFiles
-    ListOps.C
-    ListOpsTemplates.C
+    ListOps.cxx
+    ListOps.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -53,15 +55,12 @@ SourceFiles
 #include "Map.H"
 #include "bitSet.H"
 #include "ops.H"
+#include "CompactListsFwd.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
-
-// Forward Declarations
-template<class T> class CompactListList;
-
 
 //- Renumber the values within a list.
 //  Negative input values are left untouched.
@@ -979,7 +978,7 @@ void inplaceRenumber(const Map<label>& oldToNew, IntListListType& lists);
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "ListOpsTemplates.C"
+    #include "ListOps.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
