@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,7 +39,7 @@ SourceFiles
 #define nearestFaceAMI_H
 
 #include "AMIInterpolation.H"
-#include "pointIndexHit.H"
+#include "Tuple2.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -55,26 +56,31 @@ class nearestFaceAMI
 {
 public:
 
-    typedef Tuple2<pointIndexHit, scalar> nearestAndDist;
+    //- Global reduction key (squared distance, target face index).
+    //  Uses -1 (or labelMin etc) as the index for the not_hit() condition.
+    //
+    //  NB: cannot use UPstream::minLocation, since it is a global label
+    //  and has special reduction semantics.
+    typedef Tuple2<scalar, label> nearKey;
 
-    //- Helper class for finding nearest
-    class nearestEqOp
+    //- Reduction/combine operator for nearKey, that reduces
+    //- on minimum distance but gated on the validity of the index.
+    struct nearestEqOp
     {
+        //- A good index is non-negative
+        static bool good_index(label i) noexcept { return (i >= 0); }
 
-    public:
-
-        void operator()(nearestAndDist& x, const nearestAndDist& y) const
+        //- Min distance (MINLOC) operation for nearKey
+        //- that only propagates through valid (hit) entries.
+        void operator()(nearKey& x, const nearKey& y) const
         {
-            if (y.first().hit())
+            if
+            (
+                good_index(y.second()) &&
+                (!good_index(x.second()) || (y.first() < x.first()))
+            )
             {
-                if (!x.first().hit())
-                {
-                    x = y;
-                }
-                else if (y.second() < x.second())
-                {
-                    x = y;
-                }
+                x = y;
             }
         }
     };
@@ -95,7 +101,7 @@ private:
 
         autoPtr<mapDistribute> calcFaceMap
         (
-            const List<nearestAndDist>& localInfo,
+            const UList<nearKey>& localInfo,
             const primitivePatch& srcPatch,
             const primitivePatch& tgtPatch
         ) const;

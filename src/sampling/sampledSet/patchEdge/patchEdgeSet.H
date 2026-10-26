@@ -108,19 +108,19 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef patchEdgeSet_H
-#define patchEdgeSet_H
+#ifndef Foam_patchEdgeSet_H
+#define Foam_patchEdgeSet_H
 
 #include "sampledSet.H"
 #include "DynamicList.H"
 #include "HashSet.H"
-#include "plane.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
 
+// Forward Declarations
 class searchableSurface;
 
 /*---------------------------------------------------------------------------*\
@@ -131,7 +131,7 @@ class patchEdgeSet
 :
     public sampledSet
 {
-    // Private data
+    // Private Data
 
         //- The surface
         const autoPtr<searchableSurface> surfPtr_;
@@ -140,7 +140,7 @@ class patchEdgeSet
         const point origin_;
 
         //- Patches to sample
-        const labelHashSet patchSet_;
+        const labelList patchIDs_;
 
 
     // Private Member Functions
@@ -178,7 +178,7 @@ public:
 
 
     //- Destructor
-    virtual ~patchEdgeSet() = default;
+    virtual ~patchEdgeSet();
 };
 
 

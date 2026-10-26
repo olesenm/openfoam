@@ -379,6 +379,9 @@ void Foam::functionObjects::fluxSummary::initialiseCellZoneAndDirection
     DynamicList<boolList>& faceFlip
 ) const
 {
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+
     const vector refDir = dir/(mag(dir) + ROOTVSMALL);
 
     const label cellZonei = mesh_.cellZones().findZoneID(cellZoneName);
@@ -510,8 +513,6 @@ void Foam::functionObjects::fluxSummary::initialiseCellZoneAndDirection
         << "Starting walk to split patch into faceZones"
         << endl;
 
-    const globalIndex globalFaces(patch.size());
-
     label oldFaceID = 0;
     label regioni = 0;
 
@@ -523,26 +524,25 @@ void Foam::functionObjects::fluxSummary::initialiseCellZoneAndDirection
         DynamicList<label> changedEdges;
         DynamicList<edgeTopoDistanceData<label>> changedInfo;
 
-        label seedFacei = labelMax;
+        label seedFacei = -1;
         for (; oldFaceID < patch.size(); oldFaceID++)
         {
             if (!allFaceInfo[oldFaceID].valid<bool>(dummyData))
             {
-                seedFacei = globalFaces.toGlobal(oldFaceID);
+                seedFacei = oldFaceID;
                 break;
             }
         }
-        reduce(seedFacei, minOp<label>());
 
-        if (seedFacei == labelMax)
+        int seedProci = UPstream::find_first(seedFacei >= 0, communicator);
+
+        if (seedProci < 0)
         {
             break;
         }
-
-        if (globalFaces.isLocal(seedFacei))
+        else if (seedProci == myProci)
         {
-            const label localFacei = globalFaces.toLocal(seedFacei);
-            const labelList& fEdges = patch.faceEdges()[localFacei];
+            const labelList& fEdges = patch.faceEdges()[seedFacei];
 
             for (const label edgei : fEdges)
             {
@@ -555,15 +555,8 @@ void Foam::functionObjects::fluxSummary::initialiseCellZoneAndDirection
                         << endl;
                 }
 
-                changedEdges.append(edgei);
-                changedInfo.append
-                (
-                    edgeTopoDistanceData<label>
-                    (
-                        0,          // distance
-                        regioni
-                    )
-                );
+                changedEdges.push_back(edgei);
+                changedInfo.emplace_back(0, regioni);  // (distance, region)
             }
         }
 

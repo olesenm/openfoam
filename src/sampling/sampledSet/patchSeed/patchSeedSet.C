@@ -74,7 +74,7 @@ void Foam::patchSeedSet::calcPatchSamples
 
     const bool perturb = true;
 
-    for (const label patchi : patchSet_)
+    for (auto patchi : patchIDs_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
         triangulatedPatch tp(pp, perturb);
@@ -105,7 +105,8 @@ void Foam::patchSeedSet::calcSelectedLocations
     DynamicList<scalar>& samplingCurveDist
 )
 {
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
     if (nAvailable < 1)
     {
@@ -120,7 +121,7 @@ void Foam::patchSeedSet::calcSelectedLocations
     treeBoundBox overallBb;
 
     // Collect faces and bounding box
-    for (label patchi : patchSet_)
+    for (auto patchi : patchIDs_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
 
@@ -130,12 +131,15 @@ void Foam::patchSeedSet::calcSelectedLocations
     }
 
     // 1. Find nearest local patch face for all selectedLocations
+    labelList patchFaces(nAvailable, -1);
 
-    // Nearest selection: (sqr(distance), (rank, facei))
-    List<Tuple2<scalar, labelPair>> nearest
+    // The nearest selection key. Construct as missed sample
+    // == (large distance, proc = max_ranks)
+
+    List<Tuple2<scalar, int>> nearest
     (
         nAvailable,
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
 
     const bool hasLocal = bndFaces.any();
@@ -169,7 +173,6 @@ void Foam::patchSeedSet::calcSelectedLocations
         for (label samplei = 0; samplei < nAvailable; ++samplei)
         {
             const point& sample = samples[samplei];
-            auto& near = nearest[samplei];
 
             pointIndexHit pHit = boundaryTree.findNearest
             (
@@ -179,50 +182,40 @@ void Foam::patchSeedSet::calcSelectedLocations
 
             if (const auto& p = pHit.point(); pHit.hit())
             {
-                const label facei = treeData.objectIndex(pHit.index());
+                label facei = treeData.objectIndex(pHit.index());
 
-                near.first() = sample.distSqr(p);
-                near.second().first() = myProci;
-                near.second().second() = facei;
+                patchFaces[samplei] = facei;
+                nearest[samplei] = { sample.distSqr(p), myProci };
             }
         }
     }
 
     // Find rank with nearest hit - globally consistent
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+    {
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
 
-    // Extract the nearest (local) patch faces
-    labelList patchFaces;
-
+    // Extract/filter local selections
     {
         label nLocal = 0;
-        for (const auto& near : nearest)
+        forAll(nearest, samplei)
         {
-            const auto& [proci, facei] = near.second();
-
-            if (proci == myProci)
+            if (myProci == nearest[samplei].second())
             {
+                patchFaces[nLocal] = patchFaces[samplei];
                 ++nLocal;
             }
         }
-
-        if (const label total = nLocal; total > 0)
-        {
-            patchFaces.resize(total);
-            nLocal = 0;
-
-            for (const auto& near : nearest)
-            {
-                const auto& [proci, facei] = near.second();
-
-                if (proci == myProci)
-                {
-                    patchFaces[nLocal] = facei;
-                    ++nLocal;
-                    if (nLocal >= total) break;  // terminate early
-                }
-            }
-        }
+        patchFaces.resize(nLocal);
     }
 
     if (debug)
@@ -373,7 +366,7 @@ void Foam::patchSeedSet::calcSamples
     }
 
     label nPatchPoints = 0;
-    for (const label patchi : patchSet_)
+    for (auto patchi : patchIDs_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
         nPatchPoints += pp.size();
@@ -420,9 +413,9 @@ Foam::patchSeedSet::patchSeedSet
 )
 :
     sampledSet(name, mesh, searchEngine, dict),
-    patchSet_
+    patchIDs_
     (
-        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches"))
+        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches")).sortedToc()
     ),
     maxPoints_(dict.get<label>("maxPoints")),
     selectedLocations_

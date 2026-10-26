@@ -198,36 +198,34 @@ int main(int argc, char *argv[])
         patchFaceOrientation
     >::propagationTol();
 
-    int dummyTrackData;
+    int dummyTrackData = 0;
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
-    globalIndex globalFaces(patch.size());
+    // Total faces (for information only)
+    const auto nTotalFaces = returnReduce(patch.size(), sumOp<label>());
 
     while (true)
     {
         // Pick an unset face
-        label unsetFacei = labelMax;
+        label seedFacei = -1;
         forAll(allFaceInfo, facei)
         {
             if (allFaceInfo[facei] == orientedSurface::UNVISITED)
             {
-                unsetFacei = globalFaces.toGlobal(facei);
+                seedFacei = facei;
                 break;
             }
         }
 
-        reduce(unsetFacei, minOp<label>());
+        int seedProci = UPstream::find_first(seedFacei >= 0, communicator);
 
-        if (unsetFacei == labelMax)
+        // Info<< "Seeding from processor " << seedProci << endl;
+        if (seedProci < 0)
         {
             break;
         }
-
-        label proci = globalFaces.whichProcID(unsetFacei);
-        label seedFacei = globalFaces.toLocal(proci, unsetFacei);
-        Info<< "Seeding from processor " << proci
-            << " face " << seedFacei << endl;
-
-        if (proci == Pstream::myProcNo())
+        else if (seedProci == myProci)
         {
             // Determine orientation of seedFace
 
@@ -320,7 +318,6 @@ int main(int argc, char *argv[])
         {
             break;
         }
-
 
 
         // Walk
@@ -421,10 +418,11 @@ int main(int argc, char *argv[])
     }
 
     reduce(nChanged, sumOp<label>());
+
     if (nChanged > 0)
     {
         Info<< "Flipping " << nChanged << " out of "
-            << globalFaces.totalSize() << " faces." << nl << endl;
+            << nTotalFaces << " faces." << nl << endl;
 
         mesh.faceZones()[zoneName].resetAddressing(faceLabels, newFlipMap);
         if (!mesh.faceZones().write())

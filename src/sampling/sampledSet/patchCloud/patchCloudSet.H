@@ -44,8 +44,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef patchCloudSet_H
-#define patchCloudSet_H
+#ifndef Foam_patchCloudSet_H
+#define Foam_patchCloudSet_H
 
 #include "sampledSet.H"
 #include "DynamicList.H"
@@ -64,13 +64,13 @@ class patchCloudSet
 :
     public sampledSet
 {
-    // Private data
+    // Private Data
 
         //- Sampling points
         const pointField sampleCoords_;
 
         //- Patches to sample
-        const labelHashSet patchSet_;
+        const labelList patchIDs_;
 
         //- Maximum distance to look for nearest
         const scalar searchDist_;

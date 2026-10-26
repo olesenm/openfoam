@@ -135,7 +135,8 @@ void Foam::regionToFace::combine
     const labelUList& ids
 ) const
 {
-    const auto myProci = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
 
     if (verbose_)
     {
@@ -149,16 +150,17 @@ void Foam::regionToFace::combine
         mesh_.points()
     );
 
-    // Nearest selection: (sqr(distance), (rank, facei))
-    Tuple2<scalar, labelPair> nearest(Foam::sqr(GREAT), {-1, -1});
-
+    label bestFacei = -1;
     point bestPoint(point::max);
+
+    // The nearest selection key. Construct as missed sample
+    // == (large distance, proc = max_ranks)
+
+    Tuple2<scalar, int> nearest(VGREAT, UPstream::max_ranks());
 
     if (patch.size())
     {
-        auto& minDistSqr = nearest.first();
-        auto& bestFacei = nearest.second().second();
-        nearest.second().first() = myProci;
+        scalar minDistSqr = VGREAT;
 
         forAll(patch, i)
         {
@@ -172,12 +174,16 @@ void Foam::regionToFace::combine
                 bestPoint = fc;
             }
         }
+
+        nearest = { minDistSqr, myProci };
     }
 
-    // Globally reduce
-    Pstream::combineReduce(nearest, minFirstEqOp{});
+    // Find rank with nearest - globally consistent
+    UPstream::minLocation(nearest, communicator);
 
-    const auto& [markProci, markFacei] = nearest.second();
+
+    const label markProci = nearest.second();
+    const label markFacei = (markProci == myProci ? bestFacei :  -1);
 
     if (verbose_)
     {

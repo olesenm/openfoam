@@ -51,9 +51,7 @@ void Foam::patchEdgeSet::genSamples()
     DynamicList<label> samplingSegments;
     DynamicList<scalar> samplingCurveDist;
 
-    const labelList patchIDs(patchSet_.sortedToc());
-
-    for (const label patchi : patchIDs)
+    for (auto patchi : patchIDs_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
         const edgeList& edges = pp.edges();
@@ -219,13 +217,19 @@ Foam::patchEdgeSet::patchEdgeSet
     origin_(dict.get<point>("origin")),
     //end_(dict.get<point>("end")),
     //pl_(dict),
-    patchSet_
+    patchIDs_
     (
-        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches"))
+        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches")).sortedToc()
     )
 {
     genSamples();
 }
+
+
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+// Non-default in header (incomplete types)
+Foam::patchEdgeSet::~patchEdgeSet() = default;
 
 
 // ************************************************************************* //

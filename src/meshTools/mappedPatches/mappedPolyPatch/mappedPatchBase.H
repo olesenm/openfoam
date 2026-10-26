@@ -147,11 +147,12 @@ public:
         static const Enum<offsetMode> offsetModeNames_;
 
         //- Compact reduction key for nearest distance
-        //- as a MINLOC-style reduction.
+        //- as a MINLOC-style reduction (second paramater is 'int').
         //
         //  Data content will frequently correspond to
-        //  (sqr(distance), rank) with rank = -1 for "not-found".
-        typedef Tuple2<scalar, label> nearKey;
+        //  (sqr(distance), rank) with rank = -1 (or UPstream::max_ranks)
+        //  for "not-found".
+        typedef Tuple2<scalar, int> nearKey;
 
         //- A pointIndexHit reduction information for finding the nearest
         //- hit distance.
@@ -168,21 +169,16 @@ public:
             //- that only propagates through 'hit' entries.
             void operator()(nearInfo& x, const nearInfo& y) const
             {
-                if (y.first().hit())
+                if
+                (
+                    y.first().hit() &&
+                    (
+                        x.first().not_hit()
+                     || (y.second().first() < x.second().first())
+                    )
+                )
                 {
-                    if (x.first().hit())
-                    {
-                        // minFirstEqOp on payload
-                        if (y.second().first() < x.second().first())
-                        {
-                            x = y;
-                        }
-                    }
-                    else
-                    {
-                        // x = not-hit, y = hit
-                        x = y;
-                    }
+                    x = y;
                 }
             }
         };

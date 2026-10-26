@@ -41,7 +41,6 @@ Description
 #include "List.H"
 #include "ListOps.H"
 #include "Pstream.H"
-#include "nearestFaceAMI.H"
 #include "StringStream.H"
 
 #include <functional>
@@ -333,17 +332,6 @@ void testIndexedTuple()
 }
 
 
-void test_nearestFace()
-{
-    using tuple_type = nearestFaceAMI::nearestAndDist;
-
-    Info<< "Default constructed nearestAndDist: " << tuple_type() << nl;
-
-    Info<< "nearestAndDist contiguous:"
-        << Switch(is_contiguous_v<tuple_type>) << nl;
-}
-
-
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 // Main program:
 
@@ -353,8 +341,6 @@ int main(int argc, char *argv[])
     argList::noBanner();
 
     #include "setRootCase.H"
-
-    test_nearestFace();
 
     // constexpr type:
     {

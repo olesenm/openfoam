@@ -55,7 +55,15 @@ void Foam::patchCloudSet::calcSamples
     DynamicList<scalar>& samplingCurveDist
 ) const
 {
-    const auto myRank = UPstream::myProcNo();
+    const int communicator = UPstream::worldComm;
+    const auto myProci = UPstream::myProcNo(communicator);
+    const auto numProc = UPstream::nProcs(communicator);
+
+    // Test for valid proc number
+    const auto valid_proc = [numProc](int proci)
+    {
+        return (proci >= 0 && proci < numProc);
+    };
 
     DebugInfo << "patchCloudSet : sampling on patches :" << endl;
 
@@ -65,7 +73,7 @@ void Foam::patchCloudSet::calcSamples
     treeBoundBox overallBb;
 
     // Collect faces and bounding box
-    for (label patchi : patchSet_)
+    for (auto patchi : patchIDs_)
     {
         const polyPatch& pp = mesh().boundaryMesh()[patchi];
 
@@ -79,15 +87,19 @@ void Foam::patchCloudSet::calcSamples
     // Force calculation of face-diagonal decomposition
     (void)mesh().tetBasePtIs();
 
-    const auto myProci = UPstream::myProcNo();
+    // Nearest face index (locally)
+    labelList objectIndices(sampleCoords_.size(), Foam::zero{});
 
-    // Nearest selection: (sqr(distance), (rank, index))
-    List<Tuple2<scalar, labelPair>> nearest
+    // Nearest selection key: (sqr(distance), rank)
+    // Construct as missed sample
+    // == (large distance, proc = max_ranks)
+    List<Tuple2<scalar, int>> nearest
     (
         sampleCoords_.size(),
-        { Foam::sqr(GREAT), {-1, -1} }
+        { VGREAT, UPstream::max_ranks() }
     );
 
+    // Initialize all hit points as point::max
     pointField hitPoints(sampleCoords_.size(), point::max);
 
     // Find the nearest locally
@@ -117,35 +129,49 @@ void Foam::patchCloudSet::calcSamples
 
         forAll(sampleCoords_, samplei)
         {
-            const point& sample = sampleCoords_[samplei];
-            auto& near = nearest[samplei];
-            auto& hitAt = hitPoints[samplei];
+            const auto& sample = sampleCoords_[samplei];
 
             pointIndexHit pHit = patchTree.findNearest(sample, maxDistSqr);
 
             // Set nearest index to mesh face label
             if (const auto& p = pHit.point(); pHit.hit())
             {
-                const label facei = treeData.objectIndex(pHit.index());
+                label facei = treeData.objectIndex(pHit.index());
 
-                hitAt = p;
-
-                near = { sample.distSqr(p), {myProci, facei} };
+                objectIndices[samplei] = facei;
+                hitPoints[samplei] = p;
+                nearest[samplei] = { sample.distSqr(p), myProci };
             }
         }
     }
 
     // Find nearest - globally consistent
-    Pstream::listCombineReduce(nearest, minFirstEqOp{});
+    if (UPstream::vendorCode() == UPstream::vendorCodes::intelmpi)
+    {
+        // Avoid slow MINLOC on intelmpi (OCT-2026)
+        Pstream::listCombineReduce
+        (
+            nearest, minFirstEqOp{}, UPstream::msgType(), communicator
+        );
+    }
+    else
+    {
+        UPstream::minLocation(nearest, communicator);
+    }
 
+    // Update hitPoints
     forAll(nearest, i)
     {
-        const auto& rank = nearest[i].second().first();
+        const auto proci = nearest[i].second();
+        const auto& sample = sampleCoords_[i];
 
-        if (rank != myRank)
+        // No hit on my proc
+        // - set as point::max (for later reduction)
+        //   or preserve original sample point if no hit anywhere
+
+        if (proci != myProci)
         {
-            // My rank provides nothing
-            hitPoints[i] = point::max;
+            hitPoints[i] = valid_proc(proci) ? point::max : sample;
         }
     }
 
@@ -156,7 +182,7 @@ void Foam::patchCloudSet::calcSamples
         hitPoints.size(),
         minOp<point>(),
         UPstream::msgType(),
-        UPstream::worldComm
+        communicator
     );
 
     if (debug && UPstream::master())
@@ -173,7 +199,7 @@ void Foam::patchCloudSet::calcSamples
         label vertexIndex(0);
         forAll(nearest, i)
         {
-            if (const auto rank = nearest[i].second().first(); rank >= 0)
+            if (valid_proc(nearest[i].second()))
             {
                 meshTools::writeOBJ
                 (
@@ -190,13 +216,14 @@ void Foam::patchCloudSet::calcSamples
     // Store the sampling locations on the nearest processor
     forAll(nearest, samplei)
     {
-        const auto& [rank, facei] = nearest[samplei].second();
+        const auto proci = nearest[samplei].second();
+        const auto facei = objectIndices[samplei];
         const auto& sample = sampleCoords_[samplei];
         const auto& p = hitPoints[samplei];
 
-        if (rank >= 0)  // hit
+        if (valid_proc(proci))  // ie, is hit()
         {
-            if (rank == myProci)
+            if (proci == myProci)
             {
                 samplingPts.push_back(p);
                 samplingCells.push_back(mesh().faceOwner()[facei]);
@@ -209,6 +236,7 @@ void Foam::patchCloudSet::calcSamples
         {
             // No processor found point near enough. Mark with special value
             // which is intercepted when interpolating
+
             if (UPstream::master())
             {
                 samplingPts.push_back(sample);
@@ -277,7 +305,7 @@ Foam::patchCloudSet::patchCloudSet
 :
     sampledSet(name, mesh, searchEngine, axis),
     sampleCoords_(sampleCoords),
-    patchSet_(patchSet),
+    patchIDs_(patchSet.sortedToc()),
     searchDist_(searchDist)
 {
     genSamples();
@@ -294,9 +322,9 @@ Foam::patchCloudSet::patchCloudSet
 :
     sampledSet(name, mesh, searchEngine, dict),
     sampleCoords_(dict.get<pointField>("points")),
-    patchSet_
+    patchIDs_
     (
-        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches"))
+        mesh.boundaryMesh().patchSet(dict.get<wordRes>("patches")).sortedToc()
     ),
     searchDist_(dict.get<scalar>("maxDistance"))
 {
