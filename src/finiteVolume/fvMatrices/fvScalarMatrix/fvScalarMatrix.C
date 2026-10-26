@@ -324,14 +324,13 @@ Foam::tmp<Foam::scalarField> Foam::fvMatrix<Foam::scalar>::residual() const
     const solveScalarField& psi = tpsi();
 
     // Calculate residual using flat storage + offsets
-    ConstPrecisionAdaptor<solveScalar, scalar> tboundaryCoeffs(boundaryCoeffs_);
     tmp<solveScalarField> tres
     (
         lduMatrix::residual
         (
             psi,
             source_ - boundaryDiag*psif,
-            tboundaryCoeffs(),
+            boundaryCoeffs_,
             coeffsOffset_,
             psi_.boundaryField().scalarInterfaces(),
             0
