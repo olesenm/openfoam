@@ -41,9 +41,8 @@ Description
     (not size 1).
 
 SourceFiles
-    CompactListList.C
+    CompactListList.txx
     CompactListListI.H
-    CompactListListIO.C
 
 \*---------------------------------------------------------------------------*/
 
@@ -563,8 +562,7 @@ Ostream& operator<<(Ostream& os, const CompactListList<T>& list)
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "CompactListList.C"
-    #include "CompactListListIO.C"
+    #include "CompactListList.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

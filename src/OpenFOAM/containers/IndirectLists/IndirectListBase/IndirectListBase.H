@@ -42,9 +42,8 @@ Description
     is held outside of the class.
 
 SourceFiles
-    IndirectListBase.C
+    IndirectListBase.txx
     IndirectListBaseI.H
-    IndirectListBaseIO.C
 
 \*---------------------------------------------------------------------------*/
 
@@ -504,8 +503,7 @@ Ostream& operator<<(Ostream& os, const IndirectListBase<T, Addr>& list)
 #include "IndirectListBaseI.H"
 
 #ifdef NoRepository
-    #include "IndirectListBase.C"
-    #include "IndirectListBaseIO.C"
+    #include "IndirectListBase.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

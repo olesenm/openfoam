@@ -31,7 +31,75 @@ License
 #include "Ostream.H"
 #include "token.H"
 
-// * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<class T, class Addr>
+Foam::label Foam::IndirectListBase<T, Addr>::find
+(
+    const T& val,
+    label pos,
+    label len
+) const
+{
+    if (pos >= 0 && pos < addr_.size())
+    {
+        // Change sub-length to (one-past) end position
+        // len == -1 (like std::string::npos) - search until end
+
+        if (len > 0) len += pos;
+        if (len < 0 || len > addr_.size())
+        {
+            len = addr_.size();
+        }
+
+        const T* const vals = values_.begin();
+
+        while (pos < len)
+        {
+            if (vals[addr_[pos]] == val)
+            {
+                return pos;
+            }
+
+            ++pos;
+        }
+    }
+
+    return -1;
+}
+
+
+template<class T, class Addr>
+Foam::label Foam::IndirectListBase<T, Addr>::rfind
+(
+    const T& val,
+    label pos
+) const
+{
+    // pos == -1 (like std::string::npos) - search from end
+
+    if (pos < 0 || pos >= addr_.size())
+    {
+        pos = addr_.size()-1;
+    }
+
+    const T* const vals = values_.begin();
+
+    while (pos >= 0)
+    {
+        if (vals[addr_[pos]] == val)
+        {
+            return pos;
+        }
+
+        --pos;
+    }
+
+    return -1;
+}
+
+
+// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
 
 template<class T, class Addr>
 Foam::Ostream& Foam::IndirectListBase<T, Addr>::writeList
