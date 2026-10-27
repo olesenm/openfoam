@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2023-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -50,7 +51,7 @@ void Foam::UPstream::Request::reset() noexcept
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 // Foam::UPstream::Request
-// Foam::UPstream::Request::lookup(const label req)
+// Foam::UPstream::Request::lookup(int req)
 // {
 //     return UPstream::Request(nullptr);
 // }
@@ -58,33 +59,30 @@ void Foam::UPstream::Request::reset() noexcept
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::label Foam::UPstream::nRequests() noexcept { return 0; }
+int Foam::UPstream::nRequests() noexcept { return 0; }
 
-void Foam::UPstream::resetRequests(const label n) {}
+void Foam::UPstream::resetRequests(int n) {}
 
 void Foam::UPstream::addRequest(UPstream::Request&) {}
 
-void Foam::UPstream::cancelRequest(const label i) {}
+void Foam::UPstream::cancelRequest(int i) {}
 void Foam::UPstream::cancelRequest(UPstream::Request&) {}
 void Foam::UPstream::cancelRequests(UList<UPstream::Request>&) {}
 
-void Foam::UPstream::removeRequests(label pos, label len) {}
+void Foam::UPstream::removeRequests(int pos, int len) {}
 
 void Foam::UPstream::freeRequest(UPstream::Request&) {}
 void Foam::UPstream::freeRequests(UList<UPstream::Request>&) {}
 
-void Foam::UPstream::waitRequests(label pos, label len) {}
+void Foam::UPstream::waitRequests(int pos, int len) {}
 void Foam::UPstream::waitRequests(UList<UPstream::Request>&) {}
 
-bool Foam::UPstream::waitAnyRequest(label pos, label len)
-{
-    return false;
-}
+bool Foam::UPstream::waitAnyRequest(int pos, int len) { return false; }
 
 bool Foam::UPstream::waitSomeRequests
 (
-    label pos,
-    label len,
+    int pos,
+    int len,
     DynamicList<int>* indices
 )
 {
@@ -107,19 +105,16 @@ int Foam::UPstream::waitAnyRequest(UList<UPstream::Request>&)
     return -1;
 }
 
-void Foam::UPstream::waitRequest(const label i) {}
+void Foam::UPstream::waitRequest(int i) {}
 void Foam::UPstream::waitRequest(UPstream::Request&) {}
 
-bool Foam::UPstream::activeRequest(const label i) { return false; }
+bool Foam::UPstream::activeRequest(int i) { return false; }
 bool Foam::UPstream::activeRequest(const UPstream::Request&) { return false; }
 
-bool Foam::UPstream::finishedRequest(const label i) { return true; }
+bool Foam::UPstream::finishedRequest(int i) { return true; }
 bool Foam::UPstream::finishedRequest(UPstream::Request&) { return true; }
 
-bool Foam::UPstream::finishedRequests(label pos, label len)
-{
-    return true;
-}
+bool Foam::UPstream::finishedRequests(int pos, int len) { return true; }
 
 
 bool Foam::UPstream::finishedRequests(UList<UPstream::Request>&)
@@ -128,7 +123,7 @@ bool Foam::UPstream::finishedRequests(UList<UPstream::Request>&)
 }
 
 
-bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
+bool Foam::UPstream::finishedRequestPair(int& req0, int& req1)
 {
     req0 = -1;
     req1 = -1;
@@ -136,7 +131,7 @@ bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
 }
 
 
-void Foam::UPstream::waitRequestPair(label& req0, label& req1)
+void Foam::UPstream::waitRequestPair(int& req0, int& req1)
 {
     req0 = -1;
     req1 = -1;

@@ -71,10 +71,10 @@ class processorGAMGInterfaceField
         // Sending and receiving
 
             //- Current (non-blocking) send request
-            mutable label sendRequest_;
+            mutable int sendRequest_;
 
             //- Current (non-blocking) recv request
-            mutable label recvRequest_;
+            mutable int recvRequest_;
 
             //- Scalar send buffer
             mutable solveScalarField scalarSendBuf_;

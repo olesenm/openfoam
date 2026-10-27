@@ -85,7 +85,6 @@ typedef Foam::FixedList<MPI_Op, 15> OpCodesLookupTable;
 extern OpCodesLookupTable MPIopCodes_;
 
 
-
 // * * * * * * * * * * * * * * * Communicators * * * * * * * * * * * * * * * //
 
 //- Initialize bookkeeping for MPI communicator index
@@ -183,6 +182,20 @@ inline void checkOpCode(UPstream::opCodes id)
 
 
 // * * * * * * * * * * * * * * * * Requests  * * * * * * * * * * * * * * * * //
+
+//- Number of outstanding internal requests
+inline int nOutstandingRequests() noexcept
+{
+    return static_cast<int>(outstandingRequests_.size());
+}
+
+
+//- True if the request index is in [0, nOutstandingRequests) range
+inline bool good_request_index(int i) noexcept
+{
+    return (i >= 0 && i < static_cast<int>(outstandingRequests_.size()));
+}
+
 
 //- Reset UPstream::Request to MPI_REQUEST_NULL
 //  Does not affect the stack of outstanding requests

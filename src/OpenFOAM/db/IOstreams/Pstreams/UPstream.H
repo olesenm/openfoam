@@ -1245,12 +1245,12 @@ public:
     // with a wrapped UPstream::Request as well.
 
         //- Number of outstanding requests (on the internal list of requests)
-        static label nRequests() noexcept;
+        static int nRequests() noexcept;
 
         //- Truncate outstanding requests to given length, which is
         //- expected to be in the range [0 to nRequests()].
         //  A no-op for out-of-range values.
-        static void resetRequests(const label n);
+        static void resetRequests(int n);
 
         //- Transfer the (wrapped) MPI request to the internal global list
         //- and invalidate the parameter (ignores null requests)
@@ -1262,7 +1262,7 @@ public:
         //  A no-op if parRun() == false
         //  if there are no pending requests,
         //  or if the index is out-of-range (0 to nRequests)
-        static void cancelRequest(const label i);
+        static void cancelRequest(int i);
 
         //- Non-blocking comms: cancel and free outstanding request.
         //- Corresponds to MPI_Cancel() + MPI_Request_free()
@@ -1283,7 +1283,7 @@ public:
         //
         //  \param pos starting position within the internal list of requests
         //  \param len length of slice to remove (negative = until the end)
-        static void removeRequests(label pos, label len = -1);
+        static void removeRequests(int pos, int len = -1);
 
         //- Non-blocking comms: free outstanding request.
         //- Corresponds to MPI_Request_free()
@@ -1307,7 +1307,7 @@ public:
         //
         //  \param pos starting position within the internal list of requests
         //  \param len length of slice to check (negative = until the end)
-        static void waitRequests(label pos, label len = -1);
+        static void waitRequests(int pos, int len = -1);
 
         //- Wait until all requests have finished.
         //- Corresponds to MPI_Waitall()
@@ -1325,7 +1325,7 @@ public:
         //
         //  \returns true if any pending request completed.
         //  \returns false if all requests have already been handled.
-        static bool waitAnyRequest(label pos, label len = -1);
+        static bool waitAnyRequest(int pos, int len = -1);
 
         //- Wait until some requests (from position onwards) have finished.
         //- Corresponds to MPI_Waitsome()
@@ -1343,9 +1343,9 @@ public:
         static bool waitSomeRequests
         (
             //! starting position within the internal list of requests
-            label pos,
+            int pos,
             //! length of slice to check (negative = until the end)
-            label len = -1,
+            int len = -1,
             DynamicList<int>* indices = nullptr
         );
 
@@ -1360,7 +1360,7 @@ public:
         static bool waitSomeRequests
         (
             //! starting position within the internal list of requests
-            label pos,
+            int pos,
             //! [out] completed request indices relative to \p pos
             DynamicList<int>& indices
         )
@@ -1396,7 +1396,7 @@ public:
         //  A no-op if parRun() == false,
         //  if there are no pending requests,
         //  or if the index is out-of-range (0 to nRequests)
-        static void waitRequest(const label i);
+        static void waitRequest(int i);
 
         //- Wait until specified request has finished.
         //- Corresponds to MPI_Wait()
@@ -1406,7 +1406,7 @@ public:
         //- Is request \p i active (!= MPI_REQUEST_NULL)?
         //  False if there are no pending requests,
         //  or if the index is out-of-range (0 to nRequests)
-        static bool activeRequest(const label i);
+        static bool activeRequest(int i);
 
         //- Is request active (!= MPI_REQUEST_NULL)?
         static bool activeRequest(const UPstream::Request& req);
@@ -1416,7 +1416,7 @@ public:
         //  A no-op and returns true if parRun() == false,
         //  if there are no pending requests,
         //  or if the index is out-of-range (0 to nRequests)
-        static bool finishedRequest(const label i);
+        static bool finishedRequest(int i);
 
         //- Non-blocking comms: has request finished?
         //- Corresponds to MPI_Test()
@@ -1434,7 +1434,7 @@ public:
         //
         //  \param pos starting position within the internal list of requests
         //  \param len length of slice to check (negative = until the end)
-        static bool finishedRequests(label pos, label len = -1);
+        static bool finishedRequests(int pos, int len = -1);
 
         //- Non-blocking comms: have all requests finished?
         //- Corresponds to MPI_Testall()
@@ -1447,7 +1447,7 @@ public:
         //  if there are no pending requests,
         //  or if the indices are out-of-range (0 to nRequests)
         //  Each finished request parameter is set to -1 (ie, done).
-        static bool finishedRequestPair(label& req0, label& req1);
+        static bool finishedRequestPair(int& req0, int& req1);
 
         //- Non-blocking comms: wait for both requests to finish.
         //- Corresponds to pair of MPI_Wait()
@@ -1455,7 +1455,7 @@ public:
         //  if there are no pending requests,
         //  or if the indices are out-of-range (0 to nRequests)
         //  Each finished request parameter is set to -1 (ie, done).
-        static void waitRequestPair(label& req0, label& req1);
+        static void waitRequestPair(int& req0, int& req1);
 
 
     // General

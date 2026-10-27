@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2023-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -55,15 +56,14 @@ void Foam::UPstream::Request::reset() noexcept
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 // Foam::UPstream::Request
-// Foam::UPstream::Request::lookup(const label req)
+// Foam::UPstream::Request::lookup(int req)
 // {
-//     if (req < 0 || req >= PstreamGlobals::outstandingRequests_.size())
+//     if (!PstreamGlobals::good_request_index(req))
 //     {
 //         WarningInFunction
 //             << "Illegal request " << req << nl
 //             << "Should be within range [0,"
-//             << PstreamGlobals::outstandingRequests_.size()
-//             << ')' << endl;
+//             << PstreamGlobals::nOutstandingRequests() << ')' << endl;
 //
 //         return UPstream::Request(MPI_REQUEST_NULL);
 //     }
@@ -74,15 +74,15 @@ void Foam::UPstream::Request::reset() noexcept
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::label Foam::UPstream::nRequests() noexcept
+int Foam::UPstream::nRequests() noexcept
 {
-    return PstreamGlobals::outstandingRequests_.size();
+    return PstreamGlobals::nOutstandingRequests();
 }
 
 
-void Foam::UPstream::resetRequests(const label n)
+void Foam::UPstream::resetRequests(int n)
 {
-    if (n >= 0 && n < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(n))
     {
         PstreamGlobals::outstandingRequests_.resize(n);
     }
@@ -110,18 +110,9 @@ void Foam::UPstream::addRequest(UPstream::Request& req)
 }
 
 
-void Foam::UPstream::cancelRequest(const label i)
+void Foam::UPstream::cancelRequest(int i)
 {
-    // No-op for non-parallel, or out-of-range (eg, placeholder indices)
-    if
-    (
-        !UPstream::parRun()
-     || (i < 0 || i >= PstreamGlobals::outstandingRequests_.size())
-    )
-    {
-        return;
-    }
-
+    if (UPstream::parRun() && PstreamGlobals::good_request_index(i))
     {
         auto& request = PstreamGlobals::outstandingRequests_[i];
         if (MPI_REQUEST_NULL != request)  // Active handle is mandatory
@@ -135,12 +126,7 @@ void Foam::UPstream::cancelRequest(const label i)
 
 void Foam::UPstream::cancelRequest(UPstream::Request& req)
 {
-    // No-op for non-parallel
-    if (!UPstream::parRun())
-    {
-        return;
-    }
-
+    if (UPstream::parRun())
     {
         MPI_Request request = PstreamUtils::Cast::to_mpi(req);
         if (MPI_REQUEST_NULL != request)  // Active handle is mandatory
@@ -176,20 +162,20 @@ void Foam::UPstream::cancelRequests(UList<UPstream::Request>& requests)
 }
 
 
-void Foam::UPstream::removeRequests(label pos, label len)
+void Foam::UPstream::removeRequests(int pos, int len)
 {
     // No-op for non-parallel, no pending requests or out-of-range
     if
     (
         !UPstream::parRun()
-     || (pos < 0 || pos >= PstreamGlobals::outstandingRequests_.size())
+     || !PstreamGlobals::good_request_index(pos)
      || !len
     )
     {
         return;
     }
 
-    label count = (PstreamGlobals::outstandingRequests_.size() - pos);
+    int count = (PstreamGlobals::nOutstandingRequests() - pos);
 
     // Apply range-checking on slice with (len < 0) behaving like npos
     // (ie, the rest of the list)
@@ -200,9 +186,9 @@ void Foam::UPstream::removeRequests(label pos, label len)
     }
     // Have count >= 1
 
-    const labelRange range(pos, count);
+    const int last = (pos + count);
 
-    for (const label i : range)
+    for (int i = pos; i < last; ++i)
     {
         auto& request = PstreamGlobals::outstandingRequests_[i];
         if (MPI_REQUEST_NULL != request)  // Active handle is mandatory
@@ -213,7 +199,7 @@ void Foam::UPstream::removeRequests(label pos, label len)
     }
 
     // Remove from list of outstanding requests and move down
-    PstreamGlobals::outstandingRequests_.remove(range);
+    PstreamGlobals::outstandingRequests_.remove(labelRange(pos, count));
 }
 
 
@@ -266,20 +252,20 @@ void Foam::UPstream::freeRequests(UList<UPstream::Request>& requests)
 }
 
 
-void Foam::UPstream::waitRequests(label pos, label len)
+void Foam::UPstream::waitRequests(int pos, int len)
 {
     // No-op for non-parallel, no pending requests or out-of-range
     if
     (
         !UPstream::parRun()
-     || (pos < 0 || pos >= PstreamGlobals::outstandingRequests_.size())
+     || !PstreamGlobals::good_request_index(pos)
      || !len
     )
     {
         return;
     }
 
-    label count = (PstreamGlobals::outstandingRequests_.size() - pos);
+    int count = (PstreamGlobals::nOutstandingRequests() - pos);
     bool trim = true;  // Can trim the trailing part of the list
 
     // Apply range-checking on slice with (len < 0) behaving like npos
@@ -387,20 +373,20 @@ void Foam::UPstream::waitRequests(UList<UPstream::Request>& requests)
 }
 
 
-bool Foam::UPstream::waitAnyRequest(label pos, label len)
+bool Foam::UPstream::waitAnyRequest(int pos, int len)
 {
     // No-op for non-parallel, no pending requests or out-of-range
     if
     (
         !UPstream::parRun()
-     || (pos < 0 || pos >= PstreamGlobals::outstandingRequests_.size())
+     || !PstreamGlobals::good_request_index(pos)
      || !len
     )
     {
         return false;
     }
 
-    label count = (PstreamGlobals::outstandingRequests_.size() - pos);
+    int count = (PstreamGlobals::nOutstandingRequests() - pos);
 
     // Apply range-checking on slice with (len < 0) behaving like npos
     // (ie, the rest of the list)
@@ -444,8 +430,8 @@ bool Foam::UPstream::waitAnyRequest(label pos, label len)
 
 bool Foam::UPstream::waitSomeRequests
 (
-    label pos,
-    label len,
+    int pos,
+    int len,
     DynamicList<int>* indices
 )
 {
@@ -453,7 +439,7 @@ bool Foam::UPstream::waitSomeRequests
     if
     (
         !UPstream::parRun()
-     || (pos < 0 || pos >= PstreamGlobals::outstandingRequests_.size())
+     || !PstreamGlobals::good_request_index(pos)
      || !len
     )
     {
@@ -461,7 +447,7 @@ bool Foam::UPstream::waitSomeRequests
         return false;
     }
 
-    label count = (PstreamGlobals::outstandingRequests_.size() - pos);
+    int count = (PstreamGlobals::nOutstandingRequests() - pos);
 
     // Apply range-checking on slice with (len < 0) behaving like npos
     // (ie, the rest of the list)
@@ -613,11 +599,9 @@ bool Foam::UPstream::waitSomeRequests
 
     // Transcribe MPI_Request back into UPstream::Request
     // - do in reverse order - see note in finishedRequests()
+    for (int i = count-1; i >= 0; --i)
     {
-        for (label i = requests.size()-1; i >= 0; --i)
-        {
-            requests[i] = UPstream::Request(mpiRequests[i]);
-        }
+        requests[i] = UPstream::Request(mpiRequests[i]);
     }
 
     return true;
@@ -666,11 +650,9 @@ int Foam::UPstream::waitAnyRequest(UList<UPstream::Request>& requests)
 
     // Transcribe MPI_Request back into UPstream::Request
     // - do in reverse order - see note in finishedRequests()
+    for (int i = count-1; i >= 0; --i)
     {
-        for (label i = requests.size()-1; i >= 0; --i)
-        {
-            requests[i] = UPstream::Request(mpiRequests[i]);
-        }
+        requests[i] = UPstream::Request(mpiRequests[i]);
     }
 
     return index;
@@ -743,13 +725,13 @@ int Foam::UPstream::waitAnyRequest(UList<UPstream::Request>& requests)
 /// }
 
 
-void Foam::UPstream::waitRequest(const label i)
+void Foam::UPstream::waitRequest(int i)
 {
     // No-op for non-parallel, or out-of-range (eg, placeholder indices)
     if
     (
         !UPstream::parRun()
-     || (i < 0 || i >= PstreamGlobals::outstandingRequests_.size())
+     || !PstreamGlobals::good_request_index(i)
     )
     {
         return;
@@ -820,11 +802,11 @@ void Foam::UPstream::waitRequest(UPstream::Request& req)
 }
 
 
-bool Foam::UPstream::activeRequest(const label i)
+bool Foam::UPstream::activeRequest(int i)
 {
     return
     (
-        (i >= 0 && i < PstreamGlobals::outstandingRequests_.size())
+        PstreamGlobals::good_request_index(i)
      && (MPI_REQUEST_NULL != PstreamGlobals::outstandingRequests_[i])
     );
 }
@@ -837,7 +819,7 @@ bool Foam::UPstream::activeRequest(const UPstream::Request& req)
 }
 
 
-bool Foam::UPstream::finishedRequest(const label i)
+bool Foam::UPstream::finishedRequest(int i)
 {
     // No-op for non-parallel
     if (!UPstream::parRun())
@@ -855,7 +837,7 @@ bool Foam::UPstream::finishedRequest(const label i)
     // This allows MPI to progress behind the scenes if it wishes.
 
     int flag = 0;
-    if (i >= 0 && i < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(i))
     {
         auto& request = PstreamGlobals::outstandingRequests_[i];
 
@@ -896,7 +878,7 @@ bool Foam::UPstream::finishedRequest(UPstream::Request& req)
 }
 
 
-bool Foam::UPstream::finishedRequests(label pos, label len)
+bool Foam::UPstream::finishedRequests(int pos, int len)
 {
     // No-op for non-parallel
     if (!UPstream::parRun())
@@ -907,7 +889,7 @@ bool Foam::UPstream::finishedRequests(label pos, label len)
     // Out-of-range (eg, placeholder indices)
     if
     (
-        (pos < 0 || pos >= PstreamGlobals::outstandingRequests_.size())
+        !PstreamGlobals::good_request_index(pos)
      || !len
     )
     {
@@ -915,7 +897,7 @@ bool Foam::UPstream::finishedRequests(label pos, label len)
         len = 0;
     }
 
-    label count = (PstreamGlobals::outstandingRequests_.size() - pos);
+    int count = (PstreamGlobals::nOutstandingRequests() - pos);
 
     // Apply range-checking on slice with (len < 0) behaving like npos
     // (ie, the rest of the list)
@@ -1009,21 +991,18 @@ bool Foam::UPstream::finishedRequests(UList<UPstream::Request>& requests)
         MPI_Testall(count, mpiRequests, &flag, MPI_STATUSES_IGNORE);
     }
 
-
     // Transcribe MPI_Request back into UPstream::Request
     // - do in reverse order - see note in finishedRequests()
+    for (int i = count-1; i >= 0; --i)
     {
-        for (label i = requests.size()-1; i >= 0; --i)
-        {
-            requests[i] = UPstream::Request(mpiRequests[i]);
-        }
+        requests[i] = UPstream::Request(mpiRequests[i]);
     }
 
     return (flag != 0);
 }
 
 
-bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
+bool Foam::UPstream::finishedRequestPair(int& req0, int& req1)
 {
     // No-op for non-parallel
     if (!UPstream::parRun())
@@ -1038,7 +1017,7 @@ bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
 
     // No-op for out-of-range (eg, placeholder indices)
 
-    if (req0 >= 0 && req0 < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(req0))
     {
         mpiRequests[0] = PstreamGlobals::outstandingRequests_[req0];
     }
@@ -1047,7 +1026,7 @@ bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
         mpiRequests[0] = MPI_REQUEST_NULL;
     }
 
-    if (req1 >= 0 && req1 < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(req1))
     {
         mpiRequests[1] = PstreamGlobals::outstandingRequests_[req1];
     }
@@ -1152,7 +1131,7 @@ bool Foam::UPstream::finishedRequestPair(label& req0, label& req1)
 }
 
 
-void Foam::UPstream::waitRequestPair(label& req0, label& req1)
+void Foam::UPstream::waitRequestPair(int& req0, int& req1)
 {
     // No-op for non-parallel. Flag indices as 'done'
     if (!UPstream::parRun())
@@ -1168,7 +1147,7 @@ void Foam::UPstream::waitRequestPair(label& req0, label& req1)
     // No-op for out-of-range (eg, placeholder indices)
     // Prefilter inactive handles
 
-    if (req0 >= 0 && req0 < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(req0))
     {
         mpiRequests[count] = PstreamGlobals::outstandingRequests_[req0];
         PstreamGlobals::outstandingRequests_[req0] = MPI_REQUEST_NULL;
@@ -1179,7 +1158,7 @@ void Foam::UPstream::waitRequestPair(label& req0, label& req1)
         }
     }
 
-    if (req1 >= 0 && req1 < PstreamGlobals::outstandingRequests_.size())
+    if (PstreamGlobals::good_request_index(req1))
     {
         mpiRequests[count] = PstreamGlobals::outstandingRequests_[req1];
         PstreamGlobals::outstandingRequests_[req1] = MPI_REQUEST_NULL;
