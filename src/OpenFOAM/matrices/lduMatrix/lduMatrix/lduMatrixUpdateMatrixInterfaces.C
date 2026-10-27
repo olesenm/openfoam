@@ -124,7 +124,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
     const solveScalarField& psiif,
     solveScalarField& result,
     const direction cmpt,
-    const label startRequest
+    const int startRequest
 ) const
 {
     const UPstream::commsTypes commsType = UPstream::defaultCommsType;
@@ -139,14 +139,14 @@ void Foam::lduMatrix::updateMatrixInterfaces
 
         DynamicList<int> indices;  // (work array)
 
-        const label maxPolling =
+        const int maxPolling =
         (
             (UPstream::nPollProcInterfaces < 0)
           ? (UPstream::nRequests() - startRequest)
           : UPstream::nPollProcInterfaces
         );
 
-        for (label cycle = 0; cycle < maxPolling; ++cycle)
+        for (int cycle = 0; cycle < maxPolling; ++cycle)
         {
             bool allUpdated = true;
 

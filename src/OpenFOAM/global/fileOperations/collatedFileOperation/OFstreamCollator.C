@@ -484,7 +484,7 @@ bool Foam::OFstreamCollator::write
 
         // Gather all data onto master. Is done in local communicator since
         // not in write thread.
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         const int messageTag = (UPstream::msgType() + 256);
 

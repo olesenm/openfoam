@@ -78,7 +78,7 @@ bool Foam::GeometricBoundaryField<Type, PatchField, GeoMesh>::checkConsistency
 
     // Re-evaluate
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         nEvaluated = 0;
 
@@ -537,7 +537,7 @@ void Foam::GeometricBoundaryField<Type, PatchField, GeoMesh>::evaluate
      || commsType == UPstream::commsTypes::nonBlocking
     )
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         for (auto& pfld : *this)
         {
@@ -596,7 +596,7 @@ void Foam::GeometricBoundaryField<Type, PatchField, GeoMesh>::evaluate_if
     )
     {
         label nEvaluated(0);
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         for (auto& pfld : *this)
         {
@@ -659,7 +659,7 @@ void Foam::GeometricBoundaryField<Type, PatchField, GeoMesh>::evaluateSelected
     const labelUList& patchIDs
 )
 {
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     for (const label patchi : patchIDs)
     {
@@ -701,7 +701,7 @@ void Foam::GeometricBoundaryField<Type, PatchField, GeoMesh>::evaluateLocal
      || commsType == UPstream::commsTypes::nonBlocking
     )
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         for (auto& pfld : *this)
         {

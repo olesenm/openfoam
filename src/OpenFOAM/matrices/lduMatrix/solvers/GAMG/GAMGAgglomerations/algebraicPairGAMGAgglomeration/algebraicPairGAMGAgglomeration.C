@@ -138,7 +138,7 @@ bool Foam::algebraicPairGAMGAgglomeration::movePoints()
                 const labelField& restrictMap =
                     restrictAddressing(fineLevelIndex);
 
-                const label startOfRequests = UPstream::nRequests();
+                const auto startOfRequests = UPstream::nRequests();
                 forAll(fineInterfaces, inti)
                 {
                     if (fineInterfaces.set(inti))

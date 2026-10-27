@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 
     clockTime timing;
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     // Setup receives
     labelRange recvRequests(UPstream::nRequests(), 0);

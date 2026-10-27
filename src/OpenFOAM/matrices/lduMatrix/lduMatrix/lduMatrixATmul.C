@@ -166,7 +166,7 @@ void Foam::lduMatrix::Amul
     const scalar* const __restrict__ upperPtr = upper().begin();
     const scalar* const __restrict__ lowerPtr = lower().begin();
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces
@@ -321,7 +321,7 @@ void Foam::lduMatrix::Tmul
     const scalar* const __restrict__ lowerPtr = lower().begin();
     const scalar* const __restrict__ upperPtr = upper().begin();
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces
@@ -479,7 +479,7 @@ void Foam::lduMatrix::residual
     // To compensate for this, it is necessary to turn the
     // sign of the contribution.
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces

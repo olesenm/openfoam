@@ -50,7 +50,7 @@ void Foam::LduMatrix<Type, DType, LUType>::Amul
     const LUType* const __restrict__ upperPtr = upper().begin();
     const LUType* const __restrict__ lowerPtr = lower().begin();
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces
@@ -109,7 +109,7 @@ void Foam::LduMatrix<Type, DType, LUType>::Tmul
     const LUType* const __restrict__ lowerPtr = lower().begin();
     const LUType* const __restrict__ upperPtr = upper().begin();
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces
@@ -218,7 +218,7 @@ void Foam::LduMatrix<Type, DType, LUType>::residual
     // Note: there is a change of sign in the coupled
     // interface update to add the contibution to the r.h.s.
 
-    const label startRequest = UPstream::nRequests();
+    const auto startRequest = UPstream::nRequests();
 
     // Initialise the update of interfaced interfaces
     initMatrixInterfaces

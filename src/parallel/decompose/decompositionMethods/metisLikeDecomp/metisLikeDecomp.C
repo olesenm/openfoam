@@ -72,8 +72,8 @@ Foam::label Foam::metisLikeDecomp::decomposeGeneral
     //   - gathered list is size+1
     //   - apply local to global renumbering
 
-    const UPstream::commsTypes commsType = UPstream::commsTypes::nonBlocking;
-    const label startOfRequests = UPstream::nRequests();
+    constexpr auto commsType = UPstream::commsTypes::nonBlocking;
+    const auto startOfRequests = UPstream::nRequests();
 
 
     List<label> allXadj;

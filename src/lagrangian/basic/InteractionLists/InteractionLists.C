@@ -1120,10 +1120,10 @@ template<class ParticleType>
 void Foam::InteractionLists<ParticleType>::receiveReferredData
 (
     PstreamBuffers& pBufs,
-    const label startOfRequests
+    int startOfRequests
 )
 {
-    Pstream::waitRequests(startOfRequests);
+    UPstream::waitRequests(startOfRequests);
 
     referredParticles_.setSize(cellMap().constructSize());
 

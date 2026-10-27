@@ -1061,7 +1061,7 @@ void Foam::syncTools::syncBoundaryFaceList
          && UPstream::defaultCommsType == UPstream::commsTypes::nonBlocking
         )
         {
-            const label startRequest = UPstream::nRequests();
+            const auto startRequest = UPstream::nRequests();
 
             // Receive buffer
             List<T> receivedValues(mesh.nBoundaryFaces());
@@ -1303,7 +1303,7 @@ void Foam::syncTools::syncFaceList
 
     if (parRun && UPstream::parRun())
     {
-        const label startRequest = UPstream::nRequests();
+        const auto startRequest = UPstream::nRequests();
 
         // Receive buffers
         PtrList<PackedList<Width>> recvBufs(patches.size());

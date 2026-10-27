@@ -146,7 +146,7 @@ Foam::labelListList Foam::GAMGProcAgglomeration::globalCellCells
     // Get the interface cells
     PtrList<labelList> nbrGlobalCells(interfaces.size());
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         // Initialise transfer of restrict addressing on the interface
         forAll(interfaces, inti)

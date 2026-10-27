@@ -551,7 +551,7 @@ void Foam::GAMGAgglomeration::agglomerateLduAddressing
         patchFaceRestrictAddressing_[fineLevelIndex];
 
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     // Initialise transfer of restrict addressing on the interface
     // The finest mesh uses patchAddr from the original lduAdressing.

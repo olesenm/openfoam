@@ -121,7 +121,7 @@ void Foam::symGaussSeidelSmoother::smooth
     {
         bPrime = source;
 
-        const label startRequest = UPstream::nRequests();
+        const auto startRequest = UPstream::nRequests();
 
         matrix_.initMatrixInterfaces
         (

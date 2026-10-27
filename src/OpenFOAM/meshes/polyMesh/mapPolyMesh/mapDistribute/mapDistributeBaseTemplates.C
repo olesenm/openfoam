@@ -681,7 +681,7 @@ void Foam::mapDistributeBase::distribute
     }
     else if (commsType == UPstream::commsTypes::nonBlocking)
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         if constexpr (!is_contiguous_v<T>)
         {
@@ -955,7 +955,7 @@ void Foam::mapDistributeBase::distribute
             << abort(FatalError);
     }
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if constexpr (!is_contiguous_v<T>)
     {
@@ -1389,7 +1389,7 @@ void Foam::mapDistributeBase::distribute
     }
     else if (commsType == UPstream::commsTypes::nonBlocking)
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         if constexpr (!is_contiguous_v<T>)
         {

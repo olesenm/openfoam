@@ -162,7 +162,7 @@ void Foam::masterOFstream::commit()
         }
 
         // Non-blocking communication
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         // Some unique tag for this read/write grouping (extra precaution)
         const int messageTag = (UPstream::msgType() + 256);

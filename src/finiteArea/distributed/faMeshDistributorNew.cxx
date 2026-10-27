@@ -450,7 +450,7 @@ Foam::faMeshDistributor::distribute
     // Make neighbour face information consistent across ranks
     if (UPstream::parRun())
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         const label oldBndStart = oldAreaPatch.nInternalEdges();
 

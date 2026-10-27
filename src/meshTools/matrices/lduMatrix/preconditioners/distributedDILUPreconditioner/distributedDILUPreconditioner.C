@@ -88,7 +88,7 @@ void Foam::distributedDILUPreconditioner::updateMatrixInterfaces
     const auto& lduAddr = matrix.lduAddr();
     const auto& interfaces = solver_.interfaces();
 
-    const label startOfRequests = Pstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     // From lduMatrix::initMatrixInterfaces
 

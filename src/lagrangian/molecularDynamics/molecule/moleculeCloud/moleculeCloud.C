@@ -134,7 +134,7 @@ void Foam::moleculeCloud::calculatePairForce()
     PstreamBuffers pBufs;
 
     // Start sending referred data
-    label startOfRequests = Pstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
     il_.sendReferredData(cellOccupancy(), pBufs);
 
     molecule* molI = nullptr;
@@ -359,7 +359,7 @@ void Foam::moleculeCloud::removeHighEnergyOverlaps()
     PstreamBuffers pBufs;
 
     // Start sending referred data
-    label startOfRequests = Pstream::nRequests();
+    auto startOfRequests = UPstream::nRequests();
 
     il_.sendReferredData(cellOccupancy(), pBufs);
 
@@ -445,7 +445,7 @@ void Foam::moleculeCloud::removeHighEnergyOverlaps()
     buildCellOccupancy();
 
     // Start sending referred data
-    startOfRequests = Pstream::nRequests();
+    startOfRequests = UPstream::nRequests();
 
     il_.sendReferredData(cellOccupancy(), pBufs);
 

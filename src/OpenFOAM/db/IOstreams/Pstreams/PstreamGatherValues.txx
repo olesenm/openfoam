@@ -127,7 +127,7 @@ T Foam::Pstream::listScatterValues
                     << Foam::abort(FatalError);
             }
 
-            const label startOfRequests = UPstream::nRequests();
+            const auto startOfRequests = UPstream::nRequests();
 
             List<DynamicList<char>> sendBuffers(numProc);
 

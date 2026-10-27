@@ -55,7 +55,7 @@ void Foam::MGridGenGAMGAgglomeration::swap
     PtrList<labelList>& nbrValues
 ) const
 {
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     // Initialise transfer of restrict addressing on the interface
     forAll(interfaces, inti)

@@ -415,7 +415,7 @@ void Foam::motionSmootherAlgo::setDisplacementPatchFields
     // fixedValue bc's first.
     {
         const labelHashSet adaptPatchSet(patchIDs);
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
         for (auto& pfld : displacementBf)
         {
             if (!adaptPatchSet.found(pfld.patch().index()))
@@ -588,7 +588,7 @@ void Foam::motionSmootherAlgo::correctBoundaryConditions
 
     // 1. evaluate on adaptPatches
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
         for (const label patchi : adaptPatchIDs_)
         {
             displacementBf[patchi].initEvaluate
@@ -607,7 +607,7 @@ void Foam::motionSmootherAlgo::correctBoundaryConditions
 
     // 2. evaluate on non-AdaptPatches
     {
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
         for (auto& pfld : displacementBf)
         {
             const label patchi = pfld.patch().index();

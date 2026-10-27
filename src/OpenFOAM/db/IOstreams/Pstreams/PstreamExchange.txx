@@ -306,7 +306,7 @@ void exchangeContainer
         return;
     }
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
     const int myProci = UPstream::myProcNo(comm);
 
     // The chunk size (number of elements) corresponding to max byte transfer
@@ -513,7 +513,7 @@ void exchangeContainer
     typedef std::pair<int, sendType> sendTuple;
     typedef std::pair<int, recvType> recvTuple;
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
     const label myProci = UPstream::myProcNo(comm);
 
     // Sorted processor order
@@ -790,7 +790,7 @@ void Foam::Pstream::exchangeSizes
     // Preserve self-send, even if not described by neighbourhood
     recvSizes[myProci] = sendSizes[myProci];
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     for (const label proci : recvProcs)
     {

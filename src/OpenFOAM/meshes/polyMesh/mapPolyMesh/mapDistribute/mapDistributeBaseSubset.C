@@ -152,7 +152,7 @@ void Foam::mapDistributeBase::exchangeMasks
         }
         #endif
 
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         forAll(recvMasks, proci)
         {

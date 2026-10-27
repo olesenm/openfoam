@@ -158,7 +158,7 @@ Foam::List<Type> Foam::globalIndex::listGatherValues
     }
 
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if (UPstream::myProcNo(comm) == masterProci)
     {
@@ -233,7 +233,7 @@ void Foam::globalIndex::gather
         commsType = UPstream::commsTypes::scheduled;
     }
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if (UPstream::myProcNo(comm) == masterProci)
     {
@@ -1030,7 +1030,7 @@ void Foam::globalIndex::scatter
     }
 
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if (UPstream::myProcNo(comm) == masterProci)
     {

@@ -40,7 +40,7 @@ Description
 
     \verbatim
     PstreamBuffers pBufs;
-    label startOfRequests = Pstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
     il_.sendReferredData(cellOccupancy_, pBufs);
     // Do other things
     il_.receiveReferredData(pBufs, startOfRequests);
@@ -242,7 +242,7 @@ public:
         void receiveReferredData
         (
             PstreamBuffers& pBufs,
-            const label startReq = 0
+            int startOfRequests = 0
         );
 
 

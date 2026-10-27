@@ -347,8 +347,8 @@ int main(int argc, char *argv[])
 
         DynamicList<UPstream::Request> requests;
 
-        const label numProcs = UPstream::nProcs();
-        const label startOfRequests = UPstream::nRequests();
+        const auto numProcs = UPstream::nProcs();
+        const auto startOfRequests = UPstream::nRequests();
 
 
         // NOTE: also test a mix of local and global requests...

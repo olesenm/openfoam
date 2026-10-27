@@ -104,7 +104,7 @@ void globalIndexGather
         }
     }
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
 
     // Very hard-coded at the moment

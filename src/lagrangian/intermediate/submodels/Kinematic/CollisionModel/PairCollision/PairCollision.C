@@ -61,7 +61,7 @@ void Foam::PairCollision<CloudType>::parcelInteraction()
 {
     PstreamBuffers pBufs;
 
-    label startOfRequests = Pstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     il_.sendReferredData(this->owner().cellOccupancy(), pBufs);
 

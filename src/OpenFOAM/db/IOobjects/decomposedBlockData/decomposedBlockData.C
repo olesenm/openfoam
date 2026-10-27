@@ -487,7 +487,7 @@ bool Foam::decomposedBlockData::readBlocks
     // Some unique tag for this read/write grouping (as extra safety)
     const int messageTag = (UPstream::msgType() + 256);
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if (UPstream::master(comm))
     {
@@ -582,7 +582,7 @@ Foam::autoPtr<Foam::ISstream> Foam::decomposedBlockData::readBlocks
     // Some unique tag for this read/write/probe grouping
     const int messageTag = (UPstream::msgType() + 256);
 
-    const label startOfRequests = UPstream::nRequests();
+    const auto startOfRequests = UPstream::nRequests();
 
     if (UPstream::master(comm))
     {
@@ -1153,7 +1153,7 @@ bool Foam::decomposedBlockData::writeBlocks
                 break;
             }
 
-            const label startOfRequests = UPstream::nRequests();
+            const auto startOfRequests = UPstream::nRequests();
 
             // Setup non-blocking send/recv or MPI_Gatherv
             // - uses (UPstream::msgType()+256)
@@ -1171,14 +1171,14 @@ bool Foam::decomposedBlockData::writeBlocks
             );
 
             // For sanity checks
-            // const label endOfRequests = UPstream::nRequests();
+            // const auto endOfRequests = UPstream::nRequests();
 
             if (UPstream::master(comm))
             {
                 auto& os = osPtr();
 
                 // Write received data
-                label currRequest = startOfRequests;
+                auto currRequest = startOfRequests;
                 for (const label proci : whichProcs)
                 {
                     SubList<char> procSlice

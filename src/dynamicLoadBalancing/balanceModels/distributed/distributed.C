@@ -421,7 +421,7 @@ bool Foam::balanceModels::distributed::balance(const scalarField& procWeights)
             }
         };
 
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         do
         {

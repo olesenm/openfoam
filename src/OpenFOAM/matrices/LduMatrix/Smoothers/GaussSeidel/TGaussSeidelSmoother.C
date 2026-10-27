@@ -98,7 +98,7 @@ void Foam::TGaussSeidelSmoother<Type, DType, LUType>::smooth
     {
         bPrime = matrix_.source();
 
-        const label startRequest = UPstream::nRequests();
+        const auto startRequest = UPstream::nRequests();
 
         matrix_.initMatrixInterfaces
         (

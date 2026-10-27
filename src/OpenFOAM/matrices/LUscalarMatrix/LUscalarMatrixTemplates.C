@@ -50,7 +50,7 @@ void Foam::LUscalarMatrix::solve
     {
         List<Type> allx;  // scratch space (on master)
 
-        const label startOfRequests = UPstream::nRequests();
+        const auto startOfRequests = UPstream::nRequests();
 
         // Like globalIndex::gather()
         if (UPstream::master(comm_))
