@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2016-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -135,16 +136,65 @@ private:
         //- Write to Ostream
         Ostream& write(Ostream& os) const;
 
-        //- Return a new surface using specified pointMap and faceMap
-        //
-        //  \param[in] pointMap from subsetMeshMap
-        //  \param[in] faceMap from subsetMeshMap
-        MeshedSurface subsetMeshImpl
+        //- New subset surface using specified pointMap and faceMap.
+        //  Retains zone information.
+        MeshedSurface subsetMesh_impl
         (
-            const labelList& pointMap,
-            const labelList& faceMap
+            //! From new to old localPoints (eg, from subsetMeshMap)
+            const labelUList& pointMap,
+            //! From new to old localFaces (eg, from subsetMeshMap)
+            const labelUList& faceMap
         ) const;
 
+        //- New subset surface,
+        //- returning the pointMap and faceMap information.
+        //  Retains zone information.
+        template<class BoolListType>
+        MeshedSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection,
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
+
+        //- New subset surface,
+        //- discarding the pointMap and faceMap information.
+        //  Retains zone information.
+        template<class BoolListType>
+        MeshedSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection
+        ) const
+        {
+            labelList pointMap, faceMap;
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
+
+        //- New subset surface by using the specified sample faces,
+        //- returning the pointMap and faceMap information.
+        MeshedSurface subSampleMesh_impl
+        (
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [in,out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::sampleMapFaces(*this, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
 
 protected:
 
@@ -160,18 +210,6 @@ protected:
         //  Adjust zones so that they cover the number of faces
         //  The last zone will be extended as needed
         void checkZones(const bool verbose = true);
-
-        //- Non-const access to global points
-        pointField& storedPoints()
-        {
-            return const_cast<pointField&>(MeshReference::points());
-        }
-
-        //- Non-const access to the faces
-        List<Face>& storedFaces()
-        {
-            return static_cast<List<Face>&>(*this);
-        }
 
         //- Non-const access to face ids
         labelList& storedFaceIds()
@@ -399,24 +437,64 @@ public:
 
     // Member Functions
 
-    // Access
-
-        //- The surface size is the number of faces
-        label size() const
+        //- Clear out the global points
+        void clearPoints()
         {
-            return MeshReference::size();
+            MeshReference::clearOut();
+            const_cast<pointField&>(MeshReference::points()).clear();
         }
 
-        //- Return const access to the faces
-        const List<Face>& surfFaces() const
+        //- Clear out the faces (and face ids)
+        void clearFaces()
+        {
+            MeshReference::clearOut();
+            faceIds_.clear();
+            static_cast<List<Face>&>(*this).clear();
+        }
+
+        //- Const access to global points
+        const pointField& storedPoints() const noexcept
+        {
+            return MeshReference::points();
+        }
+
+        //- Non-const access to global points
+        pointField& storedPoints() noexcept
+        {
+            return const_cast<pointField&>(MeshReference::points());
+        }
+
+        //- Const access to the surface faces
+        const List<Face>& storedFaces() const noexcept
         {
             return static_cast<const List<Face>&>(*this);
         }
 
-        //- Return const access to faces ids
+        //- Non-const access to the surface faces
+        List<Face>& storedFaces() noexcept
+        {
+            return static_cast<List<Face>&>(*this);
+        }
+
+
+    // Access
+
+        //- The surface size is the number of faces
+        label size() const noexcept
+        {
+            return MeshReference::size();
+        }
+
+        //- Const access to the faces
+        const List<Face>& surfFaces() const noexcept
+        {
+            return static_cast<const List<Face>&>(*this);
+        }
+
+        //- Const access to faces ids.
         //  If these exist, they are typically arise from reading a mesh
         //  format from another CAE software (eg, NASTRAN, STARCD, ...)
-        const labelList& faceIds() const
+        const labelList& faceIds() const noexcept
         {
             return faceIds_;
         }
@@ -424,7 +502,7 @@ public:
         //- Const access to the surface zones.
         //  If zones are defined, they must be contiguous and cover the
         //  entire surface
-        const surfZoneList& surfZones() const
+        const surfZoneList& surfZones() const noexcept
         {
             return zones_;
         }
@@ -498,10 +576,12 @@ public:
         //- Remove unused points and renumber faces in local visit order
         //
         //  \param[out] pointMap from new to old points (optional)
-        virtual void compactPoints
-        (
-            labelList& pointMap = const_cast<labelList&>(labelList::null())
-        );
+        virtual void compactPoints(labelList* pointMap = nullptr);
+
+        //- Remove unused points and renumber faces in local visit order
+        //
+        //  \param[out] pointMap from new to old points
+        virtual void compactPoints(labelList& pointMap);
 
         virtual bool stitchFaces
         (
@@ -529,68 +609,6 @@ public:
         //  The faceMap is zero-sized when no triangulation was done.
         virtual label triangulate(labelList& faceMap);
 
-        //- Create mappings for a sub-surface
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        template<class BoolListType>
-        void subsetMeshMap
-        (
-            const BoolListType& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const
-        {
-            PatchTools::subsetMap(*this, include, pointMap, faceMap);
-        }
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        MeshedSurface subsetMesh
-        (
-            const UList<bool>& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        MeshedSurface subsetMesh
-        (
-            const bitSet& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        MeshedSurface subsetMesh(const UList<bool>& include) const;
-
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        MeshedSurface subsetMesh(const bitSet& include) const;
-
-        //- Return a new surface subsetted on the selected zone names
-        //
-        //  \param[in] includeNames surface zone names to include
-        //  \param[in] excludeNames surface zone names to exclude
-        //
-        //  \see Foam::stringListOps::findMatching for details about matching
-        MeshedSurface subsetMesh
-        (
-            const wordRes& includeNames,
-            const wordRes& excludeNames = wordRes()
-        ) const;
-
         //- Swap contents
         void swap(MeshedSurface<Face>& surf);
 
@@ -611,6 +629,109 @@ public:
 
         //- Swap the stored points
         void swapPoints(pointField& points);
+
+
+    // Mesh subsetting
+
+        //- Return a new surface subsetted on the selected zone names
+        //
+        //  \param[in] includeNames surface zone names to include
+        //  \param[in] excludeNames surface zone names to exclude
+        //
+        //  \see Foam::stringListOps::findMatching for details about matching
+        MeshedSurface subsetMesh
+        (
+            const wordRes& includeNames,
+            const wordRes& excludeNames = wordRes()
+        ) const;
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        MeshedSurface subsetMesh
+        (
+            const bitSet& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        MeshedSurface subsetMesh
+        (
+            const UList<bool>& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        MeshedSurface subsetMesh(const bitSet& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        };
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        MeshedSurface subsetMesh(const UList<bool>& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        MeshedSurface subSampleMesh
+        (
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        MeshedSurface subSampleMesh(labelList& faceMap) const
+        {
+            labelList pointMap;  // discarded
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Create mappings for a sub-surface
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        //
+        // Simple forward to PatchTools::subsetMap()
+        template<class BoolListType>
+        void subsetMeshMap
+        (
+            const BoolListType& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::subsetMap(*this, faceSelection, pointMap, faceMap);
+        }
 
 
     // Read

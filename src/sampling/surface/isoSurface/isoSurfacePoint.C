@@ -643,12 +643,9 @@ void Foam::isoSurfacePoint::calcSnappedCc
                     )
                 );
 
+                // Markup without border edges
                 labelList faceZone;
-                label nZones = surf.markZones
-                (
-                    boolList(surf.nEdges(), false),
-                    faceZone
-                );
+                label nZones = PatchTools::markZones(surf, bitSet(), faceZone);
 
                 if (nZones == 1)
                 {
@@ -822,12 +819,9 @@ void Foam::isoSurfacePoint::calcSnappedPoint
                 )
             );
 
+            // Markup without border edges
             labelList faceZone;
-            label nZones = surf.markZones
-            (
-                boolList(surf.nEdges(), false),
-                faceZone
-            );
+            label nZones = PatchTools::markZones(surf, bitSet(), faceZone);
 
             if (nZones == 1)
             {

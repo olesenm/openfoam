@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -42,8 +43,25 @@ bool Foam::matchPoints
     const point& origin
 )
 {
-    from0To1.setSize(pts0.size());
-    from0To1 = -1;
+    from0To1.resize_fill(pts0.size(), -1);
+
+    if (pts0.empty())
+    {
+        // An empty subset, so no mismatches are possible
+        return true;
+    }
+
+    // Sanity checks
+    if (matchDistances.empty())
+    {
+        FatalErrorInFunction
+            << "No match distances provided for any of the "
+            << pts0.size() << " points" << endl
+            << exit(FatalError);
+    }
+
+    // The last addressable value in matchDistances
+    const scalar endMatchDistance = matchDistances.back();
 
     bool fullMatch = true;
 
@@ -53,7 +71,7 @@ bool Foam::matchPoints
     {
         if (pts1.size())
         {
-            compareOrigin = sum(pts1)/pts1.size();
+            compareOrigin = Foam::sum(pts1)/pts1.size();
         }
         else
         {
@@ -62,17 +80,34 @@ bool Foam::matchPoints
         }
     }
 
-    SortableList<scalar> pts0MagSqr(magSqr(pts0 - compareOrigin));
+    // Fill directly to avoid a temporary (point - origin) field
+    SortableList<scalar> pts0MagSqr(pts0.size());
+    forAll(pts0, i)
+    {
+        pts0MagSqr[i] = pts0[i].distSqr(compareOrigin);
+    }
+    pts0MagSqr.sort();
 
-    SortableList<scalar> pts1MagSqr(magSqr(pts1 - compareOrigin));
+    SortableList<scalar> pts1MagSqr(pts1.size());
+    forAll(pts1, i)
+    {
+        pts1MagSqr[i] = pts1[i].distSqr(compareOrigin);
+    }
+    pts1MagSqr.sort();
+
 
     forAll(pts0MagSqr, i)
     {
-        scalar dist0 = pts0MagSqr[i];
+        const auto dist0 = pts0MagSqr[i];
+        const auto index0 = pts0MagSqr.indices()[i];
 
-        label face0I = pts0MagSqr.indices()[i];
-
-        scalar matchDist = matchDistances[face0I];
+        const scalar matchDist =
+        (
+            (index0 < matchDistances.size())
+          ? matchDistances[index0]
+          : endMatchDistance
+        );
+        const scalar matchDistSqr = Foam::sqr(matchDist);
 
         label startI = findLower(pts1MagSqr, 0.99999*dist0 - 2*matchDist);
 
@@ -81,10 +116,9 @@ bool Foam::matchPoints
             startI = 0;
         }
 
-
         // Go through range of equal mag and find nearest vector.
         scalar minDistSqr = VGREAT;
-        label minFacei = -1;
+        label minIndex1 = -1;
 
         for
         (
@@ -96,30 +130,31 @@ bool Foam::matchPoints
             j++
         )
         {
-            label facei = pts1MagSqr.indices()[j];
-            // Compare actual vectors
-            scalar distSqr = magSqr(pts0[face0I] - pts1[facei]);
+            label index1 = pts1MagSqr.indices()[j];
 
-            if (distSqr <= sqr(matchDist) && distSqr < minDistSqr)
+            // Compare actual vectors
+            scalar distSqr = pts0[index0].distSqr(pts1[index1]);
+
+            if (distSqr <= matchDistSqr && distSqr < minDistSqr)
             {
                 minDistSqr = distSqr;
-                minFacei = facei;
+                minIndex1 = index1;
             }
         }
 
-        if (minFacei == -1)
+        if (minIndex1 == -1)
         {
             fullMatch = false;
 
             if (verbose)
             {
-                Pout<< "Cannot find point in pts1 matching point " << face0I
-                    << " coord:" << pts0[face0I]
+                Pout<< "Cannot find point in pts1 matching point " << index0
+                    << " coord:" << pts0[index0]
                     << " in pts0 when using tolerance " << matchDist << endl;
 
                 // Go through range of equal mag and find equal vector.
-                Pout<< "Searching started from:" << startI << " in pts1"
-                    << endl;
+                Pout<< "Searching started from:" << startI << " in pts1" << nl;
+
                 for
                 (
                     label j = startI;
@@ -130,17 +165,17 @@ bool Foam::matchPoints
                     j++
                 )
                 {
-                    label facei = pts1MagSqr.indices()[j];
+                    label index1 = pts1MagSqr.indices()[j];
 
-                    Pout<< "    Compared coord: " << pts1[facei]
+                    Pout<< "    Compared coord: " << pts1[index1]
                         << " at index " << j
                         << " with difference to point "
-                        << mag(pts1[facei] - pts0[face0I]) << endl;
+                        << pts0[index0].dist(pts1[index1]) << endl;
                 }
             }
         }
 
-        from0To1[face0I] = minFacei;
+        from0To1[index0] = minIndex1;
     }
 
     return fullMatch;
@@ -159,8 +194,39 @@ bool Foam::matchPoints
     const point& origin
 )
 {
-    from0To1.setSize(pts0.size());
-    from0To1 = -1;
+    from0To1.resize_fill(pts0.size(), -1);
+
+    if (pts0.empty())
+    {
+        // An empty subset, so no mismatches are possible
+        return true;
+    }
+
+    // Sanity checks
+    if (matchDistances.empty())
+    {
+        FatalErrorInFunction
+            << "No match distances provided for any of the "
+            << pts0.size() << " points" << endl
+            << exit(FatalError);
+    }
+    if
+    (
+        (pts0Dir.size() < pts0.size())
+     || (pts1Dir.size() < pts1.size())
+    )
+    {
+        FatalErrorInFunction
+            << "Points 0 with " << pts0Dir.size() << "/" << pts0.size()
+            << " directions" << nl
+            << "Points 1 with " << pts1Dir.size() << "/" << pts1.size()
+            << " directions" << endl
+            << exit(FatalError);
+    }
+
+
+    // The last addressable value in matchDistances
+    const scalar endMatchDistance = matchDistances.back();
 
     bool fullMatch = true;
 
@@ -170,7 +236,7 @@ bool Foam::matchPoints
     {
         if (pts1.size())
         {
-            compareOrigin = sum(pts1)/pts1.size();
+            compareOrigin = Foam::sum(pts1)/pts1.size();
         }
         else
         {
@@ -179,17 +245,35 @@ bool Foam::matchPoints
         }
     }
 
-    SortableList<scalar> pts0MagSqr(magSqr(pts0 - compareOrigin));
 
-    SortableList<scalar> pts1MagSqr(magSqr(pts1 - compareOrigin));
+    // Fill directly to avoid a temporary (point - origin) field
+    SortableList<scalar> pts0MagSqr(pts0.size());
+    forAll(pts0, i)
+    {
+        pts0MagSqr[i] = pts0[i].distSqr(compareOrigin);
+    }
+    pts0MagSqr.sort();
+
+    SortableList<scalar> pts1MagSqr(pts1.size());
+    forAll(pts1, i)
+    {
+        pts1MagSqr[i] = pts1[i].distSqr(compareOrigin);
+    }
+    pts1MagSqr.sort();
+
 
     forAll(pts0MagSqr, i)
     {
-        scalar dist0 = pts0MagSqr[i];
+        const auto dist0 = pts0MagSqr[i];
+        const auto index0 = pts0MagSqr.indices()[i];
 
-        label face0I = pts0MagSqr.indices()[i];
-
-        scalar matchDist = matchDistances[face0I];
+        const scalar matchDist =
+        (
+            (index0 < matchDistances.size())
+          ? matchDistances[index0]
+          : endMatchDistance
+        );
+        const scalar matchDistSqr = Foam::sqr(matchDist);
 
         label startI = findLower(pts1MagSqr, 0.99999*dist0 - 2*matchDist);
 
@@ -200,7 +284,7 @@ bool Foam::matchPoints
 
         // Go through range of equal mag and find nearest vector.
         scalar minDistSqr = VGREAT;
-        label minFacei = -1;
+        label minIndex1 = -1;
 
         // Valid candidate points should have opposite normal
         const scalar minDistNorm = 0;
@@ -215,40 +299,40 @@ bool Foam::matchPoints
             j++
         )
         {
-            label facei = pts1MagSqr.indices()[j];
-            // Compare actual vectors
-            scalar distSqr = magSqr(pts0[face0I] - pts1[facei]);
+            label index1 = pts1MagSqr.indices()[j];
 
-            scalar distNorm = (pts0Dir[face0I] & pts1Dir[facei]);
+            // Compare actual vectors
+            scalar distSqr = pts0[index0].distSqr(pts1[index1]);
+            scalar distNorm = (pts0Dir[index0] & pts1Dir[index1]);
 
             if
             (
-                magSqr(pts0Dir[face0I]) < sqr(SMALL)
-             && magSqr(pts1Dir[facei]) < sqr(SMALL)
+                pts0Dir[index0].magSqr() < Foam::sqr(SMALL)
+             && pts1Dir[index1].magSqr() < Foam::sqr(SMALL)
             )
             {
                 distNorm = -1;
             }
 
-            if (distSqr <= sqr(matchDist) && distSqr < minDistSqr)
+            if (distSqr <= matchDistSqr && distSqr < minDistSqr)
             {
                 // Check that the normals point in equal and opposite directions
                 if (distNorm < minDistNorm)
                 {
                     minDistSqr = distSqr;
-                    minFacei = facei;
+                    minIndex1 = index1;
                 }
             }
         }
 
-        if (minFacei == -1)
+        if (minIndex1 == -1)
         {
             fullMatch = false;
 
             if (verbose)
             {
-                Pout<< "Cannot find point in pts1 matching point " << face0I
-                    << " coord:" << pts0[face0I]
+                Pout<< "Cannot find point in pts1 matching point " << index0
+                    << " coord:" << pts0[index0]
                     << " in pts0 when using tolerance " << matchDist << endl;
 
                 // Go through range of equal mag and find equal vector.
@@ -264,20 +348,76 @@ bool Foam::matchPoints
                     j++
                 )
                 {
-                    label facei = pts1MagSqr.indices()[j];
+                    label index1 = pts1MagSqr.indices()[j];
 
-                    Pout<< "    Compared coord: " << pts1[facei]
+                    Pout<< "    Compared coord: " << pts1[index1]
                         << " at index " << j
                         << " with difference to point "
-                        << mag(pts1[facei] - pts0[face0I]) << endl;
+                        << pts0[index0].dist(pts1[index1]) << endl;
                 }
             }
         }
 
-        from0To1[face0I] = minFacei;
+        from0To1[index0] = minIndex1;
     }
 
     return fullMatch;
+}
+
+
+bool Foam::matchPoints
+(
+    const UList<point>& pts0,
+    const UList<point>& pts1,
+    scalar matchDistance,
+    const bool verbose,
+    labelList& from0To1,
+    const point& origin
+)
+{
+    // Wrap match distance as single-value UList
+    scalar distanceValue = matchDistance;
+    const UList distances(&distanceValue, 1);
+
+    return matchPoints
+    (
+        pts0,
+        pts1,
+        distances,
+        verbose,
+        from0To1,
+        origin
+    );
+}
+
+
+bool Foam::matchPoints
+(
+    const UList<point>& pts0,
+    const UList<point>& pts1,
+    const UList<point>& pts0Dir,
+    const UList<point>& pts1Dir,
+    scalar matchDistance,
+    const bool verbose,
+    labelList& from0To1,
+    const point& origin
+)
+{
+    // Wrap match distance as single-value UList
+    scalar distanceValue = matchDistance;
+    const UList distances(&distanceValue, 1);
+
+    return matchPoints
+    (
+        pts0,
+        pts1,
+        pts0Dir,
+        pts1Dir,
+        distances,
+        verbose,
+        from0To1,
+        origin
+    );
 }
 
 

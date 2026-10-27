@@ -85,11 +85,28 @@ class triSurface
             MeshReference;
 
 
+    // Private Enumerations
+
+        //- Bitmask flags describing known state of the points/faces.
+        //  Stored as plain int so that values can be OR'd together
+        //  as more flags are added.
+        enum surfaceStates : int
+        {
+            UNKNOWN = 0,  //!< Nothing (verified) known about the state
+            COMPACT = 1,  //!< Points are compact and in face-walk order
+            OTHER   = 2   //!< Future use
+        };
+
+
     // Private Data
 
         //- Patch information
         //  (face ordering nFaces/startFace only used during reading, writing)
         geometricSurfacePatchList patches_;
+
+        //- Known state of the points/faces (see surfaceStates).
+        //  Invalidated (UNKNOWN) whenever clearTopology() is called.
+        int surfaceState_;
 
 
     // Demand Driven
@@ -175,27 +192,59 @@ class triSurface
         //
         //  \param[in] pointMap from subsetMeshMap
         //  \param[in] faceMap from subsetMeshMap
-        triSurface subsetMeshImpl
+        triSurface subsetMesh_impl
         (
-            const labelList& pointMap,
-            const labelList& faceMap
+            const labelUList& pointMap,
+            const labelUList& faceMap
         ) const;
 
-
-protected:
-
-    // Protected Member Functions
-
-        //- Non-const access to global points
-        pointField& storedPoints()
+        //- New subset surface,
+        //- returning the pointMap and faceMap information.
+        template<class BoolListType>
+        triSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection,
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
         {
-            return const_cast<pointField&>(MeshReference::points());
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
         }
 
-        //- Non-const access to the faces
-        List<labelledTri>& storedFaces()
+        //- New subset surface,
+        //- discarding the pointMap and faceMap information.
+        //  Retains zone information.
+        template<class BoolListType>
+        triSurface subsetMesh_impl
+        (
+            //! The faces to select
+            const BoolListType& faceSelection
+        ) const
         {
-            return static_cast<List<labelledTri>&>(*this);
+            labelList pointMap, faceMap;
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
+        }
+
+        //- New subset surface by using the specified sample faces,
+        //- returning the pointMap and faceMap information.
+        triSurface subSampleMesh_impl
+        (
+            //! [out] The point mapping (from new to old localPoints)
+            labelList& pointMap,
+            //! [in,out] The face mapping (from new to old localFaces)
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::sampleMapFaces(*this, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+            return this->subsetMesh_impl(pointMap, faceMap);
         }
 
 
@@ -297,7 +346,7 @@ public:
         //- Move construct
         triSurface(triSurface&& surf);
 
-        //- Construct from triangles, patches, points.
+        //- Copy construct from triangles, patches, points.
         triSurface
         (
             const List<labelledTri>& triangles,
@@ -305,14 +354,47 @@ public:
             const pointField& pts
         );
 
+        //- Copy construct from triangles, patches, points.
+        //  The caller asserts that points/faces are already in compact,
+        //  walk order (identity numbering), but this is not verified.
+        triSurface
+        (
+            Foam::identity_construct_t,
+            const List<labelledTri>& triangles,
+            const geometricSurfacePatchList& patches,
+            const pointField& pts
+        )
+        :
+            triSurface(triangles, patches, pts)
+        {
+            surfaceState_ = surfaceStates::COMPACT;
+        }
+
         //- Construct from triangles, patches, points. Reuse storage.
         triSurface
         (
             List<labelledTri>& triangles,
             const geometricSurfacePatchList& patches,
             pointField& pts,
-            const bool reuse
+            bool reuse
         );
+
+        //- Construct from triangles, patches, points. Reuse storage.
+        //  The caller asserts that points/faces are already in compact,
+        //  walk order (identity numbering), but this is not verified.
+        triSurface
+        (
+            Foam::identity_construct_t,
+            List<labelledTri>& triangles,
+            const geometricSurfacePatchList& patches,
+            pointField& pts,
+            bool reuse
+        )
+        :
+            triSurface(triangles, patches, pts, reuse)
+        {
+            surfaceState_ = surfaceStates::COMPACT;
+        }
 
         //- Construct from triangles, points.
         //- Set patch names to default.
@@ -394,17 +476,45 @@ public:
 
         void swap(triSurface& surf);
 
+        //- Clear out the global points
+        void clearPoints()
+        {
+            clearOut();
+            const_cast<pointField&>(MeshReference::points()).clear();
+        }
+
+        //- Clear out the faces
+        void clearFaces()
+        {
+            clearOut();
+            static_cast<List<labelledTri>&>(*this).clear();
+        }
+
 
     // Access
 
+        //- Const access to patches
         const geometricSurfacePatchList& patches() const noexcept
         {
             return patches_;
         }
 
+        //- Non-const access to patches
         geometricSurfacePatchList& patches() noexcept
         {
             return patches_;
+        }
+
+        //- Const access to global points
+        const pointField& storedPoints() const
+        {
+            return static_cast<const pointField&>(MeshReference::points());
+        }
+
+        //- Non-const access to global points
+        pointField& storedPoints()
+        {
+            return const_cast<pointField&>(MeshReference::points());
         }
 
         //- Return const access to the faces
@@ -412,6 +522,21 @@ public:
         {
             return static_cast<const List<labelledTri>&>(*this);
         }
+
+        //- Non-const access to the faces
+        List<labelledTri>& storedFaces() noexcept
+        {
+            return static_cast<List<labelledTri>&>(*this);
+        }
+
+        //- True if it already uses compact point numbering
+        bool isCompactNumbering() const noexcept
+        {
+            return bool(surfaceState_ & surfaceStates::COMPACT);
+        }
+
+        //- Test if the faces use compact point numbering
+        bool testCompactPoints() const;
 
         //- The per-face region ID
         labelList regionIDs() const;
@@ -446,6 +571,9 @@ public:
         {
             return MeshReference::faceCentres();
         }
+
+        //- Return the triangle point references for the given face
+        triPointRef triangle(label facei) const;
 
 
     // Interoperability with other surface mesh classes
@@ -482,80 +610,42 @@ public:
         //- Remove unused points and renumber faces in local visit order
         //
         //  \param[out] pointMap from new to old points (optional)
-        void compactPoints
-        (
-            labelList& pointMap = const_cast<labelList&>(labelList::null())
-        );
+        void compactPoints(labelList* pointMap = nullptr);
 
-        //- Fill faceZone with currentZone for every face reachable
-        //  from facei without crossing edge marked in borderEdge.
-        //  Note: faceZone has to be sized nFaces before calling this fun.
-        void markZone
-        (
-            const boolList& borderEdge,
-            const label facei,
-            const label currentZone,
-            labelList& faceZone
-        ) const;
+        //- Remove unused points and renumber faces in local visit order
+        //
+        //  \param[out] pointMap from new to old points
+        void compactPoints(labelList& pointMap);
 
-        //- (size and) fills faceZone with zone of face. Zone is area
-        //  reachable by edge crossing without crossing borderEdge
-        //  (bool for every edge in surface). Returns number of zones.
+        //- Size and fill \p faceZones with zone of face.
+        //  Zone is area reachable by edge crossing without crossing borderEdge
+        //  \p borderEdge (tests true/false for every edge in surface).
+        //  Returns number of zones.
+        label markZones(const bitSet& borderEdge, labelList& faceZones) const;
+
+        //- Size and fill \p faceZone with zone of face.
+        //  Zone is area reachable by edge crossing without crossing
+        //  \p borderEdge (tests true/false for every edge in surface).
+        //  Returns number of zones.
         label markZones
         (
-            const boolList& borderEdge,
+            const UList<bool>& borderEdge,
             labelList& faceZone
         ) const;
 
-        //- Create mappings for a sub-surface
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        template<class BoolListType>
-        void subsetMeshMap
-        (
-            const BoolListType& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const
-        {
-            PatchTools::subsetMap(*this, include, pointMap, faceMap);
-        }
+        //- Swap the list of faces being addressed
+        void swapFaces(List<labelledTri>& faceLst);
 
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from new to old localPoints
-        //  \param[out] faceMap from new to old localFaces
-        triSurface subsetMesh
-        (
-            const UList<bool>& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
+        //- Alter contents by transferring (triangles, points) components.
+        //  Patch information is small and therefore just copied.
+        void transfer(triSurface& surf);
 
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        //  \param[out] pointMap from subsetMeshMap
-        //  \param[out] faceMap from subsetMeshMap
-        triSurface subsetMesh
-        (
-            const bitSet& include,
-            labelList& pointMap,
-            labelList& faceMap
-        ) const;
+        //- Alter contents by transferring (triangles, points) components.
+        //  Patch information is small and therefore just copied.
+        void transfer(MeshedSurface<labelledTri>& surf);
 
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        triSurface subsetMesh(const UList<bool>& include) const;
 
-        //- Return a new surface subsetted on the selected faces.
-        //
-        //  \param[in] include the faces to select
-        triSurface subsetMesh(const bitSet& include) const;
+    // Mesh subsetting
 
         //- Return a new surface subsetted on the selected patch names
         //
@@ -569,16 +659,122 @@ public:
             const wordRes& excludeNames = wordRes()
         ) const;
 
-        //- Swap the list of faces being addressed
-        void swapFaces(List<labelledTri>& faceLst);
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        triSurface subsetMesh
+        (
+            const bitSet& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
 
-        //- Alter contents by transferring (triangles, points) components.
-        //  Patch information is small and therefore just copied.
-        void transfer(triSurface& surf);
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        triSurface subsetMesh
+        (
+            const UList<bool>& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            return this->subsetMesh_impl(faceSelection, pointMap, faceMap);
+        }
 
-        //- Alter contents by transferring (triangles, points) components.
-        //  Patch information is small and therefore just copied.
-        void transfer(MeshedSurface<labelledTri>& surf);
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] include the faces to select
+        triSurface subsetMesh(const bitSet& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        }
+
+        //- Return a new surface subsetted on the selected faces.
+        //
+        //  \param[in] faceSelection the faces to select
+        triSurface subsetMesh(const UList<bool>& faceSelection) const
+        {
+            return this->subsetMesh_impl(faceSelection);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        triSurface subSampleMesh(labelList& pointMap, labelList& faceMap) const
+        {
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Return a new surface by using the specified sample face locations.
+        //
+        //  \param[in,out] faceMap On input: the faces to be selected.
+        //      On output: the face mapping (from new to old localFaces)
+        triSurface subSampleMesh(labelList& faceMap) const
+        {
+            labelList pointMap;  // discarded
+            return this->subSampleMesh_impl(pointMap, faceMap);
+        }
+
+        //- Create mappings for a sub-surface
+        //
+        //  \param[in] faceSelection the faces to select
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[out] faceMap from new to old localFaces
+        //
+        // Forwards to PatchTools::subsetMapFaces(),subsetMapPoints()
+        template<class BoolListType>
+        void subsetMeshMap
+        (
+            const BoolListType& faceSelection,
+            labelList& pointMap,
+            labelList& faceMap
+        ) const
+        {
+            PatchTools::subsetMapFaces(*this, faceSelection, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+        }
+
+        //- Create mappings for a sampled sub-surface.
+        //
+        //  On input the \p faceMap specifies the old faces to be selected.
+        //  This map is sorted, de-duplicated and bounds checked.
+        //  After this sanitizing step, it then becomes the output face map.
+        //
+        //  \param[out] pointMap from new to old localPoints
+        //  \param[in,out] faceMap from new to old localFaces
+        //
+        // Forwards to PatchTools::subsetMapFaces(),subsetMapPoints()
+        void sampleMeshMap(labelList& pointMap, labelList& faceMap) const
+        {
+            PatchTools::sampleMapFaces(*this, faceMap);
+            PatchTools::subsetMapPoints(*this, faceMap, pointMap);
+        }
+
+        //- Fill faceZone with currentZone for every face reachable
+        //  from facei without crossing edge marked in borderEdge.
+        //  Note: faceZone has to be sized nFaces before calling this fun.
+        //
+        // Forwards to PatchTools::markZone()
+        void markZone
+        (
+            const UList<bool>& borderEdge,
+            const label facei,
+            const label currZone,
+            labelUList& faceZone
+        ) const
+        {
+            PatchTools::markZone(*this, borderEdge, facei, currZone, faceZone);
+        }
 
 
     // Write

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,7 +31,7 @@ Class
 Description
     A collection of tools for searching, sorting PrimitivePatch information.
 
-    The class could also be extended to include more that just static methods.
+    The class could also be extended to include more than just static methods.
 
 SourceFiles
     PatchTools.C
@@ -68,6 +69,34 @@ class boundBox;
 
 class PatchTools
 {
+    //- Check for orientation issues.
+    //  Returns true if problems were found.
+    //  If a normal flips across an edge, places it in the \tparam Inserter
+    template<class FaceList, class PointField, class Inserter>
+    static bool checkOrientation_impl
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const bool report,
+        //! [out] edges that flipped
+        Inserter inserter
+    );
+
+    //- Fill faceZone with \p currentZone for every face reachable
+    //- from \p facei without crossing edge marked in \b borderEdge.
+    //  \note \p faceZone has to be sized nFaces before calling.
+    template<class BoolListType, class FaceList, class PointField>
+    static void markZone_impl
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const BoolListType& borderEdge,
+        const label facei,
+        const label currentZone,
+        labelUList& faceZone,
+        DynamicList<label>& work0,
+        DynamicList<label>& work1
+    );
+
+
 public:
 
     //- Check for orientation issues.
@@ -76,15 +105,58 @@ public:
     template<class FaceList, class PointField>
     static bool checkOrientation
     (
-        const PrimitivePatch<FaceList, PointField>&,
-        const bool report = false,
-        labelHashSet* marked = 0
+        const PrimitivePatch<FaceList, PointField>& p,
+        bool report = false,
+        labelHashSet* marked = nullptr
     );
 
+    //- Check for orientation issues.
+    //  Returns true if problems were found.
+    //  If a normal flips across an edge, places it in the HashSet
+    template<class FaceList, class PointField>
+    static bool checkOrientation
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        labelHashSet& marked,
+        bool report = false
+    );
 
-    //- Fill faceZone with currentZone for every face reachable
-    //  from facei without crossing edge marked in borderEdge.
-    //  Note: faceZone has to be sized nFaces before calling.
+    //- Check for orientation issues.
+    //  Returns true if problems were found.
+    //  If a normal flips across an edge, places it in the HashSet
+    template<class FaceList, class PointField>
+    static bool checkOrientation
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        bitSet& marked,
+        const bool report = false
+    );
+
+    //- Check that faces are in compact face walk order, no gaps etc.
+    //
+    //  Returns true if the face points are in strictly ascending order
+    template<class FaceList>
+    static bool checkFaceWalkOrder
+    (
+        const FaceList& faces,
+        //! The total of support points for the faces.
+        //! Use -1 to suppress this final check
+        const label nPoints = -1
+    );
+
+    //- Check if the patch support points have a 1-to-1 correspondence
+    //- to the local points. This implies face walk order, no gaps etc.
+    //
+    //  Returns true if the face points are in strictly ascending order
+    template<class FaceList, class PointField>
+    static bool checkCompactPoints
+    (
+        const PrimitivePatch<FaceList, PointField>& p
+    );
+
+    //- Fill faceZone with \p currentZone for every face reachable
+    //- from \p facei without crossing edge marked in \b borderEdge.
+    //  \note \p faceZone has to be sized nFaces before calling.
     template<class BoolListType, class FaceList, class PointField>
     static void markZone
     (
@@ -92,7 +164,7 @@ public:
         const BoolListType& borderEdge,
         const label facei,
         const label currentZone,
-        labelList& faceZone
+        labelUList& faceZone
     );
 
     //- Size and fills faceZone with zone of face.
@@ -107,26 +179,315 @@ public:
     );
 
     //- Determine the mapping for a sub-patch.
-    //  Only include faces for which bool-list entry is true.
+    //- Only include faces for which bool-list entry is true.
+    //
     //  \param[in]  p patch to be searched on
-    //  \param[in]  includeFaces faces to include
+    //  \param[in]  faceSelection faces to include
+    //  \param[out] faceMap  mapping new to old faces
+    //
+    //  The \p faceSelection face selection type is anything that
+    //  can be tested like a bitSet/boolList/labelHashSet
+    template<class BoolListType, class FaceList, class PointField>
+    static void subsetMapFaces
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const BoolListType& faceSelection,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sub-patch.
+    //- Only include faces for which bool-list entry is true.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  faceSelection faces to include
     //  \param[out] pointMap mapping new to old localPoints
     //  \param[out] faceMap  mapping new to old faces
+    //
+    //  The \p includeFaces face selection type is anything that
+    //  can be tested like a bitSet/boolList/labelHashSet
     template<class BoolListType, class FaceList, class PointField>
     static void subsetMap
     (
         const PrimitivePatch<FaceList, PointField>& p,
-        const BoolListType& includeFaces,
+        const BoolListType& faceSelection,
         labelList& pointMap,
         labelList& faceMap
     );
 
-    //-
+    //- Determine the mapping for a sub-patch based on its colouring.
+    //- Only include faces with a matching colour.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  colour select within \p colouring
+    //  \param[in]  colouring the face colours (eg from a decomposition method)
+    //  \param[out] faceMap  mapping new to old faces
+    //
+    //  \note if the colouring is shorter than the number of faces,
+    //     the out-of-bounds faces are simply ignored (not selected).
+    //     This is consistent with the boolean selector versions.
+    template<class FaceList, class PointField>
+    static void subsetMapFaces
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const label colour,
+        const labelUList& colouring,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sub-patch based on its colouring.
+    //- Only include faces with a matching colour.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  colour select within \p colouring
+    //  \param[in]  colouring the face colours (eg from a decomposition method)
+    //  \param[out] pointMap mapping new to old localPoints
+    //  \param[out] faceMap  mapping new to old faces
+    //
+    //  \note if the colouring is shorter than the number of faces,
+    //     the out-of-bounds faces are simply ignored (not selected).
+    //     This is consistent with the boolean selector versions.
+    template<class FaceList, class PointField>
+    static void subsetMap
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const label colour,
+        const labelUList& colouring,
+        labelList& pointMap,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sub-patch.
+    //- Only include faces for which the predicate tests true (on face index)
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  pred acceptance predicate testing on the face \em index
+    //  \param[out] faceMap  mapping new to old faces
+    template<class FaceList, class PointField, class Predicate>
+    static void subsetMapFaces_if
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        Predicate pred,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sub-patch.
+    //- Only include faces for which the predicate tests true (on face index)
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  pred acceptance predicate testing on the face \em index
+    //  \param[out] pointMap mapping new to old localPoints
+    //  \param[out] faceMap  mapping new to old faces
+    template<class FaceList, class PointField, class Predicate>
+    static void subsetMap_if
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        Predicate pred,
+        labelList& pointMap,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sampled sub-patch.
+    //- This differs from subsetMap in that the \p faceMap is used
+    //- to determine the locations to select.
+    //
+    //  On input the \p faceMap specifies the old faces to be selected.
+    //  This map is sorted, de-duplicated and bounds checked.
+    //  After this sanitizing step, it then becomes the output face map.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in,out] faceMap  mapping new to old faces
+    template<class FaceList, class PointField>
+    static void sampleMapFaces
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        labelList& faceMap
+    );
+
+    //- Determine the mapping for a sampled sub-patch.
+    //- This differs from subsetMap in that the \p faceMap is used
+    //- to determine the locations to select.
+    //
+    //  On input the \p faceMap specifies the old faces to be selected.
+    //  This map is sorted, de-duplicated and bounds checked.
+    //  After this sanitizing step, it then becomes the output face map.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[out] pointMap mapping new to old localPoints
+    //  \param[in,out] faceMap  mapping new to old faces
+    template<class FaceList, class PointField>
+    static void sampleMap
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        labelList& pointMap,
+        labelList& faceMap
+    );
+
+    //- Determine the local point mapping for a sub-patch.
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  faceMap the mapping new to old faces of the faces to use
+    //  \param[out] pointMap mapping new to old localPoints
+    template<class FaceList, class PointField>
+    static void subsetMapPoints
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const labelUList& faceMap,
+        labelList& pointMap
+    );
+
+    //- Determine the (non-local) point mapping for a sub-patch.
+    //- This can be used to extract faces/points without
+    //- an intermediate meshPoints() or localFaces().
+    //
+    //  \param[in]  p patch to be searched on
+    //  \param[in]  faceMap the mapping new to old faces of the faces to use
+    //  \param[out] pointMap mapping new to old (non-local) patch points
+    //  \param[out] reversePointMap mapping old (non-local) patch points to new,
+    //      which is normally used as a work array.
+    template<class FaceList, class PointField>
+    static void subsetMapPoints
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        const labelUList& faceMap,
+        labelList& pointMap,
+        DynamicList<label>& reversePointMap
+    );
+
+    //- Copy a subset of faces (regular or local) and renumber their
+    //- point labels using the \p oldToNewPoints mapping.
+    //  The subset is given by the \p faceMap.
+    //
+    //  \param[in] inputFaces the regular/local faces to copy
+    //  \param[out] newFaces the subsetted, renumbered faces as
+    //      List/DynamicList etc of the face type
+    //  \param[in] oldToNewPoints mapping of the old point labels
+    //      (consistent with the \p inputFaces numbering) to new points.
+    //      Must be valid for all points used by the selected faces.
+    //  \param[in] faceMap  mapping new to old faces
+    template<class OutFaceListType, class FaceList>
+    static void copyMapFaces
+    (
+        const FaceList& inputFaces,
+        OutFaceListType& newFaces,
+        const labelUList& oldToNewPoints,
+        const labelUList& faceMap
+    );
+
+    //- Copy a subset of faces from the patch.
+    //- The subset if given by the \p faceMap and the new faces are
+    //- renumbered according to the \p pointMap compact numbering
+    //
+    //  \param[in] p patch to copy
+    //  \param[out] newFaces the subsetted, renumbered faces as
+    //      List/DynamicList etc of the PrimitivePatch::face_type.
+    //  \param[in] pointMap mapping new to old points
+    //  \param[in] faceMap  mapping new to old faces
+    template<class OutFaceListType, class FaceList, class PointField>
+    static void copyFaces
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        OutFaceListType& newFaces,
+        const labelUList& pointMap,
+        const labelUList& faceMap
+    );
+
+    //- Copy a subset of localFaces from the patch.
+    //- The subset if given by the \p faceMap and the new faces are
+    //- renumbered according to the \p pointMap compact numbering
+    //
+    //  \param[in] p patch to copy
+    //  \param[out] newFaces the subsetted, renumbered faces as
+    //      List/DynamicList etc of the PrimitivePatch::face_type.
+    //  \param[in] pointMap mapping new to old localPoints
+    //  \param[in] faceMap  mapping new to old faces
+    template<class OutFaceListType, class FaceList, class PointField>
+    static void copyLocalFaces
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        OutFaceListType& newFaces,
+        const labelUList& pointMap,
+        const labelUList& faceMap
+    );
+
+    //- Copy a subset of localPoints from the patch, using the
+    //- \p pointMap to select the points.
+    //- Avoids triggering demand-driven meshPoints()/localFaces()
+    //- calculation when they do not already exist.
+    //
+    //  \param[in] p patch to copy
+    //  \param[out] newPoints the subsetted points as
+    //      Field/List/DynamicList etc of the PrimitivePatch::point_type.
+    //  \param[in] pointMap mapping new to old localPoints
+    template<class OutPointListType, class FaceList, class PointField>
+    static void copyLocalPoints
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        OutPointListType& newPoints,
+        const labelUList& pointMap
+    );
+
+    //- Copy a subset of localFaces and localPoints from the patch.
+    //- The subset is given by the \p faceMap (unique and sorted)
+    //- and \p pointMap.
+    //- Combines copyLocalFaces and copyLocalPoints.
+    //
+    //  \param[in] p patch to copy
+    //  \param[out] newFaces the subsetted, renumbered faces
+    //  \param[out] newPoints the subsetted points
+    //  \param[in] pointMap mapping new to old localPoints
+    //  \param[in] faceMap  mapping new to old faces
+    template
+    <
+        class OutFaceListType,
+        class OutPointListType,
+        class FaceList,
+        class PointField
+    >
+    static void copyLocalSubset
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        OutFaceListType& newFaces,
+        OutPointListType& newPoints,
+        const labelUList& pointMap,
+        const labelUList& faceMap
+    );
+
+    //- Copy a subset of (local) faces from the patch.
+    //- The subset is given by the \p faceMap (unique and sorted).
+    //
+    //  \param[in] p patch to copy
+    //  \param[out] newFaces the subsetted, renumbered faces
+    //  \param[out] newPoints the subsetted points
+    //  \param[in] faceMap  mapping new to old faces
+    template
+    <
+        class OutFaceListType,
+        class OutPointListType,
+        class FaceList,
+        class PointField
+    >
+    static void copySubset
+    (
+        const PrimitivePatch<FaceList, PointField>& p,
+        OutFaceListType& newFaces,
+        OutPointListType& newPoints,
+        const labelUList& faceMap
+    )
+    {
+        labelList pointMap;
+        PatchTools::subsetMapPoints(p, faceMap, pointMap);
+        PatchTools::copyLocalSubset(p, newFaces, newPoints, pointMap, faceMap);
+    }
+
+
+    //- Calculate the bounding box of the patch without meshPoints etc.
     template<class FaceList, class PointField>
     static void calcBounds
     (
         const PrimitivePatch<FaceList, PointField>& p,
+        //! [out] the bounding box
         boundBox& bb,
+        //! [out] the number of unique points used by the patch
         label& nPoints
     );
 

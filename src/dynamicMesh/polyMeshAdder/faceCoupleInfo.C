@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -731,8 +732,7 @@ bool Foam::faceCoupleInfo::matchPointsThroughFaces
     // than the patch).  Returns true if there are any duplicates.
 
     // From slave to cut point
-    patchToCutPoints.setSize(patchPoints.size());
-    patchToCutPoints = -1;
+    patchToCutPoints.resize_fill(patchPoints.size(), -1);
 
     // Compaction list for cut points: either -1 or index into master which
     // gives the point to compact to.
@@ -827,9 +827,8 @@ bool Foam::faceCoupleInfo::matchPointsThroughFaces
     }
 
     // Rework region&master into compaction array
-    compactToCut.setSize(cutPointRegion.size());
-    cutToCompact.setSize(cutPointRegion.size());
-    cutToCompact = -1;
+    compactToCut.resize_nocopy(cutPointRegion.size());
+    cutToCompact.resize_fill(cutPointRegion.size(), -1);
     label compactPointi = 0;
 
     forAll(cutPointRegion, i)
@@ -941,8 +940,8 @@ void Foam::faceCoupleInfo::findPerfectMatchingFaces
     (
         fc1,
         fc0,
-        scalarField(fc1.size(), absTol),
-        false,
+        absTol,     // match distance (uniform)
+        false,      // verbose = false
         from1To0
     );
 
@@ -959,8 +958,8 @@ void Foam::faceCoupleInfo::findPerfectMatchingFaces
     // Collect matches.
     label nMatched = 0;
 
-    mesh0Faces.setSize(fc0.size());
-    mesh1Faces.setSize(fc1.size());
+    mesh0Faces.resize_nocopy(fc0.size());
+    mesh1Faces.resize_nocopy(fc1.size());
 
     forAll(from1To0, i)
     {
@@ -1504,7 +1503,7 @@ void Foam::faceCoupleInfo::perfectPointMatch
                 0,
                 slavePatch().size()
             ),
-            scalarField(slavePatch().size(), absTol),
+            absTol,  // matchDistance (uniform)
             false,
             cutToSlaveFaces_
         );
@@ -1533,7 +1532,7 @@ void Foam::faceCoupleInfo::perfectPointMatch
                     0,
                     slavePatch().size()
                 ),
-                scalarField(slavePatch().size(), absTol),
+                absTol,  // matchDistance (uniform)
                 true,
                 cutToSlaveFacesTemp
             );
@@ -1685,8 +1684,8 @@ void Foam::faceCoupleInfo::subDivisionMatch
     (
         masterPatch().localPoints(),
         cutPoints_,
-        scalarField(masterPatch().nPoints(), absTol),
-        true,
+        absTol, // matchDistance (uniform)
+        true,   // verbose
         masterToCutPoints_
     );
 
@@ -1825,8 +1824,7 @@ void Foam::faceCoupleInfo::subDivisionMatch
     // For every unassigned cutFacei the possible list of master faces.
     Map<labelList> candidates(cutFaces().size());
 
-    cutToMasterFaces_.setSize(cutFaces().size());
-    cutToMasterFaces_ = -1;
+    cutToMasterFaces_.resize_fill(cutFaces().size(), -1);
 
     while (true)
     {

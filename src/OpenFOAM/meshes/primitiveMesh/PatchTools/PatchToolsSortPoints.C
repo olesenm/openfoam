@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,7 +45,6 @@ Foam::PatchTools::sortedPointEdges
     const labelListList& edgeFaces = p.edgeFaces();
     const labelListList& faceEdges = p.faceEdges();
 
-    // create the lists for the various results. (resized on completion)
     labelListList sortedPointEdges(pointEdges);
 
     DynamicList<label> newEdgeList;
@@ -59,14 +59,13 @@ Foam::PatchTools::sortedPointEdges
 
         label prevFacei = edgeFaces[edgeI][0];
 
-        newEdgeList.clear();
-        newEdgeList.setCapacity(nPointEdges);
-
         label nVisitedEdges = 0;
+
+        newEdgeList.clear();
 
         do
         {
-            newEdgeList.append(edgeI);
+            newEdgeList.push_back(edgeI);
 
             // Cross edge to next face
             const labelList& eFaces = edgeFaces[edgeI];

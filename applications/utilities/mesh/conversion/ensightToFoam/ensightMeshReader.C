@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2022-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -856,8 +857,8 @@ bool Foam::fileFormats::ensightMeshReader::readGeometry
                 (
                     pPoints,
                     points_,
-                    scalarField(pPoints.size(), mergeDist),
-                    false,
+                    mergeDist,  // match distance (uniform)
+                    false,      // verbose = false
                     from0To1
                 );
                 label nAdded = 0;

@@ -525,15 +525,13 @@ bool Foam::searchableSurfaces::checkNormalOrientation(const bool report) const
 
     forAll(*this, surfI)
     {
-        if (isA<triSurface>(operator[](surfI)))
+        if (const auto* sptr = isA<triSurface>(operator[](surfI)))
         {
-            const triSurface& s = dynamic_cast<const triSurface&>
-            (
-                operator[](surfI)
-            );
+            const auto& s = *sptr;
 
             labelHashSet borderEdge(s.size()/1000);
-            PatchTools::checkOrientation(s, false, &borderEdge);
+            PatchTools::checkOrientation(s, borderEdge);
+
             // Colour all faces into zones using borderEdge
             labelList normalZone;
             label nZones = PatchTools::markZones(s, borderEdge, normalZone);

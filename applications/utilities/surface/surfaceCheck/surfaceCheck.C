@@ -901,7 +901,7 @@ int main(int argc, char *argv[])
     // ~~~~~~~~~~~~~~~~~
 
     labelHashSet borderEdge(surf.size()/1000);
-    PatchTools::checkOrientation(surf, false, &borderEdge);
+    PatchTools::checkOrientation(surf, borderEdge);
 
     // Bit strange: if a triangle has two same vertices (illegal!) it will
     // still have three distinct edges (two of which have the same vertices).

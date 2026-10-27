@@ -202,8 +202,8 @@ void Foam::perfectInterface::setRefinement
         (
             pts1,
             pts0,
-            scalarField(pts1.size(), typDim),   // tolerance
-            true,                               // verbose
+            typDim,     // match distance (uniform)
+            true,       // verbose = true
             from1To0Points
         );
 
@@ -230,8 +230,8 @@ void Foam::perfectInterface::setRefinement
     (
         calcFaceCentres(pp0),
         calcFaceCentres(pp1),
-        scalarField(pp0.size(), typDim),    // tolerance
-        true,                               // verbose
+        typDim,     // match distance (uniform)
+        true,       // verbose = true
         from0To1Faces
     );
 

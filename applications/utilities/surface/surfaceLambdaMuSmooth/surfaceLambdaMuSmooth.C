@@ -100,15 +100,14 @@ void getFixedPoints
     bitSet& fixedPoints
 )
 {
-    scalarList matchDistance(feMesh.points().size(), 1e-1);
     labelList from0To1;
 
     bool matchedAll = matchPoints
     (
         feMesh.points(),
         points,
-        matchDistance,
-        false,
+        1e-1,       // match distance (uniform)
+        false,      // verbose = false
         from0To1
     );
 

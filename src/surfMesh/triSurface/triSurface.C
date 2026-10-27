@@ -434,9 +434,7 @@ void Foam::triSurface::setDefaultPatches()
 Foam::triSurface::triSurface()
 :
     MeshReference(List<labelledTri>(), pointField()),
-    patches_(),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surfaceStates::UNKNOWN)
 {}
 
 
@@ -444,14 +442,13 @@ Foam::triSurface::triSurface(const triSurface& surf)
 :
     MeshReference(surf, surf.points()),
     patches_(surf.patches()),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surf.surfaceState_)
 {}
 
 
 Foam::triSurface::triSurface(triSurface&& surf)
 :
-    triSurface()
+    MeshReference(List<labelledTri>(), pointField())
 {
     transfer(surf);
 }
@@ -466,8 +463,7 @@ Foam::triSurface::triSurface
 :
     MeshReference(triangles, pts),
     patches_(patches),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surfaceStates::UNKNOWN)
 {}
 
 
@@ -476,13 +472,12 @@ Foam::triSurface::triSurface
     List<labelledTri>& triangles,
     const geometricSurfacePatchList& patches,
     pointField& pts,
-    const bool reuse
+    bool reuse
 )
 :
     MeshReference(triangles, pts, reuse),
     patches_(patches),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surfaceStates::UNKNOWN)
 {}
 
 
@@ -493,9 +488,7 @@ Foam::triSurface::triSurface
 )
 :
     MeshReference(triangles, pts),
-    patches_(),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surfaceStates::UNKNOWN)
 {
     setDefaultPatches();
 }
@@ -508,9 +501,7 @@ Foam::triSurface::triSurface
 )
 :
     MeshReference(convertToTri(triangles, 0), pts),
-    patches_(),
-    sortedEdgeFacesPtr_(nullptr),
-    edgeOwnerPtr_(nullptr)
+    surfaceState_(surfaceStates::UNKNOWN)
 {
     setDefaultPatches();
 }
@@ -551,11 +542,25 @@ Foam::triSurface::~triSurface()
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+Foam::triPointRef Foam::triSurface::triangle(label facei) const
+{
+    if (facei >= 0 && facei < size())
+    {
+        return (*this)[facei].tri(this->points());
+    }
+    else
+    {
+        return triPointRef(point::zero, point::zero, point::zero);
+    }
+}
+
+
 void Foam::triSurface::clearTopology()
 {
     MeshReference::clearTopology();
     sortedEdgeFacesPtr_.reset(nullptr);
     edgeOwnerPtr_.reset(nullptr);
+    surfaceState_ = surfaceStates::UNKNOWN;
 }
 
 
@@ -668,15 +673,52 @@ void Foam::triSurface::cleanup(const bool verbose)
 }
 
 
-void Foam::triSurface::compactPoints(labelList& pointMap)
+bool Foam::triSurface::testCompactPoints() const
 {
+    return PatchTools::checkCompactPoints(*this);
+}
+
+
+void Foam::triSurface::compactPoints(labelList* pointMap)
+{
+    if (pointMap)
+    {
+        pointMap->clear();
+    }
+
+    #ifdef FULLDEBUG
+    if ((debug & 2) && (surfaceState_ & surfaceStates::COMPACT))
+    {
+        Pout<< "triSurface::compactPoints() : surface already flagged as"
+            << " compact - checking again anyhow" << endl;
+    }
+    #endif
+
+    const label nOldPoints = this->points().size();
+
+    if (PatchTools::checkCompactPoints(*this))
+    {
+        // Already compact, can skip everything else...
+
+        surfaceState_ = surfaceStates::COMPACT;
+        if (pointMap)
+        {
+            auto& map = *pointMap;
+            map.resize_nocopy(nOldPoints);
+            Foam::identity(map);
+        }
+
+        return;
+    }
+
+
     this->clearOut();   // Topology changes
 
     // Remove unused points while walking and renumbering faces
     // in visit order - walk order as per localFaces()
 
-    labelList oldToCompact(this->points().size(), -1);
-    DynamicList<label> compactPointMap(oldToCompact.size());
+    labelList oldToCompact(nOldPoints, -1);
+    DynamicList<label> compactPointMap(nOldPoints);
 
     for (auto& f : this->storedFaces())
     {
@@ -687,20 +729,30 @@ void Foam::triSurface::compactPoints(labelList& pointMap)
             {
                 compacti = compactPointMap.size();
                 oldToCompact[pointi] = compacti;
-                compactPointMap.append(pointi);
+                compactPointMap.push_back(pointi);
             }
             pointi = compacti;
         }
     }
 
-    pointField newPoints(this->points(), compactPointMap);
+    // Use the new compact walk order to extract new points
 
+    pointField newPoints(this->points(), compactPointMap);
     this->swapPoints(newPoints);
 
-    if (notNull(pointMap))
+    // The points are now compact
+    surfaceState_ = surfaceStates::COMPACT;
+
+    if (pointMap)
     {
-        pointMap.transfer(compactPointMap);
+        pointMap->transfer(compactPointMap);
     }
+}
+
+
+void Foam::triSurface::compactPoints(labelList& pointMap)
+{
+    compactPoints(&pointMap);
 }
 
 
@@ -746,62 +798,16 @@ Foam::labelList Foam::triSurface::regionIDs() const
 }
 
 
-// Finds area, starting at facei, delimited by borderEdge. Marks all visited
-// faces (from face-edge-face walk) with currentZone.
-void Foam::triSurface::markZone
+// Finds areas delimited by borderEdge (or 'real' edges).
+// Fills faceZone accordingly
+Foam::label Foam::triSurface::markZones
 (
-    const boolList& borderEdge,
-    const label facei,
-    const label currentZone,
+    const bitSet& borderEdge,
     labelList& faceZone
 ) const
 {
-    // List of faces whose faceZone has been set.
-    labelList changedFaces(1, facei);
-
-    while (true)
-    {
-        // Pick up neighbours of changedFaces
-        DynamicList<label> newChangedFaces(2*changedFaces.size());
-
-        for (const label facei : changedFaces)
-        {
-            const labelList& fEdges = faceEdges()[facei];
-
-            for (const label edgei : fEdges)
-            {
-                if (!borderEdge[edgei])
-                {
-                    const labelList& eFaces = edgeFaces()[edgei];
-
-                    for (const label nbrFacei : eFaces)
-                    {
-                        if (faceZone[nbrFacei] == -1)
-                        {
-                            faceZone[nbrFacei] = currentZone;
-                            newChangedFaces.append(nbrFacei);
-                        }
-                        else if (faceZone[nbrFacei] != currentZone)
-                        {
-                            FatalErrorInFunction
-                                << "Zones " << faceZone[nbrFacei]
-                                << " at face " << nbrFacei
-                                << " connects to zone " << currentZone
-                                << " at face " << facei
-                                << abort(FatalError);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (newChangedFaces.empty())
-        {
-            break;
-        }
-
-        changedFaces.transfer(newChangedFaces);
-    }
+    // Forward to PatchTools
+    return PatchTools::markZones(*this, borderEdge, faceZone);
 }
 
 
@@ -809,125 +815,76 @@ void Foam::triSurface::markZone
 // Fills faceZone accordingly
 Foam::label Foam::triSurface::markZones
 (
-    const boolList& borderEdge,
+    const UList<bool>& borderEdge,
     labelList& faceZone
 ) const
 {
-    faceZone.setSize(size());
-    faceZone = -1;
-
-    if (borderEdge.size() != nEdges())
+    if (!borderEdge.empty() && (borderEdge.size() != nEdges()))
     {
-        FatalErrorInFunction
-            << "borderEdge boolList not same size as number of edges" << endl
-            << "borderEdge:" << borderEdge.size() << endl
-            << "nEdges    :" << nEdges()
-            << exit(FatalError);
+        #ifdef FULLDEBUG
+        auto& err = FatalErrorInFunction;
+        #else
+        auto& err = WarningInFunction;
+        #endif
+
+        err << "borderEdge size != number of edges" << nl
+            << "borderEdge:" << borderEdge.size() << nl
+            << "nEdges    :" << nEdges() << endl;
+
+        #ifdef FULLDEBUG
+        err << exit(FatalError);
+        #endif
     }
 
-    label zoneI = 0;
-
-    for (label startFacei = 0;; zoneI++)
-    {
-        // Find first non-coloured face
-        for (; startFacei < size(); startFacei++)
-        {
-            if (faceZone[startFacei] == -1)
-            {
-                break;
-            }
-        }
-
-        if (startFacei >= size())
-        {
-            break;
-        }
-
-        faceZone[startFacei] = zoneI;
-
-        markZone(borderEdge, startFacei, zoneI, faceZone);
-    }
-
-    return zoneI;
+    // Forward to PatchTools
+    return PatchTools::markZones(*this, borderEdge, faceZone);
 }
 
 
-Foam::triSurface Foam::triSurface::subsetMeshImpl
+Foam::triSurface Foam::triSurface::subsetMesh_impl
 (
-    const labelList& pointMap,
-    const labelList& faceMap
+    const labelUList& pointMap,
+    const labelUList& faceMap
 ) const
 {
-    const pointField& locPoints = localPoints();
-    const List<labelledTri>& locFaces = localFaces();
+    pointField newPoints;        // Subset of points (compact)
+    List<labelledTri> newFaces;  // Subset of faces
 
-    // Subset of points (compact)
-    pointField newPoints(locPoints, pointMap);
-
-    // Inverse point mapping - same as ListOps invert() without checks
-    labelList oldToNew(locPoints.size(), -1);
-    forAll(pointMap, pointi)
+    if (isCompactNumbering())
     {
-        oldToNew[pointMap[pointi]] = pointi;
+        // Real (stored) face point labels already match local numbering,
+        // so the faces can be copied and renumbered directly
+
+        // Subset of global points
+        newPoints = pointField(this->points(), pointMap);
+
+        PatchTools::copyFaces(*this, newFaces, pointMap, faceMap);
+    }
+    else
+    {
+        // Subset of local points/faces, avoiding demand-driven
+        // meshPoints()/localFaces() when possible.
+        PatchTools::copyLocalSubset
+        (
+            *this,
+            newFaces,
+            newPoints,
+            pointMap,
+            faceMap
+        );
     }
 
-    // Subset of faces
-    List<labelledTri> newFaces(locFaces, faceMap);
+    // Construct sub-surface.
+    // Known to be compact since it was subsetted from local faces/points.
 
-    // Renumber face node labels
-    for (auto& f : newFaces)
-    {
-        for (label& vert : f)
-        {
-            vert = oldToNew[vert];
-        }
-    }
-    oldToNew.clear();
-
-    // Construct sub-surface
-    return triSurface(newFaces, patches(), newPoints, true);
-}
-
-
-Foam::triSurface
-Foam::triSurface::subsetMesh
-(
-    const UList<bool>& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-Foam::triSurface
-Foam::triSurface::subsetMesh
-(
-    const bitSet& include,
-    labelList& pointMap,
-    labelList& faceMap
-) const
-{
-    this->subsetMeshMap(include, pointMap, faceMap);
-    return this->subsetMeshImpl(pointMap, faceMap);
-}
-
-
-Foam::triSurface
-Foam::triSurface::subsetMesh(const UList<bool>& include) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
-}
-
-
-Foam::triSurface
-Foam::triSurface::subsetMesh(const bitSet& include) const
-{
-    labelList pointMap, faceMap;
-    return this->subsetMesh(include, pointMap, faceMap);
+    return triSurface
+    (
+        Foam::identity_construct_t{},  // <- known to be compact
+        newFaces,
+        patches(),
+        newPoints,
+        true  // reuse
+    );
 }
 
 
@@ -949,7 +906,7 @@ Foam::triSurface::subsetMesh
         )
     );
 
-    bitSet include(this->size());
+    bitSet faceSelection(this->size());
 
     forAll(*this, facei)
     {
@@ -957,11 +914,11 @@ Foam::triSurface::subsetMesh
 
         if (selectPatches.test(patchi))
         {
-            include.set(facei);
+            faceSelection.set(facei);
         }
     }
 
-    return this->subsetMesh(include);
+    return this->subsetMesh(faceSelection);
 }
 
 
@@ -980,6 +937,7 @@ void Foam::triSurface::transfer(triSurface& surf)
     storedFaces().transfer(surf.storedFaces());
     storedPoints().transfer(surf.storedPoints());
     patches_.transfer(surf.patches());
+    surfaceState_ = surf.surfaceState_;
 
     surf.clearOut();
 }
@@ -1018,6 +976,7 @@ void Foam::triSurface::operator=(const triSurface& surf)
     storedFaces() = surf;
     storedPoints() = surf.points();
     patches_ = surf.patches();
+    surfaceState_ = surf.surfaceState_;
 }
 
 

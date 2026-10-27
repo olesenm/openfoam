@@ -162,6 +162,14 @@ public:
 
     // Queries
 
+        //- Find position of the smallest vertex in the edge
+        //  \return position in edge (0,1)
+        inline int find_min() const noexcept;
+
+        //- Find position of the largest vertex in the edge
+        //  \return position in edge (0,1)
+        inline int find_max() const noexcept;
+
         //- Return the smallest vertex label used by the edge
         //  No special handling of negative vertex labels.
         inline label min() const noexcept;

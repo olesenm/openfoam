@@ -209,6 +209,22 @@ public:
         //  The starting vertex of the original and reverse face are identical.
         inline triFace reverseFace() const;
 
+        //- Find position of the smallest vertex in the face
+        //  \return position in face (0,1,2)
+        inline int find_min() const;
+
+        //- Find position of the largest vertex in the face
+        //  \return position in face (0,1,2)
+        inline int find_max() const;
+
+        //- Return the smallest vertex label used by the face
+        //  No special handling of negative vertex labels.
+        inline label min() const noexcept;
+
+        //- Return the largest vertex label used by the face
+        //  No special handling of negative vertex labels.
+        inline label max() const noexcept;
+
         //- Find local vertex on face for the vertex label, same as find()
         //  \return position in face (0,1,2) or -1 if not found.
         inline label which(const label vertex) const;

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -222,6 +223,14 @@ public:
 
 
         // Navigation through face vertices
+
+        //- Find position of the smallest vertex in the face
+        //  \return position in face (-1 if empty)
+        label find_min() const;
+
+        //- Find position of the largest vertex in the face
+        //  \return position in face (-1 if empty)
+        label find_max() const;
 
         //- Find local vertex on face for the vertex label, same as find()
         //  \return position in face (0,1,2,...) or -1 if not found.

@@ -221,6 +221,32 @@ inline Foam::triFace Foam::triFace::reverseFace() const
 }
 
 
+inline int Foam::triFace::find_min() const
+{
+    const int i = ((*this)[1] < (*this)[0]);    // select (0 or 1)
+    return ((*this)[2] < (*this)[i]) ? 2 : i;   // select (2 or i)
+}
+
+
+inline int Foam::triFace::find_max() const
+{
+    const int i = ((*this)[0] < (*this)[1]);    // select (0 or 1)
+    return ((*this)[i] < (*this)[2]) ? 2 : i;   // select (2 or i)
+}
+
+
+inline Foam::label Foam::triFace::min() const noexcept
+{
+    return std::min(std::min(a(), b()), c());
+}
+
+
+inline Foam::label Foam::triFace::max() const noexcept
+{
+    return std::max(std::max(a(), b()), c());
+}
+
+
 inline Foam::label Foam::triFace::which(const label vertex) const
 {
     return tuple_type::find(vertex);

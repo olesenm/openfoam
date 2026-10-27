@@ -109,15 +109,27 @@ inline Foam::edge::edge(Istream& is)
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+inline int Foam::edge::find_min() const noexcept
+{
+    return (second() < first() ? 1 : 0);
+}
+
+
+inline int Foam::edge::find_max() const noexcept
+{
+    return (first() < second() ? 1 : 0);
+}
+
+
 inline Foam::label Foam::edge::min() const noexcept
 {
-    return (first() < second() ? first() : second());
+    return (second() < first() ? second() : first());
 }
 
 
 inline Foam::label Foam::edge::max() const noexcept
 {
-    return (second() < first() ? first() : second());
+    return (first() < second() ? second() : first());
 }
 
 

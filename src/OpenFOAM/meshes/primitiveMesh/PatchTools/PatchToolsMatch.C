@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,8 +45,8 @@ void Foam::PatchTools::matchPoints
     labelList& p2PointLabels
 )
 {
-    p1PointLabels.resize(p1.nPoints());
-    p2PointLabels.resize(p1.nPoints());
+    p1PointLabels.resize_nocopy(p1.meshPoints().size());
+    p2PointLabels.resize_nocopy(p1.meshPoints().size());
 
     label nMatches = 0;
 
@@ -83,10 +84,9 @@ void Foam::PatchTools::matchEdges
     bitSet& sameOrientation
 )
 {
-    p1EdgeLabels.resize(p1.nEdges());
-    p2EdgeLabels.resize(p1.nEdges());
-    sameOrientation.resize(p1.nEdges());
-    sameOrientation = false;
+    p1EdgeLabels.resize_nocopy(p1.nEdges());
+    p2EdgeLabels.resize_nocopy(p1.nEdges());
+    sameOrientation.resize_fill(p1.nEdges(), false);
 
     label nMatches = 0;
 
