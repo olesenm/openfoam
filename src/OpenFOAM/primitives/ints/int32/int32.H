@@ -185,6 +185,24 @@ public:
         static constexpr int32_t min_ = INT32_MIN;
         static constexpr int32_t max_ = INT32_MAX;
 
+        //- True if int64 value can be narrowed to int32 without loss
+        static constexpr bool can_narrow(int64_t val) noexcept
+        {
+            return (val >= int64_t(min_) && val <= int64_t(max_));
+        }
+
+        //- Narrow int64 to int32 with bounds clamping.
+        //- Same as Foam::narrowInt32()
+        static constexpr int32_t narrow(int64_t val) noexcept
+        {
+            return
+            (
+                (val <= int64_t(min_)) ? min_
+              : (val >= int64_t(max_)) ? max_
+              : static_cast<int32_t>(val)
+            );
+        }
+
 
     // Static Data Members
 
