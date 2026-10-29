@@ -102,17 +102,14 @@ class searchableSurfaceCollection
 
     // Private Member Functions
 
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
-        //- Find point nearest to sample. Updates minDistSqr. Sets nearestInfo
-        //  and surface index
-        void findNearest
+        //- Find point nearest to sample. Updates minDistSqr.
+        //- Sets nearestInfo and surface index
+        void findNearest_impl
         (
             const pointField& samples,
             scalarField& minDistSqr,
             List<pointIndexHit>& nearestInfo,
-            labelList& nearestSurf
+            labelList* nearestSurface = nullptr
         ) const;
 
         //- Sort hits into per-surface bins. Misses are rejected.

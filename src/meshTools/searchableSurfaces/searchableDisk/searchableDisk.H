@@ -88,19 +88,24 @@ private:
         using searchableSurface::findNearest;
 
         //- Find nearest point on disk
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         //- Find intersection with disk
-        void findLine
+        void findLine_impl
         (
             const point& start,
             const point& end,
-            pointIndexHit&
+            pointIndexHit& info
         ) const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableDisk(const searchableDisk&) = delete;
@@ -108,7 +113,6 @@ private:
         //- No copy assignment
         void operator=(const searchableDisk&) = delete;
 
-public:
 
     //- Runtime type information
     TypeName("searchableDisk");

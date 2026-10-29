@@ -55,19 +55,21 @@ namespace Foam
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-void Foam::searchableSurfaceCollection::findNearest
+void Foam::searchableSurfaceCollection::findNearest_impl
 (
     const pointField& samples,
     scalarField& minDistSqr,
     List<pointIndexHit>& nearestInfo,
-    labelList& nearestSurf
+    labelList* nearestSurface
 ) const
 {
     // Initialise
-    nearestInfo.setSize(samples.size());
-    nearestInfo = pointIndexHit();
-    nearestSurf.setSize(samples.size());
-    nearestSurf = -1;
+    nearestInfo.resize_fill(samples.size(), pointIndexHit());
+
+    if (nearestSurface)
+    {
+        nearestSurface->resize_fill(samples.size(), -1);
+    }
 
     List<pointIndexHit> hitInfo(samples.size());
 
@@ -112,7 +114,11 @@ void Foam::searchableSurfaceCollection::findNearest
                         hitInfo[pointi].index()
                       + indexOffset_.localStart(surfI)
                     );
-                    nearestSurf[pointi] = surfI;
+
+                    if (nearestSurface)
+                    {
+                        (*nearestSurface)[pointi] = surfI;
+                    }
                 }
             }
         }
@@ -383,8 +389,8 @@ void Foam::searchableSurfaceCollection::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.setSize(size());
-    radiusSqr.setSize(centres.size());
+    centres.resize_nocopy(size());
+    radiusSqr.resize_nocopy(centres.size());
 
     // Append individual coordinates
     label coordI = 0;
@@ -461,15 +467,7 @@ void Foam::searchableSurfaceCollection::findNearest
 {
     // How to scale distance?
     scalarField minDistSqr(nearestDistSqr);
-
-    labelList nearestSurf;
-    findNearest
-    (
-        samples,
-        minDistSqr,
-        nearestInfo,
-        nearestSurf
-    );
+    findNearest_impl(samples, minDistSqr, nearestInfo);
 }
 
 
@@ -480,8 +478,7 @@ void Foam::searchableSurfaceCollection::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
-    info = pointIndexHit();
+    info.resize_fill(start.size(), pointIndexHit());
 
     // Current nearest (to start) intersection
     pointField nearest(end);
@@ -593,17 +590,15 @@ void Foam::searchableSurfaceCollection::findLineAll
     List<pointIndexHit> nearestInfo;
     findLine(start, end, nearestInfo);
 
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
+
     forAll(info, pointi)
     {
+        info[pointi].clear();
+
         if (nearestInfo[pointi].hit())
         {
-            info[pointi].setSize(1);
-            info[pointi][0] = nearestInfo[pointi];
-        }
-        else
-        {
-            info[pointi].clear();
+            info[pointi].resize_fill(1, nearestInfo[pointi]);
         }
     }
 }
@@ -709,7 +704,7 @@ void Foam::searchableSurfaceCollection::getNormal
         CompactListList<label> infoMap;
         sortHits(info, surfInfo, infoMap);
 
-        normal.setSize(info.size());
+        normal.resize_nocopy(info.size());
 
         // Do region tests
         forAll(surfInfo, surfI)

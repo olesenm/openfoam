@@ -564,13 +564,14 @@ inline Foam::searchableSphere::componentOrder::componentOrder
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-Foam::pointIndexHit Foam::searchableSphere::findNearest
+void Foam::searchableSphere::findNearest_impl
 (
     const point& sample,
-    const scalar nearestDistSqr
+    const scalar nearestDistSqr,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info(false, sample, -1);
+    info = pointIndexHit(false, sample, -1);
 
     // Handle special cases first
 
@@ -592,7 +593,7 @@ Foam::pointIndexHit Foam::searchableSphere::findNearest
             info.setIndex(0);
         }
 
-        return info;
+        return;
     }
 
 
@@ -684,13 +685,11 @@ Foam::pointIndexHit Foam::searchableSphere::findNearest
     {
         info.setHit();
     }
-
-    return info;
 }
 
 
 // From Graphics Gems - intersection of sphere with ray
-void Foam::searchableSphere::findLineAll
+void Foam::searchableSphere::findLineAll_impl
 (
     const point& start,
     const point& end,
@@ -929,14 +928,9 @@ void Foam::searchableSphere::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.resize(1);
-    radiusSqr.resize(1);
-
-    centres[0] = origin_;
-    radiusSqr[0] = Foam::sqr(radius());
-
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    centres.resize_fill(1, origin_);
+    radiusSqr.resize_fill(1, (Foam::sqr(radius()) + Foam::sqr(SMALL)));
 }
 
 
@@ -947,7 +941,7 @@ void Foam::searchableSphere::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.resize(samples.size());
+    info.resize_nocopy(samples.size());
 
     scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
@@ -955,7 +949,7 @@ void Foam::searchableSphere::findNearest
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        info[i] = findNearest(samples[i], maxDistSqr);
+        findNearest_impl(samples[i], maxDistSqr, info[i]);
     }
 }
 
@@ -967,7 +961,7 @@ void Foam::searchableSphere::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.resize(start.size());
+    info.resize_nocopy(start.size());
 
     pointIndexHit b;
 
@@ -976,9 +970,9 @@ void Foam::searchableSphere::findLine
         // Pick nearest intersection.
         // If none intersected take second one.
 
-        findLineAll(start[i], end[i], info[i], b);
+        findLineAll_impl(start[i], end[i], info[i], b);
 
-        if (!info[i].hit() && b.hit())
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
@@ -993,7 +987,7 @@ void Foam::searchableSphere::findLineAny
     List<pointIndexHit>& info
 ) const
 {
-    info.resize(start.size());
+    info.resize_nocopy(start.size());
 
     pointIndexHit b;
 
@@ -1002,9 +996,9 @@ void Foam::searchableSphere::findLineAny
         // Pick nearest intersection.
         // Discard far intersection
 
-        findLineAll(start[i], end[i], info[i], b);
+        findLineAll_impl(start[i], end[i], info[i], b);
 
-        if (!info[i].hit() && b.hit())
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
@@ -1019,13 +1013,15 @@ void Foam::searchableSphere::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.resize(start.size());
+    info.resize_nocopy(start.size());
+
+    pointIndexHit near, far;
 
     forAll(start, i)
     {
-        pointIndexHit near, far;
+        info[i].clear();
 
-        findLineAll(start[i], end[i], near, far);
+        findLineAll_impl(start[i], end[i], near, far);
 
         if (near.hit())
         {
@@ -1048,10 +1044,6 @@ void Foam::searchableSphere::findLineAll
                 info[i].resize(1);
                 info[i][0] = far;
             }
-            else
-            {
-                info[i].clear();
-            }
         }
     }
 }
@@ -1063,8 +1055,7 @@ void Foam::searchableSphere::getRegion
     labelList& region
 ) const
 {
-    region.resize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -1074,11 +1065,16 @@ void Foam::searchableSphere::getNormal
     vectorField& normal
 ) const
 {
-    normal.resize(info.size());
+    normal.resize_nocopy(info.size());
 
     forAll(info, i)
     {
-        if (info[i].hit())
+        if (info[i].not_hit())
+        {
+            // Set to what?
+            normal[i] = Foam::zero{};
+        }
+        else  // hit()
         {
             if (order_.shape == shapeType::SPHERE)
             {
@@ -1098,11 +1094,6 @@ void Foam::searchableSphere::getNormal
                 normal[i].normalise();
             }
         }
-        else
-        {
-            // Set to what?
-            normal[i] = Zero;
-        }
     }
 }
 
@@ -1113,13 +1104,13 @@ void Foam::searchableSphere::getVolumeType
     List<volumeType>& volType
 ) const
 {
-    volType.resize(points.size());
+    volType.resize_nocopy(points.size());
 
     if (order_.shape == shapeType::SPHERE)
     {
         // Special case. Minor advantage in treating specially
 
-        const scalar rad2 = sqr(radius());
+        const scalar rad2 = Foam::sqr(radius());
 
         forAll(points, pointi)
         {
@@ -1127,7 +1118,7 @@ void Foam::searchableSphere::getVolumeType
 
             volType[pointi] =
             (
-                (magSqr(p - origin_) <= rad2)
+                (p.distSqr(origin_) <= rad2)
               ? volumeType::INSIDE : volumeType::OUTSIDE
             );
         }
@@ -1145,7 +1136,7 @@ void Foam::searchableSphere::getVolumeType
 
         volType[pointi] =
         (
-            (magSqr(p) <= 1)
+            (p.magSqr() <= 1)
           ? volumeType::INSIDE : volumeType::OUTSIDE
         );
     }

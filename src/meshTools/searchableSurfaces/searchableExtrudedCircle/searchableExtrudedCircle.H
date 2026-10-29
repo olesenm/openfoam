@@ -89,8 +89,9 @@ class searchableExtrudedCircle
         //- Names of regions
         mutable wordList regions_;
 
+public:
 
-    // Private Member Functions
+    // Generated Methods
 
         //- No copy construct
         searchableExtrudedCircle(const searchableExtrudedCircle&) = delete;
@@ -98,8 +99,6 @@ class searchableExtrudedCircle
         //- No copy assignment
         void operator=(const searchableExtrudedCircle&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableExtrudedCircle");

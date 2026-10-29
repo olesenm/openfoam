@@ -75,14 +75,20 @@ class searchablePlane
 
     // Private Member Functions
 
-        pointIndexHit findLine
+        //- Find intersection with plane
+        void findLine_impl
         (
             const point& start,
-            const point& end
+            const point& end,
+            pointIndexHit& info
         ) const;
 
         //- Return the boundBox of the plane
         boundBox calcBounds() const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchablePlane(const searchablePlane&) = delete;
@@ -90,8 +96,6 @@ class searchablePlane
         //- No copy assignment
         void operator=(const searchablePlane&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchablePlane");

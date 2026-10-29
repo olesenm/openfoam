@@ -99,17 +99,25 @@ class searchablePlate
         //- Inherit findNearest from searchableSurface
         using searchableSurface::findNearest;
 
-        pointIndexHit findNearest
+        //- Implementation detail
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
-        pointIndexHit findLine
+        //- Implementation detail
+        void findLine_impl
         (
             const point& start,
-            const point& end
+            const point& end,
+            pointIndexHit& info
         ) const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchablePlate(const searchablePlate&) = delete;
@@ -117,8 +125,6 @@ class searchablePlate
         //- No copy assignment
         void operator=(const searchablePlate&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchablePlate");
@@ -149,10 +155,7 @@ public:
     // Member Functions
 
         //- The centre (origin) of the plate
-        inline const point& centre() const noexcept
-        {
-             return origin_;
-        }
+        const point& centre() const noexcept { return origin_; }
 
         //- Names of regions
         virtual const wordList& regions() const;

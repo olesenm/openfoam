@@ -101,8 +101,8 @@ void Foam::searchableSurfaceWithGaps::offsetVecs
     pointField& offset1
 ) const
 {
-    offset0.setSize(start.size());
-    offset1.setSize(start.size());
+    offset0.resize_nocopy(start.size());
+    offset1.resize_nocopy(start.size());
 
     forAll(start, i)
     {
@@ -349,13 +349,13 @@ void Foam::searchableSurfaceWithGaps::findLineAll
     List<pointIndexHit> nearestInfo;
     findLine(start, end, nearestInfo);
 
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
+
     forAll(info, pointi)
     {
         if (nearestInfo[pointi].hit())
         {
-            info[pointi].setSize(1);
-            info[pointi][0] = nearestInfo[pointi];
+            info[pointi].resize_fill(1, nearestInfo[pointi]);
         }
         else
         {

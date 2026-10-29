@@ -92,20 +92,18 @@ private:
 
     // Private Member Functions
 
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
         //- Find nearest point on cylinder.
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         scalar radius2(const point& pt) const;
 
         //- Find intersection with cylinder
-        void findLineAll
+        void findLineAll_impl
         (
             const point& start,
             const point& end,
@@ -116,14 +114,16 @@ private:
         //- Return the boundBox of the cylinder
         boundBox calcBounds() const;
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableCylinder(const searchableCylinder&) = delete;
 
         //- No copy assignment
         void operator=(const searchableCylinder&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableCylinder");

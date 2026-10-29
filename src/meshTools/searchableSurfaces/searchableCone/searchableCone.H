@@ -119,7 +119,7 @@ class searchableCone
         static scalar radius2(const searchableCone& cone, const point& pt);
 
         //- Find both intersections with cone. innerRadii supplied externally.
-        void findLineAll
+        void findLineAll_impl
         (
             const searchableCone& cone,
             const scalar innerRadius1,
@@ -142,14 +142,16 @@ class searchableCone
         //- Return the boundBox of the cylinder
         boundBox calcBounds() const;
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableCone(const searchableCone&) = delete;
 
         //- No copy assignment
         void operator=(const searchableCone&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableCone");

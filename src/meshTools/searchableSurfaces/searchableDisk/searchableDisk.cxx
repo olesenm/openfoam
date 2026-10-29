@@ -53,14 +53,13 @@ namespace Foam
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-Foam::pointIndexHit Foam::searchableDisk::findNearest
+void Foam::searchableDisk::findNearest_impl
 (
     const point& sample,
-    const scalar nearestDistSqr
+    const scalar nearestDistSqr,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info(false, sample, -1);
-
     vector v(sample - origin());
 
     // Decompose sample-origin into normal and parallel component
@@ -81,12 +80,15 @@ Foam::pointIndexHit Foam::searchableDisk::findNearest
         info.setHit();
         info.setIndex(0);
     }
-
-    return info;
+    else
+    {
+        info.setMiss();
+        info.setIndex(-1);
+    }
 }
 
 
-void Foam::searchableDisk::findLine
+void Foam::searchableDisk::findLine_impl
 (
     const point& start,
     const point& end,
@@ -190,14 +192,10 @@ void Foam::searchableDisk::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.resize(1);
-    radiusSqr.resize(1);
-
-    centres[0] = origin();
-    radiusSqr[0] = sqr(radialLimits_.max());
+    centres.resize_fill(1, origin());
 
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    radiusSqr.resize_fill(1, Foam::sqr(radialLimits_.max()) + Foam::sqr(SMALL));
 }
 
 
@@ -216,7 +214,7 @@ void Foam::searchableDisk::findNearest
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        info[i] = findNearest(samples[i], maxDistSqr);
+        findNearest_impl(samples[i], maxDistSqr, info[i]);
     }
 }
 
@@ -228,11 +226,11 @@ void Foam::searchableDisk::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.resize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
-        findLine(start[i], end[i], info[i]);
+        findLine_impl(start[i], end[i], info[i]);
     }
 }
 
@@ -255,17 +253,17 @@ void Foam::searchableDisk::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
+
+    pointIndexHit inter;
 
     forAll(start, i)
     {
-        pointIndexHit inter;
-        findLine(start[i], end[i], inter);
+        findLine_impl(start[i], end[i], inter);
 
         if (inter.hit())
         {
-            info[i].setSize(1);
-            info[i][0] = inter;
+            info[i].resize_fill(1, inter);
         }
         else
         {
@@ -281,8 +279,7 @@ void Foam::searchableDisk::getRegion
     labelList& region
 ) const
 {
-    region.resize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -292,8 +289,7 @@ void Foam::searchableDisk::getNormal
     vectorField& normals
 ) const
 {
-    normals.resize(info.size());
-    normals = normal();
+    normals.resize_fill(info.size(), normal());
 }
 
 

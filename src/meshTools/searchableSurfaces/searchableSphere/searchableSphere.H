@@ -142,20 +142,17 @@ private:
             );
         }
 
-
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
         //- Find nearest point on general spheroid.
         //  With some optimization for special shapes
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         //- Find intersection with general spheroid
-        void findLineAll
+        void findLineAll_impl
         (
             const point& start,
             const point& end,
@@ -163,6 +160,9 @@ private:
             pointIndexHit& far
         ) const;
 
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableSphere(const searchableSphere&) = delete;
@@ -170,8 +170,6 @@ private:
         //- No copy assignment
         void operator=(const searchableSphere&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSphere");
