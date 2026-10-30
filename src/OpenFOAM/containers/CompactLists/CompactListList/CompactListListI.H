@@ -27,18 +27,17 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "SubList.H"
-
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
 template<class T>
 inline void Foam::CompactListList<T>::enforceSizeSanity()
 {
-    if (offsets_.size() == 1)
+    // CSRAdressing should avoid size=1, but be certain
+    if (addr_.offsets().size() == 1)
     {
-        offsets_.clear();
+        addr_.offsets().clear();
     }
-    if (offsets_.empty())
+    if (addr_.offsets().empty())
     {
         values_.clear();
     }
@@ -53,7 +52,7 @@ inline Foam::CompactListList<T>::CompactListList
     const CompactListList<T>& list
 )
 :
-    offsets_(list.offsets_),
+    addr_(list.addr_),
     values_(list.values_)
 {}
 
@@ -64,7 +63,7 @@ inline Foam::CompactListList<T>::CompactListList
     CompactListList<T>&& list
 )
 :
-    offsets_(std::move(list.offsets_)),
+    addr_(std::move(list.addr_)),
     values_(std::move(list.values_))
 {}
 
@@ -76,7 +75,7 @@ inline Foam::CompactListList<T>::CompactListList
     bool reuse
 )
 :
-    offsets_(list.offsets_, reuse),
+    addr_(list.addr_, reuse),
     values_(list.values_, reuse)
 {}
 
@@ -88,11 +87,9 @@ inline Foam::CompactListList<T>::CompactListList
     const label nVals
 )
 :
-    offsets_(mRows+1, Foam::zero{}),
+    addr_(mRows),
     values_(nVals)
-{
-    // Optionally: enforceSizeSanity();
-}
+{}
 
 
 template<class T>
@@ -103,11 +100,9 @@ inline Foam::CompactListList<T>::CompactListList
     Foam::zero
 )
 :
-    offsets_(mRows+1, Foam::zero{}),
+    addr_(mRows),
     values_(nVals, Foam::zero{})
-{
-    // Optionally: enforceSizeSanity();
-}
+{}
 
 
 template<class T>
@@ -118,11 +113,9 @@ inline Foam::CompactListList<T>::CompactListList
     const T& val
 )
 :
-    offsets_(mRows+1, Foam::zero{}),
+    addr_(mRows),
     values_(nVals, val)
-{
-    // Optionally: enforceSizeSanity();
-}
+{}
 
 
 template<class T>
@@ -173,33 +166,31 @@ inline std::streamsize Foam::CompactListList<T>::size_bytes() const noexcept
 template<class T>
 inline bool Foam::CompactListList<T>::empty() const noexcept
 {
-    // Note: could (should?) also check total size??
-    // const label len = (offsets_.size() - 1);
-    // return (len < 1) || (*(offsets_.cdata() + len) == 0);
-    return (offsets_.size() <= 1);
+    // Not using addr_.empty() since that has extra logic
+    return (addr_.length() == 0);
 }
 
 
 template<class T>
 inline bool Foam::CompactListList<T>::single() const noexcept
 {
-    return (offsets_.size() == 2);
+    return addr_.single();
 }
 
 
 template<class T>
 inline Foam::label Foam::CompactListList<T>::length() const noexcept
 {
-    const label len = (offsets_.size() - 1);
-    return (len < 1) ? static_cast<label>(0) : len;
+    // Same as size()
+    return addr_.length();
 }
 
 
 template<class T>
 inline Foam::label Foam::CompactListList<T>::size() const noexcept
 {
-    const label len = (offsets_.size() - 1);
-    return (len < 1) ? static_cast<label>(0) : len;
+    // Same as length()
+    return addr_.size();
 }
 
 
@@ -213,14 +204,14 @@ inline Foam::labelList Foam::CompactListList<T>::sizes() const
 template<class T>
 inline Foam::label Foam::CompactListList<T>::totalSize() const noexcept
 {
-    return offsets_.empty() ? 0 : *(offsets_.cdata() + offsets_.size()-1);
+    return addr_.totalSize();
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::maxSize() const
+inline Foam::label Foam::CompactListList<T>::maxSize() const noexcept
 {
-    return this->maxNonLocalSize(-1);
+    return addr_.maxSize();
 }
 
 
@@ -228,123 +219,96 @@ template<class T>
 inline const Foam::labelUList
 Foam::CompactListList<T>::localStarts() const
 {
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1) return labelUList::null();
-
-    return labelList::subList(offsets_, len);
+    return addr_.localStarts();
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::localStart(const label i) const
+inline Foam::label Foam::CompactListList<T>::localStart(label i) const
 {
-    return offsets_[i];
+    return addr_.localStart(i);
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::localEnd(const label i) const
+inline Foam::label Foam::CompactListList<T>::localEnd(label i) const
 {
-    return offsets_[i+1];
+    return addr_.localEnd(i);
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::localSize(const label i) const
+inline Foam::label Foam::CompactListList<T>::localSize(label i) const
 {
-    return offsets_[i+1] - offsets_[i];
+    return addr_.localSize(i);
+}
+
+
+template<class T>
+inline Foam::labelRange Foam::CompactListList<T>::range(label i) const noexcept
+{
+    return addr_.range(i);
 }
 
 
 template<class T>
 inline const Foam::SubList<T>
-Foam::CompactListList<T>::localList(const label i) const
+Foam::CompactListList<T>::localList(label i) const
 {
-    return SubList<T>(values_, (offsets_[i+1] - offsets_[i]), offsets_[i]);
+    return values_.slice(addr_.localStart(i), addr_.localSize(i));
 }
 
 
 template<class T>
 inline Foam::SubList<T>
-Foam::CompactListList<T>::localList(const label i)
+Foam::CompactListList<T>::localList(label i)
 {
-    return SubList<T>(values_, (offsets_[i+1] - offsets_[i]), offsets_[i]);
+    return values_.slice(addr_.localStart(i), addr_.localSize(i));
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::toGlobal
-(
-    const label rowi,
-    const label i
-) const
+inline Foam::label Foam::CompactListList<T>::toGlobal(label row, label i) const
 {
-    return i + offsets_[rowi];
+    return addr_.toGlobal(row, i);
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::toLocal
-(
-    const label rowi,
-    const label i
-) const
+inline Foam::label Foam::CompactListList<T>::toLocal(label row, label i) const
 {
-    const label locali = i - offsets_[rowi];
-
-    if (locali < 0 || i >= offsets_[rowi+1])
-    {
-        FatalErrorInFunction
-            << "Index " << i << " does not belong on row "
-            << rowi << nl << "Offsets:" << offsets_
-            << abort(FatalError);
-    }
-
-    return locali;
+    return addr_.toLocal(row, i);
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::findRow(const label i) const
+inline Foam::label Foam::CompactListList<T>::findRow(label i) const
 {
-    if (i < 0 || i >= totalSize())
-    {
-        return -1;
-    }
-
-    // Find last (offset <= i)
-    // - same as Foam::findLower(offsets_, i+1)
-
-    return static_cast<label>
-    (
-        std::upper_bound(offsets_.cbegin(), offsets_.cend(), i)
-      - offsets_.cbegin() - 1  //< uses (-1) for start instead of end index
-    );
+    return addr_.findRow(i);
 }
 
 
 template<class T>
-inline Foam::label Foam::CompactListList<T>::whichRow(const label i) const
+inline Foam::label Foam::CompactListList<T>::whichRow(label i) const
 {
-    const label rowi = findRow(i);
+    label foundRow = addr_.findRow(i);
 
-    if (rowi < 0)
+    if (foundRow  < 0)
     {
         FatalErrorInFunction
             << "Index " << i << " outside of range" << nl
-            << "Offsets:" << offsets_
+            << "Offsets:" << addr_.offsets()
             << abort(FatalError);
     }
 
-    return rowi;
+    return foundRow;
 }
 
 
 template<class T>
 inline void Foam::CompactListList<T>::clear()
 {
-    offsets_.clear();
+    addr_.clear();
     values_.clear();
 }
 
@@ -352,24 +316,22 @@ inline void Foam::CompactListList<T>::clear()
 template<class T>
 inline void Foam::CompactListList<T>::resize(const label mRows)
 {
-    if (mRows == 0)
+    if (mRows < 1)
     {
         // Clear
-        offsets_.clear();
+        addr_.clear();
         values_.clear();
     }
     else if (mRows < size())
     {
         // Shrink
-        offsets_.resize(mRows+1);
-        values_.resize(offsets_[mRows]);
+        addr_.resize(mRows);
+        values_.resize(addr_.totalSize());
     }
     else if (mRows > size())
     {
         // Extend number of rows, each with local size of 0
-        const label endOffset = offsets_.empty() ? 0 : offsets_.back();
-
-        offsets_.resize(mRows+1, endOffset);
+        addr_.resize(mRows);
     }
 }
 
@@ -384,12 +346,12 @@ inline void Foam::CompactListList<T>::resize
     if (mRows < 1)
     {
         // Enforce sizing sanity
-        offsets_.clear();
+        addr_.clear();
         values_.clear();
     }
     else
     {
-        offsets_.resize(mRows+1, Foam::zero{});
+        addr_.offsets().resize(mRows+1, 0);
         values_.resize(nVals);
     }
 }
@@ -405,12 +367,12 @@ inline void Foam::CompactListList<T>::resize_nocopy
     if (mRows < 1)
     {
         // Enforce sizing sanity
-        offsets_.clear();
+        addr_.clear();
         values_.clear();
     }
     else
     {
-        offsets_.resize(mRows+1, Foam::zero{});
+        addr_.offsets().resize(mRows+1, 0);
         values_.resize_nocopy(nVals);
     }
 }
@@ -427,12 +389,12 @@ inline void Foam::CompactListList<T>::resize
     if (mRows < 1)
     {
         // Enforce sizing sanity
-        offsets_.clear();
+        addr_.clear();
         values_.clear();
     }
     else
     {
-        offsets_.resize(mRows+1, Foam::zero{});
+        addr_.offsets().resize(mRows+1, 0);
         values_.resize(nVals, val);
     }
 }
@@ -451,7 +413,7 @@ inline void Foam::CompactListList<T>::operator=
         return;  // Self-assignment is a no-op
     }
 
-    offsets_ = list.offsets_,
+    addr_ = list.addr_;
     values_ = list.values_;
 }
 
@@ -467,7 +429,7 @@ inline void Foam::CompactListList<T>::operator=
         return;  // Self-assignment is a no-op
     }
 
-    offsets_.transfer(list.offsets_);
+    addr_.offsets().transfer(list.addr_.offsets());
     values_.transfer(list.values_);
 }
 
@@ -488,39 +450,29 @@ inline void Foam::CompactListList<T>::operator=(Foam::zero)
 
 template<class T>
 inline const Foam::SubList<T>
-Foam::CompactListList<T>::operator[](const label i) const
+Foam::CompactListList<T>::operator[](label i) const
 {
-    // return SubList<T>(values_, (offsets_[i+1] - offsets_[i]), offsets_[i]);
     return this->localList(i);
 }
 
 
 template<class T>
 inline Foam::SubList<T>
-Foam::CompactListList<T>::operator[](const label i)
+Foam::CompactListList<T>::operator[](label i)
 {
-    // return SubList<T>(values_, (offsets_[i+1] - offsets_[i]), offsets_[i]);
     return this->localList(i);
 }
 
 
 template<class T>
-inline T& Foam::CompactListList<T>::operator()
-(
-    const label i,
-    const label j
-)
+inline T& Foam::CompactListList<T>::operator()(label i, label j)
 {
     return values_[toGlobal(i, j)];
 }
 
 
 template<class T>
-inline const T& Foam::CompactListList<T>::operator()
-(
-    const label i,
-    const label j
-) const
+inline const T& Foam::CompactListList<T>::operator()(label i, label j) const
 {
     return values_[toGlobal(i, j)];
 }

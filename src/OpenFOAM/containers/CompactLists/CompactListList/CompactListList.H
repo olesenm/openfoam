@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -49,7 +50,9 @@ SourceFiles
 #ifndef Foam_CompactListList_H
 #define Foam_CompactListList_H
 
+#include "CSRAddressing.H"
 #include "List.H"
+#include "SubList.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -77,22 +80,14 @@ class CompactListList
 {
     // Private Data
 
-        //- Offset (addressing) table
-        labelList offsets_;
+        //- The CSR addressing (offset table)
+        CSRAddressing<label> addr_;
 
         //- Packed (matrix) of values
         List<T> values_;
 
 
     // Private Member Functions
-
-        //- Report overflow at specified (non-negative) index
-        static void reportOverflowAndExit
-        (
-            const label idx,
-            const label prevOffset = -1,  // The last valid offset value
-            const label count = 0         // The count to add to prevOffset
-        );
 
         //- Construct by packing together the list of lists
         template<class ListListType>
@@ -104,18 +99,6 @@ class CompactListList
 
         //- Avoid poorly sized offsets/values
         inline void enforceSizeSanity();
-
-        //- The max of localSizes, excluding the specified row
-        label maxNonLocalSize(const label rowi) const;
-
-        //- Change the offset table based on the sizes
-        //- and return the total number of values to be stored but
-        //- does not touch the values array (unless the list is empty)
-        label resize_offsets
-        (
-            const labelUList& listSizes,
-            const bool checkOverflow = false
-        );
 
 public:
 
@@ -138,6 +121,9 @@ public:
 
         //- The type to represent the size of a CompactListList
         typedef label size_type;
+
+        //- The addressing type (non-stl definition) is CSR addressing
+        typedef CSRAddressing<label> addressing_type;
 
 
     // Static Member Functions
@@ -228,11 +214,17 @@ public:
         //- end (back) offset and also the sum of all localSizes.
         inline label totalSize() const noexcept;
 
-        //- Return the offset table (= size()+1)
-        const labelList& offsets() const noexcept { return offsets_; }
+        //- Return the CSR addressing
+        const addressing_type& addressing() const noexcept { return addr_; }
 
-        //- Return non-const access to the offset table
-        labelList& offsets() noexcept { return offsets_; }
+        //- Return non-const access to the CSR addressing
+        addressing_type& addressing() noexcept { return addr_; }
+
+        //- Return the CSR offsets table
+        const labelList& offsets() const noexcept { return addr_.offsets(); }
+
+        //- Return non-const access to the CSR offsets table
+        labelList& offsets() noexcept { return addr_.offsets(); }
 
         //- Return the packed values
         const List<T>& values() const noexcept { return values_; }
@@ -279,22 +271,23 @@ public:
         labelList localSizes() const;
 
         //- Starting offset for given row
-        inline label localStart(const label i) const;
+        inline label localStart(label i) const;
 
         //- End offset (exclusive) for given row
-        inline label localEnd(const label i) const;
+        inline label localEnd(label i) const;
 
         //- Size of given row
-        inline label localSize(const label i) const;
+        inline label localSize(label i) const;
 
         //- Return start/size ranges for all sub-lists
         List<labelRange> ranges() const;
 
-        //- Return start/size range for given sub-list
-        labelRange range(const label i) const;
+        //- Return start/size range for given sub-list, or an empty
+        //- range when out-of-bounds.
+        inline labelRange range(label i) const noexcept;
 
         //- The max row length used
-        inline label maxSize() const;
+        inline label maxSize() const noexcept;
 
 
     // Edit
@@ -323,7 +316,7 @@ public:
         void resize_nocopy(const labelUList& listSizes);
 
         //- Alter local addressing size for given row, does not change content
-        void setLocalSize(const label rowi, const label len);
+        void setLocalSize(label row, label len);
 
 
         //- Swap contents
@@ -335,20 +328,19 @@ public:
 
     // Global addressing queries
 
-        //- From local index on rowi to global (flat) indexing
-        //- into packed values
-        inline label toGlobal(const label rowi, const label i) const;
+        //- From row-local index to the global index (linear addressing)
+        inline label toGlobal(label row, label i) const;
 
-        //- From global to local index on rowi
-        inline label toLocal(const label rowi, const label i) const;
+        //- From global (linear addressing) to local index on \p row
+        inline label toLocal(label row, label i) const;
 
-        //- Find row where global index comes from. Binary search.
-        //  \return -1 if out-of-bounds
-        inline label findRow(const label i) const;
+        //- Find the row corresponding to the addressing for \p i.
+        //  \return the row number or -1 (not found)
+        inline label findRow(label i) const;
 
-        //- Which row does global index come from? Binary search.
+        //- Which row does global index come from?
         //  FatalError if out-of-bounds
-        inline label whichRow(const label i) const;
+        inline label whichRow(label i) const;
 
 
     // Pack / Unpack
@@ -427,25 +419,25 @@ public:
     // Row-based access
 
         //- Return const access to sub-list (no subscript checking)
-        inline const SubList<T> localList(const label i) const;
+        inline const SubList<T> localList(label i) const;
 
         //- Return non-const access to sub-list (no subscript checking)
-        inline SubList<T> localList(const label i);
+        inline SubList<T> localList(label i);
 
         //- Return const access to sub-list (no subscript checking)
-        inline const SubList<T> operator[](const label i) const;
+        inline const SubList<T> operator[](label i) const;
 
         //- Return non-const access to sub-list (no subscript checking)
-        inline SubList<T> operator[](const label i);
+        inline SubList<T> operator[](label i);
 
 
     // Element access
 
         //- Return subscript-checked element.
-        inline T& operator()(const label i, const label j);
+        inline T& operator()(label i, label j);
 
         //- Return const subscript-checked element.
-        inline const T& operator()(const label i, const label j) const;
+        inline const T& operator()(label i, label j) const;
 
 
     // Iteration (FUTURE)
