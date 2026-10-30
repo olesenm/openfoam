@@ -62,9 +62,9 @@ SourceFiles
 #define Foam_globalIndex_H
 
 #include "Pstream.H"
+#include "CSRAddressing.H"
 #include "CompactListList.H"
 #include "DynamicList.H"
-#include <limits>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -72,10 +72,7 @@ namespace Foam
 {
 
 // Forward Declarations
-class globalIndex;
-
-Istream& operator>>(Istream& is, globalIndex& gi);
-Ostream& operator<<(Ostream& os, const globalIndex& gi);
+template<class IntType> class GlobalIndex;
 
 /*---------------------------------------------------------------------------*\
                        Class globalIndexBase Declaration
@@ -152,6 +149,621 @@ public:
         {
             return UPstream::commsTypes::nonBlocking;
         }
+
+
+    // Helper Functions
+
+        //- Based on the local input size(s),
+        //- calculate a globally-consistent local start offset.
+        //  No overflow checks.
+        //  \note Restricted to integral types.
+        template<class IntType>
+        static IntType calcOffset
+        (
+            IntType localSize,
+            int communicator = UPstream::worldComm  //!< communicator
+        )
+        {
+            return UPstream::find_offset(localSize, communicator);
+        }
+
+        //- Based on the local input size(s),
+        //- calculate a globally-consistent local start offset.
+        //  With optional overflow checking.
+        //  \note Restricted to integral types.
+        template<class IntType>
+        static IntType calcOffset
+        (
+            IntType localSize,
+            int communicator,  //!< communicator
+            [[maybe_unused]] bool checkOverflow
+        )
+        {
+            IntType start = UPstream::find_offset(localSize, communicator);
+
+            // Assume no overflow for large integrals
+            if constexpr (sizeof(IntType) < sizeof(int64_t))
+            {
+                if
+                (
+                    checkOverflow && UPstream::is_parallel(communicator)
+                 && globalIndexBase::isOverflow(start, localSize)
+                )
+                {
+                    reportOverflowAndExit
+                    (
+                        UPstream::myProcNo(communicator), start, localSize
+                    );
+                }
+            }
+            return start;
+        }
+
+        //- Based on the local input size(s),
+        //- calculate a globally-consistent range (offset/size).
+        //  No overflow checks.
+        //  \note Restricted to integral types.
+        template<class IntType>
+        std::enable_if_t<std::is_integral_v<IntType>, IntRange<IntType>>
+        static calcRange
+        (
+            IntType localSize,
+            int communicator = UPstream::worldComm  //!< communicator
+        )
+        {
+            IntType start = UPstream::find_offset(localSize, communicator);
+            return IntRange<IntType>(start, localSize);
+        }
+
+        //- Based on the local input size(s),
+        //- calculate a globally-consistent range (offset/size).
+        //- With optional overflow checking.
+        //  \note Restricted to integral types.
+        template<class IntType>
+        std::enable_if_t<std::is_integral_v<IntType>, IntRange<IntType>>
+        static calcRange
+        (
+            IntType localSize,
+            int communicator,  //!< communicator
+            bool checkOverflow
+        )
+        {
+            IntType start =
+                globalIndexBase::calcOffset
+                (
+                    localSize,
+                    communicator,
+                    checkOverflow
+                );
+
+            return IntRange<IntType>(start, localSize);
+        }
+
+        //- Get the receive sizes.
+        //- On master the length == nProcs and element [0] corresponds
+        //- to the max of all other receive sizes.
+        //- On non-master, the list is zero-sized.
+        //  \note Restricted to integral types.
+        template<class IntType>
+        static List<IntType> calcRecvSizes
+        (
+            IntType localSize,
+            int communicator = UPstream::worldComm  //!< communicator
+        );
+
+        //- Calculate offsets from a list of local sizes,
+        //- with optional check for int32 (label) overflow
+        //  The OffsetType defaults to the input IntType (when void),
+        //  e.g. calcOffsets<int64_t>(const UList<int32_t>&)
+        template<class OffsetType = void, class IntType>
+        static List
+        <
+            std::conditional_t
+            <std::is_void_v<OffsetType>, IntType, OffsetType>
+        >
+        calcOffsets
+        (
+            const UList<IntType>& counts,
+            bool checkOverflow = false
+        );
+
+        //- Calculate offsets from an indirect list of local sizes,
+        //- with optional check for int32 (label) overflow.
+        //  The OffsetType defaults to the input IntType (when void)
+        template<class OffsetType = void, class IntType, class Addr>
+        static List
+        <
+            std::conditional_t
+            <std::is_void_v<OffsetType>, IntType, OffsetType>
+        >
+        calcOffsets
+        (
+            const IndirectListBase<IntType, Addr>& counts,
+            bool checkOverflow = false
+        );
+
+        //- Calculate offsets from list of lists,
+        //- with optional check for int32 (label) overflow.
+        //  The OffsetType defaults to the input IntType (when void)
+        template<class OffsetType = void, class SubListType>
+        static List
+        <
+            std::conditional_t
+            <std::is_void_v<OffsetType>, Foam::label, OffsetType>
+        >
+        calcListOffsets
+        (
+            const UList<SubListType>& lists,
+            bool checkOverflow = false
+        );
+};
+
+
+/*---------------------------------------------------------------------------*\
+                         Class GlobalIndex Declaration
+\*---------------------------------------------------------------------------*/
+
+template<class IntType>
+class GlobalIndex
+:
+    public globalIndexBase,
+    public CSRAddressing<IntType>
+{
+    // Private Data Types
+
+        //- The template instance for the addressing
+        typedef CSRAddressing<IntType> addr_type;
+
+
+    // Private Member Functions
+
+        //- Reset offsets for a non-parallel communicator:
+        //- localSize for the current rank, zero elsewhere.
+        //- Empty if the communicator has no ranks.
+        void reset_nonParallel(label localSize, int communicator);
+
+
+protected:
+
+    // Protected Member Functions
+
+        // Multiple inheritance...
+        using globalIndexBase::reportOverflowAndExit;
+
+        // Multiple inheritance...
+        using globalIndexBase::isOverflow;
+
+
+public:
+
+    //- Require integral type.
+    //  This should normally be at least as large as <label>, but
+    //  \c static_assert(sizeof(IntType) >= sizeof(Foam::label), ...)
+    //  would prevent generalized templating.
+    static_assert(std::is_integral_v<IntType>, "Integral required");
+
+    // STL type definitions
+
+        //- Type of values contained
+        typedef IntType value_type;
+
+        //- The type that can represent the size
+        typedef IntType size_type;
+
+
+    // Generated Methods
+
+        //- Default construct (empty)
+        GlobalIndex() noexcept = default;
+
+        //- Copy construct
+        GlobalIndex(const GlobalIndex&) = default;
+
+        //- Move construct
+        GlobalIndex(GlobalIndex&&) = default;
+
+        //- Copy assignment
+        GlobalIndex& operator=(const GlobalIndex&) = default;
+
+        //- Move assignment
+        GlobalIndex& operator=(GlobalIndex&&) = default;
+
+
+    // Constructors
+
+        //- Copy construct from a list of offsets.
+        //- No communication required
+        inline explicit GlobalIndex(const UList<IntType>& listOffsets);
+
+        //- Move construct from a list of offsets.
+        //- No communication required
+        inline explicit GlobalIndex(List<IntType>&& listOffsets);
+
+        //- Construct from a list of sizes and calculate the offsets.
+        //- No communication required
+        inline GlobalIndex
+        (
+            globalIndexBase::gatherNone,
+            const labelUList& localSizes
+        );
+
+        //- Construct from local size, using gather/broadcast
+        //- with default/specified communicator if parallel.
+        inline explicit GlobalIndex
+        (
+            label localSize,
+            int communicator = UPstream::worldComm,
+            bool parallel = UPstream::parRun()  //!< use parallel comms
+        );
+
+        //- Construct with a single (local size) entry, no communication
+        inline GlobalIndex
+        (
+            globalIndexBase::gatherNone,
+            label localSize,
+            int communicator = -1   //!< (unused) no communicator needed
+        );
+
+        //- Construct 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks no content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline GlobalIndex
+        (
+            globalIndexBase::gatherOnly,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Construct an augmented 'one-sided' from local sizes
+        //- and distribute the total-size to each rank.
+        //- The master will have all content, sub-ranks will have
+        //- \em single-value content (offsets containing only the total size).
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline GlobalIndex
+        (
+            globalIndexBase::gatherTotal,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Construct an augmented 'one-sided' from local sizes
+        //- and distribute the start/total to each rank.
+        //- The master will have all content, sub-ranks will have
+        //- \em "localized" offsets of either three values (beg, end, total)
+        //- or two values (begin, end) if there is no trailing content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        inline GlobalIndex
+        (
+            globalIndexBase::gatherOffset,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Construct from Istream.
+        //- No communication required
+        explicit GlobalIndex(Istream& is) : addr_type(is) {}
+
+
+    // Member Functions
+
+        //- Check for default constructed or total-size == 0
+        bool empty() const noexcept { return addr_type::empty(); }
+
+        //- The number of items covered by the offsets
+        label length() const noexcept { return addr_type::length(); }
+
+        //- Global sum of localSizes. Same as totalSize()
+        FOAM_DEPRECATED_STRICT(2022-10, "totalSize() - unambiguous")
+        IntType size() const noexcept { return addr_type::totalSize(); }
+
+        //- The total addressed size, which corresponds to the
+        //- end offset and also the sum of all localSizes.
+        IntType totalSize() const noexcept { return addr_type::totalSize(); }
+
+        //- The local sizes. Same as localSizes()
+        labelList sizes() const { return addr_type::sizes(); }
+
+        //- The local starts
+        const UList<IntType> localStarts() const
+        {
+            return addr_type::localStarts();
+        }
+
+        //- The local sizes
+        labelList localSizes() const { return addr_type::localSizes(); }
+
+        //- Global max of localSizes
+        IntType maxSize() const noexcept { return addr_type::maxSize(); }
+
+
+    // Access
+
+        //- Direct access to the offsets
+        using addr_type::offsets;
+
+
+    // Dimensions
+
+        //- True if local-only content (ie, nProcs == 1).
+        //- Such content is often created with gatherNone.
+        bool single() const noexcept { return addr_type::single(); }
+
+        //- The value corresponding to the first offset
+        IntType begin_value() const noexcept
+        {
+            return addr_type::begin_value();
+        }
+
+        //- The value corresponding to the last offset (end offset),
+        //- which is 1 beyond the end of the range.
+        IntType end_value() const noexcept
+        {
+            return addr_type::end_value();
+        }
+
+
+    // Edit
+
+        //- Reset to be empty (no offsets)
+        void clear() { addr_type::clear(); }
+
+        //- Set offsets as a single entry content (eg, local-only content)
+        //- with a beginning offset of 0.
+        void single(IntType len) { addr_type::single(len); }
+
+        //- Set offsets for a single entry with specified beginning offset,
+        //- optionally with a total size (for trailing information).
+        void single(IntType beg, IntType len, IntType total = 0)
+        {
+            addr_type::single(beg, len, total);
+        }
+
+        //- Set special purpose \em sentinel for total-size only.
+        //- The offsets are \em "degenerate" since there will only be one
+        //- offset instead of at least two or more offsets.
+        //- However, the totalSize() method is still valid.
+        void sentinel(IntType total) { addr_type::sentinel(total); }
+
+        //- Change the number of entries (nProcs) in the offsets table.
+        //- Extending will fill with empty local sizes.
+        void resize(label n) { addr_type::resize(n); }
+
+        //- Alter local size for given processor
+        void setLocalSize(label proci, IntType len)
+        {
+            addr_type::setLocalSize(proci, len);
+        }
+
+        //- Reset offsets from a list of local sizes,
+        //- with optional check for overflow.
+        //- No communication required
+        void reset(const labelUList& counts, bool checkOverflow = false)
+        {
+            addr_type::reset(counts, checkOverflow);
+        }
+
+        //- Reset from local size, using gather/broadcast
+        //- with default/specified communicator if parallel.
+        void reset
+        (
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset to a single (local size) entry, no communication
+        inline void reset
+        (
+            globalIndexBase::gatherNone,
+            label localSize,
+            int communicator = -1   //!< (unused) no communicator needed
+        );
+
+        //- Reset as 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks no content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        void reset
+        (
+            globalIndexBase::gatherOnly,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset as augmented 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks will have
+        //- \em single-value content (offsets containing only the total size).
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        void reset
+        (
+            globalIndexBase::gatherTotal,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset as augmented 'one-sided' from local sizes.
+        //- The master will have all content, sub-ranks will have
+        //- \em "localized" offsets of either three values (beg, end, total)
+        //- or two values (begin, end) if there is no trailing content.
+        //
+        //  \note can be used when UPstream::parRun() is false.
+        void reset
+        (
+            globalIndexBase::gatherOffset,
+            label localSize,
+            int communicator = UPstream::worldComm,  //!< communicator
+            bool parallel = UPstream::parRun()       //!< use parallel comms
+        );
+
+        //- Reset the globalIndex. Same as copy assignment.
+        void reset(const GlobalIndex& rhs) { addr_type::operator=(rhs); }
+
+
+    // General searching etc
+
+        //- True if contained within the offsets range
+        bool contains(IntType i) const noexcept
+        {
+            return addr_type::contains(i);
+        }
+
+        //- The max of localSizes, excluding the specified processor
+        IntType maxNonLocalSize(label proci) const noexcept
+        {
+            return addr_type::maxNonLocalSize(proci);
+        }
+
+        //- Is on processor proci
+        bool isLocal(label proci, IntType i) const
+        {
+            return addr_type::contains(proci, i);
+        }
+
+        //- Find processor with specified global id.
+        //- Check proci first, followed by binary search.
+        //  \return the processor number or -1 (not found)
+        label findProc(label proci, IntType i) const
+        {
+            return addr_type::findRow(proci, i);
+        }
+
+        //- Find processor above proci with specified global id - binary search.
+        //  \return the processor above proci or -1 otherwise
+        //  (including for out-of-range indices)
+        label findProcAbove(label proci, IntType i) const
+        {
+            return addr_type::findRowAbove(proci, i);
+        }
+
+        //- Find processor below proci with specified global id - binary search.
+        //  Binary search.
+        //  \return the processor below proci or -1 otherwise
+        //  (including for out-of-range indices)
+        label findProcBelow(label proci, IntType i) const
+        {
+            return addr_type::findRowBelow(proci, i);
+        }
+
+        //- Which processor does global id come from?
+        //- Checks proci first (assumed to occur reasonably frequently)
+        //- followed by a binary search.
+        //- Fatal for out-of-range indices
+        inline label whichProcID(label proci, IntType i) const;
+
+
+    // Searching etc related to myProcNo
+    // (Caution: uses UPstream::worldComm)
+
+        //- The max of localSizes, excluding current (myProcNo) rank
+        IntType maxNonLocalSize() const
+        {
+            return maxNonLocalSize(myProcNumber());
+        }
+
+        //- Is on local processor
+        bool isLocal(IntType i) const
+        {
+            return addr_type::contains(myProcNumber(), i);
+        }
+
+        //- Find processor with specified global id.
+        //- Check myProcNo first, followed by binary search.
+        //  \return the processor number or -1 (not found)
+        label findProc(IntType i) const
+        {
+            return addr_type::findRow(myProcNumber(), i);
+        }
+
+        //- Which processor does global id come from?
+        //- Checks myProcNo first, followed by a binary search.
+        //- Fatal for out-of-range indices
+        label whichProcID(IntType i) const
+        {
+            return whichProcID(myProcNumber(), i);
+        }
+
+
+    // Offsets, sizing
+
+        //- Start of proci data
+        IntType localStart(label proci) const
+        {
+            return addr_type::localStart(proci);
+        }
+
+        //- Local start on myProcNo()
+        IntType localStart() const { return localStart(myProcNumber()); }
+
+        //- End of proci data
+        IntType localEnd(label proci) const
+        {
+            return addr_type::localEnd(proci);
+        }
+
+        //- Local end on myProcNo()
+        IntType localEnd() const { return localEnd(myProcNumber()); }
+
+        //- Size of proci data
+        IntType localSize(label proci) const
+        {
+            return addr_type::localSize(proci);
+        }
+
+        //- Local size on myProcNo()
+        IntType localSize() const { return localSize(myProcNumber()); }
+
+        //- Return start/size range of proci data
+        IntRange<IntType> range(label proci) const noexcept
+        {
+            return addr_type::range(proci);
+        }
+
+        //- Return start/size range of local (myProcNo) data
+        IntRange<IntType> range() const { return range(myProcNumber()); }
+
+        //- Return start/size/total slab addressing for proci data
+        inline OffsetRange<IntType> slice(label proci) const noexcept;
+
+        //- Return start/size/total slab addressing for local (myProcNo) data
+        OffsetRange<IntType> slice() const { return slice(myProcNumber()); }
+
+
+    // Value transformations
+
+        //- From local to global on proci
+        IntType toGlobal(label proci, IntType i) const
+        {
+            return addr_type::toGlobal(proci, i);
+        }
+
+        //- From local to global index on myProcNo
+        IntType toGlobal(IntType i) const
+        {
+            return addr_type::toGlobal(myProcNumber(), i);
+        }
+
+        //- From global to local on proci
+        //  FatalError if not on given processor.
+        IntType toLocal(label proci, IntType i) const
+        {
+            return addr_type::toLocal(proci, i);
+        }
+
+        //- From global to local on current processor.
+        //  FatalError if not on local processor.
+        IntType toLocal(IntType i) const
+        {
+            return addr_type::toLocal(myProcNumber(), i);
+        }
 };
 
 
@@ -161,14 +773,8 @@ public:
 
 class globalIndex
 :
-    public globalIndexBase
+    public GlobalIndex<label>
 {
-    // Private Data
-
-        //- Offset (addressing) table - like CompactListList
-        labelList offsets_;
-
-
     // Private Member Functions
 
         //- Sort and bin. validBins contains bins with non-zero size.
@@ -180,18 +786,6 @@ class globalIndex
             labelList& order,
             DynamicList<label>& validBins
         );
-
-        //- Reset offsets for a non-parallel communicator:
-        //- localSize for the current rank, zero elsewhere.
-        //- Empty if the communicator has no ranks.
-        void reset_nonParallel(label localSize, int communicator);
-
-        //- Return start/size range addressing for proci data
-        inline labelRange range_impl(label proci) const noexcept;
-
-        //- Return start/size/total slab addressing for proci data
-        inline OffsetRange<label> slice_impl(label proci) const noexcept;
-
 
 public:
 
@@ -214,143 +808,39 @@ public:
         }
 
 
-    // Constructors
+    // Generated Methods
 
         //- Default construct (empty)
         globalIndex() noexcept = default;
 
-        //- Copy construct from a list of offsets.
-        //- No communication required
-        inline explicit globalIndex(const labelUList& listOffsets);
 
-        //- Move construct from a list of offsets.
-        //- No communication required
-        inline explicit globalIndex(labelList&& listOffsets);
+    // Constructors
 
-        //- Construct from a list of sizes and calculate the offsets.
-        //- No communication required
-        inline globalIndex
-        (
-            globalIndex::gatherNone,
-            const labelUList& localSizes
-        );
-
-        //- Construct from local size, using gather/broadcast
-        //- with default/specified communicator if parallel.
-        inline explicit globalIndex
-        (
-            label localSize,
-            int communicator = UPstream::worldComm,
-            bool parallel = UPstream::parRun()  //!< use parallel comms
-        );
-
-        //- Construct with a single (local size) entry, no communication
-        inline globalIndex
-        (
-            globalIndex::gatherNone,
-            label localSize,
-            int communicator = -1   //!< (unused) no communicator needed
-        );
-
-        //- Construct 'one-sided' from local sizes.
-        //- The master will have all content, sub-ranks no content.
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        inline globalIndex
-        (
-            globalIndex::gatherOnly,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Construct an augmented 'one-sided' from local sizes
-        //- and distribute the total-size to each rank.
-        //- The master will have all content, sub-ranks will have
-        //- \em single-value content (offsets containing only the total size).
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        inline globalIndex
-        (
-            globalIndex::gatherTotal,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Construct an augmented 'one-sided' from local sizes
-        //- and distribute the start/total to each rank.
-        //- The master will have all content, sub-ranks will have
-        //- \em "localized" offsets of either three values (beg, end, total)
-        //- or two values (begin, end) if there is no trailing content.
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        inline globalIndex
-        (
-            globalIndex::gatherOffset,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
+        // Inherit all constructors
+        using GlobalIndex<label>::GlobalIndex;
 
         //- Construct from Istream.
         //- No communication required
-        explicit globalIndex(Istream& is);
+        explicit globalIndex(Istream& is) : GlobalIndex<label>(is) {}
 
 
     // Member Functions
 
-        //- Check for default constructed or total-size == 0
-        inline bool empty() const noexcept;
-
-        //- The number of items covered by the offsets
-        inline label length() const noexcept;
-
-        //- Global sum of localSizes. Same as totalSize()
-        FOAM_DEPRECATED_STRICT(2022-10, "totalSize() - unambiguous")
-        label size() const noexcept { return totalSize(); }
-
         //- The span size covered by the offsets, zero if empty
-        inline label span() const noexcept;
-
-        //- The total addressed size, which corresponds to the
-        //- end offset and also the sum of all localSizes.
-        inline label totalSize() const noexcept;
-
-        //- The local sizes. Same as localSizes()
-        inline labelList sizes() const;
-
-        //- The local starts
-        inline const labelUList localStarts() const;
-
-        //- The local sizes
-        labelList localSizes() const;
+        label span() const noexcept
+        {
+            return (end_value() - begin_value());
+        }
 
         //- Return start/size ranges for all data
         List<labelRange> ranges() const;
 
-        //- Global max of localSizes
-        inline label maxSize() const;
-
-
-    // Access
-
-        //- Const-access to the offsets
-        const labelList& offsets() const noexcept { return offsets_; }
-
-        //- Write-access to the offsets, for changing after construction
-        labelList& offsets() noexcept { return offsets_; }
-
 
     // Dimensions
 
-        //- True if local-only content (ie, nProcs == 1).
-        //- Such content is often created with gatherNone.
-        inline bool single() const noexcept;
-
         //- The number of processors covered by the offsets,
         //- same as the primary length()
-        inline label nProcs() const noexcept;
+        label nProcs() const noexcept { return length(); }
 
         //- Range of process indices for all addressed offsets (processes)
         inline labelRange allProcs() const noexcept;
@@ -358,224 +848,68 @@ public:
         //- Range of process indices for addressed sub-offsets (processes)
         inline labelRange subProcs() const noexcept;
 
-        //- The value corresponding to the first offset
-        inline label begin_value() const noexcept;
-
-        //- The value corresponding to the last offset (end offset),
-        //- which is 1 beyond the end of the range.
-        inline label end_value() const noexcept;
-
         //- The first offset range. It is (0,0) if globalIndex is empty
-        labelRange front() const;
+        labelRange front() const noexcept;
 
         //- The last offset range. It is (0,0) if globalIndex is empty
-        labelRange back() const;
+        labelRange back() const noexcept;
 
 
     // Edit
 
-        //- Reset to be empty (no offsets)
-        inline void clear();
-
-        //- Set offsets as a single entry content (eg, local-only content)
-        //- with a beginning offset of 0.
-        inline void single(label len);
-
-        //- Set offsets for a single entry with specified beginning offset,
-        //- optionally with a total size (for trailing information).
-        inline void single(label beg, label len, label total = 0);
-
-        //- Set special purpose \em sentinel for total-size only.
-        //- The offsets are \em "degenerate" since there will only be one
-        //- offset instead of at least two or more offsets.
-        //- However, the totalSize() method is still valid.
-        inline void sentinel(label total);
-
-        //- Change the number of entries (nProcs) in the offsets table.
-        //- Extending will fill with empty local sizes.
-        void resize(label n);
-
-        //- Reset from local size, using gather/broadcast
-        //- with default/specified communicator if parallel.
-        void reset
-        (
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Reset offsets from a list of local sizes,
-        //- with optional check for label overflow.
-        //- No communication required
-        void reset
-        (
-            const labelUList& counts,
-            const bool checkOverflow = false
-        );
-
-        //- Reset to a single (local size) entry, no communication
-        inline void reset
-        (
-            globalIndex::gatherNone,
-            label localSize,
-            int communicator = -1   //!< (unused) no communicator needed
-        );
-
-        //- Reset as 'one-sided' from local sizes.
-        //- The master will have all content, sub-ranks no content.
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        inline void reset
-        (
-            globalIndex::gatherOnly,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Reset as augmented 'one-sided' from local sizes.
-        //- The master will have all content, sub-ranks will have
-        //- \em single-value content (offsets containing only the total size).
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        inline void reset
-        (
-            globalIndex::gatherTotal,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Reset as augmented 'one-sided' from local sizes.
-        //- The master will have all content, sub-ranks will have
-        //- \em "localized" offsets of either three values (beg, end, total)
-        //- or two values (begin, end) if there is no trailing content.
-        //
-        //  \note can be used when UPstream::parRun() is false.
-        void reset
-        (
-            globalIndex::gatherOffset,
-            label localSize,
-            int communicator = UPstream::worldComm,  //!< communicator
-            bool parallel = UPstream::parRun()       //!< use parallel comms
-        );
-
-        //- Reset the globalIndex. Same as copy assignment.
-        inline void reset(const globalIndex& gi);
-
-        //- Alter local size for given processor
-        void setLocalSize(const label proci, const label len);
+        // Reset offsets
+        using GlobalIndex<label>::reset;
 
 
     // Queries and renumbering
 
-        //- True if contained within the offsets range
-        inline bool contains(const label i) const noexcept;
-
-        //- Start of proci data
-        inline label localStart(const label proci) const;
-
-        //- End of proci data
-        inline label localEnd(const label proci) const;
-
-        //- Size of proci data
-        inline label localSize(const label proci) const;
-
-        //- The max of localSizes, excluding the specified processor
-        label maxNonLocalSize(const label proci) const;
+        // Note: range() traditionally returns labelRange instead of
+        // IntRange<label>, but slice is newer and is just
+        // GlobalOffset<label>
 
         //- Return start/size range of proci data
-        inline labelRange range(label proci) const noexcept;
+        labelRange range(label proci) const noexcept
+        {
+            return GlobalIndex<label>::range(proci);
+        }
 
-        //- Return start/size/total slab addressing for proci data
-        inline OffsetRange<label> slice(label proci) const noexcept;
+        //- Return start/size range of local (myProcNo) data
+        labelRange range() const
+        {
+            return GlobalIndex<label>::range(myProcNumber());
+        }
 
-        //- Is on processor proci
-        inline bool isLocal(const label proci, const label i) const;
 
-        //- From local to global on proci
-        inline label toGlobal(const label proci, const label i) const;
+    // Value transformations
+
+        //- From local to global on proci, or myProcNo
+        using GlobalIndex<label>::toGlobal;
 
         //- From local to global on proci
         inline labelList toGlobal
         (
-            const label proci,
+            label proci,
             const labelUList& labels
         ) const;
+
+        //- From local to global index on myProcNo
+        labelList toGlobal(const labelUList& labels) const
+        {
+            return toGlobal(myProcNumber(), labels);
+        }
 
         //- From local to global index on proci (inplace)
         inline void inplaceToGlobal
         (
-            const label proci,
+            label proci,
             labelUList& labels
         ) const;
 
-
-        //- From global to local on proci
-        inline label toLocal(const label proci, const label i) const;
-
-        //- Find processor with specified global id.
-        //- Check proci first, followed by binary search.
-        //  \return the processor number or -1 (not found)
-        inline label findProc(const label proci, const label i) const;
-
-        //- Find processor above proci with specified global id - binary search.
-        //  \return the processor above proci or -1 otherwise
-        //  (including for out-of-range indices)
-        inline label findProcAbove(const label proci, const label i) const;
-
-        //- Find processor below proci with specified global id - binary search.
-        //  Binary search.
-        //  \return the processor below proci or -1 otherwise
-        //  (including for out-of-range indices)
-        inline label findProcBelow(const label proci, const label i) const;
-
-        //- Which processor does global id come from?
-        //- Checks proci first (assumed to occur reasonably frequently)
-        //- followed by a binary search.
-        //- Fatal for out-of-range indices
-        inline label whichProcID(const label proci, const label i) const;
-
-
-    // Queries relating to myProcNo (Caution: uses UPstream::worldComm)
-
-        //- Local start on myProcNo()
-        inline label localStart() const;
-
-        //- Local end on myProcNo()
-        inline label localEnd() const;
-
-        //- Local size on myProcNo()
-        inline label localSize() const;
-
-        //- The max of localSizes, excluding current (myProcNo) rank
-        inline label maxNonLocalSize() const;
-
-        //- Return start/size range of local (myProcNo) data
-        inline labelRange range() const;
-
-        //- Return start/size/total slab addressing for local (myProcNo) data
-        inline OffsetRange<label> slice() const;
-
-        //- Is on local processor
-        inline bool isLocal(const label i) const;
-
-        //- From local to global index
-        inline label toGlobal(const label i) const;
-
-        //- From local to global index
-        inline labelList toGlobal(const labelUList& labels) const;
-
-        //- From local to global index (inplace)
-        inline void inplaceToGlobal(labelUList& labels) const;
-
-        //- From global to local on current processor.
-        //  FatalError if not on local processor.
-        inline label toLocal(const label i) const;
-
-        //- Which processor does global id come from?
-        //  Uses myProcNo for the initial local check.
-        inline label whichProcID(const label i) const;
+        //- From local to global index on myProcNo (inplace)
+        void inplaceToGlobal(labelUList& labels) const
+        {
+            inplaceToGlobal(myProcNumber(), labels);
+        }
 
 
     // Iteration
@@ -659,126 +993,12 @@ public:
 
     // Helper Functions
 
-        //- Based on the local input size(s),
-        //- calculate a globally-consistent local start offset.
-        //  No overflow checks.
-        //  \note Restricted to integral types.
-        template<class IntType>
-        static IntType calcOffset
-        (
-            IntType localSize,
-            int communicator = UPstream::worldComm  //!< communicator
-        )
-        {
-            return UPstream::find_offset(localSize, communicator);
-        }
-
-        //- Based on the local input size(s),
-        //- calculate a globally-consistent local start offset.
-        //  With optional overflow checking.
-        //  \note Restricted to integral types.
-        template<class IntType>
-        static IntType calcOffset
-        (
-            IntType localSize,
-            int communicator,  //!< communicator
-            [[maybe_unused]] const bool checkOverflow
-        )
-        {
-            IntType start = UPstream::find_offset(localSize, communicator);
-
-            // Assume no overflow for large integrals
-            if constexpr (sizeof(IntType) < sizeof(int64_t))
-            {
-                if (checkOverflow && UPstream::is_parallel(communicator))
-                {
-                    checkOverflowAndExit
-                    (
-                        UPstream::myProcNo(communicator), start, localSize
-                    );
-                }
-            }
-            return start;
-        }
-
-        //- Based on the local input size(s),
-        //- calculate a globally-consistent range (offset/size).
-        //  No overflow checks.
-        //  \note Restricted to integral types.
-        template<class IntType>
-        std::enable_if_t<std::is_integral_v<IntType>, IntRange<IntType>>
-        static calcRange
-        (
-            IntType localSize,
-            int communicator = UPstream::worldComm  //!< communicator
-        )
-        {
-            IntType start = UPstream::find_offset(localSize, communicator);
-            return IntRange<IntType>(start, localSize);
-        }
-
-        //- Based on the local input size(s),
-        //- calculate a globally-consistent range (offset/size).
-        //- With optional overflow checking.
-        //  \note Restricted to integral types.
-        template<class IntType>
-        std::enable_if_t<std::is_integral_v<IntType>, IntRange<IntType>>
-        static calcRange
-        (
-            IntType localSize,
-            int communicator,  //!< communicator
-            const bool checkOverflow
-        )
-        {
-            IntType start =
-                globalIndex::calcOffset(localSize, communicator, checkOverflow);
-            return IntRange<IntType>(start, localSize);
-        }
-
-        //- Get the receive sizes.
-        //- On master the length == nProcs and element [0] corresponds
-        //- to the max of all other receive sizes.
-        //- On non-master, the list is zero-sized.
-        //  \note Restricted to integral types.
-        template<class IntType>
-        static List<IntType> calcRecvSizes
-        (
-            IntType localSize,
-            int communicator = UPstream::worldComm  //!< communicator
-        );
-
-        //- Calculate offsets from a list of local sizes,
-        //- with optional check for label overflow
-        static labelList calcOffsets
-        (
-            const labelUList& counts,
-            const bool checkOverflow = false
-        );
-
-        //- Calculate offsets from an indirect list of local sizes,
-        //- with optional check for label overflow
-        template<class Addr>
-        static labelList calcOffsets
-        (
-            const IndirectListBase<label, Addr>& counts,
-            const bool checkOverflow = false
-        );
-
-        //- Calculate offsets from list of lists,
-        //- with optional check for label overflow
-        template<class SubListType>
-        static labelList calcListOffsets
-        (
-            const List<SubListType>& lists,
-            const bool checkOverflow = false
-        );
-
         //- Calculate ranges (offset/size) from a list of local sizes,
         //- with optional check for label overflow
         static List<labelRange> calcRanges
         (
             const labelUList& counts,
-            const bool checkOverflow = false
+            bool checkOverflow = false
         );
 
         //- Split the top-level offsets into inter-node and local-node
@@ -1222,33 +1442,6 @@ public:
             const label comm = UPstream::worldComm,  //!< communicator
             const int tag = UPstream::msgType()
         ) const;
-
-
-    // Member Operators
-
-        //- Compare for equality - uses the offsets
-        bool operator==(const globalIndex& rhs) const
-        {
-            return (this->offsets() == rhs.offsets());
-        }
-
-        //- Compare for inequality - uses the offsets
-        bool operator!=(const globalIndex& rhs) const
-        {
-            return !(*this == rhs);
-        }
-
-        //- Compare for less-than - uses the offsets
-        bool operator<(const globalIndex& rhs) const
-        {
-            return (this->offsets() < rhs.offsets());
-        }
-
-
-    // IOstream Operators
-
-        friend Istream& operator>>(Istream& is, globalIndex& gi);
-        friend Ostream& operator<<(Ostream& os, const globalIndex& gi);
 
 
     // Housekeeping

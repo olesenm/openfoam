@@ -27,39 +27,135 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "ListOps.H"
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    const UList<IntType>& listOffsets
+)
+:
+    globalIndexBase(),
+    addr_type(Foam::direct_construct_t{}, listOffsets)
+{}
 
-inline Foam::labelRange
-Foam::globalIndex::range_impl(label proci) const noexcept
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    List<IntType>&& listOffsets
+)
+:
+    globalIndexBase(),
+    addr_type(Foam::direct_construct_t{}, std::move(listOffsets))
+{}
+
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    globalIndexBase::gatherNone,
+    const labelUList& localSizes
+)
+:
+    globalIndexBase(),
+    addr_type()
 {
-    if
-    (
-        const auto len = (offsets_.size() - 1);
-        (len > 0 && proci >= 0 && proci < len)
-    )
-    {
-        const auto* off = offsets_.cdata();
-        return { off[proci], (off[proci+1] - off[proci]) };
-    }
-    else
-    {
-        return {};
-    }
+    reset(localSizes);
 }
 
 
-inline Foam::OffsetRange<Foam::label>
-Foam::globalIndex::slice_impl(label proci) const noexcept
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    label localSize,
+    int communicator,
+    bool parallel
+)
+:
+    globalIndexBase(),
+    addr_type()
+{
+    reset(localSize, communicator, parallel);
+}
+
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    globalIndexBase::gatherNone,
+    label localSize,
+    int communicator  /* unused: (not applicable) */
+)
+:
+    globalIndexBase(),
+    addr_type()
+{
+    addr_type::single(localSize);
+}
+
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    globalIndexBase::gatherOnly,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+:
+    globalIndexBase(),
+    addr_type()
+{
+    reset(globalIndexBase::gatherOnly{}, localSize, communicator, parallel);
+}
+
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    globalIndexBase::gatherOffset,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+:
+    globalIndexBase(),
+    addr_type()
+{
+    reset(globalIndexBase::gatherOffset{}, localSize, communicator, parallel);
+}
+
+
+template<class IntType>
+inline Foam::GlobalIndex<IntType>::GlobalIndex
+(
+    globalIndexBase::gatherTotal,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+:
+    globalIndexBase(),
+    addr_type()
+{
+    reset(globalIndexBase::gatherTotal{}, localSize, communicator, parallel);
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<class IntType>
+inline Foam::OffsetRange<IntType>
+Foam::GlobalIndex<IntType>::slice(label proci) const noexcept
 {
     if
     (
-        const auto len = (offsets_.size() - 1);
+        const auto len = (offsets().size() - 1);
         (len > 0 && proci >= 0 && proci < len)
     )
     {
-        const auto* off = offsets_.cdata();
+        const auto* off = offsets().cdata();
         return { off[proci], (off[proci+1] - off[proci]), off[len] };
     }
     else
@@ -69,217 +165,46 @@ Foam::globalIndex::slice_impl(label proci) const noexcept
 }
 
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-inline Foam::globalIndex::globalIndex
+template<class IntType>
+inline void Foam::GlobalIndex<IntType>::reset
 (
-    const labelUList& listOffsets
-)
-{
-    if (listOffsets.size() > 1)  // Enforce sizing sanity
-    {
-        offsets_ = listOffsets;
-    }
-}
-
-
-inline Foam::globalIndex::globalIndex
-(
-    labelList&& listOffsets
-)
-:
-    offsets_(std::move(listOffsets))
-{
-    if (offsets_.size() == 1)  // Enforce sizing sanity
-    {
-        offsets_.clear();
-    }
-}
-
-
-inline Foam::globalIndex::globalIndex
-(
-    globalIndex::gatherNone,
-    const labelUList& localSizes
-)
-{
-    reset(localSizes);
-}
-
-
-inline Foam::globalIndex::globalIndex
-(
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    reset(localSize, communicator, parallel);
-}
-
-
-inline Foam::globalIndex::globalIndex
-(
-    globalIndex::gatherNone,
+    globalIndexBase::gatherNone,
     label localSize,
     int communicator  /* unused: (not applicable) */
 )
-:
-    offsets_(2)
 {
-    // Same as single(localSize)
-    offsets_[0] = 0;
-    offsets_[1] = localSize;
+    addr_type::single(localSize);
 }
 
 
-inline Foam::globalIndex::globalIndex
+template<class IntType>
+inline Foam::label Foam::GlobalIndex<IntType>::whichProcID
 (
-    globalIndex::gatherOnly,
-    label localSize,
-    int communicator,
-    bool parallel
-)
+    label proci,
+    IntType i
+) const
 {
-    reset(globalIndex::gatherOnly{}, localSize, communicator, parallel);
-}
+    label foundProc = addr_type::findRow(proci, i);
 
-
-inline Foam::globalIndex::globalIndex
-(
-    globalIndex::gatherOffset,
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    reset(globalIndex::gatherOffset{}, localSize, communicator, parallel);
-}
-
-
-inline Foam::globalIndex::globalIndex
-(
-    globalIndex::gatherTotal,
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    reset(globalIndex::gatherTotal{}, localSize, communicator, parallel);
-}
-
-
-//
-// Constructor-like
-//
-
-inline void Foam::globalIndex::single(label len)
-{
-    offsets_.resize_fill(2, 0);
-    if (len > 0)
+    if (foundProc < 0)
     {
-        offsets_[1] = len;
+        FatalErrorInFunction
+            << "Index:" << i
+            << " does not belong on any processor."
+            << "\nOffsets:" << addr_type::offsets()
+            << Foam::abort(FatalError);
     }
-}
 
-
-inline void Foam::globalIndex::single(label beg, label len, label total)
-{
-    const label ending = (beg + len);
-
-    if (total <= ending)
-    {
-        offsets_.resize_nocopy(2);
-        offsets_[0] = beg;
-        offsets_[1] = ending;
-    }
-    else
-    {
-        offsets_.resize_nocopy(3);
-        offsets_[0] = beg;
-        offsets_[1] = ending;
-        offsets_[2] = total;
-    }
-}
-
-
-inline void Foam::globalIndex::sentinel(label total)
-{
-    // Note this creates a degenerate offset table with only 1 entry
-    // instead of the usual minimum of 2 but does mean that we can
-    // evaluate totalSize() without per-rank information at all.
-    offsets_.resize_fill(1, std::max(label(0), total));
+    return foundProc;
 }
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-inline bool Foam::globalIndex::empty() const noexcept
-{
-    const label len = (offsets_.size() - 1);
-    return (len < 1) || (*(offsets_.cdata() + len) == 0);
-}
-
-
-inline bool Foam::globalIndex::single() const noexcept
-{
-    return (offsets_.size() == 2);
-}
-
-
-inline Foam::label Foam::globalIndex::length() const noexcept
-{
-    const label len = (offsets_.size() - 1);
-    return (len < 1) ? 0 : len;
-}
-
-
-inline Foam::label Foam::globalIndex::span() const noexcept
-{
-    return (end_value() - begin_value());
-}
-
-
-inline Foam::label Foam::globalIndex::begin_value() const noexcept
-{
-    return (offsets_.empty() ? 0 : *(offsets_.cdata()));
-}
-
-
-inline Foam::label Foam::globalIndex::end_value() const noexcept
-{
-    return (offsets_.empty() ? 0 : *(offsets_.cdata() + (offsets_.size()-1)));
-}
-
-
-inline bool Foam::globalIndex::contains(const label i) const noexcept
-{
-    return (begin_value() <= i) && (i < end_value());
-}
-
-
-inline Foam::label Foam::globalIndex::totalSize() const noexcept
-{
-    return end_value();
-}
-
-
-inline Foam::labelList Foam::globalIndex::sizes() const
-{
-    return localSizes();
-}
-
-
-inline Foam::label Foam::globalIndex::nProcs() const noexcept
-{
-    return length();
-}
-
-
 inline Foam::labelRange Foam::globalIndex::allProcs() const noexcept
 {
     // Proc 0 -> nProcs
-    const label len = (offsets_.size() - 1);
+    const label len = (offsets().size() - 1);
     return (len < 1) ? labelRange() : labelRange(0, len);
 }
 
@@ -287,137 +212,14 @@ inline Foam::labelRange Foam::globalIndex::allProcs() const noexcept
 inline Foam::labelRange Foam::globalIndex::subProcs() const noexcept
 {
     // Proc 1 -> nProcs
-    const label len = (offsets_.size() - 2);
+    const label len = (offsets().size() - 2);
     return (len < 1) ? labelRange() : labelRange(1, len);
-}
-
-
-inline void Foam::globalIndex::clear()
-{
-    offsets_.clear();
-}
-
-
-inline const Foam::labelUList Foam::globalIndex::localStarts() const
-{
-    if (const label len = (offsets_.size() - 1); len > 0)
-    {
-        return labelList::subList(offsets_, len);
-    }
-    else
-    {
-        return labelUList::null();
-    }
-}
-
-
-inline Foam::label Foam::globalIndex::localStart(const label proci) const
-{
-    return offsets_[proci];
-}
-
-
-inline Foam::label Foam::globalIndex::localStart() const
-{
-    return localStart(myProcNumber());
-}
-
-
-inline Foam::label Foam::globalIndex::localEnd(const label proci) const
-{
-    return offsets_[proci+1];
-}
-
-
-inline Foam::label Foam::globalIndex::localEnd() const
-{
-    return localEnd(myProcNumber());
-}
-
-
-inline Foam::label Foam::globalIndex::localSize(const label proci) const
-{
-    return offsets_[proci+1] - offsets_[proci];
-}
-
-
-inline Foam::label Foam::globalIndex::localSize() const
-{
-    return localSize(myProcNumber());
-}
-
-
-inline Foam::label Foam::globalIndex::maxSize() const
-{
-    // Use out-of-range proci to avoid excluding any processor
-    return maxNonLocalSize(-1);
-}
-
-
-inline Foam::label Foam::globalIndex::maxNonLocalSize() const
-{
-    return maxNonLocalSize(myProcNumber());
-}
-
-
-inline Foam::labelRange Foam::globalIndex::range(label proci) const noexcept
-{
-    return range_impl(proci);
-}
-
-
-inline Foam::labelRange Foam::globalIndex::range() const
-{
-    return range_impl(myProcNumber());
-}
-
-
-inline Foam::OffsetRange<Foam::label>
-Foam::globalIndex::slice(label proci) const noexcept
-{
-    return slice_impl(proci);
-}
-
-
-inline Foam::OffsetRange<Foam::label>
-Foam::globalIndex::slice() const
-{
-    return slice_impl(myProcNumber());
-}
-
-
-inline bool Foam::globalIndex::isLocal(const label proci, const label i) const
-{
-    // range contains()
-    return (offsets_[proci] <= i) && (i < offsets_[proci+1]);
-}
-
-
-inline bool Foam::globalIndex::isLocal(const label i) const
-{
-    return isLocal(myProcNumber(), i);
-}
-
-
-inline Foam::label Foam::globalIndex::toGlobal
-(
-    const label proci,
-    const label i
-) const
-{
-    return i + offsets_[proci];
-}
-
-
-inline Foam::label Foam::globalIndex::toGlobal(const label i) const
-{
-    return toGlobal(myProcNumber(), i);
 }
 
 
 inline Foam::labelList Foam::globalIndex::toGlobal
 (
-    const label proci,
+    label proci,
     const labelUList& labels
 ) const
 {
@@ -433,243 +235,19 @@ inline Foam::labelList Foam::globalIndex::toGlobal
 }
 
 
-inline Foam::labelList Foam::globalIndex::toGlobal
-(
-    const labelUList& labels
-) const
-{
-    return toGlobal(myProcNumber(), labels);
-}
-
-
 inline void Foam::globalIndex::inplaceToGlobal
 (
-    const label proci,
+    label proci,
     labelUList& labels
 ) const
 {
-    if (const auto beg = offsets_[proci]; beg)
+    if (const auto beg = localStart(proci); beg)
     {
         for (auto& val : labels)
         {
             val += beg;
         }
     }
-}
-
-
-inline void Foam::globalIndex::inplaceToGlobal(labelUList& labels) const
-{
-    inplaceToGlobal(myProcNumber(), labels);
-}
-
-
-inline Foam::label
-Foam::globalIndex::toLocal(const label proci, const label i) const
-{
-    // range !contains()
-    if (i < offsets_[proci] || i >= offsets_[proci+1])
-    {
-        FatalErrorInFunction
-            << "Global id:" << i << " does not belong on processor "
-            << proci << nl
-            << " Offsets:" << offsets_
-            << abort(FatalError);
-    }
-    return (i - offsets_[proci]);
-}
-
-
-inline Foam::label Foam::globalIndex::toLocal(const label i) const
-{
-    return toLocal(myProcNumber(), i);
-}
-
-
-inline Foam::label Foam::globalIndex::findProc
-(
-    const label proci,
-    const label i
-) const
-{
-    // Simple checks first
-    if
-    (
-        (proci < 0)                     // Invalid proc
-     || (proci+1 > offsets_.size())     // Invalid proc
-     || (i < offsets_.front())          // Below the start
-     || (i >= offsets_.back())          // Beyond the end
-    )
-    {
-        return -1;
-    }
-
-    // Assume that in many cases we have many queries for the local proci,
-    // so query that first but also make it the split point for
-    // restricting the binary searches
-
-    if (isLocal(proci, i))
-    {
-        return proci;
-    }
-
-    if (i < offsets_[proci])
-    {
-        // Can restrict search to procs below proci
-        const labelList::subList slice(offsets_, proci);
-        return findLower(slice, i+1);
-    }
-
-    // Search starts at proci+1 (and above)
-    return findLower(offsets_, i+1, proci+1);
-}
-
-
-inline Foam::label Foam::globalIndex::findProcAbove
-(
-    const label proci,
-    const label i
-) const
-{
-    // Simple checks first
-    if
-    (
-        (proci < 0)                     // Invalid proci
-     || (proci+1 >= offsets_.size())    // Nothing above last proc
-     || (i < offsets_[proci+1])         // Exclude proc-local and below
-     || (i >= offsets_.back())          // Beyond the end
-    )
-    {
-        return -1;
-    }
-
-    // Search starts at proci+1 (and above)
-    return findLower(offsets_, i+1, (proci+1));
-}
-
-
-inline Foam::label Foam::globalIndex::findProcBelow
-(
-    const label proci,
-    const label i
-) const
-{
-    if
-    (
-        (proci <= 0)                    // Nothing below first proc
-     || (proci >= offsets_.size())      // Invalid proci
-     || (i >= offsets_[proci])          // Exclude proc-local and above
-     || (i < offsets_[0])               // Beyond the begin
-    )
-    {
-        return -1;
-    }
-
-    // Restrict search to procs below proci
-    const labelList::subList slice(offsets_, proci);
-    return findLower(slice, i+1);
-}
-
-
-// Note: could split this into failsafe/non-failsafe versions
-inline Foam::label Foam::globalIndex::whichProcID
-(
-    const label proci,
-    const label i
-) const
-{
-    label foundProc = findProc(proci, i);
-
-    if (foundProc < 0)
-    {
-        FatalErrorInFunction
-            << "Global id:" << i << " does not belong on any processor." << nl
-            << "Offsets:" << offsets_
-            << abort(FatalError);
-    }
-
-    return foundProc;
-}
-
-
-inline Foam::label Foam::globalIndex::whichProcID
-(
-    const label i
-) const
-{
-    return whichProcID(myProcNumber(), i);
-}
-
-
-inline void Foam::globalIndex::reset
-(
-    globalIndex::gatherNone,
-    label localSize,
-    int communicator  /* unused: (not applicable) */
-)
-{
-    single(localSize);
-}
-
-
-inline void Foam::globalIndex::reset
-(
-    globalIndex::gatherOnly,
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    if (!parallel)
-    {
-        single(localSize);
-        return;
-    }
-
-    // one-sided
-    reset(UPstream::listGatherValues(localSize, communicator));
-}
-
-
-inline void Foam::globalIndex::reset
-(
-    globalIndex::gatherTotal,
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    if (!parallel)
-    {
-        single(localSize);
-        return;
-    }
-
-    // one-sided
-    reset(UPstream::listGatherValues(localSize, communicator));
-
-    if (UPstream::is_parallel(communicator))
-    {
-        auto total = totalSize();
-
-        UPstream::broadcast(&total, 1, communicator);
-
-        if (UPstream::is_subrank(communicator))
-        {
-            // total value only (no content for rank 0)
-            sentinel(total);
-        }
-    }
-}
-
-
-inline void Foam::globalIndex::reset(const globalIndex& rhs)
-{
-    if (this == &rhs)
-    {
-        return;  // Self-assignment is a no-op
-    }
-    this->offsets_ = rhs.offsets_;
 }
 
 

@@ -28,7 +28,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "globalIndex.H"
-#include "Pair.H"
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
@@ -46,8 +45,7 @@ void Foam::globalIndexBase::reportOverflowAndExit
     }
 
     FatalErrorInFunction
-        << "Overflow : sum of sizes exceeds labelMax ("
-        << labelMax << ") after index " << idx;
+        << "Overflow : sum of sizes exceeds integral limit after index " << idx;
 
     if (prevOffset >= 0 && count >= 0)
     {
@@ -58,41 +56,8 @@ void Foam::globalIndexBase::reportOverflowAndExit
 
     FatalError
         << nl
-        << "Please recompile with larger datatype for label." << nl
-        << exit(FatalError);
-}
-
-
-Foam::labelList
-Foam::globalIndex::calcOffsets
-(
-    const labelUList& counts,
-    const bool checkOverflow
-)
-{
-    labelList starts;
-
-    if (const label len = counts.size(); len > 0)
-    {
-        starts.resize(len+1);
-
-        label total = 0;
-        for (label i = 0; i < len; ++i)
-        {
-            const auto count = counts[i];
-
-            if (checkOverflow && isOverflow(total, count))
-            {
-                reportOverflowAndExit(i, total, count);
-            }
-
-            starts[i] = total;
-            total += count;
-        }
-        starts[len] = total;
-    }
-
-    return starts;
+        << "Please consider a larger integral datatype." << nl
+        << Foam::exit(FatalError);
 }
 
 
@@ -100,7 +65,7 @@ Foam::List<Foam::labelRange>
 Foam::globalIndex::calcRanges
 (
     const labelUList& counts,
-    const bool checkOverflow
+    bool checkOverflow
 )
 {
     List<labelRange> values;
@@ -112,13 +77,20 @@ Foam::globalIndex::calcRanges
         label total = 0;
         for (label i = 0; i < len; ++i)
         {
-            const auto count = counts[i];
+            const label count = counts[i];
 
+            // No overflow check for int64...
             // Note: do not care about endOffset of last range
-
-            if (checkOverflow && (i < len-1) && isOverflow(total, count))
+            // if constexpr (sizeof(IntType) < sizeof(int64_t))
             {
-                reportOverflowAndExit(i, total, count);
+                if
+                (
+                    checkOverflow && (i < len-1)
+                 && globalIndexBase::isOverflow(total, count)
+                )
+                {
+                    globalIndexBase::reportOverflowAndExit(i, total, count);
+                }
             }
 
             values[i].reset(total, count);
@@ -236,14 +208,6 @@ bool Foam::globalIndex::splitNodeOffsets
 }
 
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-Foam::globalIndex::globalIndex(Istream& is)
-{
-    is >> offsets_;
-}
-
-
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 Foam::CompactListList<Foam::label>
@@ -309,229 +273,14 @@ Foam::globalIndex::bin
 }
 
 
-void Foam::globalIndex::resize(label n)
-{
-    if (n < 1)
-    {
-        offsets_.clear();
-    }
-    else
-    {
-        offsets_.resize(n+1, end_value());
-    }
-}
-
-
-void Foam::globalIndex::reset_nonParallel
-(
-    label localSize,
-    int communicator
-)
-{
-    // localSize on-proc, zero elsewhere:
-    // offsets are 0 up to and including proci, then localSize
-    if
-    (
-        label len = 0;
-        (communicator >= 0 && (len = UPstream::nProcs(communicator)) > 0)
-    )
-    {
-        offsets_.resize_fill(len+1, 0);
-        if (label proci = UPstream::myProcNo(communicator); proci >= 0)
-        {
-            for (label i = proci+1; i <= len; ++i)
-            {
-                offsets_[i] = localSize;
-            }
-        }
-    }
-    else
-    {
-        offsets_.clear();
-    }
-}
-
-
-void Foam::globalIndex::reset
-(
-    const label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    if (parallel && UPstream::is_parallel(communicator))
-    {
-        constexpr bool checkOverflow = true;
-
-        reset
-        (
-            UPstream::allGatherValues(localSize, communicator),
-            checkOverflow
-        );
-    }
-    else
-    {
-        reset_nonParallel(localSize, communicator);
-    }
-}
-
-
-void Foam::globalIndex::reset
-(
-    const labelUList& counts,
-    const bool checkOverflow
-)
-{
-    if (const label len = counts.size(); len > 0)
-    {
-        offsets_.resize_nocopy(len+1);
-
-        label total = 0;
-        for (label i = 0; i < len; ++i)
-        {
-            const label count = counts[i];
-
-            if (checkOverflow && isOverflow(total, count))
-            {
-                reportOverflowAndExit(i, total, count);
-            }
-
-            offsets_[i] = total;
-            total += count;
-        }
-        offsets_[len] = total;
-    }
-    else
-    {
-        offsets_.clear();
-    }
-}
-
-
-void Foam::globalIndex::reset
-(
-    globalIndex::gatherOffset,
-    label localSize,
-    int communicator,
-    bool parallel
-)
-{
-    if (!parallel)
-    {
-        single(localSize);
-        return;
-    }
-
-    if (UPstream::is_parallel(communicator))
-    {
-        const auto numProc = UPstream::nProcs(communicator);
-
-        // Number of gatherOnly counts (master: numProc, sub-rank: 0)
-        const int numCounts
-        (
-            UPstream::is_master(communicator) ? static_cast<int>(numProc) : 0
-        );
-
-        // Work array : allocated with double space! (still 0 on non-master)
-        labelList work(2*numCounts);
-
-        // Slice into the initial part of the work array
-        // for getting/setting the counts.
-
-        labelUList counts(work.data(), numCounts);
-
-
-        // Gather the local sizes (master only)
-        UPstream::mpiGather(&localSize, counts.data(), 1, communicator);
-
-        // On the master: from local sizes to offsets and subsequently
-        // pack (start, total) per rank for scattering
-
-        if (UPstream::is_master(communicator))
-        {
-            // Calculate offsets from the collected local sizes
-            reset(counts);
-
-            // Populate the work array with (offset,total) tuples for
-            // scattering to sub-ranks.
-            // Note: also scattering copies of 'total' everywhere instead
-            // using an additional broadcast.
-
-            const auto total = totalSize();
-
-            auto iter = offsets().cbegin();
-
-            for (label proci = 0; proci < numProc; ++proci)
-            {
-                work[2*proci]   = *iter++;
-                work[2*proci+1] = total;
-            }
-        }
-
-        label dims[2];  // (start, total) tuple
-
-        UPstream::mpiScatter(work.cdata(), dims, 2, communicator);
-
-        if (UPstream::is_subrank(communicator))
-        {
-            // Store either as (beg len total) tuple or if there is no
-            // no trailing content simply as a (beg len) tuple
-            single(dims[0], localSize, dims[1]);
-        }
-    }
-    else
-    {
-        reset_nonParallel(localSize, communicator);
-    }
-}
-
-
-void Foam::globalIndex::setLocalSize(const label proci, const label len)
-{
-    if (proci >= 0 && proci+1 < offsets_.size() && len >= 0)
-    {
-        const label delta = (len - (offsets_[proci+1] - offsets_[proci]));
-
-        // TBD: additional overflow check
-        if (delta)
-        {
-            for (label i = proci+1; i < offsets_.size(); ++i)
-            {
-                offsets_[i] += delta;
-            }
-        }
-    }
-}
-
-
-Foam::labelList Foam::globalIndex::localSizes() const
-{
-    labelList values;
-
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return values;
-    }
-
-    values.resize(len);
-
-    for (label proci=0; proci < len; ++proci)
-    {
-        values[proci] = offsets_[proci+1] - offsets_[proci];
-    }
-
-    return values;
-}
-
-
 Foam::List<Foam::labelRange>
 Foam::globalIndex::ranges() const
 {
+    // CSRAddressing delivers IntRange<label>, we want labelRange
+
     List<labelRange> values;
 
-    const label len = (offsets_.size() - 1);
+    const label len = (offsets().size() - 1);
 
     if (len < 1)
     {
@@ -540,12 +289,12 @@ Foam::globalIndex::ranges() const
 
     values.resize(len);
 
-    for (label proci=0; proci < len; ++proci)
+    for (label i = 0; i < len; ++i)
     {
-        values[proci].reset
+        values[i].reset
         (
-            offsets_[proci],
-            (offsets_[proci+1] - offsets_[proci])
+            offsets()[i],
+            (offsets()[i+1] - offsets()[i])
         );
     }
 
@@ -553,70 +302,17 @@ Foam::globalIndex::ranges() const
 }
 
 
-Foam::label Foam::globalIndex::maxNonLocalSize(const label proci) const
+Foam::labelRange Foam::globalIndex::front() const noexcept
 {
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return 0;
-    }
-
-    label maxLen = 0;
-
-    for (label i=0; i < len; ++i)
-    {
-        if (i != proci)
-        {
-            const label count = (offsets_[i+1] - offsets_[i]);
-            maxLen = std::max(maxLen, count);
-        }
-    }
-
-    return maxLen;
+    // First entry, or out of bounds
+    return empty() ? labelRange() : range(0);
 }
 
 
-Foam::labelRange Foam::globalIndex::front() const
+Foam::labelRange Foam::globalIndex::back() const noexcept
 {
-    return
-    (
-        (offsets_.size() < 2)
-      ? labelRange()
-      : labelRange(Pair<label>(offsets_[0], offsets_[1]))
-    );
-}
-
-
-Foam::labelRange Foam::globalIndex::back() const
-{
-    return
-    (
-        (offsets_.size() < 2)
-      ? labelRange()
-      : labelRange
-        (
-            Pair<label>
-            (
-                offsets_[offsets_.size()-2],
-                offsets_[offsets_.size()-1]
-            )
-        )
-    );
-}
-
-
-// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
-
-Foam::Istream& Foam::operator>>(Istream& is, globalIndex& gi)
-{
-    return is >> gi.offsets();
-}
-
-
-Foam::Ostream& Foam::operator<<(Ostream& os, const globalIndex& gi)
-{
-    return os << gi.offsets();
+    // Last entry, or out of bounds
+    return empty() ? labelRange() : range(length()-1);
 }
 
 
