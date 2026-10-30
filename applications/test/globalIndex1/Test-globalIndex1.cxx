@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     // Global numbering of cells (proc0 elements first, then proc1, etc.)
     const globalIndex globalNumbering(mesh.nCells());
 
-    Pout<< "local-offset: " << globalIndex::calcOffset(mesh.nCells()) << nl;
+    Pout<< "local-offset: " << UPstream::find_offset(mesh.nCells()) << nl;
     Pout<< "local-range: " << globalIndex::calcRange(mesh.nCells()) << nl;
     Pout<< "offset-range: " << globalOffset::calculate(mesh.nCells()) << nl;
 

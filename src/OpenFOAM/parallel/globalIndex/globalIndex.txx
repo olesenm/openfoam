@@ -33,15 +33,6 @@ License
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 template<class IntType>
-IntType
-Foam::globalIndex::calcOffset(IntType localSize, const label comm)
-{
-    static_assert(std::is_integral_v<IntType>, "Integral required");
-    return UPstream::mpiExscan_sum(localSize, comm);
-}
-
-
-template<class IntType>
 Foam::List<IntType>
 Foam::globalIndex::calcRecvSizes(IntType localSize, const label comm)
 {

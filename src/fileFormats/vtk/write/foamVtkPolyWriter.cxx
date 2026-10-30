@@ -387,7 +387,7 @@ void Foam::vtk::polyWriter::writeLines
         // processor-local connectivity offsets
         label off =
         (
-            parallel_ ? globalIndex::calcOffset(nLocalConns) : 0
+            parallel_ ? UPstream::find_offset(nLocalConns) : 0
         );
 
 
@@ -588,7 +588,7 @@ void Foam::vtk::polyWriter::writePolys_impl
         // processor-local connectivity offsets
         label off =
         (
-            parallel_ ? globalIndex::calcOffset(nLocalConns) : 0
+            parallel_ ? UPstream::find_offset(nLocalConns) : 0
         );
 
 

@@ -594,21 +594,21 @@ void Foam::UPstream::mpiAllReduce
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-template<Foam::UPstream::opCodes opCode, class T>
+template<Foam::UPstream::opCodes opCode, bool exclusive, class T>
 void Foam::UPstream::mpiScan
 (
     T values[],
     int count,
-    const int communicator,
-    const bool exclusive
+    const int communicator
 )
 {
-    if (!count || !UPstream::is_parallel(communicator))
+    if (count <= 0)
     {
         // Nothing to do
         return;
     }
-    else if constexpr (!is_contiguous_v<T>)
+
+    if constexpr (!is_contiguous_v<T>)
     {
         FatalErrorInFunction
             << "Cannot " << (exclusive ? "exscan" : "scan")
@@ -617,7 +617,7 @@ void Foam::UPstream::mpiScan
             << " buffer: " << Foam::name(values) << endl
             << Foam::abort(FatalError);
     }
-    else  // if (FOAM_LIKELY(values))
+    else if (UPstream::is_parallel(communicator))  // && FOAM_LIKELY(values)
     {
         // Use element or component type (or byte-wise) for data type
         // Restricted to basic data types
@@ -630,39 +630,63 @@ void Foam::UPstream::mpiScan
             communicator,
             exclusive
         );
+    }
 
-        // Any special handling of exscan degenerate value at rank=0
+    // Any special handling of exscan degenerate value at rank=0
 
-        if constexpr (UPstream::opCodes::op_sum == opCode)
+    if constexpr (exclusive && UPstream::opCodes::op_sum == opCode)
+    {
+        // Exscan and sum:
+        // - replace degenerate value (rank=0) with zero value
+        //   even if non-parallel
+
+        if (!UPstream::parRun() || UPstream::master(communicator))
         {
-            if (exclusive && UPstream::master(communicator))
+            T zeroValue{};
+            if constexpr (is_vectorspace_v<T>)
             {
-                // Exscan and sum:
-                // replace degenerate value (rank=0) with zero value
-
-                T zeroValue{};
-                if constexpr (is_vectorspace_v<T>)
-                {
-                    zeroValue.fill(0);
-                }
-                std::fill_n(values, count, zeroValue);
+                zeroValue.fill(0);
             }
+            std::fill_n(values, count, zeroValue);
         }
     }
 }
 
 
-template<Foam::UPstream::opCodes opCode, class T>
+template<Foam::UPstream::opCodes opCode, bool exclusive, class T>
 T Foam::UPstream::mpiScan
 (
     const T& localValue,
-    const int communicator,
-    const bool exclusive
+    int communicator
 )
 {
     T work(localValue);
-    UPstream::mpiScan<opCode>(&work, 1, communicator, exclusive);
+    UPstream::mpiScan<opCode, exclusive>(&work, 1, communicator);
     return work;
+}
+
+
+template<class IntType>
+IntType Foam::UPstream::find_offset
+(
+    IntType localSize,
+    int communicator
+)
+{
+    static_assert(std::is_integral_v<IntType>, "Integral required");
+
+    // Exclusive scan sum
+    IntType work(localSize);
+    UPstream::mpiScan<UPstream::opCodes::op_sum, true>(&work, 1, communicator);
+
+    // Always return offset=0 (no offset) for master rank or non-parallel.
+    // Our mpiExscan_sum() should already do that [implemented above],
+    // but force it again for good measure.
+
+    return
+    (
+        (UPstream::parRun() && UPstream::is_subrank(communicator)) ? work : 0
+    );
 }
 
 

@@ -73,10 +73,10 @@ bool Foam::vtk::writeFaceSet
         // processor-local faceID offset
         const label faceIdOffset =
         (
-            writer.parallel() ? globalIndex::calcOffset(mesh.nFaces()) : 0
+            writer.parallel() ? UPstream::find_offset(mesh.nFaces()) : 0
         );
 
-        if (faceIdOffset)
+        if (faceIdOffset > 0)
         {
             faceValues += faceIdOffset;
         }

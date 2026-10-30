@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -47,9 +48,9 @@ void testGlobalIndex(const Type& localSize)
 {
     const auto comm = UPstream::worldComm;
 
-    // With calcOffset
+    // With find_offset
     {
-        Type start = globalIndex::calcOffset(localSize, comm);
+        Type start = UPstream::find_offset(localSize, comm);
 
         Type total(start + localSize);
 
@@ -62,7 +63,7 @@ void testGlobalIndex(const Type& localSize)
         Pout<< "size: " << localSize
             << " offset: " << start
             << " total: " << total
-            << " (globalIndex calcOffset)" << endl;
+            << " (UPstream::find_offset)" << endl;
     }
 
     // With calcRange
@@ -159,17 +160,26 @@ void testOffsetTotals(const FixedList<Type, N>& localSizes)
 }
 
 
-template<class Type>
-void testScan(const Type& localValue, const bool exclusive)
+template<bool exclusive, class Type>
+void testScan(const Type& localValue)
 {
     const auto comm = UPstream::worldComm;
 
-    // sum
+    // sum (single value)
     {
-        Type result = UPstream::mpiScan_sum(localValue, comm, exclusive);
+        Type result;
+
+        if constexpr (exclusive)
+        {
+            result = UPstream::mpiExscan_sum(localValue, comm);
+        }
+        else
+        {
+            result = UPstream::mpiScan_sum(localValue, comm);
+        }
 
         Type total(result);
-        if (exclusive)
+        if constexpr (exclusive)
         {
             total += localValue;
         }
@@ -180,7 +190,7 @@ void testScan(const Type& localValue, const bool exclusive)
             UPstream::broadcast(&total, 1, comm, (UPstream::nProcs(comm)-1));
         }
 
-        if (exclusive)
+        if constexpr (exclusive)
         {
             Pout<< "input: " << localValue
                 << " beg-sum: " << result
@@ -194,11 +204,20 @@ void testScan(const Type& localValue, const bool exclusive)
         }
     }
 
-    // min
+    // min (single value)
     {
-        Type result = UPstream::mpiScan_min(localValue, comm, exclusive);
+        Type result;
 
-        if (exclusive)
+        if constexpr (exclusive)
+        {
+            result = UPstream::mpiExscan_min(localValue, comm);
+        }
+        else
+        {
+            result = UPstream::mpiScan_min(localValue, comm);
+        }
+
+        if constexpr (exclusive)
         {
             Pout<< "input: " << localValue
                 << " (exclusive)min : " << result
@@ -214,11 +233,11 @@ void testScan(const Type& localValue, const bool exclusive)
 
     // max (this time with templated version)
     {
-        constexpr UPstream::opCodes opCode = UPstream::opCodes::op_max;
+        constexpr auto opCode = UPstream::opCodes::op_max;
 
-        Type result = UPstream::mpiScan<opCode>(localValue, comm, exclusive);
+        Type result = UPstream::mpiScan<opCode, exclusive>(localValue, comm);
 
-        if (exclusive)
+        if constexpr (exclusive)
         {
             Pout<< "input: " << localValue
                 << " (exclusive)max : " << result
@@ -238,8 +257,8 @@ void testScan(const Type& localValue, const bool exclusive)
     {
         const auto& size = localValue;
 
-        // Exscan ony!
-        Type start = UPstream::mpiExscan_sum(size, comm);
+        // Exscan only!
+        Type start = UPstream::find_offset(size, comm);
 
         Type total(start + size);
 
@@ -253,6 +272,20 @@ void testScan(const Type& localValue, const bool exclusive)
 
         Pout<< "input: " << size
             << " range: " << range << endl;
+    }
+}
+
+
+template<class Type>
+void testScan(const Type& localValue, bool exclusive)
+{
+    if (exclusive)
+    {
+        testScan<true>(localValue);
+    }
+    else
+    {
+        testScan<false>(localValue);
     }
 }
 

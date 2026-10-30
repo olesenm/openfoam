@@ -118,11 +118,16 @@ Foam::regionSplit2D::regionSplit2D
     }
 
     // In-place renumber the local regionI to global (compact) regioni
+
+    if
+    (
+        const label procOffset = UPstream::find_offset(compactRegioni);
+        (procOffset > 0)
+    )
     {
-        const label myProcOffset = globalIndex::calcOffset(compactRegioni);
         forAllIters(regionToCompactAddr, iter)
         {
-            iter.val() += myProcOffset;
+            iter.val() += procOffset;
         }
     }
 

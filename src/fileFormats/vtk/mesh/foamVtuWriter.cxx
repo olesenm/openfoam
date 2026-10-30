@@ -625,13 +625,13 @@ void Foam::vtk::vtuWriter::writePointIDs()
     const label pointOffset =
     (
         (parallel_ && !vtuCells_.merged())
-      ? globalIndex::calcOffset(vtuCells_.nPoints()) : 0
+      ? UPstream::find_offset(vtuCells_.nPoints()) : 0
     );
 
     // Cell offset for regular mesh cells (without decomposed)
     const label cellOffset =
     (
-        parallel_ ? globalIndex::calcOffset(vtuCells_.nCells()) : 0
+        parallel_ ? UPstream::find_offset(vtuCells_.nCells()) : 0
     );
 
 

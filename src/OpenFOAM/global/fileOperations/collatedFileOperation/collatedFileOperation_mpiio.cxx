@@ -397,7 +397,7 @@ bool Foam::fileOperations::collatedFileOperation::writeObject_mpiio
 
             // Like globalObject::calculate(), except that we
             // would discard the size anyhow.
-            blockOffset = UPstream::mpiExscan_sum(localSize, comm_);
+            blockOffset = UPstream::find_offset(localSize, comm_);
 
             // Adjust begin offset of block [0] for the presence of any
             // separate header. No need to adjust any of the other blocks

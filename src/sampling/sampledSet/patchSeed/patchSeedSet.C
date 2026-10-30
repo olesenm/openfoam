@@ -65,7 +65,8 @@ void Foam::patchSeedSet::calcPatchSamples
     Random& rndGen = *rndGenPtr_;
 
     // Globally consistent addressing
-    const label globalPointStart = globalIndex::calcOffset(nAvailable);
+    const label globalPointStart = UPstream::find_offset(nAvailable);
+
     const label nGlobalPatchPoints = returnReduce(nPatchPoints, sumOp<label>());
 
     point pt;
@@ -262,7 +263,7 @@ void Foam::patchSeedSet::calcSelectedLocations
     // Get points on patchFaces.
 
     // Globally consistent addressing
-    const label globalFaceStart = globalIndex::calcOffset(patchFaces.size());
+    const label globalFaceStart = UPstream::find_offset(patchFaces.size());
 
     samplingPts.setCapacity(patchFaces.size());
     samplingCells.setCapacity(patchFaces.size());

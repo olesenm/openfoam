@@ -581,8 +581,11 @@ public:
         static IntType calcOffset
         (
             IntType localSize,
-            const label comm = UPstream::worldComm  //!< communicator
-        );
+            int communicator = UPstream::worldComm  //!< communicator
+        )
+        {
+            return UPstream::find_offset(localSize, communicator);
+        }
 
         //- Based on the local input size(s),
         //- calculate a globally-consistent local start offset.
@@ -592,19 +595,20 @@ public:
         static IntType calcOffset
         (
             IntType localSize,
-            const label comm,  //!< communicator
+            int communicator,  //!< communicator
             [[maybe_unused]] const bool checkOverflow
         )
         {
-            IntType start = globalIndex::calcOffset(localSize, comm);
+            IntType start = UPstream::find_offset(localSize, communicator);
+
             // Assume no overflow for large integrals
             if constexpr (sizeof(IntType) < sizeof(int64_t))
             {
-                if (checkOverflow && UPstream::is_parallel(comm))
+                if (checkOverflow && UPstream::is_parallel(communicator))
                 {
                     checkOverflowAndExit
                     (
-                        UPstream::myProcNo(comm), start, localSize
+                        UPstream::myProcNo(communicator), start, localSize
                     );
                 }
             }
@@ -620,10 +624,10 @@ public:
         static calcRange
         (
             IntType localSize,
-            const label comm = UPstream::worldComm  //!< communicator
+            int communicator = UPstream::worldComm  //!< communicator
         )
         {
-            IntType start = globalIndex::calcOffset(localSize, comm);
+            IntType start = UPstream::find_offset(localSize, communicator);
             return IntRange<IntType>(start, localSize);
         }
 

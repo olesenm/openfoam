@@ -222,7 +222,7 @@ void Foam::vtk::coordSetWriter::writeLines()
 
         /// label off =
         /// (
-        ///     parallel_ ? globalIndex::calcOffset(nLocalConns) : 0
+        ///     parallel_ ? UPstream::find_offset(nLocalConns) : 0
         /// );
 
         auto iter = vertOffsets.begin();

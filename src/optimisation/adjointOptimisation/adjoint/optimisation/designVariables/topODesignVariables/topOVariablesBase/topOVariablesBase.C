@@ -674,12 +674,16 @@ void Foam::topOVariablesBase::writeFluidSolidInterface
 
     // Transform origin cut faces to a global numbering
 
-    const label changedFacesOffset =
-        globalIndex::calcOffset(changedFaces.size());
-
-    for (auto& info : changedFacesInfo)
+    if
+    (
+        const label procOffset = UPstream::find_offset(changedFaces.size());
+        (procOffset > 0)
+    )
     {
-        info.data() += changedFacesOffset;
+        for (auto& info : changedFacesInfo)
+        {
+            info.data() += procOffset;
+        }
     }
 }
 

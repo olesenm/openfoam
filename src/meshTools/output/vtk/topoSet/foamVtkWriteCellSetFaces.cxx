@@ -112,7 +112,7 @@ bool Foam::vtk::writeCellSetFaces
         // processor-local cellID offset
         const label cellIdOffset =
         (
-            writer.parallel() ? globalIndex::calcOffset(mesh.nCells()) : 0
+            writer.parallel() ? UPstream::find_offset(mesh.nCells()) : 0
         );
 
         forAll(faceValues, facei)

@@ -528,20 +528,22 @@ Foam::vtk::vtuCells::vertOffsets
 
     const auto& offsets = vertOffset_;
 
+    const int communicator = UPstream::worldComm;
+
     if (syncPar && UPstream::parRun() && uses_beginEnd_style)
     {
         auto tresult = refPtr<labelList>::New();
         auto& result = tresult.ref();
 
-        result = parCoordinatedOffsets(offsets, UPstream::worldComm);
+        result = parCoordinatedOffsets(offsets, communicator);
 
         // Determine a consistent beginOffset
         if (beginOffset < 0)
         {
-            beginOffset = globalIndex::calcOffset<label>
+            beginOffset = UPstream::find_offset<label>
             (
                 (offsets.size() > 1 ? offsets.back() : 0),
-                UPstream::worldComm
+                communicator
             );
         }
 
@@ -600,20 +602,22 @@ Foam::vtk::vtuCells::faceOffsets
 
     const auto& offsets = faceOffset_;
 
+    const int communicator = UPstream::worldComm;
+
     if (syncPar && UPstream::parRun() && uses_beginEnd_style)
     {
         auto tresult = refPtr<labelList>::New();
         auto& result = tresult.ref();
 
-        result = parCoordinatedOffsets(offsets, UPstream::worldComm);
+        result = parCoordinatedOffsets(offsets, communicator);
 
         // Determine a consistent beginOffset
         if (beginOffset < 0)
         {
-            beginOffset = globalIndex::calcOffset<label>
+            beginOffset = UPstream::find_offset<label>
             (
                 (offsets.size() > 1 ? offsets.back() : 0),
-                UPstream::worldComm
+                communicator
             );
         }
 
@@ -715,6 +719,8 @@ Foam::vtk::vtuCells::polyFaceOffsets
 
     //const auto& offsets = polyFaceOffset_;
 
+    const int communicator = UPstream::worldComm;
+
     if (syncPar && UPstream::parRun() && uses_beginEnd_style)
     {
         auto tresult = refPtr<labelList>::New();
@@ -746,15 +752,15 @@ Foam::vtk::vtuCells::polyFaceOffsets
             dummyOffsets.empty() ? polyFaceOffset_ : dummyOffsets
         );
 
-        result = parCoordinatedOffsets(offsets, UPstream::worldComm);
+        result = parCoordinatedOffsets(offsets, communicator);
 
         // Determine a consistent beginOffset
         if (beginOffset < 0)
         {
-            beginOffset = globalIndex::calcOffset<label>
+            beginOffset = UPstream::find_offset<label>
             (
                 (offsets.size() > 1 ? offsets.back() : 0),
-                UPstream::worldComm
+                communicator
             );
         }
 

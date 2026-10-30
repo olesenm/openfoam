@@ -34,6 +34,7 @@ Description
 #include "FixedList.H"
 #include "boolVector.H"  // A FixedList pretending to be a vector
 #include "barycentric.H"
+#include "labelledTri.H"
 #include "complex.H"
 #include "vector.H"
 #include "vector2D.H"
@@ -422,6 +423,9 @@ int main()
 
     printPstreamTraits<const float>();
     printPstreamTraits<floatVector>();
+
+    printPstreamTraits<triFace>();
+    printPstreamTraits<labelledTri>();
 
     check_simple<floatVector>("vector<float>");
 

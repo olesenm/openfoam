@@ -2135,95 +2135,74 @@ public:
         //  However, for the \b \c opCodes::op_sum type we can provide a
         //  sensible value and overwrite it with a zero-initialized value.
         //
+        //  \tparam Exclusive Use exclusive scan (MPI_Exscan vs MPI_Scan)
+        //
         //  \note For \b non-parallel : do nothing.
-        template<Foam::UPstream::opCodes opCode, class T>
-        static void mpiScan
-        (
-            T values[],
-            int count,
-            const int communicator,
-            //! Use exclusive scan (MPI_Exscan vs MPI_Scan)
-            const bool exclusive = false
-        );
+        template<UPstream::opCodes opCode, bool exclusive = false, class T>
+        static void mpiScan(T values[], int count, const int communicator);
 
         //- Inclusive/exclusive scan returning the result.
         //- In exclusive mode, the degenerate value on rank=0 has no meaning
         //- but is treated like non-exclusive mode (ie, original values)
         //
+        //  \tparam Exclusive Use exclusive scan (MPI_Exscan vs MPI_Scan)
+        //
         //  \note For \b non-parallel : return own value
-        template<Foam::UPstream::opCodes opCode, class T>
+        template<UPstream::opCodes opCode, bool exclusive = false, class T>
         [[nodiscard]]
-        static T mpiScan
-        (
-            const T& localValue,
-            const int communicator,
-            //! Use exclusive scan (MPI_Exscan vs MPI_Scan)
-            const bool exclusive = false
-        );
+        static T mpiScan(const T& localValue, int communicator);
 
         #undef  Pstream_declareMethods
         #define Pstream_declareMethods(OpName, OpCode)                        \
                                                                               \
-        /*!\brief Inclusive/exclusive \b \c OpName scan (in-place) */         \
+        /*!\brief Inclusive \b \c OpName scan (in-place) */                   \
         /*! See UPstream::mpiScan for notes about the behaviour */            \
         template<class T>                                                     \
-        static void mpiScan_##OpName                                          \
-        (                                                                     \
-            T values[],                                                       \
-            int count,                                                        \
-            const int communicator,                                           \
-            /*! Use exclusive scan (MPI_Exscan vs MPI_Scan) */                \
-            const bool exclusive = false                                      \
-        )                                                                     \
+        static void mpiScan_##OpName(T values[], int count, int communicator) \
         {                                                                     \
-            UPstream::mpiScan<OpCode>(values, count, communicator, exclusive);\
+            UPstream::mpiScan<OpCode, false>(values, count, communicator);    \
         }                                                                     \
                                                                               \
         /*!\brief Exclusive \b \c OpName scan (in-place) */                   \
         /*! See UPstream::mpiScan for notes about the behaviour */            \
         template<class T>                                                     \
-        static void mpiExscan_##OpName                                        \
-        (                                                                     \
-            T values[],                                                       \
-            int count,                                                        \
-            const int communicator                                            \
-        )                                                                     \
+        static void mpiExscan_##OpName(T values[],int count, int communicator)\
         {                                                                     \
-            UPstream::mpiScan<OpCode>(values, count, communicator, true);     \
+            UPstream::mpiScan<OpCode, true>(values, count, communicator);     \
         }                                                                     \
                                                                               \
-        /*!\brief Inclusive/exclusive \b \c OpName scan returning result */   \
+        /*!\brief Inclusive \b \c OpName scan returning result */             \
         /*! See UPstream::mpiScan for notes about the behaviour */            \
         template<class T>                                                     \
         [[nodiscard]]                                                         \
-        static T mpiScan_##OpName                                             \
-        (                                                                     \
-            const T& value,                                                   \
-            const int communicator,                                           \
-            /*! Use exclusive scan (MPI_Exscan vs MPI_Scan) */                \
-            const bool exclusive = false                                      \
-        )                                                                     \
+        static T mpiScan_##OpName(const T& value, int communicator)           \
         {                                                                     \
-            return UPstream::mpiScan<OpCode>(value, communicator, exclusive); \
+            return UPstream::mpiScan<OpCode, false>(value, communicator);     \
         }                                                                     \
                                                                               \
         /*!\brief Exclusive \b \c OpName scan returning result */             \
         /*! See UPstream::mpiScan for notes about the behaviour */            \
         template<class T>                                                     \
         [[nodiscard]]                                                         \
-        static T mpiExscan_##OpName                                           \
-        (                                                                     \
-            const T& value,                                                   \
-            const int communicator                                            \
-        )                                                                     \
+        static T mpiExscan_##OpName(const T& value, int communicator)         \
         {                                                                     \
-            return UPstream::mpiScan<OpCode>(value, communicator, true);      \
+            return UPstream::mpiScan<OpCode, true>(value, communicator);      \
         }
 
         Pstream_declareMethods(min, UPstream::opCodes::op_min);
         Pstream_declareMethods(max, UPstream::opCodes::op_max);
         Pstream_declareMethods(sum, UPstream::opCodes::op_sum);
         #undef Pstream_declareMethods
+
+        //- Convenience wrapper to determine the rank-relative offset
+        //- for the given local-size. \note Integral values only.
+        template<class IntType>
+        [[nodiscard]]
+        static IntType find_offset
+        (
+            IntType localSize,
+            int communicator = UPstream::worldComm
+        );
 
 
     // Logical reductions
