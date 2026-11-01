@@ -315,9 +315,15 @@ Foam::triSurface::triSurface
 {
     fileName fName(checkFile(io, dict, isGlobal));
 
-    read(fName, dict.getOrDefault<word>("fileType", word::null));
+    word fType;
+    dict.readIfPresent("fileType", fType);
 
-    scalePoints(dict.getOrDefault<scalar>("scale", 0));
+    read(fName, fType);
+
+    if (scalar scaling; dict.readIfPresent("scale", scaling))
+    {
+        scalePoints(scaling);
+    }
 
     setDefaultPatches();
 }

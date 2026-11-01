@@ -538,8 +538,15 @@ public:
         //- Test if the faces use compact point numbering
         bool testCompactPoints() const;
 
-        //- The per-face region ID
+        //- Extract the per-face region ID
+        void regionIDs(labelList& regions) const;
+
+        //- Return the per-face region ID
         labelList regionIDs() const;
+
+        //- Extract the region ID for the specified face \p indices
+        //- and -1 for out of bounds indices.
+        void regionIDs(const labelUList& indices, labelList& regions) const;
 
         //- Return edge-face addressing sorted (for edges with more than
         //  2 faces) according to the angle around the edge.
@@ -572,8 +579,13 @@ public:
             return MeshReference::faceCentres();
         }
 
-        //- Return the triangle point references for the given face
-        triPointRef triangle(label facei) const;
+        //- Extract the face centres (from cached values or re-calculated)
+        void centres(List<point>& coords) const;
+
+        //- Extract the face centres for the specified face \p indices
+        //- (from cached values or re-calculated).
+        //- Assigns zero for out of bounds indices.
+        void centres(const labelUList& indices, List<point>& coords) const;
 
 
     // Interoperability with other surface mesh classes

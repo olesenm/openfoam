@@ -45,15 +45,21 @@ namespace Foam
 Foam::word Foam::triSurfaceMesh::meshSubDir = "triSurface";
 
 
-// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
-bool Foam::triSurfaceMesh::addFaceToEdge
+namespace
+{
+
+// Helper function for isSurfaceClosed
+bool addFaceToEdge
 (
-    const edge& e,
-    EdgeMap<label>& facesPerEdge
+    const Foam::edge& e,
+    Foam::EdgeMap<Foam::label>& facesPerEdge
 )
 {
-    //label& count = facesPerEdge(e, 0);  // lookup or new entry
+    using namespace Foam;
+
+    //auto& count = facesPerEdge(e, 0);  // lookup or new entry
     //if (count == 2)
     //{
     //    return false;
@@ -61,10 +67,9 @@ bool Foam::triSurfaceMesh::addFaceToEdge
     //++count;
     //return true;
 
-    auto fnd = facesPerEdge.find(e);
-    if (fnd)
+    if (auto fnd = facesPerEdge.find(e); fnd.good())
     {
-        label& count = fnd.val();
+        auto& count = fnd.val();
         const int dir = edge::compare(e, fnd.key());
         if (dir == 1)
         {
@@ -96,6 +101,29 @@ bool Foam::triSurfaceMesh::addFaceToEdge
 }
 
 
+// Calculate the bounding sphere for a triFace
+inline Foam::scalar faceBoundingSphere
+(
+    const Foam::point& faceCentre,
+    const Foam::triFace& tri,
+    const Foam::UList<Foam::point>& points
+)
+{
+    using namespace Foam;
+
+    const scalar a = faceCentre.distSqr(points[tri.a()]);
+    const scalar b = faceCentre.distSqr(points[tri.b()]);
+    const scalar c = faceCentre.distSqr(points[tri.c()]);
+
+    // Add a bit to make sure all points are tested inside
+    return (std::max(std::max(a, b), c) + Foam::sqr(SMALL));
+}
+
+} // End anonymous namespace
+
+
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
 bool Foam::triSurfaceMesh::isSurfaceClosed() const
 {
     if (debug)
@@ -106,13 +134,14 @@ bool Foam::triSurfaceMesh::isSurfaceClosed() const
             << triSurface::size() << " triangles" << endl;
     }
 
-    const pointField& pts = triSurface::points();
+    const triSurface& s = *this;
+    const auto& pts = s.points();
 
 /*
     // Construct pointFaces. Let's hope surface has compact point
     // numbering ...
     labelListList pointFaces;
-    invertManyToMany(pts.size(), *this, pointFaces);
+    invertManyToMany(pts.size(), s, pointFaces);
 
     // Loop over all faces surrounding point. Count edges emanating from point.
     // Every edge should be used by two faces exactly.
@@ -121,12 +150,12 @@ bool Foam::triSurfaceMesh::isSurfaceClosed() const
     EdgeMap<label> facesPerEdge;
     forAll(pointFaces, pointi)
     {
-        const labelList& pFaces = pointFaces[pointi];
+        const auto& pFaces = pointFaces[pointi];
 
         facesPerEdge.clear();
         for (const label facei : pFaces)
         {
-            const triSurface::face_type& f = triSurface::operator[](facei);
+            const auto& f = s[facei];
             const label fp = f.find(pointi);
 
             // Something weird: if I expand the code of addFaceToEdge in both
@@ -210,9 +239,10 @@ bool Foam::triSurfaceMesh::isSurfaceClosed() const
     }
 */
 
-    const triSurface& ts = *this;
-    EdgeMap<label> facesPerEdge(2*ts.size());
-    for (const auto& f : ts)
+    EdgeMap<label> facesPerEdge;
+    facesPerEdge.reserve(s.size());
+
+    for (const auto& f : s)
     {
         forAll(f, fp)
         {
@@ -233,11 +263,23 @@ bool Foam::triSurfaceMesh::isSurfaceClosed() const
     }
 
 
-    // Check for any edges used only once.
-    bool haveWarned = false;
+    // Check for any edges with inconsistent normal orientation,
+    // open surfaces, edges used only once etc.
+
+    edge warnEdge(-1, -1);
+    label nWarnings = 0;
+
     forAllConstIters(facesPerEdge, iter)
     {
-        if (iter.val() != 2 && iter.val() != -1)
+        if (iter.val() < 0)  // Special value (incorrect orientation)
+        {
+            if (!nWarnings)
+            {
+                warnEdge = iter.key();
+            }
+            ++nWarnings;
+        }
+        else if (iter.val() != 2)
         {
             if (debug)
             {
@@ -245,33 +287,21 @@ bool Foam::triSurfaceMesh::isSurfaceClosed() const
                     << " surface:" << searchableSurface::name()
                     << " surface is open" << endl;
             }
+            // not closed
             return false;
         }
     }
 
-    // Check for any edges with inconsistent normal orientation.
-    forAllConstIters(facesPerEdge, iter)
+    if (nWarnings)
     {
-        if (iter.val() == -1)
-        {
-            // Special value for incorrect orientation
-            if (!haveWarned)
-            {
-                WarningInFunction
-                    << "Surface " << searchableSurface::name()
-                    << " is closed but has inconsistent face orientation"
-                    << nl
-                    << "    at edge " << pts[iter.key().first()]
-                    << pts[iter.key().second()]
-                    << nl
-                    << "    This means it probably cannot be used"
-                    << " for inside/outside queries."
-                    << " Suppressing further messages." << endl;
-                haveWarned = true;
-            }
-            //- Return open?
-            //return false;
-        }
+        WarningInFunction
+            << "Surface " << searchableSurface::name()
+            << " is closed but has inconsistent face orientation at "
+            << nWarnings << " edges." << nl
+            << "    first edge: "
+            << pts[warnEdge.first()] << pts[warnEdge.second()] << nl
+            << "    This means it probably cannot be used"
+            << " for inside/outside queries." << endl;
     }
 
     if (debug)
@@ -308,7 +338,8 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, const triSurface& s)
     surfaceClosed_(-1),
     outsideVolType_(volumeType::UNKNOWN)
 {
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
 }
 
 
@@ -336,7 +367,8 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io)
     surfaceClosed_(-1),
     outsideVolType_(volumeType::UNKNOWN)
 {
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
 }
 
 
@@ -380,14 +412,14 @@ Foam::triSurfaceMesh::triSurfaceMesh
 
     // Report optional scale factor (eg, mm to m),
     // which was already applied during triSurface construction
-    scalar scaleFactor{0};
-    if (dict.getOrDefault("scale", scaleFactor) && scaleFactor > 0)
+    if (scalar factor; dict.readIfPresent("scale", factor) && factor > 0)
     {
         Info<< searchableSurface::name()
-            << " : using scale " << scaleFactor << endl;
+            << " : using scale " << factor << endl;
     }
 
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
 
     // Have optional minimum quality for normal calculation
     if (dict.readIfPresent("minQuality", minQuality_) && minQuality_ > 0)
@@ -423,11 +455,15 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, const readAction r)
     surfaceClosed_(-1),
     outsideVolType_(volumeType::UNKNOWN)
 {
+    const bool searchGlobal
+    (
+        r == readAction::localOrGlobal
+     || r == readAction::masterOnly
+    );
+
     // Check IO flags
     if (io.isAnyRead())
     {
-        const bool searchGlobal(r == localOrGlobal || r == masterOnly);
-
         const fileName actualFile
         (
             searchGlobal
@@ -497,7 +533,8 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, const readAction r)
         }
     }
 
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
 }
 
 
@@ -529,6 +566,12 @@ Foam::triSurfaceMesh::triSurfaceMesh
     surfaceClosed_(-1),
     outsideVolType_(volumeType::UNKNOWN)
 {
+    const bool searchGlobal
+    (
+        r == readAction::localOrGlobal
+     || r == readAction::masterOnly
+    );
+
     if (io.isAnyRead())
     {
         // Surface type (optional)
@@ -536,8 +579,6 @@ Foam::triSurfaceMesh::triSurfaceMesh
 
         // Scale factor (optional)
         const scalar scaleFactor(dict.getOrDefault<scalar>("scale", 0));
-
-        const bool searchGlobal(r == localOrGlobal || r == masterOnly);
 
         fileName actualFile
         (
@@ -635,8 +676,8 @@ Foam::triSurfaceMesh::triSurfaceMesh
         }
     }
 
-
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
 
     // Have optional minimum quality for normal calculation
     if (dict.readIfPresent("minQuality", minQuality_) && minQuality_ > 0)
@@ -664,32 +705,12 @@ void Foam::triSurfaceMesh::clearOut()
     triSurface::clearOut();
 }
 
-
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 Foam::tmp<Foam::pointField> Foam::triSurfaceMesh::coordinates() const
 {
     auto tpts = tmp<pointField>::New();
-    auto& pts = tpts.ref();
-
-    if (triSurface::hasFaceCentres())
-    {
-        // Can reuse existing values
-        pts = triSurface::faceCentres();
-    }
-    else
-    {
-        typedef SubList<labelledTri> FaceListType;
-
-        // Calculate face centres from a copy to avoid incurring
-        // additional storage
-        pts = PrimitivePatch<FaceListType, const pointField&>
-        (
-            FaceListType(*this, triSurface::size()),
-            triSurface::points()
-        ).faceCentres();
-    }
-
+    triSurface::centres(tpts.ref());
     return tpts;
 }
 
@@ -700,24 +721,26 @@ void Foam::triSurfaceMesh::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres = coordinates();
-    radiusSqr.setSize(size());
-    radiusSqr = 0.0;
+    const triSurface& s = *this;
+    const auto& pts = s.points();
 
-    const pointField& pts = triSurface::points();
+    centres.resize_nocopy(s.size());
+    radiusSqr.resize_nocopy(s.size());
 
-    forAll(*this, facei)
+    triSurface::centres(centres);
+
+    forAll(s, facei)
     {
-        const labelledTri& f = triSurface::operator[](facei);
-        const point& fc = centres[facei];
-        for (const label pointi : f)
-        {
-            radiusSqr[facei] = max(radiusSqr[facei], fc.distSqr(pts[pointi]));
-        }
+        radiusSqr[facei] = faceBoundingSphere(centres[facei], s[facei], pts);
     }
 
-    // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    if (debug)
+    {
+        Pout<< "triSurfaceMesh::boundingSpheres :"
+            << " surface:" << searchableSurface::name()
+            << " returning " << centres.size() << " values"
+            << endl;
+    }
 }
 
 
@@ -729,11 +752,7 @@ Foam::tmp<Foam::pointField> Foam::triSurfaceMesh::points() const
 
 bool Foam::triSurfaceMesh::overlaps(const boundBox& bb) const
 {
-     const indexedOctree<treeDataTriSurface>& octree = tree();
-
-     labelList indices = octree.findBox(treeBoundBox(bb));
-
-     return !indices.empty();
+    return tree().overlaps(treeBoundBox(bb));
 }
 
 
@@ -762,7 +781,9 @@ void Foam::triSurfaceMesh::movePoints(const pointField& newPoints)
     edgeTree_.clear();
     triSurface::movePoints(newPoints);
 
-    bounds() = boundBox(triSurface::points(), false);
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
+
     if (debug)
     {
         Pout<< "triSurfaceMesh::movePoints: finished moving points" << endl;
@@ -794,12 +815,7 @@ Foam::triSurfaceMesh::edgeTree() const
         if (bEdges.size())
         {
             label nPoints;
-            PatchTools::calcBounds
-            (
-                *this,
-                bb,
-                nPoints
-            );
+            PatchTools::calcBounds(*this, bb, nPoints);
 
             // Slightly extended bb. Slightly off-centred just so on symmetric
             // geometry there are less face/edge aligned items.
@@ -814,8 +830,7 @@ Foam::triSurfaceMesh::edgeTree() const
                 << "calculating edge tree for bb:" << bb << endl;
         }
 
-        const scalar oldTol =
-            indexedOctree<treeDataEdge>::perturbTol(tolerance());
+        const scalar oldTol = indexedOctreeBase::perturbTol(tolerance());
 
         edgeTree_.reset
         (
@@ -831,7 +846,7 @@ Foam::triSurfaceMesh::edgeTree() const
             )
         );
 
-        indexedOctree<treeDataEdge>::perturbTol(oldTol);
+        indexedOctreeBase::perturbTol(oldTol);
 
         if (debug)
         {
@@ -850,7 +865,7 @@ const Foam::wordList& Foam::triSurfaceMesh::regions() const
 {
     if (regions_.empty())
     {
-        regions_.setSize(patches().size());
+        regions_.resize(patches().size());
         forAll(regions_, regioni)
         {
             regions_[regioni] = patches()[regioni].name();
@@ -965,24 +980,23 @@ void Foam::triSurfaceMesh::findNearest
 {
     if (debug)
     {
-        scalar maxRadius = 0;
+        scalar maxDistSqr = 0;
         if (!samples.empty())
         {
             if (nearestDistSqr.empty())
             {
-                maxRadius = searchableSurface::defaultMaxDistSqr();
+                maxDistSqr = searchableSurface::defaultMaxDistSqr();
             }
             else
             {
-                maxRadius = max(nearestDistSqr);
+                maxDistSqr = Foam::max(nearestDistSqr);
             }
-            maxRadius = std::sqrt(maxRadius);
         }
 
         Pout<< "triSurfaceMesh::findNearest :"
             << " surface:" << searchableSurface::name()
             << " trying to find nearest for " << samples.size()
-            << " samples with max sphere " << maxRadius << endl;
+            << " samples with max sphere " << std::sqrt(maxDistSqr) << endl;
     }
 
     triSurfaceSearch::findNearest(samples, nearestDistSqr, info);
@@ -1005,24 +1019,23 @@ void Foam::triSurfaceMesh::findNearest
 {
     if (debug)
     {
-        scalar maxRadius = 0;
+        scalar maxDistSqr = 0;
         if (!samples.empty())
         {
             if (nearestDistSqr.empty())
             {
-                maxRadius = searchableSurface::defaultMaxDistSqr();
+                maxDistSqr = searchableSurface::defaultMaxDistSqr();
             }
             else
             {
-                maxRadius = max(nearestDistSqr);
+                maxDistSqr = Foam::max(nearestDistSqr);
             }
-            maxRadius = std::sqrt(maxRadius);
         }
 
         Pout<< "triSurfaceMesh::findNearest :"
             << " surface:" << searchableSurface::name()
             << " trying to find nearest and region for " << samples.size()
-            << " samples with max sphere " << maxRadius << endl;
+            << " samples with max sphere " << std::sqrt(maxDistSqr) << endl;
     }
 
     triSurfaceRegionSearch::findNearest
@@ -1127,18 +1140,23 @@ void Foam::triSurfaceMesh::getRegion
             << " getting region for "
             << info.size() << " triangles" << endl;
     }
-    region.setSize(info.size());
+
+    region.resize_nocopy(info.size());
+
+    const triSurface& s = *this;
+    const label numFaces = s.size();
+
     forAll(info, i)
     {
-        if (info[i].hit())
-        {
-            region[i] = triSurface::operator[](info[i].index()).region();
-        }
-        else
-        {
-            region[i] = -1;
-        }
+        const label facei = info[i].index();
+
+        region[i] =
+        (
+            (info[i].hit() && facei >= 0 && facei < numFaces)
+          ? s[facei].region() : -1
+        );
     }
+
     if (debug)
     {
         Pout<< "triSurfaceMesh::getRegion :"
@@ -1146,6 +1164,46 @@ void Foam::triSurfaceMesh::getRegion
             << info.size() << " triangles" << endl;
     }
 }
+
+
+namespace
+{
+
+// Search neighbour triangles for one with a better quality
+template<class FaceFaces>
+Foam::label betterQualityNeighbour
+(
+    const Foam::triSurface& s,
+    Foam::label facei,
+    const FaceFaces& faceFaces
+)
+{
+    using namespace Foam;
+
+    label bestNbr = -1;
+
+    if (facei >= 0 && facei < s.size())
+    {
+        const auto& pts = s.points();
+
+        auto qual = s[facei].tri(pts).quality();
+
+        for (label nbri : faceFaces[facei])
+        {
+            auto nbrQual = s[nbri].tri(pts).quality();
+
+            if (qual < nbrQual)
+            {
+                qual = nbrQual;
+                bestNbr = nbri;
+            }
+        }
+    }
+
+    return bestNbr;
+}
+
+} // End anonymous namespace
 
 
 void Foam::triSurfaceMesh::getNormal
@@ -1163,73 +1221,205 @@ void Foam::triSurfaceMesh::getNormal
     }
 
     const triSurface& s = *this;
-    const pointField& pts = s.points();
+    const auto& pts = s.points();
+    const label numFaces = s.size();
 
-    normal.setSize(info.size());
+    normal.resize_nocopy(info.size());
+
+    // Note: keep this code synchronized with the measure() method
+
+    // Track which faces (if any) need to be adjusted for poor quality
+    bitSet fixQuality;
 
     if (minQuality_ >= 0)
     {
-        // Make sure we don't use triangles with low quality since
-        // normal is not reliable.
+        fixQuality.resize(numFaces);
+    }
 
-        const labelListList& faceFaces = s.faceFaces();
-
-        forAll(info, i)
+    forAll(info, i)
+    {
+        if
+        (
+            const label facei = info[i].index();
+            (info[i].hit() && facei >= 0 && facei < numFaces)
+        )
         {
-            if (info[i].hit())
-            {
-                const label facei = info[i].index();
-                normal[i] = s[facei].unitNormal(pts);
+            // Uncached
+            normal[i] = s[facei].unitNormal(pts);
 
+            if (minQuality_ >= 0)
+            {
                 scalar qual = s[facei].tri(pts).quality();
 
                 if (qual < minQuality_)
                 {
-                    // Search neighbouring triangles
-                    const labelList& fFaces = faceFaces[facei];
-
-                    for (const label nbri : fFaces)
-                    {
-                        scalar nbrQual = s[nbri].tri(pts).quality();
-                        if (nbrQual > qual)
-                        {
-                            qual = nbrQual;
-                            normal[i] = s[nbri].unitNormal(pts);
-                        }
-                    }
+                    fixQuality.set(facei);
                 }
             }
-            else
-            {
-                // Set to what?
-                normal[i] = Zero;
-            }
+        }
+        else
+        {
+            // No useful information possible
+            normal[i] = Foam::zero{};
         }
     }
-    else
+
+    // Make sure we don't use triangles with low quality since normal is
+    // not reliable. Only apply to ones that we already know to be poor
+    // (checked above) and otherwise avoid creating face-face addressing.
+
+    label nAdjusted = 0;
+
+    if (fixQuality.any())
     {
+        const auto& faceFaces = s.faceFaces();
+
         forAll(info, i)
         {
-            if (info[i].hit())
-            {
+            if
+            (
                 const label facei = info[i].index();
-
-                // Uncached
-                normal[i] = s[facei].unitNormal(pts);
-            }
-            else
+                (info[i].hit() && fixQuality.test(facei))
+            )
             {
-                // Set to what?
-                normal[i] = Zero;
+                label bestNbr = betterQualityNeighbour(s, facei, faceFaces);
+
+                if (bestNbr >= 0)
+                {
+                    normal[i] = s[bestNbr].unitNormal(pts);
+                    ++nAdjusted;
+                }
             }
         }
     }
+
     if (debug)
     {
         Pout<< "triSurfaceMesh::getNormal :"
             << " finished getting normal for "
-            << info.size() << " triangles" << endl;
+            << info.size() << " triangles (adjusted "
+            << nAdjusted << " for quality)" << endl;
     }
+}
+
+
+Foam::label Foam::triSurfaceMesh::measure
+(
+    List<vector>* centres,
+    List<scalar>* boundingRadiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const triSurface& s = *this;
+    const auto& pts = s.points();
+
+    const label output_size = s.size();
+
+    bool usedParams = false;
+
+    // Extract face centres
+    if (centres)
+    {
+        usedParams = true;
+        s.centres(*centres);
+    }
+
+    // Extract bounding sphere radius squared
+    if (boundingRadiusSqr)
+    {
+        usedParams = true;
+        auto& radiusSqr = *boundingRadiusSqr;
+        radiusSqr.resize_nocopy(output_size);
+
+        if (centres)
+        {
+            // Reuse extracted face centres
+            forAll(s, facei)
+            {
+                radiusSqr[facei] = faceBoundingSphere
+                (
+                    (*centres)[facei],
+                    s[facei],
+                    pts
+                );
+            }
+        }
+        else
+        {
+            // Generate face centre on the fly
+            forAll(s, facei)
+            {
+                radiusSqr[facei] = faceBoundingSphere
+                (
+                    s[facei].centre(pts),
+                    s[facei],
+                    pts
+                );
+            }
+        }
+    }
+
+    // Extract regions
+    if (regions)
+    {
+        usedParams = true;
+        s.regionIDs(*regions);
+    }
+
+    // Extract normals.
+    // Note: keep this code synchronized with the getNormal() method
+    if (normals)
+    {
+        usedParams = true;
+        auto& normal = *normals;
+        normal.resize_nocopy(output_size);
+
+        // Track which faces (if any) need to be adjusted for poor quality
+        bitSet fixQuality;
+
+        if (minQuality_ >= 0)
+        {
+            fixQuality.resize(output_size);
+        }
+
+        forAll(s, facei)
+        {
+            // Uncached
+            normal[facei] = s[facei].unitNormal(pts);
+
+            if (minQuality_ >= 0)
+            {
+                scalar qual = s[facei].tri(pts).quality();
+
+                if (qual < minQuality_)
+                {
+                    fixQuality.set(facei);
+                }
+            }
+        }
+
+        // Make sure we don't use triangles with low quality since normal is
+        // not reliable. Only apply to ones that we already know to be poor
+        // (checked above).
+
+        if (fixQuality.any())
+        {
+            const auto& faceFaces = s.faceFaces();
+
+            for (label facei : fixQuality)
+            {
+                label bestNbr = betterQualityNeighbour(s, facei, faceFaces);
+
+                if (bestNbr >= 0)
+                {
+                    normal[facei] = s[bestNbr].unitNormal(pts);
+                }
+            }
+        }
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 
@@ -1311,8 +1501,7 @@ void Foam::triSurfaceMesh::getVolumeType
     List<volumeType>& volType
 ) const
 {
-    const scalar oldTol =
-        indexedOctree<treeDataTriSurface>::perturbTol(tolerance());
+    const scalar oldTol = indexedOctreeBase::perturbTol(tolerance());
 
     if (debug)
     {
@@ -1322,7 +1511,7 @@ void Foam::triSurfaceMesh::getVolumeType
             << " samples" << endl;
     }
 
-    volType.setSize(points.size());
+    volType.resize_nocopy(points.size());
 
     forAll(points, pointi)
     {
@@ -1349,7 +1538,7 @@ void Foam::triSurfaceMesh::getVolumeType
         }
     }
 
-    indexedOctree<treeDataTriSurface>::perturbTol(oldTol);
+    indexedOctreeBase::perturbTol(oldTol);
 
     if (debug)
     {

@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2015-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -30,12 +31,6 @@ Class
 Description
     IOoject and searching on triSurface
 
-    Note: when constructing from dictionary has the following parameters:
-        - scale     : scaling factor.
-        - tolerance : relative tolerance for doing intersections
-                      (see triangle::intersection)
-        - minQuality: discard triangles with low quality when getting normal
-
     \heading Dictionary parameters
     \table
         Property    | Description                       | Required | Default
@@ -45,6 +40,9 @@ Description
         scale       | Scaling factor                    | no    | 0
         minQuality  | Quality criterion                 | no    | -1
     \endtable
+
+    If the minQuality is specified, normals for triangles with low quality
+    are estimated from a better quality neighbouring triangle.
 
 SourceFiles
     triSurfaceMesh.C
@@ -88,8 +86,9 @@ protected:
         //- Supplied fileName override
         fileName fName_;
 
-        //- Optional min triangle quality. Triangles below this get
-        //  ignored for normal calculation
+        //- Optional min triangle quality.
+        //- Normals for triangles with low quality are estimated from
+        //- a better quality neighbouring triangle.
         scalar minQuality_;
 
         //- Search tree for boundary edges.
@@ -107,13 +106,6 @@ protected:
 
     // Private Member Functions
 
-        //- Helper function for isSurfaceClosed
-        static bool addFaceToEdge
-        (
-            const edge&,
-            EdgeMap<label>&
-        );
-
         //- Check whether surface is closed without calculating any permanent
         //  addressing.
         bool isSurfaceClosed() const;
@@ -129,6 +121,10 @@ protected:
             DynamicList<pointIndexHit>& hits
         );
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         triSurfaceMesh(const triSurfaceMesh&) = delete;
 
@@ -136,13 +132,21 @@ protected:
         void operator=(const triSurfaceMesh&) = delete;
 
 
-public:
-
     //- Runtime type information
     TypeName("triSurfaceMesh");
 
     //- Return the mesh sub-directory name (usually "triSurface")
     static word meshSubDir;
+
+    // Data Types
+
+        //- Special enumeration for file search method
+        enum readAction
+        {
+            localOnly,      //!< load from (processor-)local file only
+            localOrGlobal,  //!< load from (processor-)local or global file
+            masterOnly      //!< as localOrGlobal but only load on master
+        };
 
 
     // Constructors
@@ -151,35 +155,28 @@ public:
         triSurfaceMesh(const IOobject&, const triSurface&);
 
         //- Construct read
-        triSurfaceMesh(const IOobject& io);
+        explicit triSurfaceMesh(const IOobject& io);
 
         //- Construct from IO and dictionary (used by searchableSurface).
-        //  Dictionary may contain a 'scale' entry (eg, 0.001: mm -> m)
+        //- Dictionary may contain a \c scale entry (eg, 0.001: mm -> m)
         triSurfaceMesh
         (
             const IOobject& io,
             const dictionary& dict
         );
 
+        //- Construct read with specified file search method
+        //  \note needed by distributedTriSurfaceMesh
+        triSurfaceMesh(const IOobject& io, const readAction r);
 
-        // Special constructors for use by distributedTriSurface. File search
-        // method supplied:
-
-            enum readAction
-            {
-                localOnly,      // load from (processor-)local file only
-                localOrGlobal,  // load from (processor-)local or global file
-                masterOnly      // as localOrGlobal but only load on master
-            };
-
-            triSurfaceMesh(const IOobject& io, const readAction r);
-
-            triSurfaceMesh
-            (
-                const IOobject& io,
-                const dictionary& dict,
-                const readAction r
-            );
+        //- Construct from IO, dictionary with specified file search method
+        //  \note needed by distributedTriSurfaceMesh
+        triSurfaceMesh
+        (
+            const IOobject& io,
+            const dictionary& dict,
+            const readAction r
+        );
 
 
     //- Destructor
@@ -312,6 +309,23 @@ public:
             //- WIP. From a set of hits (points and
             //  indices) get the specified field. Misses do not get set.
             virtual void getField(const List<pointIndexHit>&, labelList&) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const;
 
 
         // regIOobject implementation

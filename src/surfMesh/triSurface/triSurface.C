@@ -542,19 +542,6 @@ Foam::triSurface::~triSurface()
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::triPointRef Foam::triSurface::triangle(label facei) const
-{
-    if (facei >= 0 && facei < size())
-    {
-        return (*this)[facei].tri(this->points());
-    }
-    else
-    {
-        return triPointRef(point::zero, point::zero, point::zero);
-    }
-}
-
-
 void Foam::triSurface::clearTopology()
 {
     MeshReference::clearTopology();
@@ -782,19 +769,120 @@ void Foam::triSurface::triFaceFaces(List<face>& plainFaces) const
 }
 
 
-Foam::labelList Foam::triSurface::regionIDs() const
+void Foam::triSurface::regionIDs(labelList& regions) const
 {
-    labelList regions(this->size());
+    regions.resize_nocopy(this->size());
 
     std::transform
     (
-        this->cbegin(),
-        this->cend(),
+        this->cbegin(), this->cend(),
         regions.begin(),
         [](const auto& f) { return f.region(); }
     );
+}
 
+
+Foam::labelList Foam::triSurface::regionIDs() const
+{
+    labelList regions;
+    regionIDs(regions);
     return regions;
+}
+
+
+void Foam::triSurface::regionIDs
+(
+    const labelUList& indices,
+    labelList& regions
+) const
+{
+    regions.resize_nocopy(indices.size());
+
+    const label numFaces = this->size();
+
+    std::transform
+    (
+        indices.begin(), indices.end(),
+        regions.begin(),
+        [this,numFaces](auto id) -> label
+        {
+            return (id >= 0 && id < numFaces ? (*this)[id].region() : -1);
+        }
+    );
+}
+
+
+void Foam::triSurface::centres(List<point>& coords) const
+{
+    // Fill with face centres, from cached values or manually
+    const triSurface& s = *this;
+
+    coords.resize_nocopy(s.size());
+
+    if (s.hasFaceCentres())
+    {
+        // Can reuse existing values
+        coords = s.faceCentres();
+    }
+    else
+    {
+        // same as PrimitivePatch::calcFaceCentres()
+        forAll(coords, i)
+        {
+            coords[i] = s[i].centre(s.points());
+        }
+    }
+}
+
+
+void Foam::triSurface::centres
+(
+    const labelUList& indices,
+    List<point>& coords
+) const
+{
+    // Fill with face centres, from cached values or manually
+    const triSurface& s = *this;
+
+    coords.resize_nocopy(indices.size());
+
+    const label numFaces = s.size();
+
+    if (s.hasFaceCentres())
+    {
+        // Can reuse existing values
+
+        const auto& fc = s.faceCentres();
+
+        forAll(indices, i)
+        {
+            if (auto facei = indices[i]; facei >= 0 && facei < numFaces)
+            {
+                coords[i] = fc[facei];
+            }
+            else
+            {
+                // Not really meaningful, but at least an initialized value
+                coords[i] = Foam::zero{};
+            }
+        }
+    }
+    else
+    {
+
+        forAll(indices, i)
+        {
+            if (auto facei = indices[i]; facei >= 0 && facei < numFaces)
+            {
+                coords[i] = s[facei].centre(s.points());
+            }
+            else
+            {
+                // Not really meaningful, but at least an initialized value
+                coords[i] = Foam::zero{};
+            }
+        }
+    }
 }
 
 

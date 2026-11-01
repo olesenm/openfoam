@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2018-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,11 +39,78 @@ Note
 #include "Time.H"
 #include "clockTime.H"
 #include "triSurface.H"
+#include "triSurfaceMesh.H"
 #include "MeshedSurfaces.H"
 #include "UnsortedMeshedSurfaces.H"
 #include "STLReader.H"
 
 using namespace Foam;
+
+
+template<class T>
+Ostream& print_average(Ostream& os, const UList<T>& values)
+{
+    if (values.empty()) os << "n/a"; else os << average(values);
+    return os;
+}
+
+
+template<class T>
+Ostream& print_minmax(Ostream& os, const UList<T>& values)
+{
+    if (values.empty()) os << "n/a"; else os << minMax(values);
+    return os;
+}
+
+void test_measure(const fileName& importName)
+{
+    // Dummy Time, without needing a case directory
+    autoPtr<Time> timePtr(Time::NewGlobalTime());
+
+    fileName resolvedName(importName);
+    resolvedName.toAbsolute();
+
+    IOobject io
+    (
+        resolvedName,   // absolute path
+       *timePtr,
+        IOobjectOption::MUST_READ,
+        IOobjectOption::NO_WRITE,
+        IOobjectOption::NO_REGISTER
+    );
+
+    triSurfaceMesh surf(io);
+
+    List<vector> centres;
+    List<scalar> radiusSqr;
+    List<label> regions;
+    List<vector> normals;
+
+    // const label n = surf.measure(nullptr, nullptr, nullptr, nullptr);
+    // const label n = surf.measure(&centres, &radiusSqr, &regions, &normals);
+    // const label n = surf.measure(nullptr, &radiusSqr, nullptr, nullptr);
+    const label n = surf.measure(&centres, nullptr, &regions, &normals);
+    // const label n = surf.measure(nullptr, nullptr, &regions, nullptr);
+
+    Info<< "Read surface:" << endl;
+    surf.writeStats(Info);
+    Info<< "measure() returned " << n << " elements" << nl;
+
+    Info<< "  centres  : " << centres.size()
+        << "  average = "; print_average(Info, centres) << nl;
+
+    Info<< "  radiusSqr: " << radiusSqr.size()
+        << "  min/max = "; print_minmax(Info, radiusSqr) << nl;
+
+    Info<< "  regions  : " << regions.size()
+        << "  min/max = "; print_minmax(Info, regions) << nl;
+
+    Info<< "  normals  : " << normals.size()
+        << "  average = "; print_average(Info, normals) << nl;
+
+    Info<< endl;
+}
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -71,6 +139,12 @@ int main(int argc, char *argv[])
         "unsorted",
         "Use UnsortedMeshedSurface instead of MeshedSurface, "
         "or unsorted output (with -triSurface option)"
+    );
+
+    argList::addBoolOption
+    (
+        "measure",
+        "Load as triSurfaceMesh (with dummy Time) and report measure()"
     );
 
     argList::addOption
@@ -105,7 +179,11 @@ int main(int argc, char *argv[])
 
     clockTime timing;
 
-    if (args.found("triSurface"))
+    if (args.found("measure"))
+    {
+        test_measure(importName);
+    }
+    else if (args.found("triSurface"))
     {
         triSurface surf(importName, ext);
 
