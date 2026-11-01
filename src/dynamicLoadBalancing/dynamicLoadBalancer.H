@@ -188,7 +188,7 @@ public:
 
 
     //- Destructor
-    virtual ~dynamicLoadBalancer() override;
+    virtual ~dynamicLoadBalancer();
 
 
     // Member Functions
@@ -205,7 +205,7 @@ public:
         bool balance();
 
         //- Execute the hook and return mesh-changed status
-        virtual bool execute() override;
+        virtual bool execute();
 
 
     // I/O

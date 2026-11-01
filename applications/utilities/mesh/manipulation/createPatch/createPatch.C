@@ -1366,10 +1366,10 @@ int main(int argc, char *argv[])
             const dictionary& dict = patchSources[sourcei];
             const word sourceType(dict.get<word>("constructFrom"));
             const word& patchName = patchNames[meshi][sourcei];
-            const bool allowUndo = dict.lookupOrDefault("allowUndo", false);
             const word zoneGroupName("createPatch:" + patchName);
+            const bool allowUndo = dict.getOrDefault("allowUndo", false);
 
-            const dictionary& patchDict(patchInfoDicts[meshi][sourcei]);
+            const dictionary& patchDict = patchInfoDicts[meshi][sourcei];
 
 
             if (sourceType == "autoPatch")
@@ -1613,7 +1613,7 @@ int main(int argc, char *argv[])
             const word& patchName = patchNames[meshi][sourcei];
             const word zoneGroupName("createPatch:" + patchName);
             const word sourceType(dict.get<word>("constructFrom"));
-            const bool allowUndo = dict.lookupOrDefault("allowUndo", false);
+            const bool allowUndo = dict.getOrDefault("allowUndo", false);
 
             if (sourceType == "autoPatch")
             {
