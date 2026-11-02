@@ -167,12 +167,11 @@ int main(int argc, char *argv[])
         {
             Info<< "master: " << flatOutput(localValues) << nl;
 
-            label proci = 0;
-            for (const labelRange& range : subProcAddr)
+            for (label i = 0; i < subProcAddr.length(); ++i)
             {
-                Info<< proci << ": " << flatOutput(allValues.slice(range))
+                Info<< i << ": "
+                    << flatOutput(allValues.slice(subProcAddr.range(i)))
                     << nl;
-                ++proci;
             }
 
             Info<< nl << "verify ranges" << nl;
@@ -180,17 +179,18 @@ int main(int argc, char *argv[])
             {
                 globalIndex glob;
                 Info<< "empty:" << nl;
-                for (const labelRange& range : glob)
+
+                for (label i = 0; i < glob.length(); ++i)
                 {
-                    Info<< "    range: " << range << endl;
+                    Info<< "    range: " << glob.range(i) << nl;
                 }
             }
             {
                 globalIndex glob(labelList(Foam::one{}, 0));
                 Info<< "degenerate:" << nl;
-                for (const labelRange& range : glob)
+                for (label i = 0; i < glob.length(); ++i)
                 {
-                    Info<< "    range: " << range << endl;
+                    Info<< "    range: " << glob.range(i) << nl;
                 }
             }
             {
@@ -200,9 +200,9 @@ int main(int argc, char *argv[])
                     labelList(Foam::one{}, 0)
                 );
                 Info<< "single:" << nl;
-                for (const labelRange& range : glob)
+                for (label i = 0; i < glob.length(); ++i)
                 {
-                    Info<< "    range: " << range << endl;
+                    Info<< "    range: " << glob.range(i) << nl;
                 }
             }
         }

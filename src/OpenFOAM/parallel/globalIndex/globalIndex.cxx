@@ -302,18 +302,4 @@ Foam::globalIndex::ranges() const
 }
 
 
-Foam::labelRange Foam::globalIndex::front() const noexcept
-{
-    // First entry, or out of bounds
-    return empty() ? labelRange() : range(0);
-}
-
-
-Foam::labelRange Foam::globalIndex::back() const noexcept
-{
-    // Last entry, or out of bounds
-    return empty() ? labelRange() : range(length()-1);
-}
-
-
 // ************************************************************************* //

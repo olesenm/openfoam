@@ -848,12 +848,6 @@ public:
         //- Range of process indices for addressed sub-offsets (processes)
         inline labelRange subProcs() const noexcept;
 
-        //- The first offset range. It is (0,0) if globalIndex is empty
-        labelRange front() const noexcept;
-
-        //- The last offset range. It is (0,0) if globalIndex is empty
-        labelRange back() const noexcept;
-
 
     // Edit
 
@@ -910,85 +904,6 @@ public:
         {
             inplaceToGlobal(myProcNumber(), labels);
         }
-
-
-    // Iteration
-
-        //- Forward input iterator with const access that is used to
-        //- iterate across the globalIndex offsets() table.
-        //  The de-referenced value is the range() with (start, size),
-        //  but it also provides separate index, start, size information.
-        class const_iterator
-        {
-            //- The parent class for which this is an iterator
-            const globalIndex* parent_;
-
-            //- The index into the parent
-            label index_;
-
-        public:
-
-        // Constructors
-
-            //- Construct from globalIndex list at given index
-            inline explicit
-            const_iterator(const globalIndex*, label i = 0) noexcept;
-
-
-        // Member Operators
-
-            //- The index into the arrays
-            inline label index() const noexcept;
-
-            //- The local start
-            inline label start() const;
-
-            //- The local size
-            inline label size() const;
-
-            //- The local range
-            inline labelRange range() const;
-
-            //- The local range
-            inline labelRange operator*() const;
-
-            inline const_iterator& operator++() noexcept;
-            inline const_iterator operator++(int) noexcept;
-
-            inline const_iterator& operator--() noexcept;
-            inline const_iterator operator--(int) noexcept;
-
-            inline bool operator==(const const_iterator& iter) const noexcept;
-            inline bool operator!=(const const_iterator& iter) const noexcept;
-        };
-
-
-        //- A const_iterator set to the beginning
-        inline const_iterator cbegin() const noexcept;
-
-        //- A const_iterator set to beyond the end
-        inline const const_iterator cend() const noexcept;
-
-        //- A const_iterator set to the beginning
-        inline const_iterator begin() const noexcept;
-
-        //- A const_iterator set to beyond the end
-        inline const const_iterator end() const noexcept;
-
-        //- Return const_iterator at offset proci from begin,
-        //- clamped to [0,nProcs] range
-        inline const_iterator cbegin(label proci) const noexcept;
-
-        //- Return const_iterator at offset proci from begin,
-        //- clamped to [0,nProcs] range
-        inline const_iterator begin(label proci) const noexcept;
-
-        // FUTURE?
-        // //- Return start/size range of proci data
-        // labelRange operator[](label proci) const
-        // {
-        //     return this->range(proci);
-        // }
 
 
     // Helper Functions
