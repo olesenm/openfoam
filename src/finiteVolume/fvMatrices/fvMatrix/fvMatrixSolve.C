@@ -182,14 +182,13 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveSegregated
         {
             PrecisionAdaptor<solveScalar, scalar> sourceCmpt_ss(sourceCmpt);
             ConstPrecisionAdaptor<solveScalar, scalar> psiCmpt_ss(psiCmpt);
-            PrecisionAdaptor<solveScalar, scalar> bouCoeffsCmpt_ss(bouCoeffsCmpt);
 
             const auto startRequest = UPstream::nRequests();
 
             initMatrixInterfaces
             (
                 true,
-                bouCoeffsCmpt_ss(),
+                bouCoeffsCmpt,
                 coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),
@@ -200,7 +199,7 @@ Foam::SolverPerformance<Type> Foam::fvMatrix<Type>::solveSegregated
             updateMatrixInterfaces
             (
                 true,
-                bouCoeffsCmpt_ss(),
+                bouCoeffsCmpt,
                 coeffsOffset_,
                 interfaces,
                 psiCmpt_ss(),

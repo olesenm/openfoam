@@ -431,8 +431,11 @@ namespace Foam
     }
 
     // explicit instantiations as needed
-    template outerProduct1<scalar>::type
-    sumSqrOffload<scalar>(const UList<scalar>&);
+    template outerProduct1<float>::type
+    sumSqrOffload<float>(const UList<float>&);
+
+    template outerProduct1<double>::type
+    sumSqrOffload<double>(const UList<double>&);
 
     // template outerProduct1<vector>::type
     // sumSqrOffload<vector>(const UList<vector>&);
@@ -479,8 +482,11 @@ namespace Foam
     }
 
     // explicit instantiations as needed
-    template typeOfMag<scalar>::type
-    sumMagOffload<scalar>(const UList<scalar>&);
+    template typeOfMag<float>::type
+    sumMagOffload<float>(const UList<float>&);
+
+    template typeOfMag<double>::type
+    sumMagOffload<double>(const UList<double>&);
 
     template typeOfMag<vector>::type
     sumMagOffload<vector>(const UList<vector>&);

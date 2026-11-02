@@ -811,7 +811,7 @@ public:
             (
                 solveScalarField&,
                 const tmp<solveScalarField>&,
-                const solveScalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceBouCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&,
                 const direction cmpt
@@ -822,7 +822,7 @@ public:
             (
                 solveScalarField&,
                 const tmp<solveScalarField>&,
-                const solveScalarField& interfaceIntCoeffsData,
+                const scalarField& interfaceIntCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&,
                 const direction cmpt
@@ -833,7 +833,7 @@ public:
             void sumA
             (
                 solveScalarField&,
-                const solveScalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceBouCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList&
             ) const;
@@ -844,7 +844,7 @@ public:
                 solveScalarField& rA,
                 const solveScalarField& psi,
                 const scalarField& source,
-                const solveScalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceBouCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const direction cmpt
@@ -855,7 +855,7 @@ public:
             (
                 const solveScalarField& psi,
                 const scalarField& source,
-                const solveScalarField& interfaceBouCoeffsData,
+                const scalarField& interfaceBouCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const direction cmpt
@@ -867,7 +867,7 @@ public:
             void initMatrixInterfaces
             (
                 const bool add,
-                const solveScalarField& interfaceCoeffsData,
+                const scalarField& interfaceCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const solveScalarField& psiif,
@@ -880,7 +880,7 @@ public:
             void updateMatrixInterfaces
             (
                 const bool add,
-                const solveScalarField& interfaceCoeffsData,
+                const scalarField& interfaceCoeffsData,
                 const labelUList& offsets,
                 const lduInterfaceFieldPtrsList& interfaces,
                 const solveScalarField& psiif,

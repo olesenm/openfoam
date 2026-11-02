@@ -145,7 +145,7 @@ void Foam::lduMatrix::Amul
 (
     solveScalarField& Apsi,
     const tmp<solveScalarField>& tpsi,
-    const solveScalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceBouCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
@@ -302,7 +302,7 @@ void Foam::lduMatrix::Tmul
 (
     solveScalarField& Tpsi,
     const tmp<solveScalarField>& tpsi,
-    const solveScalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceBouCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
@@ -368,7 +368,7 @@ void Foam::lduMatrix::Tmul
 void Foam::lduMatrix::sumA
 (
     solveScalarField& sumA,
-    const solveScalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceBouCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces
 ) const
@@ -423,7 +423,7 @@ void Foam::lduMatrix::sumA
         {
             const labelUList& pa = lduAddr().patchAddr(patchi);
             const label start = offsets[patchi];
-            const SubField<solveScalar> pCoeffs(interfaceBouCoeffsData, pa.size(), start);
+            const SubField<scalar> pCoeffs(interfaceBouCoeffsData, pa.size(), start);
 
             const labelRange faceIndices(pa.size());
 
@@ -450,7 +450,7 @@ void Foam::lduMatrix::residual
     solveScalarField& rA,
     const solveScalarField& psi,
     const scalarField& source,
-    const solveScalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceBouCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt
@@ -570,7 +570,7 @@ Foam::tmp<Foam::Field<Foam::solveScalar>> Foam::lduMatrix::residual
 (
     const solveScalarField& psi,
     const scalarField& source,
-    const solveScalarField& interfaceBouCoeffsData,
+    const scalarField& interfaceBouCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const direction cmpt

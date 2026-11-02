@@ -34,7 +34,7 @@ License
 void Foam::lduMatrix::initMatrixInterfaces
 (
     const bool add,
-    const solveScalarField& interfaceCoeffsData,
+    const scalarField& interfaceCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const solveScalarField& psiif,
@@ -56,7 +56,7 @@ void Foam::lduMatrix::initMatrixInterfaces
             {
                 const label start = offsets[interfacei];
                 const label len = offsets[interfacei+1] - offsets[interfacei];
-                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                 interfaces[interfacei].initInterfaceMatrixUpdate
                 (
@@ -89,7 +89,7 @@ void Foam::lduMatrix::initMatrixInterfaces
             {
                 const label start = offsets[interfacei];
                 const label len = offsets[interfacei+1] - offsets[interfacei];
-                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                 interfaces[interfacei].initInterfaceMatrixUpdate
                 (
@@ -118,7 +118,7 @@ void Foam::lduMatrix::initMatrixInterfaces
 void Foam::lduMatrix::updateMatrixInterfaces
 (
     const bool add,
-    const solveScalarField& interfaceCoeffsData,
+    const scalarField& interfaceCoeffsData,
     const labelUList& offsets,
     const lduInterfaceFieldPtrsList& interfaces,
     const solveScalarField& psiif,
@@ -160,7 +160,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                     {
                         const label start = offsets[interfacei];
                         const label len = offsets[interfacei+1] - offsets[interfacei];
-                        const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                        const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                         intf->updateInterfaceMatrix
                         (
@@ -214,7 +214,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
             {
                 const label start = offsets[interfacei];
                 const label len = offsets[interfacei+1] - offsets[interfacei];
-                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                 intf->updateInterfaceMatrix
                 (
@@ -245,7 +245,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                 {
                     const label start = offsets[interfacei];
                     const label len = offsets[interfacei+1] - offsets[interfacei];
-                    const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                    const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                     interfaces[interfacei].initInterfaceMatrixUpdate
                     (
@@ -263,7 +263,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
                 {
                     const label start = offsets[interfacei];
                     const label len = offsets[interfacei+1] - offsets[interfacei];
-                    const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                    const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                     interfaces[interfacei].updateInterfaceMatrix
                     (
@@ -293,7 +293,7 @@ void Foam::lduMatrix::updateMatrixInterfaces
             {
                 const label start = offsets[interfacei];
                 const label len = offsets[interfacei+1] - offsets[interfacei];
-                const SubField<solveScalar> coeffs(interfaceCoeffsData, len, start);
+                const SubField<scalar> coeffs(interfaceCoeffsData, len, start);
 
                 interfaces[interfacei].updateInterfaceMatrix
                 (
