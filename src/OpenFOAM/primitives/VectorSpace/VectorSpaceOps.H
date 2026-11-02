@@ -64,6 +64,41 @@ struct VectorSpaceOps
         }
     }
 
+    //- A variant on copy_n taking a parameter pack.
+    //  \param [out] result indexable output data
+    //  \param [in] vals the input parameter pack, one for each component
+    template<class Output, class T, class... Args>
+    static inline constexpr void copy_args
+    (
+        Output result,
+        T&& val,
+        Args&&... vals
+    )
+    {
+        if constexpr (I < N)
+        {
+            static_assert
+            (
+                (sizeof...(Args) + 1 == N - I),
+                "Number of arguments != number of components"
+            );
+
+            result[I] = static_cast
+            <
+                std::remove_cv_t<std::remove_reference_t<decltype(result[I])>>
+            >(std::forward<T>(val));
+
+            if constexpr (sizeof...(Args) > 0)
+            {
+                VectorSpaceOps<N, I+1>::copy_args
+                (
+                    result,
+                    std::forward<Args>(vals)...
+                );
+            }
+        }
+    }
+
     //- Like std::fill_n() but with templated loops (constexpr).
     //  \param [out] result indexable output data
     //  \param val the value to assign for each entry

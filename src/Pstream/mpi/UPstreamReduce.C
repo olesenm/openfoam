@@ -39,12 +39,14 @@ License
 // Use a local buffer to send the data from.
 // - probably not thread-safe
 
-// The work buffer, managed as an "unsigned long" element type to
+// The work buffer, managed as an <uint64_t> element type to
 // ensure nice alignment.
-// Avoiding aligned allocator since that can still be fragile.
-// For example, on mingw compilations (SEPT-2026).
+// - avoiding aligned allocator since that can still be fragile.
+//   For example, on mingw compilations (SEPT-2026).
+// - now using <uint64_t> instead of <unsigned long>, since <long>
+//   is only 32-bit on LLP64 (mingw/Windows).
 
-static std::unique_ptr<unsigned long[]> workBufferPtr;
+static std::unique_ptr<uint64_t[]> workBufferPtr;
 
 // Get/resize the work buffer as needed for the given data type/count
 // combination. Return {pointer, num_bytes} like a std::span

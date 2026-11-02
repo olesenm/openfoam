@@ -200,6 +200,24 @@ int main(int argc, char *argv[])
     Info<<"normalised: " << vector::uniform(ROOTVSMALL).normalise() << nl;
 
     {
+        // VectorSpaceOps::copy_args
+        vector vec;
+        VectorSpaceOps<3>::copy_args(vec.data(), 1, 2, 3);
+        Info<< "copy_args: " << vec << nl;
+
+        VectorSpaceOps<3, 1>::copy_args(vec.data(), 4, 5);
+        Info<< "copy_args: " << vec << nl;
+
+        // completely ignored:
+        // VectorSpaceOps<3, 10>::copy_args(vec.data(), 4, 5);
+        // Info<< "copy_args: " << vec << nl;
+
+        double a[2]{};
+        VectorSpaceOps<2>::copy_args(a, 4, 5.5);
+        Info<< "copy_args: " << a[0] << ' ' << a[1] << nl;
+    }
+
+    {
         complexVector cvec(complex(1), complex(0), complex(0));
         doubleVector dvec(1, 0, 0);
         floatVector  fvec(1, 0, 0);
