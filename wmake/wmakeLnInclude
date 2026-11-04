@@ -250,6 +250,18 @@ do
         # Create links, avoid recreating links unless necessary
         # things in the 'noLink' directory are skipped
 
+        # Note there are different approaches to dispatch the 'ln' call:
+        # old:
+        #     -exec ln "$link_option" {} . ';'
+        #
+        #     This avoids large parameter lengths, but forks each time.
+        #
+        # new:
+        #     -exec sh -c 'exec ln "$@" .' ln-batch "$link_option" {} '+'
+        #
+        #     Bundles file list together and uses a single call instead
+        #     of forking each time. Approximately twice as fast.
+
         find .. \
             \( -name lnInclude -o -name Make -o -name config -o -name noLink \) \
             -prune \
@@ -259,9 +271,11 @@ do
                 -o -name '*.tcc' \
                 -o -name '*.[ht]pp' ${opt_extra:+-o -name '*.cpp'} \
                 -o -name '*.[ht]xx' ${opt_extra:+-o -name '*.cxx'} \
-            \)  \
-            -exec ln "$link_option" {} . \;
-    )
+            \) \
+            -exec sh -c 'exec ln "$@" .' ln-batch "$link_option" {} '+'
+
+            ##or: -exec ln "$link_option" {} . ';'
+        )
     else
         echo "$Script error: failed to create include directory $incDir" 1>&2
     fi
