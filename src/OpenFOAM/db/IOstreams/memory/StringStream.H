@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -37,11 +38,17 @@ Description
 #include "ISstream.H"
 #include "OSstream.H"
 #include <sstream>
+#include <string>
+#include <string_view>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
+
+// Forward Declarations
+class IStringStream;
+class OStringStream;
 
 /*---------------------------------------------------------------------------*\
                         Class IStringStream Declaration
@@ -98,24 +105,29 @@ public:
         }
 
         //- Copy construct, copies content and format
-        IStringStream(const IStringStream& str)
+        IStringStream(const IStringStream& ss)
         :
             allocator_type(),
-            ISstream(stream_, str.name(), static_cast<IOstreamOption>(str))
+            ISstream(stream_, ss.name(), static_cast<IOstreamOption>(ss))
         {
-            stream_.str(str.str());
+            stream_.str(ss.stream_.str());
         }
 
 
     // Member Functions
 
-        //- Get the string.
-        //- As Foam::string instead of std::string (may change in future)
-        Foam::string str() const { return Foam::string(stream_.str()); }
+        //- Get the current buffer contents as a \c std::string.
+        //  \note OpenFOAM-v2606 and earlier: returned a \c Foam::string but
+        //   marked with the commment "may change in future" since FEB-2024
+        std::string str() const { return stream_.str(); }
 
         //- Set the string
         void str(const std::string& s) { stream_.str(s); }
 
+        #if defined(__cpp_lib_sstream_from_string_view)
+        //- A string_view of the current buffer contents.
+        std::string_view view() const { return stream_.view(); }
+        #endif
 
         //- Reset the input buffer and rewind the stream
         virtual void reset(const std::string& s)
@@ -127,7 +139,7 @@ public:
         //- Print stream description
         virtual void print(Ostream& os) const override
         {
-            os << "istringstream : buffer =\n" << this->str() << '\n';
+            os << "istringstream : buffer =\n" << stream_.str() << '\n';
             IOstream::print(os);
             IOstream::print(os, stream_.rdstate());
         }
@@ -206,29 +218,34 @@ public:
         {}
 
         //- Copy construct, copies content and format
-        OStringStream(const OStringStream& str)
+        OStringStream(const OStringStream& ss)
         :
             allocator_type(),
-            OSstream(stream_, str.name(), static_cast<IOstreamOption>(str))
+            OSstream(stream_, ss.name(), static_cast<IOstreamOption>(ss))
         {
-            stream_.str(str.str());
+            stream_.str(ss.stream_.str());
         }
 
 
     // Member Functions
 
-        //- Get the string.
-        //- As Foam::string instead of std::string (may change in future)
-        Foam::string str() const { return Foam::string(stream_.str()); }
+        //- Get the current buffer contents as a \c std::string.
+        //  \note OpenFOAM-v2606 and earlier: returned a \c Foam::string but
+        //   marked with the commment "may change in future" since FEB-2024
+        std::string str() const { return stream_.str(); }
 
         //- Set the string
         void str(const std::string& s) { stream_.str(s); }
 
+        #if defined(__cpp_lib_sstream_from_string_view)
+        //- A string_view of the current buffer contents.
+        std::string_view view() const { return stream_.view(); }
+        #endif
 
         //- Reset the output buffer and rewind the stream
         void reset()
         {
-            this->str("");  // No other way to reset the end
+            stream_.str("");  // No other way to reset the end
             this->rewind();
         }
 
@@ -241,7 +258,7 @@ public:
         //- Print stream description
         virtual void print(Ostream& os) const override
         {
-            os << "ostringstream : buffer =\n" << this->str() << '\n';
+            os << "ostringstream : buffer =\n" << stream_.str() << '\n';
             IOstream::print(os);
             IOstream::print(os, stream_.rdstate());
         }

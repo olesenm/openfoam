@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -167,10 +168,10 @@ public:
         }
 
         //- A string_view of buffer contents
-        auto view() const { return buffer_type::view(); }
+        std::string_view view() const { return buffer_type::view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return buffer_type::view(pos, len);
         }
@@ -374,10 +375,10 @@ public:
         void extend_exact(std::streamsize n) { stream_.extend_exact(n); }
 
         //- A string_view of buffer contents
-        auto view() const { return stream_.view(); }
+        std::string_view view() const { return stream_.view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return stream_.view(pos, len);
         }

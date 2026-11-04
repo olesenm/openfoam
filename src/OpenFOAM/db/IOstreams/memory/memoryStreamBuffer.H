@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,8 +39,8 @@ Description
 #include "DynamicList.H"
 
 #include <memory>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -221,13 +222,13 @@ public:
         }
 
         //- A string view of the current input region
-        auto view() const
+        std::string_view view() const
         {
             return std::string_view(data_bytes(), size_bytes());
         }
 
         //- A sub-slice string view of the current input region
-        auto view(size_t pos, size_t len) const
+        std::string_view view(size_t pos, size_t len) const
         {
             // Restrict intersection count to the current content range
             if (len && in_range(pos))
@@ -438,13 +439,13 @@ public:
         }
 
         //- A string view of the current output region
-        auto view() const
+        std::string_view view() const
         {
             return std::string_view(data_bytes(), size_bytes());
         }
 
         //- A sub-slice string view of the current output region
-        auto view(size_t pos, size_t len) const
+        std::string_view view(size_t pos, size_t len) const
         {
             // Restrict intersection count to the current content range
             if (len && in_range(pos))
