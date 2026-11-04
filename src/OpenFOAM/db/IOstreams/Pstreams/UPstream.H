@@ -973,7 +973,10 @@ public:
         }
 
         //- Number of currently defined communicators
-        static label nComms() noexcept { return parentComm_.size(); }
+        static int nComms() noexcept
+        {
+            return static_cast<int>(parentComm_.size());
+        }
 
         //- Debugging: print the communication tree
         static void printCommTree(int communicator, bool linear = false);
@@ -1000,6 +1003,22 @@ public:
             (
                 (commInterNode_ > constWorldComm_)
              && (commLocalNode_ > constWorldComm_)
+            );
+        }
+
+        //- True if communicator corresponds to one of the inter-node or
+        //- local-node communicators (and they have been allocated).
+        static bool isNodeCommunicator(int communicator) noexcept
+        {
+            // When inter-node and local-node are created (in tandem)
+            // they will be after constWorldComm_
+            return
+            (
+                (communicator > constWorldComm_) &&
+                (
+                    communicator == commInterNode_
+                 || communicator == commLocalNode_
+                )
             );
         }
 
@@ -1082,6 +1101,18 @@ public:
         (
             const label communicator,
             const bool withComponents = true
+        );
+
+        //- Like freeCommunicator, but does not free any \em persistent
+        //- communicator or the current worldComm.
+        //- \see UPstream::persistentCommunicator().
+        //- \returns true if the communicator was passed through to
+        //- freeCommunicator(), false if the communicator was a placeholder
+        //- value or corresponded to a persistent communicator.
+        static bool freeLocalCommunicator
+        (
+            int communicator,
+            bool withComponents = true
         );
 
         //- Return physical processor number (i.e. processor number in
@@ -1480,40 +1511,42 @@ public:
         static constexpr int masterNo() noexcept { return 0; }
 
         //- Number of ranks in parallel run (for given communicator).
-        //- It is 1 for serial run
-        static label nProcs(label communicator = worldComm)
+        //- It is 1 for serial run.
+        //- \note returns \c label instead of \c int since it is frequently
+        //- used for list dimensions, but \c static_cast<int> should be safe.
+        static label nProcs(int communicator = worldComm)
         {
             return procIDs_[communicator].size();
         }
 
         //- Rank of this process in the communicator (starting from masterNo()).
         //- Negative if the process is not a rank in the communicator.
-        static int myProcNo(label communicator = worldComm)
+        static int myProcNo(int communicator = worldComm)
         {
             return myProcNo_[communicator];
         }
 
         //- True if process corresponds to the master rank in the communicator
-        static bool master(label communicator = worldComm)
+        static bool master(int communicator = worldComm)
         {
             return myProcNo_[communicator] == masterNo();
         }
 
         //- True if process corresponds to the master rank in the communicator
-        static bool is_master(label communicator = worldComm)
+        static bool is_master(int communicator = worldComm)
         {
             return UPstream::master(communicator);
         }
 
         //- True if process corresponds to \b any rank (master or sub-rank)
         //- in the given communicator
-        static bool is_rank(label communicator = worldComm)
+        static bool is_rank(int communicator = worldComm)
         {
             return myProcNo_[communicator] >= masterNo();
         }
 
         //- True if process corresponds to a sub-rank in the given communicator
-        static bool is_subrank(label communicator = worldComm)
+        static bool is_subrank(int communicator = worldComm)
         {
             return myProcNo_[communicator] > masterNo();
         }
@@ -1522,11 +1555,30 @@ public:
         //  This is when parRun() == true, the process corresponds to a rank
         //  in the communicator and there is more than one rank in the
         //  communicator
-        static bool is_parallel(label communicator = worldComm)
+        static bool is_parallel(int communicator = worldComm)
         {
             return
             (
                 parRun_ && is_rank(communicator) && nProcs(communicator) > 1
+            );
+        }
+
+        //- True if the \p communicator should be considered \em persistent
+        //- which means its lifetime is managed internally.
+        //- For example, MPI communicators (world, self) or
+        //- OpenFOAM communicators (local-node, inter-node, current world).
+        static bool persistentCommunicator(int communicator) noexcept
+        {
+            return
+            (
+                communicator >= 0 &&
+                (
+                    communicator == UPstream::commGlobal()      // usually 0
+                 || communicator == UPstream::commSelf()        // usually 1
+                 || communicator == UPstream::commConstWorld()  // (0 or 2)
+                 || communicator == UPstream::commWorld()   // current world
+                 || isNodeCommunicator(communicator)
+                )
             );
         }
 

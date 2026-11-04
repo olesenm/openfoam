@@ -661,6 +661,25 @@ void Foam::UPstream::freeCommunicator
 }
 
 
+bool Foam::UPstream::freeLocalCommunicator
+(
+    int communicator,
+    bool withComponents
+)
+{
+    // Filter out placeholders and persistent communicators
+    if (communicator < 0 || UPstream::persistentCommunicator(communicator))
+    {
+        return false;
+    }
+    else
+    {
+        UPstream::freeCommunicator(communicator, withComponents);
+        return true;
+    }
+}
+
+
 int Foam::UPstream::baseProcNo(label comm, int procID)
 {
     while (UPstream::parent(comm) >= 0 && procID >= 0)
