@@ -30,93 +30,422 @@ License
 #include "globalIndex.H"
 #include <functional>
 
-// * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+template<class IntType>
+void Foam::GlobalIndex<IntType>::reset_nonParallel
+(
+    label localSize,
+    int communicator
+)
+{
+    auto& starts = addr_type::offsets();
+
+    if
+    (
+        label numProc = 0;
+        (communicator >= 0 && (numProc = UPstream::nProcs(communicator)) > 0)
+    )
+    {
+        // localSize on-proc, zero elsewhere:
+        // offsets are 0 up to and including proci, then localSize
+        starts.resize_fill(numProc+1, 0);
+
+        if
+        (
+            label proci = UPstream::myProcNo(communicator);
+            (proci >= 0 && proci < numProc)
+        )
+        {
+            starts.slice(proci+1) = localSize;
+        }
+    }
+    else
+    {
+        starts.clear();
+    }
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+template<class IntType>
+void Foam::GlobalIndex<IntType>::reset
+(
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (parallel && UPstream::is_parallel(communicator))
+    {
+        constexpr bool checkOverflow = (sizeof(IntType) < sizeof(int64_t));
+
+        reset
+        (
+            UPstream::allGatherValues(localSize, communicator),
+            checkOverflow
+        );
+    }
+    else
+    {
+        reset_nonParallel(localSize, communicator);
+    }
+}
+
+
+template<class IntType>
+void Foam::GlobalIndex<IntType>::reset
+(
+    globalIndexBase::gatherOnly,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (!parallel)
+    {
+        addr_type::single(localSize);
+        return;
+    }
+
+    // one-sided gather only
+    reset(UPstream::listGatherValues(localSize, communicator));
+}
+
+
+template<class IntType>
+void Foam::GlobalIndex<IntType>::reset
+(
+    globalIndex::gatherTotal,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (!parallel)
+    {
+        addr_type::single(localSize);
+        return;
+    }
+
+    // one-sided gather only
+    reset(UPstream::listGatherValues(localSize, communicator));
+
+    if (UPstream::is_parallel(communicator))
+    {
+        IntType total = addr_type::totalSize();
+
+        UPstream::broadcast(&total, 1, communicator);
+
+        if (UPstream::is_subrank(communicator))
+        {
+            // total value only (no content for rank 0)
+            addr_type::sentinel(total);
+        }
+    }
+}
+
+
+template<class IntType>
+void Foam::GlobalIndex<IntType>::reset
+(
+    globalIndexBase::gatherOffset,
+    label localSize,
+    int communicator,
+    bool parallel
+)
+{
+    if (!parallel)
+    {
+        addr_type::single(localSize);
+        return;
+    }
+
+    if (UPstream::is_parallel(communicator))
+    {
+        const auto numProc = UPstream::nProcs(communicator);
+
+        // Number of gatherOnly counts (master: numProc, sub-rank: 0)
+        const int numCounts
+        (
+            UPstream::is_master(communicator) ? static_cast<int>(numProc) : 0
+        );
+
+        // Work space : allocated with double space! (still 0 on non-master).
+        // - managed as an "uint64_t" element type to ensure good alignment
+        //   whilst avoiding aligned allocator (fragile on mingw)
+
+        std::unique_ptr<uint64_t[]> workBuffer;
+
+        if (numCounts)
+        {
+            workBuffer = std::make_unique<uint64_t[]>(2*numCounts);
+        }
+
+        // The full content as <IntType> for scattering (start, total) tuples
+        UList<IntType> tuples
+        (
+            reinterpret_cast<IntType*>(workBuffer.get()),
+            (2*numCounts)
+        );
+
+        // The initial slice as <label> for getting/setting the counts
+        labelUList counts
+        (
+            reinterpret_cast<label*>(workBuffer.get()),
+            numCounts
+        );
+
+        // Gather the local sizes (master only)
+        UPstream::mpiGather(&localSize, counts.data(), 1, communicator);
+
+        // On the master: from local sizes to offsets and subsequently
+        // pack (start, total) per rank for scattering
+
+        if (UPstream::is_master(communicator))
+        {
+            // Calculate offsets from the collected local sizes
+            reset(counts);
+
+            // Populate the work array with (offset,total) tuples for
+            // scattering to sub-ranks.
+            // Note: also scattering copies of 'total' everywhere instead
+            // using an additional broadcast.
+
+            const IntType total = totalSize();
+
+            auto iter = offsets().cbegin();
+
+            for (label proci = 0; proci < numProc; ++proci)
+            {
+                tuples[2*proci]   = *iter++;
+                tuples[2*proci+1] = total;
+            }
+        }
+
+        IntType dims[2];  // (start, total) tuple
+
+        UPstream::mpiScatter(tuples.cdata(), dims, 2, communicator);
+
+        if (UPstream::is_subrank(communicator))
+        {
+            // Store either as (beg len total) tuple, or as (beg len) tuple
+            // if the is no trailing content
+            addr_type::single(dims[0], localSize, dims[1]);
+        }
+    }
+    else
+    {
+        reset_nonParallel(localSize, communicator);
+    }
+}
+
+
+// * * * * * * * * * * * * * * General Aggregation * * * * * * * * * * * * * //
 
 template<class IntType>
 Foam::List<IntType>
-Foam::globalIndex::calcRecvSizes(IntType localSize, const label comm)
+Foam::globalIndexBase::calcRecvSizes(IntType localSize, int communicator)
 {
     static_assert(std::is_integral_v<IntType>, "Integral required");
 
-    List<IntType> count(UPstream::listGatherValues(localSize, comm));
+    List<IntType> count
+    (
+        UPstream::listGatherValues<IntType>(localSize, communicator)
+    );
+
     // Replace element [0] with the max receive count
-    if (count.size() > 1)
+    if (count.size() == 1)
+    {
+        // Nothing to receive from self
+        count[0] = 0;
+    }
+    else if (count.size() > 1)
     {
         count[0] = *(std::max_element(count.begin()+1, count.end()));
     }
+
     return count;
 }
 
 
-// Helpers
-
-template<class Addr>
-Foam::labelList
-Foam::globalIndex::calcOffsets
+template<class OffsetType, class IntType>
+Foam::List
+<
+    std::conditional_t
+    <std::is_void_v<OffsetType>, IntType, OffsetType>
+>
+Foam::globalIndexBase::calcOffsets
 (
-    const IndirectListBase<label, Addr>& counts,
-    const bool checkOverflow
+    const UList<IntType>& counts,
+    bool checkOverflow
 )
 {
-    labelList values;
+    using offset_type =
+        std::conditional_t
+        <std::is_void_v<OffsetType>, IntType, OffsetType>;
+
+    // Could check this, but leave as undocumented requirement for now
+    // static_assert(sizeof(offset_type) >= sizeof(IntType))
+    // also assume that they both use consistent signed/unsigned
+
+    List<offset_type> starts;
 
     if (const label len = counts.size(); len > 0)
     {
-        values.resize(len+1);
+        starts.resize(len+1);
 
-        label start = 0;
+        offset_type total = 0;
         for (label i = 0; i < len; ++i)
         {
-            const label count = counts[i];
+            const auto count = static_cast<offset_type>(counts[i]);
 
-            values[i] = start;
-            start += count;
-
-            if (checkOverflow && start < values[i])
+            // Ignore negative values as possible placeholders,
+            // and 0 has no effect on total anyhow.
+            if (counts[i] < 1)
             {
-                reportOverflowAndExit(i, values[i], count);
+                starts[i] = total;
+                continue;
             }
+
+            // No overflow check for int64.
+            if constexpr (sizeof(offset_type) < sizeof(int64_t))
+            {
+                if (checkOverflow && isOverflow(total, count))
+                {
+                    reportOverflowAndExit(i, total, count);
+                }
+            }
+
+            starts[i] = total;
+            total += count;
         }
-        values[len] = start;
+        starts[len] = total;
     }
 
-    return values;
+    return starts;
 }
 
 
-template<class SubListType>
-Foam::labelList
-Foam::globalIndex::calcListOffsets
+template<class OffsetType, class IntType, class Addr>
+Foam::List
+<
+    std::conditional_t
+    <std::is_void_v<OffsetType>, IntType, OffsetType>
+>
+Foam::globalIndexBase::calcOffsets
 (
-    const List<SubListType>& lists,
-    const bool checkOverflow
+    const IndirectListBase<IntType, Addr>& counts,
+    bool checkOverflow
 )
 {
-    labelList values;
+    using offset_type =
+        std::conditional_t
+        <std::is_void_v<OffsetType>, IntType, OffsetType>;
+
+    // Could check this, but leave as undocumented requirement for now
+    // static_assert(sizeof(offset_type) >= sizeof(IntType))
+    // also assume that they both use consistent signed/unsigned
+
+    List<offset_type> starts;
+
+    if (const label len = counts.size(); len > 0)
+    {
+        starts.resize(len+1);
+
+        offset_type total = 0;
+        for (label i = 0; i < len; ++i)
+        {
+            const auto count = static_cast<offset_type>(counts[i]);
+
+            // Ignore negative values as possible placeholders,
+            // and 0 has no effect on total anyhow.
+            if (counts[i] < 1)
+            {
+                starts[i] = total;
+                continue;
+            }
+
+            // No overflow check for int64.
+            if constexpr (sizeof(offset_type) < sizeof(int64_t))
+            {
+                if (checkOverflow && isOverflow(total, count))
+                {
+                    reportOverflowAndExit(i, total, count);
+                }
+            }
+
+            starts[i] = total;
+            total += count;
+        }
+        starts[len] = total;
+    }
+
+    return starts;
+}
+
+
+template<class OffsetType, class SubListType>
+Foam::List
+<
+    std::conditional_t
+    <std::is_void_v<OffsetType>, Foam::label, OffsetType>
+>
+Foam::globalIndexBase::calcListOffsets
+(
+    const UList<SubListType>& lists,
+    bool checkOverflow
+)
+{
+    using offset_type =
+        std::conditional_t
+        <std::is_void_v<OffsetType>, Foam::label, OffsetType>;
+
+    // Could check this, but leave as undocumented requirement for now
+    // static_assert(sizeof(offset_type) >= sizeof(IntType))
+    // also assume that they both use consistent signed/unsigned
+
+    List<offset_type> starts;
 
     if (const label len = lists.size(); len > 0)
     {
-        values.resize(len+1);
+        starts.resize(len+1);
 
-        label start = 0;
+        offset_type total = 0;
         for (label i = 0; i < len; ++i)
         {
-            const label count = lists[i].size();
+            const auto count = static_cast<offset_type>(lists[i].size());
 
-            values[i] = start;
-            start += count;
-
-            if (checkOverflow && start < values[i])
+            // Zero-sized lists have no effect on total
+            if (lists[i].size() < 1)
             {
-                reportOverflowAndExit(i, values[i], count);
+                starts[i] = total;
+                continue;
             }
+
+            // No overflow check for int64.
+            // Note: also checks endOffset of last range
+
+            if constexpr (sizeof(offset_type) < sizeof(int64_t))
+            {
+                if (checkOverflow && isOverflow(total, count))
+                {
+                    reportOverflowAndExit(i, total, count);
+                }
+            }
+
+            starts[i] = total;
+            total += count;
         }
-        values[len] = start;
+        starts[len] = total;
     }
 
-    return values;
+    return starts;
 }
 
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 // Low-level
 
@@ -456,7 +785,7 @@ void Foam::globalIndex::gather
     if (UPstream::myProcNo(comm) == (procIDs.empty() ? 0 : procIDs[0]))
     {
         // presize => totalSize()
-        allData.resize_nocopy(totalSize());
+        allData.resize_nocopy(offsets().back());
     }
     else
     {
@@ -488,7 +817,7 @@ void Foam::globalIndex::gather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(totalSize());
+        allData.resize_nocopy(offsets().back());  // == totalSize()
     }
     else
     {
@@ -499,7 +828,7 @@ void Foam::globalIndex::gather
     {
         globalIndex::gather
         (
-            offsets(),                  // needed on master only
+            offsets(),  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -617,7 +946,7 @@ void Foam::globalIndex::gather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(totalSize());
+        allData.resize_nocopy(offsets().back());  // == totalSize()
     }
     else
     {
@@ -627,7 +956,7 @@ void Foam::globalIndex::gather
     {
         globalIndex::gather
         (
-            offsets(),                  // needed on master only
+            offsets(),  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -715,7 +1044,7 @@ void Foam::globalIndex::mpiGather
 
     if (UPstream::master(comm))
     {
-        allData.resize_nocopy(totalSize());
+        allData.resize_nocopy(offsets().back());  // == totalSize()
     }
     else
     {
@@ -751,7 +1080,7 @@ void Foam::globalIndex::mpiGather
             // Copy offsets
             std::copy(offsets().begin(), offsets().end(), recvOffsets.begin());
 
-            // Calculate sizes
+            // Calculate sizes. Currently without std::minus <functional>
             std::transform
             (
                 offsets().begin()+1, offsets().end(),
@@ -782,7 +1111,7 @@ void Foam::globalIndex::mpiGather
         // Regular (manual) gathering
         globalIndex::gather
         (
-            offsets(),                  // needed on master only
+            offsets(),  // needed on master only
             comm,
             UPstream::allProcs(comm),   // All communicator ranks
             sendData,
@@ -1111,7 +1440,7 @@ void Foam::globalIndex::scatter
     {
         scatter
         (
-            offsets(),                 // needed on master only
+            offsets(),  // needed on master only
             comm,
             UPstream::allProcs(comm),  // All communicator ranks
             allData,

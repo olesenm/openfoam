@@ -64,9 +64,6 @@ int main(int argc, char *argv[])
         << " to:" << globalNumbering.end_value()
         << " span:" << globalNumbering.span() << nl;
 
-    Info<< "front: " << globalNumbering.front()
-        << " back: " << globalNumbering.back() << nl;
-
     if (globalNumbering.localSize() != mesh.nCells())
     {
         FatalErrorInFunction

@@ -28,7 +28,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "globalIndex.H"
-#include "Pair.H"
 
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
@@ -46,8 +45,7 @@ void Foam::globalIndexBase::reportOverflowAndExit
     }
 
     FatalErrorInFunction
-        << "Overflow : sum of sizes exceeds labelMax ("
-        << labelMax << ") after index " << idx;
+        << "Overflow : sum of sizes exceeds integral limit after index " << idx;
 
     if (prevOffset >= 0 && count >= 0)
     {
@@ -58,41 +56,8 @@ void Foam::globalIndexBase::reportOverflowAndExit
 
     FatalError
         << nl
-        << "Please recompile with larger datatype for label." << nl
-        << exit(FatalError);
-}
-
-
-Foam::labelList
-Foam::globalIndex::calcOffsets
-(
-    const labelUList& counts,
-    const bool checkOverflow
-)
-{
-    labelList starts;
-
-    if (const label len = counts.size(); len > 0)
-    {
-        starts.resize(len+1);
-
-        label total = 0;
-        for (label i = 0; i < len; ++i)
-        {
-            const auto count = counts[i];
-
-            if (checkOverflow && isOverflow(total, count))
-            {
-                reportOverflowAndExit(i, total, count);
-            }
-
-            starts[i] = total;
-            total += count;
-        }
-        starts[len] = total;
-    }
-
-    return starts;
+        << "Please consider a larger integral datatype." << nl
+        << Foam::exit(FatalError);
 }
 
 
@@ -100,7 +65,7 @@ Foam::List<Foam::labelRange>
 Foam::globalIndex::calcRanges
 (
     const labelUList& counts,
-    const bool checkOverflow
+    bool checkOverflow
 )
 {
     List<labelRange> values;
@@ -112,13 +77,20 @@ Foam::globalIndex::calcRanges
         label total = 0;
         for (label i = 0; i < len; ++i)
         {
-            const auto count = counts[i];
+            const label count = counts[i];
 
+            // No overflow check for int64...
             // Note: do not care about endOffset of last range
-
-            if (checkOverflow && (i < len-1) && isOverflow(total, count))
+            // if constexpr (sizeof(IntType) < sizeof(int64_t))
             {
-                reportOverflowAndExit(i, total, count);
+                if
+                (
+                    checkOverflow && (i < len-1)
+                 && globalIndexBase::isOverflow(total, count)
+                )
+                {
+                    globalIndexBase::reportOverflowAndExit(i, total, count);
+                }
             }
 
             values[i].reset(total, count);
@@ -134,7 +106,7 @@ bool Foam::globalIndex::splitNodeOffsets
 (
     labelList& interNodeOffsets,
     labelList& localNodeOffsets,
-    const label communicator,
+    int communicator,
     const bool absoluteLocalNodeOffsets
 ) const
 {
@@ -236,14 +208,6 @@ bool Foam::globalIndex::splitNodeOffsets
 }
 
 
-// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
-Foam::globalIndex::globalIndex(Istream& is)
-{
-    is >> offsets_;
-}
-
-
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 Foam::CompactListList<Foam::label>
@@ -309,132 +273,14 @@ Foam::globalIndex::bin
 }
 
 
-void Foam::globalIndex::resize(label n)
-{
-    if (n < 1)
-    {
-        offsets_.clear();
-    }
-    else
-    {
-        offsets_.resize(n+1, end_value());
-    }
-}
-
-
-void Foam::globalIndex::reset
-(
-    const label localSize,
-    const label comm,
-    const bool parallel
-)
-{
-    if (const label len = UPstream::nProcs(comm); len > 0)
-    {
-        labelList counts;
-
-        if (parallel && UPstream::parRun())  // or UPstream::is_parallel(comm)
-        {
-            counts = UPstream::allGatherValues(localSize, comm);
-        }
-        else
-        {
-            // Non-parallel branch: use localSize on-proc, zero elsewhere
-            // TBD: check for (proci >= 0) ?
-            const auto proci = UPstream::myProcNo(comm);
-
-            counts.resize_fill(len, 0);
-            counts[proci] = localSize;
-        }
-
-        reset(counts, true);  // checkOverflow = true
-    }
-    else
-    {
-        // Nothing to do
-        offsets_.clear();
-    }
-}
-
-
-void Foam::globalIndex::reset
-(
-    const labelUList& counts,
-    const bool checkOverflow
-)
-{
-    if (const label len = counts.size(); len > 0)
-    {
-        offsets_.resize_nocopy(len+1);
-
-        label total = 0;
-        for (label i = 0; i < len; ++i)
-        {
-            const label count = counts[i];
-
-            if (checkOverflow && isOverflow(total, count))
-            {
-                reportOverflowAndExit(i, total, count);
-            }
-
-            offsets_[i] = total;
-            total += count;
-        }
-        offsets_[len] = total;
-    }
-    else
-    {
-        offsets_.clear();
-    }
-}
-
-
-void Foam::globalIndex::setLocalSize(const label proci, const label len)
-{
-    if (proci >= 0 && proci+1 < offsets_.size() && len >= 0)
-    {
-        const label delta = (len - (offsets_[proci+1] - offsets_[proci]));
-
-        // TBD: additional overflow check
-        if (delta)
-        {
-            for (label i = proci+1; i < offsets_.size(); ++i)
-            {
-                offsets_[i] += delta;
-            }
-        }
-    }
-}
-
-
-Foam::labelList Foam::globalIndex::localSizes() const
-{
-    labelList values;
-
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return values;
-    }
-
-    values.resize(len);
-
-    for (label proci=0; proci < len; ++proci)
-    {
-        values[proci] = offsets_[proci+1] - offsets_[proci];
-    }
-
-    return values;
-}
-
-
 Foam::List<Foam::labelRange>
 Foam::globalIndex::ranges() const
 {
+    // CSRAddressing delivers IntRange<label>, we want labelRange
+
     List<labelRange> values;
 
-    const label len = (offsets_.size() - 1);
+    const label len = (offsets().size() - 1);
 
     if (len < 1)
     {
@@ -443,83 +289,16 @@ Foam::globalIndex::ranges() const
 
     values.resize(len);
 
-    for (label proci=0; proci < len; ++proci)
+    for (label i = 0; i < len; ++i)
     {
-        values[proci].reset
+        values[i].reset
         (
-            offsets_[proci],
-            (offsets_[proci+1] - offsets_[proci])
+            offsets()[i],
+            (offsets()[i+1] - offsets()[i])
         );
     }
 
     return values;
-}
-
-
-Foam::label Foam::globalIndex::maxNonLocalSize(const label proci) const
-{
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return 0;
-    }
-
-    label maxLen = 0;
-
-    for (label i=0; i < len; ++i)
-    {
-        if (i != proci)
-        {
-            const label count = (offsets_[i+1] - offsets_[i]);
-            maxLen = std::max(maxLen, count);
-        }
-    }
-
-    return maxLen;
-}
-
-
-Foam::labelRange Foam::globalIndex::front() const
-{
-    return
-    (
-        (offsets_.size() < 2)
-      ? labelRange()
-      : labelRange(Pair<label>(offsets_[0], offsets_[1]))
-    );
-}
-
-
-Foam::labelRange Foam::globalIndex::back() const
-{
-    return
-    (
-        (offsets_.size() < 2)
-      ? labelRange()
-      : labelRange
-        (
-            Pair<label>
-            (
-                offsets_[offsets_.size()-2],
-                offsets_[offsets_.size()-1]
-            )
-        )
-    );
-}
-
-
-// * * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * //
-
-Foam::Istream& Foam::operator>>(Istream& is, globalIndex& gi)
-{
-    return is >> gi.offsets();
-}
-
-
-Foam::Ostream& Foam::operator<<(Ostream& os, const globalIndex& gi)
-{
-    return os << gi.offsets();
 }
 
 

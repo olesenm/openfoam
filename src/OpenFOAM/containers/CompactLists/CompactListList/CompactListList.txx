@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,38 +33,6 @@ License
 // * * * * * * * * * * * * * Static Member Functions * * * * * * * * * * * * //
 
 template<class T>
-void Foam::CompactListList<T>::reportOverflowAndExit
-(
-    const label idx,
-    const label prevOffset,
-    const label count
-)
-{
-    if (idx < 0)
-    {
-        // No overflow tagged
-        return;
-    }
-
-    FatalErrorInFunction
-        << "Overflow : sum of sizes exceeds labelMax ("
-        << labelMax << ") after index " << idx;
-
-    if (prevOffset >= 0 && count >= 0)
-    {
-        FatalError
-            << " while trying to add (" << count
-            << ") to offset (" << prevOffset << ")";
-    }
-
-    FatalError
-        << nl
-        << "Please recompile with larger datatype for label." << nl
-        << exit(FatalError);
-}
-
-
-template<class T>
 template<class ListListType>
 Foam::CompactListList<T> Foam::CompactListList<T>::pack_impl
 (
@@ -73,30 +42,11 @@ Foam::CompactListList<T> Foam::CompactListList<T>::pack_impl
 {
     CompactListList<T> compact;
 
-    auto& newOffsets = compact.offsets_;
+    compact.addr_ = CSRAddressing<label>::pack(lists, checkOverflow);
+
     auto& newValues = compact.values_;
 
-    label total = 0;
-    const label len = lists.size();
-
-    if (len)
-    {
-        newOffsets.resize(len+1, Foam::zero{});
-
-        for (label i = 0; i < len; ++i)
-        {
-            const label count = lists[i].size();
-
-            newOffsets[i] = total;
-            total += count;
-
-            if (checkOverflow && total < newOffsets[i])
-            {
-                reportOverflowAndExit(i, newOffsets[i], count);
-            }
-        }
-        newOffsets[len] = total;
-    }
+    const label total = compact.addr_.totalSize();
 
     if (total)
     {
@@ -155,57 +105,18 @@ Foam::CompactListList<T> Foam::CompactListList<T>::pack
 }
 
 
-// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
-
-template<class T>
-Foam::label Foam::CompactListList<T>::resize_offsets
-(
-    const labelUList& listSizes,
-    const bool checkOverflow
-)
-{
-    const label len = listSizes.size();
-    label total = 0;
-
-    if (len)
-    {
-        offsets_.resize(len+1);
-
-        for (label i = 0; i < len; ++i)
-        {
-            const label count = listSizes[i];
-
-            offsets_[i] = total;
-            total += count;
-
-            if (checkOverflow && total < offsets_[i])
-            {
-                reportOverflowAndExit(i, offsets_[i], count);
-            }
-        }
-
-        offsets_[len] = total;
-    }
-    else
-    {
-        clear();
-    }
-    return total;
-}
-
-
 // * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * * //
 
 template<class T>
 Foam::CompactListList<T>::CompactListList(const labelUList& listSizes)
-{
+:
     #ifdef FULLDEBUG
-    const label total = resize_offsets(listSizes, true);
+    addr_(listSizes, true),
     #else
-    const label total = resize_offsets(listSizes, false);
+    addr_(listSizes, false),
     #endif
-    values_.resize(total);
-}
+    values_(addr_.totalSize())
+{}
 
 
 template<class T>
@@ -214,20 +125,20 @@ Foam::CompactListList<T>::CompactListList
     const labelUList& listSizes,
     const T& val
 )
-{
+:
     #ifdef FULLDEBUG
-    const label total = resize_offsets(listSizes, true);
+    addr_(listSizes, true),
     #else
-    const label total = resize_offsets(listSizes, false);
+    addr_(listSizes, false),
     #endif
-    values_.resize(total, val);
-}
+    values_(addr_.totalSize(), val)
+{}
 
 
 template<class T>
 Foam::CompactListList<T>::CompactListList(Istream& is)
 :
-    offsets_(is),
+    addr_(is),
     values_(is)
 {
     // Optionally: enforceSizeSanity();
@@ -235,31 +146,6 @@ Foam::CompactListList<T>::CompactListList(Istream& is)
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
-
-template<class T>
-Foam::label Foam::CompactListList<T>::maxNonLocalSize(const label rowi) const
-{
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return 0;
-    }
-
-    label maxLen = 0;
-
-    for (label i=0; i < len; ++i)
-    {
-        if (i != rowi)
-        {
-            const label count = (offsets_[i+1] - offsets_[i]);
-            maxLen = max(maxLen, count);
-        }
-    }
-
-    return maxLen;
-}
-
 
 template<class T>
 std::streamsize Foam::CompactListList<T>::byteSize() const
@@ -275,30 +161,14 @@ std::streamsize Foam::CompactListList<T>::byteSize() const
 
 
 template<class T>
-Foam::labelRange Foam::CompactListList<T>::range(const label i) const
-{
-    return labelRange(offsets_[i], offsets_[i+1] - offsets_[i]);
-}
-
-
-template<class T>
 Foam::List<Foam::labelRange>
 Foam::CompactListList<T>::ranges() const
 {
-    List<labelRange> values;
+    List<labelRange> values(addr_.length());
 
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
+    forAll(values, i)
     {
-        return values;
-    }
-
-    values.resize(len);
-
-    for (label i=0; i < len; ++i)
-    {
-        values[i].reset(offsets_[i], (offsets_[i+1] - offsets_[i]));
+        values[i].reset(addr_.localStart(i), addr_.localSize(i));
     }
 
     return values;
@@ -309,11 +179,11 @@ template<class T>
 void Foam::CompactListList<T>::resize(const labelUList& listSizes)
 {
     #ifdef FULLDEBUG
-    const label total = resize_offsets(listSizes, true);
+    addr_.reset(listSizes, true);
     #else
-    const label total = resize_offsets(listSizes, false);
+    addr_.reset(listSizes, false);
     #endif
-    values_.resize(total);
+    values_.resize(addr_.totalSize());
 }
 
 
@@ -321,53 +191,25 @@ template<class T>
 void Foam::CompactListList<T>::resize_nocopy(const labelUList& listSizes)
 {
     #ifdef FULLDEBUG
-    const label total = resize_offsets(listSizes, true);
+    addr_.reset(listSizes, true);
     #else
-    const label total = resize_offsets(listSizes, false);
+    addr_.reset(listSizes, false);
     #endif
-    values_.resize_nocopy(total);
+    values_.resize_nocopy(addr_.totalSize());
 }
 
 
 template<class T>
-void Foam::CompactListList<T>::setLocalSize(const label rowi, const label len)
+void Foam::CompactListList<T>::setLocalSize(label row, label len)
 {
-    if (rowi >= 0 && rowi+1 < offsets_.size() && len >= 0)
-    {
-        const label delta = (len - (offsets_[rowi+1] - offsets_[rowi]));
-
-        // TBD: additional overflow check
-        if (delta)
-        {
-            for (label i = rowi+1; i < offsets_.size(); ++i)
-            {
-                offsets_[i] += delta;
-            }
-        }
-    }
+    addr_.setLocalSize(row, len);
 }
 
 
 template<class T>
 Foam::labelList Foam::CompactListList<T>::localSizes() const
 {
-    labelList values;
-
-    const label len = (offsets_.size() - 1);
-
-    if (len < 1)
-    {
-        return values;
-    }
-
-    values.resize(len);
-
-    for (label i=0; i < len; ++i)
-    {
-        values[i] = offsets_[i+1] - offsets_[i];
-    }
-
-    return values;
+    return addr_.localSizes();
 }
 
 
@@ -382,7 +224,7 @@ void Foam::CompactListList<T>::swap
         return;  // Self-swap is a no-op
     }
 
-    offsets_.swap(other.offsets_);
+    addr_.offsets().swap(other.addr_.offsets());
     values_.swap(other.values_);
 }
 
@@ -398,9 +240,10 @@ void Foam::CompactListList<T>::transfer
         return;  // Self-assignment is a no-op
     }
 
-    offsets_.transfer(list.offsets_);
+    addr_.offsets().transfer(list.addr_.offsets());
     values_.transfer(list.values_);
 }
+
 
 
 template<class T>
@@ -513,7 +356,7 @@ Foam::CompactListList<T>::unpack(const labelUList& indices) const
 template<class T>
 Foam::Istream& Foam::CompactListList<T>::readList(Istream& is)
 {
-    offsets_.readList(is);
+    addr_.offsets().readList(is);
     values_.readList(is);
     // Optionally: enforceSizeSanity();
     return is;
@@ -527,7 +370,7 @@ Foam::Ostream& Foam::CompactListList<T>::writeList
     const label shortLen
 ) const
 {
-    offsets_.writeList(os, shortLen);
+    addr_.offsets().writeList(os, shortLen);
     values_.writeList(os, shortLen);
     return os;
 }
