@@ -253,6 +253,46 @@ void Foam::searchablePlane::getNormal
 }
 
 
+Foam::label Foam::searchablePlane::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, origin());
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+        radiusSqr->resize_fill(output_size, Foam::sqr(GREAT));
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        normals->resize_fill(output_size, plane::normal());
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchablePlane::getVolumeType
 (
     const pointField& points,

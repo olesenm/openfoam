@@ -732,6 +732,76 @@ void Foam::searchableCylinder::getNormal
 }
 
 
+Foam::label Foam::searchableCylinder::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    const point ctr(0.5*(point1_ + point2_));
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, ctr);
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            ctr.distSqr(point1_) + Foam::sqr(radius_) + Foam::sqr(SMALL)
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is nominally undefined at the centre, but to be the same
+        // as having used boundingSpheres + findNearest etc.
+
+        vector n(unitDir_);  // End cap (a tie goes to the point2 cap)
+
+        // The centre is obviously exactly on centre line.
+        // Take any point on wall.
+        // - see code in findNearest_impl
+
+        if (radius_ < 0.5*magDir_)
+        {
+            // Wall is closer. Same arbitrary wall direction as findNearest
+            n = (point(1,0,0) ^ unitDir_);
+            scalar magN = mag(n);
+            if (magN < SMALL)
+            {
+                n = (point(0,1,0) ^ unitDir_);
+                magN = mag(n);
+            }
+            n /= magN;
+        }
+
+        normals->resize_fill(output_size, n);
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchableCylinder::getVolumeType
 (
     const pointField& points,

@@ -53,7 +53,7 @@ Note
     Longer type name : \c searchablePlate
 
 SourceFiles
-    searchablePlate.C
+    searchablePlate.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -254,6 +254,23 @@ public:
             (
                 const pointField&,
                 List<volumeType>&
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

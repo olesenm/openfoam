@@ -470,4 +470,53 @@ void Foam::searchableExtrudedCircle::getNormal
 }
 
 
+Foam::label Foam::searchableExtrudedCircle::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const pointField& pts = eMeshPtr_().points();
+
+    const label output_size = pts.size();
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        (*centres) = pts;
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            (Foam::sqr(radius_) + Foam::sqr(SMALL))
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is undefined on the curve
+        normals->resize_fill(output_size, Foam::zero{});
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 // ************************************************************************* //

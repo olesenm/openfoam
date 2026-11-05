@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2018 OpenFOAM Foundation
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -268,6 +269,55 @@ void Foam::smoothTriSurfaceMesh::getNormal
             normal[i] = Foam::zero{};
         }
     }
+}
+
+
+Foam::label Foam::smoothTriSurfaceMesh::measure
+(
+    List<vector>* centres,
+    List<scalar>* boundingRadiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const triSurface& s = *this;
+
+    const label output_size = s.size();
+
+    const label parentCount = triSurfaceMesh::measure
+    (
+        centres,
+        boundingRadiusSqr,
+        regions,
+        nullptr  // defer normals to below
+    );
+
+    bool usedParams = (parentCount > 0);
+
+    // Extract smooth normals.
+    //
+    // Since the sample point is the triangle centre, just need to equally
+    // weight the point normals
+    if (normals)
+    {
+        usedParams = true;
+        auto& normal = *normals;
+        normal.resize_nocopy(output_size);
+
+        forAll(normal, facei)
+        {
+            auto& n = normal[facei];
+            const triFace& localTri = s.localFaces()[facei];
+
+            n = pointNormal(facei, localTri.a());
+            n += pointNormal(facei, localTri.b());
+            n += pointNormal(facei, localTri.c());
+
+            n.normalise();  // inplace normalise
+        }
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

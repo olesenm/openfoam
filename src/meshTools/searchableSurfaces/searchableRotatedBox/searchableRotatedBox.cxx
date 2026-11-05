@@ -404,6 +404,38 @@ void Foam::searchableRotatedBox::getNormal
 }
 
 
+Foam::label Foam::searchableRotatedBox::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    label returnCount = box_.measure(centres, radiusSqr, regions, normals);
+
+    // Transform centres
+    if (centres)
+    {
+        for (auto& fc : *centres)
+        {
+            fc = transform_.globalPosition(fc);
+        }
+    }
+
+    // Transform normals
+    if (normals)
+    {
+        for (auto& n : *normals)
+        {
+            n = transform_.globalVector(n);
+        }
+    }
+
+    return returnCount;
+}
+
+
 void Foam::searchableRotatedBox::getVolumeType
 (
     const pointField& points,

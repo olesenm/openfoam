@@ -1098,6 +1098,68 @@ void Foam::searchableSphere::getNormal
 }
 
 
+Foam::label Foam::searchableSphere::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, origin_);
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            (Foam::sqr(radius()) + Foam::sqr(SMALL))
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is nominally undefined at the centre, but to be the same
+        // as having used boundingSpheres + findNearest etc.
+
+        vector n(vector::zero);
+
+        if (order_.shape == shapeType::SPHERE)
+        {
+            // For sphere it uses the x-direction (arbitrary, but consistent)
+            n.x() = 1;
+        }
+        else
+        {
+            // Otherwise the smallest axis is closest
+            n[order_.minor] = 1;
+        }
+
+        normals->resize_fill(output_size, n);
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchableSphere::getVolumeType
 (
     const pointField& points,

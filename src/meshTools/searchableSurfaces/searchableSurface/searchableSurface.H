@@ -38,7 +38,7 @@ Description
     - index : unique index on surface (e.g. triangle for triSurfaceMesh)
 
 SourceFiles
-    searchableSurface.C
+    searchableSurface.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -72,14 +72,15 @@ class searchableSurface
 :
     public regIOobject
 {
-    // Private data
+    // Private Data
 
         const word name_;
 
         boundBox bounds_;
 
+public:
 
-    // Private Member Functions
+    // Generated Methods
 
         //- No copy construct
         searchableSurface(const searchableSurface&) = delete;
@@ -87,8 +88,6 @@ class searchableSurface
         //- No copy assignment
         void operator=(const searchableSurface&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSurface");
@@ -366,6 +365,33 @@ public:
             const
             {
                 values.clear();
+            }
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            //
+            // The default "not-implemented" version returns 0 and clears
+            // all non-null parameters.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const
+            {
+                if (centres) centres->clear();
+                if (boundingRadiusSqr) boundingRadiusSqr->clear();
+                if (regions) regions->clear();
+                if (normals) normals->clear();
+                return 0;  // Nothing queried
             }
 };
 

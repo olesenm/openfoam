@@ -399,6 +399,57 @@ void Foam::searchablePlate::getNormal
 }
 
 
+Foam::label Foam::searchablePlate::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, (origin_ + 0.5*span_));
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            (Foam::magSqr(0.5*span_) + Foam::sqr(SMALL))
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        normals->resize_fill(output_size, Foam::zero{});
+
+        for (auto& n : *normals)
+        {
+            n[normalDir_] = 1.0;
+        }
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchablePlate::getVolumeType
 (
     const pointField& points,

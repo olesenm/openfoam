@@ -397,7 +397,7 @@ void Foam::searchableSurfaceCollection::boundingSpheres
 
     forAll(subGeom_, surfI)
     {
-        scalar maxScale = cmptMax(scale_[surfI]);
+        const scalar maxScaleSqr = Foam::sqr(cmptMax(scale_[surfI]));
 
         pointField subCentres;
         scalarField subRadiusSqr;
@@ -413,7 +413,7 @@ void Foam::searchableSurfaceCollection::boundingSpheres
                     scale_[surfI]
                 )
             );
-            radiusSqr[coordI] = maxScale*subRadiusSqr[i];
+            radiusSqr[coordI] = maxScaleSqr*subRadiusSqr[i];
             coordI++;
         }
     }
@@ -611,7 +611,9 @@ void Foam::searchableSurfaceCollection::getRegion
 ) const
 {
     if (subGeom_.size() == 0)
-    {}
+    {
+        region.clear();
+    }
     else if (subGeom_.size() == 1)
     {
         if (mergeSubRegions_)
@@ -627,6 +629,12 @@ void Foam::searchableSurfaceCollection::getRegion
     else
     {
         // Multiple surfaces. Sort by surface.
+
+        if (!mergeSubRegions_)
+        {
+            // The regionOffset_ must be populated (when not merged)
+            (void) this->regions();
+        }
 
         // Per surface the hit
         CompactListList<pointIndexHit> surfInfo;
@@ -797,8 +805,10 @@ void Foam::searchableSurfaceCollection::getField
 ) const
 {
     if (subGeom_.size() == 0)
-    {}
-    else if (subGeom_.size() == 1)
+    {
+        return;
+    }
+    if (subGeom_.size() == 1)
     {
         subGeom_[0].getField(info, values);
     }
@@ -846,6 +856,271 @@ void Foam::searchableSurfaceCollection::getField
             }
         }
     }
+}
+
+
+Foam::label Foam::searchableSurfaceCollection::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    if (subGeom_.size() == 0)
+    {
+        // Same as searchableSurface::measure() but be explicit about it
+        if (centres) centres->clear();
+        if (radiusSqr) radiusSqr->clear();
+        if (regions) regions->clear();
+        if (normals) normals->clear();
+        return 0;
+    }
+    else if (subGeom_.size() == 1)
+    {
+        // Note, when merged: every entry belongs to the single collection region,
+        // so the sub-surface regions are not needed
+
+        const label output_size = subGeom_[0].size();
+
+        const label subCount = subGeom_[0].measure
+        (
+            centres,
+            radiusSqr,
+            (mergeSubRegions_ ? nullptr : regions),
+            normals
+        );
+
+        bool usedParams = (subCount > 0);
+
+        if (mergeSubRegions_ && regions)
+        {
+            // Single merged surface, so region == 0
+            usedParams = true;
+            regions->resize_fill(output_size, 0);
+        }
+
+        const vector& scale = scale_[0];
+        const auto& transf = transform_[0];
+
+        if (centres)
+        {
+            // inplace transform the centres
+            std::transform
+            (
+                centres->begin(), centres->end(),
+                centres->begin(),
+
+                [&scale,&transf](const vector& cc)
+                {
+                    return transf.globalPosition(cmptMultiply(cc, scale));
+                }
+            );
+        }
+
+        if (radiusSqr)
+        {
+            const scalar maxScaleSqr = Foam::sqr(cmptMax(scale));
+
+            // inplace rescale the radius squared
+            std::transform
+            (
+                radiusSqr->begin(), radiusSqr->end(),
+                radiusSqr->begin(),
+
+                [maxScaleSqr](scalar d2) { return maxScaleSqr*d2; }
+            );
+        }
+
+        if (normals)
+        {
+            // inplace transform the normals
+            std::transform
+            (
+                normals->begin(), normals->end(),
+                normals->begin(),
+
+                [&scale,&transf](const vector& n)
+                {
+                    return normalised
+                    (
+                        transf.globalVector(cmptDivide(n, scale))
+                    );
+                }
+            );
+        }
+
+        return (usedParams ? output_size : 0);
+    }
+
+    const label output_size = size();
+
+    bool usedParams = false;
+
+    std::unique_ptr<List<point>> subCentres_ptr;
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_nocopy(output_size);
+        subCentres_ptr = std::make_unique<List<point>>();
+    }
+
+    std::unique_ptr<List<scalar>> subRadiusSqr_ptr;
+    if (radiusSqr)
+    {
+        usedParams = true;
+        radiusSqr->resize_nocopy(output_size);
+        subRadiusSqr_ptr = std::make_unique<List<scalar>>();
+    }
+
+    std::unique_ptr<List<label>> subRegions_ptr;
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_nocopy(output_size);
+
+        if (!mergeSubRegions_)
+        {
+            // The regionOffset_ must be populated (when not merged)
+            (void) this->regions();
+
+            subRegions_ptr = std::make_unique<List<label>>();
+        }
+    }
+
+    std::unique_ptr<List<vector>> subNormals_ptr;
+    if (normals)
+    {
+        usedParams = true;
+        normals->resize_nocopy(output_size);
+        subNormals_ptr = std::make_unique<List<vector>>();
+    }
+
+    if (!usedParams)
+    {
+        return 0;
+    }
+
+    // After here we have one or more parameters to measure()
+    // and fit back into the overall list
+
+    forAll(subGeom_, surfi)
+    {
+        // Offset into the combined output, local size
+        const label localStart = indexOffset_.localStart(surfi);
+        const label localSize = indexOffset_.localSize(surfi);
+
+        const vector& scale = scale_[surfi];
+        const scalar maxScaleSqr = Foam::sqr(cmptMax(scale));
+        const auto& transf = transform_[surfi];
+
+        // Region offset can be fixed (mergeSubRegions) or variable
+        const label regOffset
+        (
+            (regions && !mergeSubRegions_)
+          ? regionOffset_[surfi]   // variable offset
+          : surfi                  // fixed offset
+        );
+
+        const label subCount = subGeom_[surfi].measure
+        (
+            subCentres_ptr.get(),
+            subRadiusSqr_ptr.get(),
+            subRegions_ptr.get(),
+            subNormals_ptr.get()
+        );
+
+        if (FOAM_UNLIKELY(subCount != localSize))
+        {
+            #ifdef FULLDEBUG
+            {
+                FatalErrorInFunction
+                    << "measure of sub-surface:" << surfi
+                    << " returned " << subCount << ", expected " << localSize
+                    << endl;
+            }
+            #endif
+
+            if (debug)
+            {
+                WarningInFunction
+                    << "measure of sub-surface:" << surfi
+                    << " returned " << subCount << ", expected " << localSize
+                    << endl;
+            }
+        }
+
+        if (centres && subCentres_ptr)
+        {
+            const auto& subCentres = *subCentres_ptr;
+
+            // Transform back to global coordinate sys.
+            std::transform
+            (
+                subCentres.begin(), subCentres.end(),
+                (centres->begin() + localStart),
+
+                [&scale,&transf](const vector& cc)
+                {
+                    return transf.globalPosition(cmptMultiply(cc, scale));
+                }
+            );
+        }
+
+        if (radiusSqr && subRadiusSqr_ptr)
+        {
+            const auto& subRadiusSqr = *subRadiusSqr_ptr;
+
+            std::transform
+            (
+                subRadiusSqr.begin(), subRadiusSqr.end(),
+                (radiusSqr->begin() + localStart),
+
+                [maxScaleSqr](scalar d2) { return maxScaleSqr*d2; }
+            );
+
+        }
+
+        if (regions && subRegions_ptr && !mergeSubRegions_)
+        {
+            const auto& subRegions = *subRegions_ptr;
+
+            std::transform
+            (
+                subRegions.begin(), subRegions.end(),
+                (regions->begin() + localStart),
+
+                [regOffset](label idx) { return (regOffset + idx); }
+            );
+        }
+        else if (regions)
+        {
+            // Merged (per surface region id)
+            std::fill_n(regions->begin() + localStart, localSize, regOffset);
+        }
+
+        if (normals && subNormals_ptr)
+        {
+            const auto& subNormals = *subNormals_ptr;
+
+            // Transform back to global coordinate sys.
+            std::transform
+            (
+                subNormals.begin(), subNormals.end(),
+                (normals->begin() + localStart),
+
+                [&scale,&transf](const vector& n)
+                {
+                    return normalised
+                    (
+                        transf.globalVector(cmptDivide(n, scale))
+                    );
+                }
+            );
+        }
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

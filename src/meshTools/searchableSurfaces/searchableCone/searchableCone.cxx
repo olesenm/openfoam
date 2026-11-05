@@ -1055,6 +1055,65 @@ void Foam::searchableCone::getNormal
 }
 
 
+Foam::label Foam::searchableCone::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    const point ctr(0.5*(point1_ + point2_));
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, ctr);
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        const scalar distSqr =
+        (
+            (radius1_ > radius2_)
+          ? (ctr.distSqr(point1_) + Foam::sqr(radius1_))
+          : (ctr.distSqr(point2_) + Foam::sqr(radius2_))
+        );
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill(output_size, distSqr + Foam::sqr(SMALL));
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is nominally undefined at the centre, but to be the same
+        // as having used boundingSpheres + findNearest etc.
+
+        pointIndexHit near;
+        vector n(vector::zero);
+
+        findNearestAndNormal(ctr, Foam::sqr(GREAT), near, n);
+
+        normals->resize_fill(output_size, n);
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchableCone::getVolumeType
 (
     const pointField& points,

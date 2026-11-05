@@ -643,6 +643,72 @@ void Foam::searchableBox::getNormal
 }
 
 
+Foam::label Foam::searchableBox::measure
+(
+    List<vector>* centres,
+    List<scalar>* boundingRadiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = treeBoundBox::nFaces();
+
+    bool usedParams = false;
+
+    // Extract face centres
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_nocopy(output_size); // MUST resize first
+        treeBoundBox::faceCentres(*centres);
+    }
+
+    // Extract bounding sphere radius squared
+    // Box faces are quads, points are axis-aligned,
+    // so the face centre is trivial and the only need one face corner
+    // to determine the bounding sphere radius
+
+    if (boundingRadiusSqr)
+    {
+        usedParams = true;
+        auto& radiusSqr = *boundingRadiusSqr;
+        radiusSqr.resize_nocopy(output_size);
+
+        for (label facei = 0; facei < treeBoundBox::nFaces(); ++facei)
+        {
+            label pointi = treeBoundBox::octFaces()[facei][0];
+            point corner = treeBoundBox::octCorner(pointi);
+            point fc = treeBoundBox::faceCentre(facei);
+
+            // Add a bit to make sure all points are tested inside
+            radiusSqr[facei] = (fc.distSqr(corner) + Foam::sqr(SMALL));
+        }
+    }
+
+    // Extract regions
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    // Extract normals
+    if (normals)
+    {
+        usedParams = true;
+        auto& normal = *normals;
+        normal.resize_nocopy(treeBoundBox::nFaces());
+
+        for (label facei = 0; facei < treeBoundBox::nFaces(); ++facei)
+        {
+            normal[facei] = treeBoundBox::faceNormals[facei];
+        }
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchableBox::getVolumeType
 (
     const pointField& points,
