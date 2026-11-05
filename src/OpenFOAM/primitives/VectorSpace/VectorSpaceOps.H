@@ -66,13 +66,14 @@ struct VectorSpaceOps
 
     //- A variant on copy_n taking a parameter pack.
     //  \param [out] result indexable output data
-    //  \param [in] vals the input parameter pack, one for each component
+    //  \param [in] val the first input parameter
+    //  \param [in] vals additional parameters pack, for subsequent components
     template<class Output, class T, class... Args>
     static inline constexpr void copy_args
     (
-        Output result,
-        T&& val,
-        Args&&... vals
+        [[maybe_unused]] Output result,
+        [[maybe_unused]] T&& val,
+        [[maybe_unused]] Args&&... vals
     )
     {
         if constexpr (I < N)

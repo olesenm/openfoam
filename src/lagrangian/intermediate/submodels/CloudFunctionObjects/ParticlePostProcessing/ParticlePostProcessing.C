@@ -129,7 +129,7 @@ bool Foam::ParticlePostProcessing<CloudType>::postPatch
     {
         OStringStream data;
         p.writeProperties(data, fields_, " ", true);
-        header_ = data.str();
+        header_ = Foam::string(data.str());
     }
 
     if (localPatchi != -1 && data_[localPatchi].size() < maxStoredParcels_)
@@ -140,7 +140,7 @@ bool Foam::ParticlePostProcessing<CloudType>::postPatch
         data<< Pstream::myProcNo();
         p.writeProperties(data, fields_, " ", false);
 
-        data_[localPatchi].append(data.str());
+        data_[localPatchi].append(Foam::string(data.str()));
     }
 
     return true;
@@ -167,7 +167,7 @@ bool Foam::ParticlePostProcessing<CloudType>::postFace
     {
         OStringStream data;
         p.writeProperties(data, fields_, " ", true);
-        header_ = data.str();
+        header_ = Foam::string(data.str());
     }
 
     forAll(IDs, i)
@@ -189,7 +189,7 @@ bool Foam::ParticlePostProcessing<CloudType>::postFace
             data<< Pstream::myProcNo();
             p.writeProperties(data, fields_, " ", false);
 
-            data_[i].append(data.str());
+            data_[i].append(Foam::string(data.str()));
         }
     }
 

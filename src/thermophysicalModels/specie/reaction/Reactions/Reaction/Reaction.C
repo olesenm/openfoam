@@ -104,7 +104,7 @@ Foam::string Foam::Reaction<ReactionThermo>::reactionStr
     reactionStrLeft(reaction);
     reaction << " = ";
     reactionStrRight(reaction);
-    return reaction.str();
+    return Foam::string(reaction.str());
 }
 
 

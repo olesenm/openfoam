@@ -86,7 +86,7 @@ Foam::string Foam::stringOps::evaluate
         result.writeField(os);
     }
 
-    return os.str();
+    return Foam::string(os.str());
 }
 
 

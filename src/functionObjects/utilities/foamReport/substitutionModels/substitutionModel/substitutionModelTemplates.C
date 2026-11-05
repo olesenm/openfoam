@@ -30,7 +30,9 @@ void Foam::substitutionModel::addBuiltin(const word& key, const Type& value)
 {
     OStringStream oss;
     oss << value;
-    addBuiltinStr(key, oss.str());
+
+    Foam::string strValue(oss.str());
+    addBuiltinStr(key, strValue);
 }
 
 
@@ -40,7 +42,8 @@ void Foam::substitutionModel::setBuiltin(const word& key, const Type& value)
     OStringStream oss;
     oss << value;
 
-    setBuiltinStr(key, oss.str());
+    Foam::string strValue(oss.str());
+    setBuiltinStr(key, strValue);
 }
 
 

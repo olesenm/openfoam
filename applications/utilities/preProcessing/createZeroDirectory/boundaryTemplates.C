@@ -258,7 +258,7 @@ Foam::dictionary Foam::boundaryTemplates::generatePatchDict
                     OStringStream oss;
                     oss << dEntry;
 
-                    string s(oss.str());
+                    Foam::string s(oss.str());
                     s.replace(dEntry.keyword(), "");
                     s.replace
                     (

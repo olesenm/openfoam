@@ -474,7 +474,7 @@ Foam::string Foam::error::message() const
 {
     if (messageStreamPtr_)
     {
-        return messageStreamPtr_->str();
+        return Foam::string(messageStreamPtr_->str());
     }
 
     return string();

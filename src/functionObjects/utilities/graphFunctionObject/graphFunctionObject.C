@@ -249,7 +249,7 @@ Foam::functionObjects::graphFunctionObject::graphFunctionObject
 
             OStringStream oss;
             oss << "rgb" << flatOutput(colour, FlatOutput::ParenComma{});
-            colours_[entryi] = oss.str();
+            colours_[entryi] = Foam::word(oss.str(), false);  // no stripping
         }
         else
         {
@@ -268,7 +268,7 @@ Foam::functionObjects::graphFunctionObject::graphFunctionObject
             {
                 OStringStream oss;
                 oss << flatOutput(dashes, FlatOutput::BareSpace{});
-                dashes_[entryi] = oss.str();
+                dashes_[entryi] = Foam::string(oss.str());
             }
             else
             {

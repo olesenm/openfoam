@@ -73,7 +73,7 @@ Foam::word Foam::name
 
     buf << ')';
 
-    return buf.str();
+    return Foam::word(buf.str(), false);  // no stripping needed
 }
 
 

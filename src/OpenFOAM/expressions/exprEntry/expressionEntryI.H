@@ -51,7 +51,7 @@ Foam::exprTools::expressionEntry::toExprStr(const Type& data)
     }
     buf << ')';
 
-    return buf.str();
+    return Foam::string(buf.str());
 }
 
 

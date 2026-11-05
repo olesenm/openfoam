@@ -74,7 +74,7 @@ Foam::word Foam::name(const quaternion& q)
 {
     OStringStream buf;
     buf << '(' << q.w() << ',' << q.v() << ')';
-    return buf.str();
+    return Foam::word(buf.str(), false);  // no stripping needed
 }
 
 

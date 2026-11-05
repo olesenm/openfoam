@@ -67,7 +67,7 @@ Foam::string Foam::glTF::accessor::getValueType()
 template<class Type>
 Foam::string Foam::glTF::accessor::toString(const Type& val)
 {
-    OStringStream buf;
+    std::ostringstream buf;
     buf << "[ ";
     for (direction dir = 0; dir < pTraits<Type>::nComponents; ++dir)
     {
@@ -76,7 +76,7 @@ Foam::string Foam::glTF::accessor::toString(const Type& val)
     }
     buf << " ]";
 
-    return buf.str();
+    return Foam::string(buf.str());
 }
 
 

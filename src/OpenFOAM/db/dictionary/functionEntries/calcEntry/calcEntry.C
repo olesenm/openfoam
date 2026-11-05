@@ -94,7 +94,7 @@ Foam::string Foam::functionEntries::calcEntry::evaluate
     (*function)(buf, parentDict);
 
     // Return evaluated content as string
-    return buf.str();
+    return Foam::string(buf.str());
 }
 
 

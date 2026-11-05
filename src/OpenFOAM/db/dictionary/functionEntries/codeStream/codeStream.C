@@ -281,7 +281,7 @@ Foam::string Foam::functionEntries::codeStream::evaluate
     (*function)(os, parentDict);
 
     // Return evaluated content as string
-    return os.str();
+    return Foam::string(os.str());
 }
 
 

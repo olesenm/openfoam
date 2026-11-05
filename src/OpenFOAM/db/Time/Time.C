@@ -831,7 +831,7 @@ Foam::word Foam::Time::timeName(const scalar t, const int precision)
     buf.setf(std::ios_base::fmtflags(format_), std::ios_base::floatfield);
     buf.precision(precision);
     buf << t;
-    return buf.str();
+    return Foam::word(buf.str(), false);  // no stripping needed
 }
 
 

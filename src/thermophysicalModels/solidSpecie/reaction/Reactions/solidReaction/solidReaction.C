@@ -168,7 +168,7 @@ Foam::string Foam::solidReaction<ReactionThermo>::solidReactionStr
         reaction << " + ";
         solidReactionStrRight(reaction);
     }
-    return reaction.str();
+    return Foam::string(reaction.str());
 }
 
 

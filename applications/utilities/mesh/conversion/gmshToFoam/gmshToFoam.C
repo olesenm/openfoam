@@ -419,7 +419,7 @@ void readPhysNames(IFstream& inFile, Map<word>& physicalNames)
         string line;
         inFile.getLine(line);
         IStringStream lineStr(line);
-        label nSpaces = lineStr.str().count(' ');
+        label nSpaces = Foam::string(lineStr.str()).count(' ');
 
         if (nSpaces == 1)
         {

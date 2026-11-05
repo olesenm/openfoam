@@ -134,7 +134,9 @@ bool Foam::substitutionModels::functionObjectValue::apply
 
     if (!ok) return false;
 
-    buffer.replaceAll(keyify(key), oss.str());
+    const std::string replacement(oss.str());
+
+    buffer.replaceAll(keyify(key), replacement);
 
     return true;
 }

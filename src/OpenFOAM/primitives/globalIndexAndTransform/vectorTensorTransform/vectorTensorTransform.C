@@ -74,7 +74,7 @@ Foam::word Foam::name(const vectorTensorTransform& s)
 
     buf << '(' << s.t() << ',' << s.R() << ')';
 
-    return buf.str();
+    return Foam::word(buf.str(), false);  // no stripping needed
 }
 
 

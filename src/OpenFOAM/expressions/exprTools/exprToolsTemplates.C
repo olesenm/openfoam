@@ -41,7 +41,7 @@ Foam::string Foam::exprTools::zeroValue()
     }
     buf << ')';
 
-    return buf.str();
+    return Foam::string(buf.str());
 }
 
 
@@ -62,7 +62,7 @@ Foam::string Foam::exprTools::toString
     }
     buf << ')';
 
-    return buf.str();
+    return Foam::string(buf.str());
 }
 
 

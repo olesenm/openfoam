@@ -56,7 +56,7 @@ Foam::word Foam::name(const septernion& s)
 {
     OStringStream buf;
     buf << '(' << s.t() << ',' << s.r() << ')';
-    return buf.str();
+    return Foam::word(buf.str(), false);  // no stripping needed
 }
 
 

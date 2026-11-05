@@ -81,12 +81,12 @@ namespace SVG
         {
             OStringStream oss;
             oss << value;
-            elems_.push_back(entryType(key, oss.str().c_str()));
+            elems_.push_back(entryType(key, Foam::string(oss.str())));
         }
 
         void addAttrStr(const char* key, const string& str)
         {
-            elems_.push_back(entryType(key, str.c_str()));
+            elems_.push_back(entryType(key, str));
         }
 
         friend Ostream& operator<<(Ostream& os, const element& ele)
