@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -975,7 +976,7 @@ void Foam::multiphaseMixtureThermo::correctContactAngle
 
             nHatPatch = a*AfHatPatch + b*nHatPatch;
 
-            nHatPatch /= (mag(nHatPatch) + deltaN_.value());
+            nHatPatch.normalise();
         }
     }
 }

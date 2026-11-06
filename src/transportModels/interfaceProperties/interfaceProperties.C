@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -96,7 +97,7 @@ void Foam::interfaceProperties::correctContactAngle
             scalarField b((b2 - a12*b1)/det);
 
             nHatp = a*nf + b*nHatp;
-            nHatp /= (mag(nHatp) + deltaN_.value());
+            nHatp.normalise();
 
             acap.gradient() = (nf & nHatp)*mag(gradAlphaf[patchi]);
             acap.evaluate();
