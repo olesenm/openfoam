@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -51,7 +52,7 @@ d2dt2
     return fv::d2dt2Scheme<Type>::New
     (
         vf.mesh(),
-        vf.mesh().ddtScheme("d2dt2(" + vf.name() + ')')
+        vf.mesh().d2dt2Scheme("d2dt2(" + vf.name() + ')')
     ).ref().fvcD2dt2(vf);
 }
 
@@ -67,7 +68,7 @@ d2dt2
     return fv::d2dt2Scheme<Type>::New
     (
         vf.mesh(),
-        vf.mesh().ddtScheme("d2dt2(" + rho.name() + ',' + vf.name() + ')')
+        vf.mesh().d2dt2Scheme("d2dt2(" + rho.name() + ',' + vf.name() + ')')
     ).ref().fvcD2dt2(rho, vf);
 }
 
