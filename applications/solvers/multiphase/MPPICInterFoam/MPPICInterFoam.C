@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -128,7 +129,6 @@ int main(int argc, char *argv[])
         alphacf = fvc::interpolate(alphac);
         alphaRhoPhic = alphacf*rhoPhi;
         alphaPhic = alphacf*phi;
-        alphacRho = alphac*rho;
 
         fvVectorMatrix cloudSU(kinematicCloud.SU(U));
         volVectorField cloudVolSUSu
@@ -154,6 +154,9 @@ int main(int argc, char *argv[])
         {
             #include "alphaControls.H"
             #include "alphaEqnSubCycle.H"
+
+            // Match alphacRho to new rho to keep UEqn/rhoPhi density consistent
+            alphacRho = alphac*rho;
 
             mixture.correct();
 

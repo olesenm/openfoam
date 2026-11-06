@@ -169,6 +169,10 @@ scalar alphacMin
 alphac = max(1.0 - kinematicCloud.theta(), alphacMin);
 alphac.correctBoundaryConditions();
 
+// Sync alphacRho with alphac so initial fvm::ddt(alphacRho, U) gets the
+// correct old-time field
+alphacRho = alphac*rho;
+
 surfaceScalarField alphacf("alphacf", fvc::interpolate(alphac));
 
 // Phase mass flux

@@ -4,7 +4,7 @@ fvVectorMatrix UEqn
 (
     fvm::ddt(alphacRho, U)
   + MRF.DDt(alphacRho, U)
-  - fvm::Sp(fvc::ddt(rho) + fvc::div(rhoPhi), U)
+  - fvm::Sp(fvc::ddt(alphacRho) + fvc::div(rhoPhi), U)
   + fvm::div(rhoPhi, U)
   + turbulence->divDevRhoReff(U)
   ==
