@@ -1463,34 +1463,118 @@ void Foam::triSurfaceMesh::setField(const labelList& values)
 }
 
 
-void Foam::triSurfaceMesh::getField
+// * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * * //
+
+const Foam::labelField* Foam::triSurfaceMesh::hasValuesField() const
+{
+    return getObjectPtr<triSurfaceLabelField>("values");
+}
+
+
+Foam::label Foam::triSurfaceMesh::getField_at
 (
-    const List<pointIndexHit>& info,
+    const labelUList& indices,
     labelList& values
 ) const
 {
+    label nHits = 0;
+
+    const label output_size = indices.size();
+
     const auto* fldPtr = getObjectPtr<triSurfaceLabelField>("values");
 
     if (fldPtr)
     {
         const auto& fld = *fldPtr;
 
-        values.setSize(info.size());
+        // Field size dictates the upper limit
+        const label numFaces = fld.size();
 
-        forAll(info, i)
+        // NB: resize, not resize_nocopy!
+        // Any added elements are set to -1 (placeholder)
+        values.resize(output_size, -1);
+
+        forAll(indices, i)
         {
-            if (info[i].hit())
+            if
+            (
+                const label facei = indices[i];
+                (facei >= 0 && facei < numFaces)
+            )
             {
-                values[i] = fld[info[i].index()];
+                values[i] = fld[facei];
+                ++nHits;
             }
         }
     }
+
+    #ifdef FULLDEBUG
+    if (label nDropped = (output_size - nHits); fldPtr && (nDropped > 0))
+    {
+        WarningInFunction
+            << "surface:" << searchableSurface::name() << " has "
+            << nDropped << " of " << output_size
+            << " indices outside the \"values\" field range. "
+            << "These entries were left unchanged" << endl;
+    }
+    #endif
+
     if (debug)
     {
-        Pout<< "triSurfaceMesh::setField :"
+        Pout<< "triSurfaceMesh::getField_at :"
             << " surface:" << searchableSurface::name()
-            << " finished getting field for "
-            << info.size() << " triangles" << endl;
+            << " finished getting field for " << nHits
+            << " of " << output_size << " locations" << endl;
+    }
+
+    return nHits;
+}
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::triSurfaceMesh::getField
+(
+    const List<pointIndexHit>& info,
+    labelList& values
+) const
+{
+    label nHits = 0;
+
+    const label output_size = info.size();
+
+    const auto* fldPtr = getObjectPtr<triSurfaceLabelField>("values");
+
+    if (fldPtr)
+    {
+        const auto& fld = *fldPtr;
+
+        // Field size dictates the upper limit
+        const label numFaces = fld.size();
+
+        // NB: resize, not resize_nocopy!
+        values.resize(output_size);
+
+        forAll(info, i)
+        {
+            if
+            (
+                const label facei = info[i].index();
+                (info[i].hit() && facei >= 0 && facei < numFaces)
+            )
+            {
+                values[i] = fld[facei];
+                ++nHits;
+            }
+        }
+    }
+
+    if (debug)
+    {
+        Pout<< "triSurfaceMesh::getField :"
+            << " surface:" << searchableSurface::name()
+            << " finished getting field for " << nHits
+            << " of " << output_size << " locations" << endl;
     }
 }
 

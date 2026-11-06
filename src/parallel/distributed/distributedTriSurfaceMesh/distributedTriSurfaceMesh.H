@@ -102,7 +102,8 @@ Usage
     \endverbatim
 
 SourceFiles
-    distributedTriSurfaceMesh.C
+    distributedTriSurfaceMesh.cxx
+    distributedTriSurfaceMesh.txx
 
 \*---------------------------------------------------------------------------*/
 
@@ -805,7 +806,7 @@ struct is_globalIOobject<distributedTriSurfaceMesh> : std::true_type {};
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 #ifdef NoRepository
-    #include "distributedTriSurfaceMeshTemplates.C"
+    #include "distributedTriSurfaceMesh.txx"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

@@ -81,7 +81,7 @@ class triSurfaceMesh
 {
 protected:
 
-    // Private member data
+    // Protected Data
 
         //- Supplied fileName override
         fileName fName_;
@@ -97,21 +97,41 @@ protected:
         //- Names of regions
         mutable wordList regions_;
 
-        //- Is surface closed
-        mutable label surfaceClosed_;
+        //- Is surface closed (-1, 0, 1)
+        mutable int8_t surfaceClosed_;
 
         //- If surface is closed, what is type of outside points
         mutable volumeType outsideVolType_;
 
 
-    // Private Member Functions
+    // Protected Member Functions
 
         //- Check whether surface is closed without calculating any permanent
         //  addressing.
         bool isSurfaceClosed() const;
 
-        //- Steps to next intersection. Adds smallVec and starts tracking
-        //  from there.
+        //- WIP.
+        //- Return const access to primitive part of \c "values" labelField
+        //- which can also be tested as a boolean.
+        const labelField* hasValuesField() const;
+
+        //- WIP.
+        //- Retrieve values from the \c "values" label field
+        //- at the specified \p indices.
+        //- Out of bound indices do not get set.
+        //  The caller should pre-fill \p values with a sentinel; it is
+        //  resized to indices.size() preserving existing content, with
+        //  any added elements set to -1.
+        //  \return the number of values retrieved
+        label getField_at(const labelUList& indices, labelList& values) const;
+
+
+private:
+
+    // Private Member Functions
+
+        //- Steps to next intersection.
+        //- Adds smallVec and starts tracking from there.
         static void getNextIntersections
         (
             const indexedOctree<treeDataTriSurface>& octree,

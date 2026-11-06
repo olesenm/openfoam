@@ -32,54 +32,6 @@ License
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-//template<class Type>
-//void Foam::distributedTriSurfaceMesh::getField
-//(
-//    const word& fieldName,
-//    const List<pointIndexHit>& info,
-//    List<Type>& values
-//) const
-//{
-//    typedef DimensionedField<Type, triSurfaceGeoMesh> fieldType;
-//
-//    // Get query data (= local index of triangle)
-//    // ~~~~~~~~~~~~~~
-//
-//    labelList triangleIndex(info.size());
-//    autoPtr<mapDistribute> mapPtr
-//    (
-//        calcLocalQueries
-//        (
-//            info,
-//            triangleIndex
-//        )
-//    );
-//    const mapDistribute& map = mapPtr();
-//
-//
-//    // Do my tests
-//    // ~~~~~~~~~~~
-//
-//    const auto& fld = lookupObject<fieldType>(fieldName);
-//
-//    const triSurface& s = static_cast<const triSurface&>(*this);
-//
-//    values.setSize(triangleIndex.size());
-//
-//    forAll(triangleIndex, i)
-//    {
-//        label triI = triangleIndex[i];
-//        values[i] = fld[triI];
-//    }
-//
-//
-//    // Send back results
-//    // ~~~~~~~~~~~~~~~~~
-//
-//    map.reverseDistribute(info.size(), values);
-//}
-
-
 template<class Type>
 void Foam::distributedTriSurfaceMesh::distributeFields
 (

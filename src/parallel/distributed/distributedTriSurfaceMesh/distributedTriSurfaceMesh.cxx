@@ -344,6 +344,8 @@ Foam::word Foam::distributedTriSurfaceMesh::findLocalInstance
 
 bool Foam::distributedTriSurfaceMesh::readSettings(const bool undecomposed)
 {
+    const int communicator = UPstream::worldComm;
+
     // Get bb of all domains.
     procBb_.resize_nocopy(Pstream::nProcs());
 
@@ -452,18 +454,23 @@ bool Foam::distributedTriSurfaceMesh::readSettings(const bool undecomposed)
     }
 
     // Is closed?
-    if (!dict_.readIfPresent<label>("closed", surfaceClosed_))
+    if (int closed; dict_.readIfPresent("closed", closed))
     {
+        surfaceClosed_ = closed;
+    }
+    else
+    {
+        closed = false;
+
         if (undecomposed)
         {
-            surfaceClosed_ = triSurfaceMesh::hasVolumeType();
-            Pstream::broadcast(surfaceClosed_);
+            closed = triSurfaceMesh::hasVolumeType();
+            Pstream::broadcast(closed, communicator);
         }
-        else
-        {
-            surfaceClosed_ = false;
-        }
-        dict_.add("closed", surfaceClosed_);
+
+        dict_.add("closed", closed);
+
+        surfaceClosed_ = closed;
     }
 
     // Do we know volume inside/outside?
@@ -6493,7 +6500,7 @@ void Foam::distributedTriSurfaceMesh::writeStats(Ostream& os) const
     {
         os  << "Exclusion Box  : " << exclusionBb_[Pstream::myProcNo()] << endl;
     }
-    os  << "Closed         : " << surfaceClosed_ << nl
+    os  << "Closed         : " << int(surfaceClosed_) << nl
         << "Outside type   : " << volumeType::names[outsideVolType_] << nl
         << "Distribution   : " << distributionTypeNames_[distType_] << endl;
 }
