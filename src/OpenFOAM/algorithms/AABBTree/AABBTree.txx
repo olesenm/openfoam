@@ -5,8 +5,7 @@
     \\  /    A nd           | www.openfoam.com
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
-    Copyright (C) 2015 OpenFOAM Foundation
-    Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -29,244 +28,200 @@ License
 #include "AABBTree.H"
 #include "bitSet.H"
 
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+template<class Predicate>
+bool Foam::AABBTreeBase::found_first_of
+(
+    label nodei,
+    const Predicate& pred
+) const
+{
+    const node& nd = (*nodes_)[nodei];
+
+    if (!pred(nd.bb()))
+    {
+        return false;
+    }
+
+    if (nd.is_leaf())
+    {
+        return true;
+    }
+    else  // interior:
+    {
+        // Do left first, right second
+        if
+        (
+            found_first_of(nd.left(), pred)
+         || found_first_of(nd.right(), pred)
+        )
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+template<class NodeType>
+Foam::label Foam::AABBTreeBase::reindex_impl
+(
+    const label first,
+    const label last,
+    DynamicList<NodeType>& nodesToBuild
+) const
+{
+    constexpr bool has_box =
+    (
+        std::is_base_of_v<Foam::boundBox, typename NodeType::box_type>
+    );
+
+    #ifdef FULLDEBUG
+    if (first < 0 || last > nLeafs() || first >= last)
+    {
+        FatalErrorInFunction
+            << "Invalid range [" << first << ", " << last << ")"
+            << " for leaves of size " << nLeafs()
+            << abort(FatalError);
+    }
+    #endif
+
+    const label count = (last - first);
+
+    // Create this node's slot before recursing etc.
+    const label nodeId = nodesToBuild.size();
+    nodesToBuild.emplace_back();
+
+    if (count == 1)
+    {
+        // Leaf reached
+        auto& leaf = nodesToBuild[nodeId];
+
+        // The leaf start/size simply shadows the offsets_ values:
+        leaf.set_leaf(offsets_[first], (offsets_[first+1]-offsets_[first]));
+
+        if constexpr (has_box)
+        {
+            // 'first' corresponds to the leaf index
+            leaf.set_bb(leafBoxes_[first]);
+        }
+
+        return nodeId;
+    }
+    else
+    {
+        // median split
+        const label pivot = (first + count/2);
+
+        // Recurse left and then right. Order is essential!
+        const auto lefti  = reindex_impl(first, pivot, nodesToBuild);
+        const auto righti = reindex_impl(pivot, last, nodesToBuild);
+
+        nodesToBuild[nodeId].set_interior(lefti, righti);
+
+        if constexpr (has_box)
+        {
+            // The interior node bounding box spans both children
+            treeBoundBox nodeBb
+            (
+                nodesToBuild[lefti].bb(),
+                nodesToBuild[righti].bb()
+            );
+
+            nodesToBuild[nodeId].set_bb(nodeBb);
+        }
+    }
+
+    return nodeId;
+}
+
+
 // * * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * //
 
 template<class Type>
-void Foam::AABBTree<Type>::writeOBJ
+void Foam::AABBTreeBase::object_inflate
 (
-    const bool leavesOnly,
-    const bool writeLinesOnly,
-    const treeBoundBox& bb,
-    const label nodeI,
-    const List<Pair<treeBoundBox>>& bbs,
-    const List<Pair<label>>& nodes,
-    label& vertI,
-    Ostream& os
-) const
+    const UList<Type>& objects,
+    const UList<point>& objectPoints,
+    scalar factor
+)
 {
-    if (!leavesOnly || nodeI < 0)
+    const label numLeafs = nLeafs();
+
+    for (label leafi = 0; leafi < numLeafs; ++leafi)
     {
-        bb.writeOBJ(os, vertI, writeLinesOnly);
+        auto& bb = leafBoxes_[leafi];
+
+        for (auto i : indices(leafi))
+        {
+            // Use the point references from the object
+
+            for (label pointi : objects[i])
+            {
+                bb.add(objectPoints[pointi]);
+            }
+        }
     }
 
-    // recurse to find leaves
-    if (nodeI >= 0)
-    {
-        writeOBJ
-        (
-            leavesOnly,
-            writeLinesOnly,
-            bbs[nodeI].first(),
-            nodes[nodeI].first(),
-            bbs,
-            nodes,
-            vertI,
-            os
-        );
-        writeOBJ
-        (
-            leavesOnly,
-            writeLinesOnly,
-            bbs[nodeI].second(),
-            nodes[nodeI].second(),
-            bbs,
-            nodes,
-            vertI,
-            os
-        );
-    }
+    // Inflate all final leaves
+    this->inflate(factor);
 }
 
 
 template<class Type>
-void Foam::AABBTree<Type>::createBoxes
+Foam::tmp<Foam::pointField>
+Foam::AABBTreeBase::objectCentres
 (
-    const bool equalBinSize,
-    const label level,
     const UList<Type>& objects,
-    const pointField& points,
-    const labelUList& objectIDs,
-    const treeBoundBox& bb,
-    const label nodeI,
-
-    DynamicList<Pair<treeBoundBox>>& bbs,
-    DynamicList<labelPair>& nodes,
-    DynamicList<labelList>& addressing
-) const
+    const pointField& objectPoints
+)
 {
-    // Determine which direction to divide the box
-
-    const direction maxDir = bb.maxDir();
-    const scalar maxSpan = bb.span()[maxDir];
-
-    scalar pivotValue;
-
-    if (equalBinSize)
+    if constexpr (nonIndexable<Type>())
     {
-        // Pick up points used by this set of objects
+        // Cannot use indirect point references
+        // - the "object" already is the point itself
+        return objectPoints;
+    }
+    else
+    {
+        // The object uses point references - define a representative
+        // centre value for each
 
-        bitSet isUsedPoint(points.size());
-        DynamicList<scalar> component(points.size());
+        auto tcentres = tmp<pointField>::New(objects.size(), Foam::zero{});
+        auto& centres = tcentres.ref();
 
-        for (const label objI : objectIDs)
+        bitSet pointsUsed(objectPoints.size());
+        DynamicList<label> currPoints;
+
+        label objecti = 0;
+        for (const auto& obj : objects)
         {
-            const Type& obj = objects[objI];
+            auto& centre = centres[objecti];
+            ++objecti;
 
-            for (const label pointI : obj)
+            currPoints.clear();
+
+            for (label pointi : obj)
             {
-                if (isUsedPoint.set(pointI))
+                if (pointsUsed.set(pointi))
                 {
-                    component.push_back(points[pointI][maxDir]);
+                    currPoints.push_back(pointi);
+                    centre += objectPoints[pointi];
                 }
+            }
+
+            if (const label nObjPoints = currPoints.size(); nObjPoints > 0)
+            {
+                centre /= nObjPoints;
+
+                // clear out bits before the next loop
+                pointsUsed.unset(currPoints);
             }
         }
 
-        // Determine the median
-
-        Foam::sort(component);
-
-        pivotValue = component[component.size()/2];
-    }
-    else
-    {
-        // Geometric middle
-        pivotValue = bb.min()[maxDir] + 0.5*maxSpan;
-    }
-
-
-    const scalar divMin = pivotValue + tolerance_*maxSpan;
-    const scalar divMax = pivotValue - tolerance_*maxSpan;
-
-
-    // Assign the objects to min or max bin
-
-    DynamicList<label> minBinObjectIDs(objectIDs.size());
-    DynamicList<label> maxBinObjectIDs(objectIDs.size());
-
-    treeBoundBox minBb;
-    treeBoundBox maxBb;
-
-    for (const label objI : objectIDs)
-    {
-        const Type& obj = objects[objI];
-
-        bool addMin = false;
-        bool addMax = false;
-
-        for (const label pointi : obj)
-        {
-            const scalar& cmptValue = points[pointi][maxDir];
-
-            addMin = addMin || (cmptValue < divMin);
-            addMax = addMax || (cmptValue > divMax);
-
-            if (addMin && addMax) break;
-        }
-
-        // Note: object is inserted into both min/max child boxes (duplicated)
-        // if it crosses the bin boundaries
-        if (addMin)
-        {
-            minBinObjectIDs.push_back(objI);
-            minBb.add(points, obj);
-        }
-        if (addMax)
-        {
-            maxBinObjectIDs.push_back(objI);
-            maxBb.add(points, obj);
-        }
-    }
-
-    // Inflate box in case geometry reduces to 2-D
-    if (minBinObjectIDs.size())
-    {
-        minBb.inflate(0.01);
-    }
-    if (maxBinObjectIDs.size())
-    {
-        maxBb.inflate(0.01);
-    }
-
-    minBinObjectIDs.shrink();
-    maxBinObjectIDs.shrink();
-
-    bool addMin = (minBinObjectIDs.size() > minLeafSize_ && level < maxLevel_);
-    bool addMax = (maxBinObjectIDs.size() > minLeafSize_ && level < maxLevel_);
-
-    // Since bounding boxes overlap, verify that splitting was effective
-
-    if
-    (
-        objectIDs.size() <= (minBinObjectIDs.size() + minLeafSize_/2)
-     || objectIDs.size() <= (maxBinObjectIDs.size() + minLeafSize_/2)
-    )
-    {
-        addMin = addMax = false;
-    }
-
-    label minI;
-    if (addMin)
-    {
-        // New leaf
-        minI = nodes.size();
-        nodes.emplace_back(-1, -1);
-    }
-    else
-    {
-        // Update existing leaf
-        minI = -addressing.size() - 1;
-        addressing.push_back(minBinObjectIDs);
-    }
-
-    label maxI;
-    if (addMax)
-    {
-        // New leaf
-        maxI = nodes.size();
-        nodes.emplace_back(-1, -1);
-    }
-    else
-    {
-        // Update existing leaf
-        maxI = -addressing.size() - 1;
-        addressing.push_back(maxBinObjectIDs);
-    }
-
-    nodes(nodeI) = labelPair(minI, maxI);
-    bbs(nodeI) = Pair<treeBoundBox>(minBb, maxBb);
-
-    // Recurse
-    if (minI >= 0)
-    {
-        createBoxes
-        (
-            equalBinSize,
-            level + 1,
-            objects,
-            points,
-            minBinObjectIDs,
-            minBb,
-            minI,
-            bbs,
-            nodes,
-            addressing
-        );
-    }
-    if (maxI >= 0)
-    {
-        createBoxes
-        (
-            equalBinSize,
-            level + 1,
-            objects,
-            points,
-            maxBinObjectIDs,
-            maxBb,
-            maxI,
-            bbs,
-            nodes,
-            addressing
-        );
+        return tcentres;
     }
 }
 
@@ -274,12 +229,56 @@ void Foam::AABBTree<Type>::createBoxes
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 template<class Type>
-Foam::AABBTree<Type>::AABBTree()
+Foam::AABBTreeBase::AABBTreeBase
+(
+    const UList<Type>& objects,
+    const pointField& objectCentres,
+    const pointField& objectPoints,
+    const bool medianSplit,
+    int maxLevel,
+    int minLeafSize
+)
+{
+    reset(objects.size(), objectCentres, medianSplit, maxLevel, minLeafSize);
+    object_inflate(objects, objectPoints);
+}
+
+
+template<class Type>
+Foam::AABBTreeBase::AABBTreeBase
+(
+    const UList<Type>& objects,
+    const pointField& objectPoints,
+    const bool medianSplit,
+    int maxLevel,
+    int minLeafSize
+)
+{
+    const tmp<pointField> tcentres(objectCentres(objects, objectPoints));
+
+    reset(objects.size(), tcentres(), medianSplit, maxLevel, minLeafSize);
+
+    if constexpr (nonIndexable<Type>())
+    {
+        inflate();
+    }
+    else
+    {
+        object_inflate(objects, objectPoints);
+    }
+}
+
+
+template<class Type>
+Foam::AABBTree<Type>::AABBTree
+(
+    const pointField& points,
+    const bool medianSplit,
+    int maxLevel,
+    int minLeafSize
+)
 :
-    maxLevel_(0),
-    minLeafSize_(0),
-    boundBoxes_(),
-    addressing_()
+    AABBTreeBase(points, medianSplit, maxLevel, minLeafSize)
 {}
 
 
@@ -287,176 +286,40 @@ template<class Type>
 Foam::AABBTree<Type>::AABBTree
 (
     const UList<Type>& objects,
-    const pointField& points,
-    const bool equalBinSize,
-    label maxLevel,
-    label minLeafSize
+    const pointField& objectCentres,
+    const pointField& objectPoints,
+    const bool medianSplit,
+    int maxLevel,
+    int minLeafSize
 )
 :
-    maxLevel_(maxLevel),
-    minLeafSize_(minLeafSize),
-    boundBoxes_(),
-    addressing_()
-{
-    if (objects.empty())
-    {
-        return;
-    }
-
-
-    DynamicList<Pair<treeBoundBox>> bbs(maxLevel);
-    DynamicList<labelPair> nodes(maxLevel);
-    DynamicList<labelList> addr(maxLevel);
-
-    nodes.emplace_back(-1, -1);
-    treeBoundBox topBb(points);
-    topBb.inflate(0.01);
-
-    labelList objectIDs(identity(objects.size()));
-
-    createBoxes
+    AABBTreeBase
     (
-        equalBinSize,
-        0,          // starting at top level
         objects,
-        points,
-        objectIDs,
-        topBb,
-        0,          // starting node
-
-        bbs,
-        nodes,
-        addr
-    );
-
-
-    //{
-    //    OFstream os("tree.obj");
-    //    label vertI = 0;
-    //    writeOBJ
-    //    (
-    //        true,       // leavesOnly
-    //        false,      // writeLinesOnly
-    //
-    //        topBb,
-    //        0,
-    //        bbs,
-    //        nodes,
-    //        vertI,
-    //        os
-    //    );
-    //}
-
-
-    // transfer flattened tree to persistent storage
-    DynamicList<treeBoundBox> boundBoxes(2*bbs.size());
-    DynamicList<labelList> addressing(2*addr.size());
-
-    forAll(nodes, nodeI)
-    {
-        if (nodes[nodeI].first() < 0)
-        {
-            boundBoxes.push_back(bbs[nodeI].first());
-            addressing.push_back(addr[-(nodes[nodeI].first() + 1)]);
-        }
-        if (nodes[nodeI].second() < 0)
-        {
-            boundBoxes.push_back(bbs[nodeI].second());
-            addressing.push_back(addr[-(nodes[nodeI].second() + 1)]);
-        }
-    }
-
-    boundBoxes_.transfer(boundBoxes);
-    addressing_.transfer(addressing);
-
-
-    if (0)
-    {
-        bitSet checked(objects.size());
-        for (const auto& box : addressing_)
-        {
-            for (const auto& id : box)
-            {
-                checked.set(id);
-            }
-        }
-
-        const label unsetSize = checked.count(false);
-
-        if (unsetSize)
-        {
-            Info<< "*** Problem: IDs not set: " << unsetSize << endl;
-        }
-    }
-}
-
-
-// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
-
-template<class Type>
-void Foam::AABBTree<Type>::writeOBJ(Ostream& os) const
-{
-    constexpr bool writeLinesOnly = false;
-
-    label vertIndex(0);
-
-    for (const treeBoundBox& bb : boundBoxes_)
-    {
-        bb.writeOBJ(os, vertIndex, writeLinesOnly);
-    }
-}
+        objectCentres,
+        objectPoints,
+        medianSplit, maxLevel, minLeafSize
+    )
+{}
 
 
 template<class Type>
-bool Foam::AABBTree<Type>::pointInside(const point& pt) const
-{
-    for (const treeBoundBox& bb : boundBoxes_)
-    {
-        if (bb.contains(pt))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-template<class Type>
-bool Foam::AABBTree<Type>::overlaps(const boundBox& bbIn) const
-{
-    for (const treeBoundBox& bb : boundBoxes_)
-    {
-        if (bb.overlaps(bbIn))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-// * * * * * * * * * * * * * * IOstream Operators  * * * * * * * * * * * * * //
-
-template<class Type>
-Foam::Ostream& Foam::operator<<(Ostream& os, const AABBTree<Type>& tree)
-{
-    os  << tree.boundBoxes_ << tree.addressing_;
-
-    os.check(FUNCTION_NAME);
-    return os;
-}
-
-
-template<class Type>
-Foam::Istream& Foam::operator>>(Istream& is, AABBTree<Type>& tree)
-{
-    is  >> tree.boundBoxes_ >> tree.addressing_;
-
-    is.check(FUNCTION_NAME);
-    return is;
-}
+Foam::AABBTree<Type>::AABBTree
+(
+    const UList<Type>& objects,
+    const pointField& objectPoints,
+    const bool medianSplit,
+    int maxLevel,
+    int minLeafSize
+)
+:
+    AABBTreeBase
+    (
+        objects,
+        objectPoints,
+        medianSplit, maxLevel, minLeafSize
+    )
+{}
 
 
 // ************************************************************************* //

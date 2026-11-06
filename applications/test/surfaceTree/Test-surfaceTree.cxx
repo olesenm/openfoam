@@ -94,11 +94,14 @@ int main(int argc, char *argv[])
 
     if (useAABB)
     {
+        constexpr bool medianSplit = true;
+
         AABBTree<face> tree
         (
             surf,
+            surf.faceCentres(),
             surf.points(),
-            true,       // Equal bins
+            medianSplit,
             maxLevel,   // maxLevel
             leafSize    // minLeafSize
         );

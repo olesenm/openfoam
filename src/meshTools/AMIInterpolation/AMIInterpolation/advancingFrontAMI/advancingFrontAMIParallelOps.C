@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2018-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -265,22 +266,39 @@ Foam::autoPtr<Foam::mapDistribute> Foam::advancingFrontAMI::calcProcMap
             << " not in communicator " << comm() << exit(FatalError);
     }
 
+    const auto myProci = UPstream::myProcNo(comm());
+    const auto numProc = UPstream::nProcs(comm());
+
     // Get decomposition of patch
-    List<treeBoundBoxList> procBb(Pstream::nProcs(comm()));
+    List<treeBoundBoxList> procBb(numProc);
 
     if (srcPatch.size())
     {
-        procBb[Pstream::myProcNo(comm())] =
-            AABBTree<face>
+        auto& bbs = procBb[myProci];
+
+        // geometric, not median split
+        constexpr bool medianSplit = false;
+
+        if (srcPatch.hasFaceCentres())
+        {
+            // Already has faceCentres(), can reuse them
+            bbs = AABBTreeBase
+            (
+                srcPatch.localFaces(),
+                srcPatch.faceCentres(),
+                srcPatch.localPoints(),
+                medianSplit
+            ).release_boxes();
+        }
+        else
+        {
+            bbs = AABBTreeBase
             (
                 srcPatch.localFaces(),
                 srcPatch.localPoints(),
-                false
-            ).boundBoxes();
-    }
-    else
-    {
-        procBb[Pstream::myProcNo(comm())] = treeBoundBoxList();
+                medianSplit
+            ).release_boxes();
+        }
     }
 
     Pstream::allGatherList(procBb, UPstream::msgType(), comm());
@@ -299,14 +317,14 @@ Foam::autoPtr<Foam::mapDistribute> Foam::advancingFrontAMI::calcProcMap
     const faceList& faces = tgtPatch.localFaces();
     const pointField& points = tgtPatch.localPoints();
 
-    labelListList sendMap;
+    labelListList sendMap(numProc);
 
     {
         // Per processor indices into all segments to send
-        List<DynamicList<label>> dynSendMap(Pstream::nProcs(comm()));
+        List<DynamicList<label>> dynSendMap(numProc);
 
         // Work array - whether processor bb overlaps the face bounds
-        boolList procBbOverlaps(Pstream::nProcs(comm()));
+        boolList procBbOverlaps(numProc);
 
         forAll(faces, facei)
         {
@@ -328,7 +346,6 @@ Foam::autoPtr<Foam::mapDistribute> Foam::advancingFrontAMI::calcProcMap
         }
 
         // Convert dynamicList to labelList
-        sendMap.setSize(Pstream::nProcs(comm()));
         forAll(sendMap, proci)
         {
             sendMap[proci].transfer(dynSendMap[proci]);
