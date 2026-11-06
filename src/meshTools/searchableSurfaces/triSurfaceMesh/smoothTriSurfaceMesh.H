@@ -39,17 +39,16 @@ Description
         - featureAngle: limit interpolation to current 'region' only.
                         Region limited by feature edges.
 
-
 SourceFiles
-    smoothTriSurfaceMesh.C
+    smoothTriSurfaceMesh.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef smoothTriSurfaceMesh_H
-#define smoothTriSurfaceMesh_H
+#ifndef Foam_smoothTriSurfaceMesh_H
+#define Foam_smoothTriSurfaceMesh_H
 
 #include "triSurfaceMesh.H"
-#include "PackedBoolList.H"
+#include "bitSet.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -64,7 +63,7 @@ class smoothTriSurfaceMesh
 :
     public triSurfaceMesh
 {
-private:
+    // Private Data
 
         //- Edges with discontinuity
         bitSet isBorderEdge_;
@@ -72,21 +71,26 @@ private:
         //- Points on border edges
         bitSet isPointOnBorderEdge_;
 
+
+    // Private Member Functions
+
         //- Mark feature edges
         void calcFeatureEdges(const scalar featureAngle);
 
         //- Calculate local point normal
-        vector pointNormal(const label, const label) const;
-
-
-        //- Disallow default bitwise copy construct
-        smoothTriSurfaceMesh(const smoothTriSurfaceMesh&) = delete;
-
-        //- Disallow default bitwise assignment
-        void operator=(const smoothTriSurfaceMesh&) = delete;
+        vector pointNormal(label startFacei, label localPointi) const;
 
 
 public:
+
+    // Generated Methods
+
+        //- No copy construct
+        smoothTriSurfaceMesh(const smoothTriSurfaceMesh&) = delete;
+
+        //- No copy assignment
+        void operator=(const smoothTriSurfaceMesh&) = delete;
+
 
     //- Runtime type information
     TypeName("smoothTriSurfaceMesh");
@@ -95,7 +99,7 @@ public:
     // Constructors
 
         //- Construct read, specify feature angle
-        smoothTriSurfaceMesh(const IOobject& io, const scalar featureAngle);
+        smoothTriSurfaceMesh(const IOobject& io, scalar featureAngle);
 
         //- Construct from IO and dictionary (used by searchableSurface).
         //  Dictionary may contain a 'scale' entry (eg, 0.001: mm -> m)
@@ -107,7 +111,7 @@ public:
 
 
     //- Destructor
-    virtual ~smoothTriSurfaceMesh();
+    virtual ~smoothTriSurfaceMesh() = default;
 
 
     // Member Functions

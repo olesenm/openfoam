@@ -343,6 +343,33 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, const triSurface& s)
 }
 
 
+Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, triSurface&& s)
+:
+    searchableSurface(io),
+    objectRegistry
+    (
+        IOobject
+        (
+            io.name(),
+            io.instance(),
+            io.local(),
+            io.db(),
+            io.readOpt(),
+            io.writeOpt(),
+            false       // searchableSurface already registered under name
+        )
+    ),
+    triSurface(std::move(s)),
+    triSurfaceRegionSearch(static_cast<const triSurface&>(*this)),
+    minQuality_(-1),
+    surfaceClosed_(-1),
+    outsideVolType_(volumeType::UNKNOWN)
+{
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
+}
+
+
 Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io)
 :
     // Find instance for triSurfaceMesh

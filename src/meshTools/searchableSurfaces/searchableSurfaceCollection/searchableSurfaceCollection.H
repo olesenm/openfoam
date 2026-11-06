@@ -43,7 +43,7 @@ Note
     Longer type name : \c searchableSurfaceCollection
 
 SourceFiles
-    searchableSurfaceCollection.C
+    searchableSurfaceCollection.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -54,11 +54,15 @@ SourceFiles
 #include "treeBoundBox.H"
 #include "cartesianCS.H"
 #include "UPtrList.H"
+#include "CSRAddressing.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
+
+// Forward Declarations
+template<class T> class CompactListList;
 
 /*---------------------------------------------------------------------------*\
                  Class searchableSurfaceCollection Declaration
@@ -70,7 +74,7 @@ class searchableSurfaceCollection
 {
     // Private Member Data
 
-        // Per instance data
+        // Data per surface instance
 
             //- Instance name
             wordList instance_;
@@ -85,9 +89,9 @@ class searchableSurfaceCollection
 
             bool mergeSubRegions_;
 
-            //- Offsets for indices coming from different surfaces
-            //  (sized with size() of each surface)
-            labelList indexOffset_;
+            //- Size offsets for the different surfaces
+            CSRAddressing<label> indexOffset_;
+
 
         //- Names of regions
         mutable wordList regions_;
@@ -115,23 +119,23 @@ class searchableSurfaceCollection
         //  Maintains map back to position
         void sortHits
         (
-            const List<pointIndexHit>& info,
-            List<List<pointIndexHit>>& surfInfo,
-            labelListList& infoMap
+            const UList<pointIndexHit>& info,
+            CompactListList<pointIndexHit>& surfInfo,
+            CompactListList<label>& infoMap
         ) const;
 
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableSurfaceCollection
-        (
-            const searchableSurfaceCollection&
-        ) = delete;
+        (const searchableSurfaceCollection&) = delete;
 
         //- No copy assignment
         void operator=(const searchableSurfaceCollection&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSurfaceCollection");

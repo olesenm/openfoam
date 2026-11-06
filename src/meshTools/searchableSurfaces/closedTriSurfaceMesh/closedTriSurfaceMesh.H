@@ -32,12 +32,12 @@ Description
     geometrically essentially closed
 
 SourceFiles
-    closedTriSurfaceMesh.C
+    closedTriSurfaceMesh.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef closedTriSurfaceMesh_H
-#define closedTriSurfaceMesh_H
+#ifndef Foam_closedTriSurfaceMesh_H
+#define Foam_closedTriSurfaceMesh_H
 
 #include "triSurfaceMesh.H"
 
@@ -47,15 +47,16 @@ namespace Foam
 {
 
 /*---------------------------------------------------------------------------*\
-                           Class closedTriSurfaceMesh Declaration
+                    Class closedTriSurfaceMesh Declaration
 \*---------------------------------------------------------------------------*/
 
 class closedTriSurfaceMesh
 :
     public triSurfaceMesh
 {
+public:
 
-    // Private Member Functions
+    // Generated Methods
 
         //- No copy construct
         closedTriSurfaceMesh(const closedTriSurfaceMesh&) = delete;
@@ -64,19 +65,29 @@ class closedTriSurfaceMesh
         void operator=(const closedTriSurfaceMesh&) = delete;
 
 
-public:
-
     //- Runtime type information
     TypeName("closedTriSurfaceMesh");
 
 
     // Constructors
 
-        //- Construct from triSurface
-        closedTriSurfaceMesh(const IOobject&, const triSurface&);
+        //- Copy construct from triSurface
+        closedTriSurfaceMesh(const IOobject& io, const triSurface& s)
+        :
+            triSurfaceMesh(io, s)
+        {}
 
-        //- Construct read.
-        closedTriSurfaceMesh(const IOobject& io);
+        //- Move construct from triSurface
+        closedTriSurfaceMesh(const IOobject& io, triSurface&& s)
+        :
+            triSurfaceMesh(io, std::move(s))
+        {}
+
+        //- Read construct
+        closedTriSurfaceMesh(const IOobject& io)
+        :
+            triSurfaceMesh(io)
+        {}
 
         //- Construct from IO and dictionary (used by searchableSurface).
         //  Dictionary may contain a 'scale' entry (eg, 0.001: mm to m)
@@ -93,13 +104,9 @@ public:
 
     // Member Functions
 
-        //- Whether supports volume type, forcing to true to force getVolumeType
-        //  queries for this type
-        virtual bool hasVolumeType() const
-        {
-            return true;
-        }
-
+        //- Whether supports volume type.
+        //- forcing to true to force getVolumeType queries for this type
+        virtual bool hasVolumeType() const { return true; }
 };
 
 

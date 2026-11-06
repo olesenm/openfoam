@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2018 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -54,12 +55,12 @@ Note
     \endtable
 
 SourceFiles
-    subTriSurfaceMesh.C
+    subTriSurfaceMesh.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef subTriSurfaceMesh_H
-#define subTriSurfaceMesh_H
+#ifndef Foam_subTriSurfaceMesh_H
+#define Foam_subTriSurfaceMesh_H
 
 #include "triSurfaceMesh.H"
 
@@ -78,18 +79,8 @@ class subTriSurfaceMesh
 {
     // Private member functions
 
-        //- Extract patch names of triSurface
-        static wordList patchNames(const triSurface& s);
-
-        //- Select regions by name
-        static labelList selectedRegions
-        (
-            const triSurface& s,
-            const wordRes& regionNameMatcher
-        );
-
         //- Subset triSurface based on regions
-        static triSurface subset(const IOobject&, const dictionary&);
+        static triSurface create_subset(const IOobject&, const dictionary&);
 
 
 public:

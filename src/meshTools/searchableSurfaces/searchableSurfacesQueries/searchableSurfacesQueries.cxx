@@ -63,7 +63,7 @@ void Foam::searchableSurfacesQueries::mergeHits
     scalarList surfDistSqr(surfHits.size());
     forAll(surfHits, i)
     {
-        surfDistSqr[i] = surfHits[i].hitPoint().distSqr(start);
+        surfDistSqr[i] = surfHits[i].point().distSqr(start);
     }
 
     forAll(surfDistSqr, i)
@@ -120,22 +120,21 @@ void Foam::searchableSurfacesQueries::mergeHits
 // Find any intersection
 void Foam::searchableSurfacesQueries::findAnyIntersection
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const pointField& start,
     const pointField& end,
     labelList& hitSurfaces,
     List<pointIndexHit>& hitInfo
 )
 {
-    hitSurfaces.setSize(start.size());
-    hitSurfaces = -1;
-    hitInfo.setSize(start.size());
+    hitSurfaces.resize_fill(start.size(), -1);
+    hitInfo.resize_nocopy(start.size());
 
     // Work arrays
-    labelList hitMap(identity(start.size()));
-    pointField p0(start);
-    pointField p1(end);
+    DynamicList<label> hitMap(Foam::identity(start.size()));
+    DynamicField<point> p0(start);
+    DynamicField<point> p1(end);
     List<pointIndexHit> intersectInfo(start.size());
 
     forAll(surfacesToTest, testI)
@@ -171,18 +170,18 @@ void Foam::searchableSurfacesQueries::findAnyIntersection
         }
 
         // Trim and continue
-        hitMap.setSize(newI);
-        p0.setSize(newI);
-        p1.setSize(newI);
-        intersectInfo.setSize(newI);
+        hitMap.resize(newI);
+        p0.resize(newI);
+        p1.resize(newI);
+        intersectInfo.resize(newI);
     }
 }
 
 
 void Foam::searchableSurfacesQueries::findAllIntersections
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const pointField& start,
     const pointField& end,
     labelListList& hitSurfaces,
@@ -214,11 +213,10 @@ void Foam::searchableSurfacesQueries::findAllIntersections
         const List<pointIndexHit>& pHits = hitInfo[pointi];
 
         labelList& pSurfaces = hitSurfaces[pointi];
-        pSurfaces.setSize(pHits.size());
-        pSurfaces = 0;
+        pSurfaces.resize_fill(pHits.size(), 0);
 
         scalarList& pDistSqr = hitDistSqr[pointi];
-        pDistSqr.setSize(pHits.size());
+        pDistSqr.resize_nocopy(pHits.size());
         forAll(pHits, i)
         {
             pDistSqr[i] = pHits[i].hitPoint().distSqr(start[pointi]);
@@ -260,23 +258,22 @@ void Foam::searchableSurfacesQueries::findAllIntersections
 
 void Foam::searchableSurfacesQueries::findNearestIntersection
 (
-   const PtrList<searchableSurface>& allSurfaces,
-   const labelList& surfacesToTest,
-   const pointField& start,
-   const pointField& end,
-   labelList& surface1,
-   List<pointIndexHit>& hit1,
-   labelList& surface2,
-   List<pointIndexHit>& hit2
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
+    const pointField& start,
+    const pointField& end,
+    labelList& surface1,
+    List<pointIndexHit>& hit1,
+    labelList& surface2,
+    List<pointIndexHit>& hit2
 )
 {
    // 1. intersection from start to end
    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
    // Initialize arguments
-   surface1.setSize(start.size());
-   surface1 = -1;
-   hit1.setSize(start.size());
+   surface1.resize_fill(start.size(), -1);
+   hit1.resize(start.size());
 
    // Current end of segment to test.
    pointField nearest(end);
@@ -347,8 +344,8 @@ void Foam::searchableSurfacesQueries::findNearestIntersection
 
 void Foam::searchableSurfacesQueries::findNearest
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const pointField& samples,
     const scalarField& nearestDistSqr,
     labelList& nearestSurfaces,
@@ -365,9 +362,8 @@ void Foam::searchableSurfacesQueries::findNearest
     }
 
     // Initialise
-    nearestSurfaces.setSize(samples.size());
-    nearestSurfaces = -1;
-    nearestInfo.setSize(samples.size());
+    nearestSurfaces.resize_fill(samples.size(), -1);
+    nearestInfo.resize(samples.size());
 
     // Work arrays
     scalarField minDistSqr(nearestDistSqr);
@@ -400,8 +396,8 @@ void Foam::searchableSurfacesQueries::findNearest
 
 void Foam::searchableSurfacesQueries::findNearest
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const labelListList& regionIndices,
 
     const pointField& samples,
@@ -435,9 +431,8 @@ void Foam::searchableSurfacesQueries::findNearest
     }
 
     // Initialise
-    nearestSurfaces.setSize(samples.size());
-    nearestSurfaces = -1;
-    nearestInfo.setSize(samples.size());
+    nearestSurfaces.resize_fill(samples.size(), -1);
+    nearestInfo.resize(samples.size());
 
     // Work arrays
     scalarField minDistSqr(nearestDistSqr);
@@ -471,8 +466,8 @@ void Foam::searchableSurfacesQueries::findNearest
 
 void Foam::searchableSurfacesQueries::findNearest
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const pointField& start,
     const scalarField& distSqr,
     pointField& near,
@@ -481,7 +476,6 @@ void Foam::searchableSurfacesQueries::findNearest
 )
 {
     // Multi-surface findNearest
-
 
     if (start.size() != distSqr.size())
     {
@@ -508,8 +502,7 @@ void Foam::searchableSurfacesQueries::findNearest
     }
 
     // Store normal as constraint
-    constraint.setSize(near.size());
-    constraint = pointConstraint();
+    constraint.resize_fill(near.size(), pointConstraint());
     forAll(constraint, i)
     {
         if (info[i].hit())
@@ -593,8 +586,8 @@ void Foam::searchableSurfacesQueries::findNearest
 
 void Foam::searchableSurfacesQueries::signedDistance
 (
-    const PtrList<searchableSurface>& allSurfaces,
-    const labelList& surfacesToTest,
+    const UPtrList<searchableSurface>& allSurfaces,
+    const labelUList& surfacesToTest,
     const pointField& samples,
     const scalarField& nearestDistSqr,
     const volumeType illegalHandling,
@@ -691,13 +684,13 @@ void Foam::searchableSurfacesQueries::signedDistance
 
 Foam::boundBox Foam::searchableSurfacesQueries::bounds
 (
-    const PtrList<searchableSurface>& allSurfaces,
+    const UPtrList<searchableSurface>& allSurfaces,
     const labelUList& surfacesToTest
 )
 {
     boundBox bb;
 
-    for (const label surfi : surfacesToTest)
+    for (label surfi : surfacesToTest)
     {
         bb.add(allSurfaces[surfi].bounds());
     }

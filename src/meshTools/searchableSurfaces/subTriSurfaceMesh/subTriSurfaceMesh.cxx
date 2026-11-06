@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2019 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -44,45 +45,7 @@ namespace Foam
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-Foam::wordList Foam::subTriSurfaceMesh::patchNames(const triSurface& s)
-{
-    const auto& patches = s.patches();
-
-    wordList names(patches.size());
-    forAll(patches, patchi)
-    {
-        names[patchi] = patches[patchi].name();
-    }
-    return names;
-}
-
-
-Foam::labelList Foam::subTriSurfaceMesh::selectedRegions
-(
-    const triSurface& s,
-    const wordRes& regionNameMatcher
-)
-{
-    const wordList names(patchNames(s));
-
-    labelList regionIds(names.size());
-
-    label count = 0;
-
-    forAll(names, regioni)
-    {
-        if (regionNameMatcher.match(names[regioni]))
-        {
-            regionIds[count++] = regioni;
-        }
-    }
-    regionIds.setSize(count);
-
-    return regionIds;
-}
-
-
-Foam::triSurface Foam::subTriSurfaceMesh::subset
+Foam::triSurface Foam::subTriSurfaceMesh::create_subset
 (
     const IOobject& io,
     const dictionary& dict
@@ -90,45 +53,55 @@ Foam::triSurface Foam::subTriSurfaceMesh::subset
 {
     const word subGeomName(dict.get<word>("surface"));
 
-    const triSurfaceMesh& s =
+    const wordRes includeNames(dict.get<wordRes>("patches"));
+
+    const triSurfaceMesh& tsm =
         io.db().lookupObject<triSurfaceMesh>(subGeomName);
 
-    if (s.type() == "distributedTriSurfaceMesh")
+    if (tsm.type() == "distributedTriSurfaceMesh")
     {
         IOWarningInFunction(dict)
-            << "Found surface " << subGeomName << " of type " << s.type()
+            << "Found surface " << subGeomName << " of type " << tsm.type()
             << ". subTriSurfaceMesh only works with non-distributed surfaces."
             << endl;
     }
 
-    const wordRes regionNames(dict.get<wordRes>("patches"));
+    const auto& s = static_cast<const triSurface&>(tsm);
 
-    labelList regionMap(selectedRegions(s, regionNames));
-
-    if (regionMap.empty())
+    // This is all just for extra error reporting
     {
-        FatalIOErrorInFunction(dict)
-            << "Found no regions in triSurface matching " << regionNames
-            << ". Valid regions are " << patchNames(s)
-            << exit(FatalIOError);
-    }
+        const auto& surfPatches = s.patches();
 
-    labelList reverseRegionMap(s.patches().size(), -1);
-    forAll(regionMap, i)
-    {
-        reverseRegionMap[regionMap[i]] = i;
-    }
+        // Verify that something matches
+        bool anyMatches = false;
 
-    boolList isSelected(s.size(), false);
-    forAll(s, triI)
-    {
-        if (reverseRegionMap[s.triSurface::operator[](triI).region()] != -1)
+        for (const auto& p : surfPatches)
         {
-            isSelected[triI] = true;
+            if (includeNames.match(p.name()))
+            {
+                anyMatches = true;
+                break;
+            }
+        }
+
+        if (!anyMatches)
+        {
+            auto& err = FatalIOErrorInFunction(dict);
+
+            err << "Found no regions in triSurface matching "
+                << includeNames << "\n    Regions: (";
+
+            forAll(surfPatches, patchi)
+            {
+                if (patchi) err << ' ';
+                err << surfPatches[patchi].name();
+            }
+
+            err << ")\n" << exit(FatalIOError);
         }
     }
 
-    return s.subsetMesh(isSelected);
+    return s.subsetMesh(includeNames);
 }
 
 
@@ -140,7 +113,7 @@ Foam::subTriSurfaceMesh::subTriSurfaceMesh
     const dictionary& dict
 )
 :
-    triSurfaceMesh(io, subset(io, dict))
+    triSurfaceMesh(io, create_subset(io, dict))
 {}
 
 

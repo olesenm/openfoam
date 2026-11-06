@@ -28,9 +28,9 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "searchableSurfaceCollection.H"
-#include "addToRunTimeSelectionTable.H"
+#include "CompactListList.H"
 #include "Time.H"
-#include "ListOps.H"
+#include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -110,7 +110,7 @@ void Foam::searchableSurfaceCollection::findNearest
                     nearestInfo[pointi].setIndex
                     (
                         hitInfo[pointi].index()
-                      + indexOffset_[surfI]
+                      + indexOffset_.localStart(surfI)
                     );
                     nearestSurf[pointi] = surfI;
                 }
@@ -120,13 +120,13 @@ void Foam::searchableSurfaceCollection::findNearest
 }
 
 
-// Sort hits into per-surface bins. Misses are rejected. Maintains map back
-// to position
+// Sort hits into per-surface bins. Misses are rejected.
+// Maintains map back to position
 void Foam::searchableSurfaceCollection::sortHits
 (
-    const List<pointIndexHit>& info,
-    List<List<pointIndexHit>>& surfInfo,
-    labelListList& infoMap
+    const UList<pointIndexHit>& info,
+    CompactListList<pointIndexHit>& surfInfo,
+    CompactListList<label>& infoMap
 ) const
 {
     // Count hits per surface.
@@ -137,39 +137,41 @@ void Foam::searchableSurfaceCollection::sortHits
         if (info[pointi].hit())
         {
             label index = info[pointi].index();
-            label surfI = findLower(indexOffset_, index+1);
-            nHits[surfI]++;
+            label surfi = indexOffset_.findRow(index);
+            nHits[surfi]++;
         }
     }
 
     // Per surface the hit
-    surfInfo.setSize(subGeom_.size());
-    // Per surface the original position
-    infoMap.setSize(subGeom_.size());
+    surfInfo.resize_nocopy(nHits);
 
-    forAll(surfInfo, surfI)
-    {
-        surfInfo[surfI].setSize(nHits[surfI]);
-        infoMap[surfI].setSize(nHits[surfI]);
-    }
+    // Per surface the original position
+    infoMap.resize_nocopy(nHits);
+
     nHits = 0;
 
     forAll(info, pointi)
     {
         if (info[pointi].hit())
         {
-            label index = info[pointi].index();
-            label surfI = findLower(indexOffset_, index+1);
+            const label index = info[pointi].index();
+            const label surfi = indexOffset_.findRow(index);
+
+            // current (local row) output location
+            const label curr = nHits[surfi]++;
 
             // Store for correct surface and adapt indices back to local
             // ones
-            label localI = nHits[surfI]++;
-            surfInfo[surfI][localI] = pointIndexHit
+
+            auto hits = surfInfo[surfi];
+            auto map = infoMap[surfi];
+
+            hits[curr].hitPoint
             (
-                info[pointi],
-                index-indexOffset_[surfI]
+                info[pointi].point(),
+                indexOffset_.toLocal(surfi, index)
             );
-            infoMap[surfI][localI] = pointi;
+            map[curr] = pointi;
         }
     }
 }
@@ -188,13 +190,12 @@ Foam::searchableSurfaceCollection::searchableSurfaceCollection
     scale_(dict.size()),
     transform_(dict.size()),
     subGeom_(dict.size()),
-    mergeSubRegions_(dict.get<bool>("mergeSubRegions")),
-    indexOffset_(dict.size()+1)
+    mergeSubRegions_(dict.get<bool>("mergeSubRegions"))
 {
     Info<< "SearchableCollection : " << name() << endl;
 
+    DynamicList<label> surfSizes(dict.size());
     label surfI = 0;
-    label startIndex = 0;
     for (const entry& dEntry : dict)
     {
         if (dEntry.isDict())
@@ -230,8 +231,7 @@ Foam::searchableSurfaceCollection::searchableSurfaceCollection
 
             subGeom_.set(surfI, &s);
 
-            indexOffset_[surfI] = startIndex;
-            startIndex += subGeom_[surfI].size();
+            surfSizes.push_back(s.size());
 
             Info<< "    instance : " << instance_[surfI] << endl;
             Info<< "    surface  : " << s.name() << endl;
@@ -241,13 +241,13 @@ Foam::searchableSurfaceCollection::searchableSurfaceCollection
             surfI++;
         }
     }
-    indexOffset_[surfI] = startIndex;
 
     instance_.setSize(surfI);
     scale_.setSize(surfI);
     transform_.setSize(surfI);
     subGeom_.setSize(surfI);
-    indexOffset_.setSize(surfI+1);
+
+    indexOffset_.reset(surfSizes);
 
     // Bounds is the overall bounds - prepare for min/max ops
     bounds().reset();
@@ -290,31 +290,39 @@ Foam::searchableSurfaceCollection::~searchableSurfaceCollection()
 
 const Foam::wordList& Foam::searchableSurfaceCollection::regions() const
 {
-    if (regions_.empty())
+    if (regions_.empty() && !subGeom_.empty())
     {
-        regionOffset_.setSize(subGeom_.size());
+        regionOffset_.resize_nocopy(subGeom_.size());
 
         DynamicList<word> allRegions;
-        forAll(subGeom_, surfI)
+
+        if (mergeSubRegions_)
         {
-            regionOffset_[surfI] = allRegions.size();
+            // Single name per surface, regardless how many regions any
+            // sub-surface has.
 
-            if (mergeSubRegions_)
+            // The region offset (when merged) is an identity map
+            Foam::identity(regionOffset_);
+
+            forAll(subGeom_, i)
             {
-                // Single name regardless how many regions subsurface has
-                allRegions.append(instance_[surfI] + "_" + Foam::name(surfI));
+                allRegions.push_back(instance_[i] + "_" + Foam::name(i));
             }
-            else
+        }
+        else
+        {
+            // Retain all sub-surface region names
+            forAll(subGeom_, i)
             {
-                const wordList& subRegions = subGeom_[surfI].regions();
+                regionOffset_[i] = allRegions.size();
 
-                for (const word& regionName : subRegions)
+                for (const word& regionName : subGeom_[i].regions())
                 {
-                    allRegions.append(instance_[surfI] + "_" + regionName);
+                    allRegions.push_back(instance_[i] + "_" + regionName);
                 }
             }
         }
-        regions_.transfer(allRegions);
+        regions_ = std::move(allRegions);
     }
     return regions_;
 }
@@ -322,7 +330,8 @@ const Foam::wordList& Foam::searchableSurfaceCollection::regions() const
 
 Foam::label Foam::searchableSurfaceCollection::size() const
 {
-    return indexOffset_.last();
+    // The total number of triangles etc in the collection
+    return indexOffset_.totalSize();
 }
 
 
@@ -521,7 +530,7 @@ void Foam::searchableSurfaceCollection::findLine
                 info[pointi].setIndex
                 (
                     hitInfo[pointi].index()
-                  + indexOffset_[surfI]
+                  + indexOffset_.localStart(surfI)
                 );
             }
         }
@@ -529,7 +538,7 @@ void Foam::searchableSurfaceCollection::findLine
 
 
     // Debug check
-    if (false)
+    if constexpr (false)
     {
         forAll(info, pointi)
         {
@@ -612,8 +621,8 @@ void Foam::searchableSurfaceCollection::getRegion
     {
         if (mergeSubRegions_)
         {
-            region.setSize(info.size());
-            region = regionOffset_[0];
+            // The region is identical to the surface index (0)
+            region.resize_fill(info.size(), 0);
         }
         else
         {
@@ -625,40 +634,53 @@ void Foam::searchableSurfaceCollection::getRegion
         // Multiple surfaces. Sort by surface.
 
         // Per surface the hit
-        List<List<pointIndexHit>> surfInfo;
-        // Per surface the original position
-        List<List<label>> infoMap;
+        CompactListList<pointIndexHit> surfInfo;
+        // Per surface the original index
+        CompactListList<label> infoMap;
         sortHits(info, surfInfo, infoMap);
 
-        region.setSize(info.size());
-        region = -1;
+        region.resize_fill(info.size(), -1);
 
         // Do region tests
 
         if (mergeSubRegions_)
         {
-            // Actually no need for surfInfo. Just take region for surface.
-            forAll(infoMap, surfI)
+            // Actually no need for surfInfo.
+            // The region is identical to the surface index.
+            forAll(infoMap, surfi)
             {
-                const labelList& map = infoMap[surfI];
-                forAll(map, i)
-                {
-                    region[map[i]] = regionOffset_[surfI];
-                }
+                // The region offset is fixed:
+                const label regOffset = surfi;
+
+                UIndirectList<label>(region, infoMap[surfi]) = regOffset;
             }
         }
         else
         {
+            // The regionOffset_ must be populated (when not merged)
+            (void) this->regions();
+
             forAll(infoMap, surfI)
             {
-                labelList surfRegion;
-                subGeom_[surfI].getRegion(surfInfo[surfI], surfRegion);
+                // The region offset is variable:
+                const label regOffset = regionOffset_[surfI];
 
-                const labelList& map = infoMap[surfI];
-                forAll(map, i)
-                {
-                    region[map[i]] = regionOffset_[surfI] + surfRegion[i];
-                }
+                labelList surfRegion;
+                subGeom_[surfI].getRegion
+                (
+                    // The API needs an update!
+                    static_cast<const List<pointIndexHit>&>(surfInfo[surfI]),
+                    surfRegion
+                );
+
+                UIndirectList<label> mapped(region, infoMap[surfI]);
+
+                std::transform
+                (
+                    surfRegion.begin(), surfRegion.end(),
+                    mapped.begin(),
+                    [regOffset](label r){ return (r + regOffset); }
+                );
             }
         }
     }
@@ -682,9 +704,9 @@ void Foam::searchableSurfaceCollection::getNormal
         // Multiple surfaces. Sort by surface.
 
         // Per surface the hit
-        List<List<pointIndexHit>> surfInfo;
-        // Per surface the original position
-        List<List<label>> infoMap;
+        CompactListList<pointIndexHit> surfInfo;
+        // Per surface the original index
+        CompactListList<label> infoMap;
         sortHits(info, surfInfo, infoMap);
 
         normal.setSize(info.size());
@@ -693,16 +715,17 @@ void Foam::searchableSurfaceCollection::getNormal
         forAll(surfInfo, surfI)
         {
             vectorField surfNormal;
-            subGeom_[surfI].getNormal(surfInfo[surfI], surfNormal);
+            subGeom_[surfI].getNormal
+            (
+                // The API needs an update!
+                static_cast<const List<pointIndexHit>&>(surfInfo[surfI]),
+                surfNormal
+            );
 
             // Transform back to global coordinate sys.
             surfNormal = transform_[surfI].globalVector(surfNormal);
 
-            const labelList& map = infoMap[surfI];
-            forAll(map, i)
-            {
-                normal[map[i]] = surfNormal[i];
-            }
+            UIndirectList<vector>(normal, infoMap[surfI]) = surfNormal;
         }
     }
 }
@@ -757,13 +780,14 @@ void Foam::searchableSurfaceCollection::setField(const labelList& values)
     {
         subGeom_[surfI].setField
         (
+            // The API needs an update!
             static_cast<const labelList&>
             (
                 SubList<label>
                 (
                     values,
                     subGeom_[surfI].size(),
-                    indexOffset_[surfI]
+                    indexOffset_.localStart(surfI)
                 )
             )
         );
@@ -788,27 +812,42 @@ void Foam::searchableSurfaceCollection::getField
         // Multiple surfaces. Sort by surface.
 
         // Per surface the hit
-        List<List<pointIndexHit>> surfInfo;
-        // Per surface the original position
-        List<List<label>> infoMap;
+        CompactListList<pointIndexHit> surfInfo;
+        // Per surface the original index
+        CompactListList<label> infoMap;
         sortHits(info, surfInfo, infoMap);
 
         // Do surface tests
         forAll(surfInfo, surfI)
         {
             labelList surfValues;
-            subGeom_[surfI].getField(surfInfo[surfI], surfValues);
+            subGeom_[surfI].getField
+            (
+                // The API needs an update!
+                static_cast<const List<pointIndexHit>&>(surfInfo[surfI]),
+                surfValues
+            );
 
             if (surfValues.size())
             {
                 // Size values only when we have a surface that supports it.
-                values.setSize(info.size());
+                values.resize(info.size(), -1);
 
-                const labelList& map = infoMap[surfI];
-                forAll(map, i)
-                {
-                    values[map[i]] = surfValues[i];
-                }
+                // We do not trust that surfValues will always match in
+                // length (smaller or larger), so reslice ourselves
+
+                const label subSize
+                (
+                    std::min(infoMap.localSize(surfI), surfValues.size())
+                );
+
+                const auto subInfoMap =
+                (
+                    infoMap.values().slice(infoMap.localStart(surfI), subSize)
+                );
+
+                UIndirectList<label>(values, subInfoMap) =
+                    surfValues.slice(0, subSize);
             }
         }
     }

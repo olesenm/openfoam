@@ -171,8 +171,11 @@ public:
 
     // Constructors
 
-        //- Construct from triSurface
+        //- Copy construct from triSurface
         triSurfaceMesh(const IOobject&, const triSurface&);
+
+        //- Move construct from triSurface
+        triSurfaceMesh(const IOobject&, triSurface&&);
 
         //- Construct read
         explicit triSurfaceMesh(const IOobject& io);
