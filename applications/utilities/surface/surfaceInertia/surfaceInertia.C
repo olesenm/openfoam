@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
 
     scalar m = 0.0;
     vector cM = Zero;
-    tensor J = Zero;
+    symmTensor J = Foam::zero{};
 
     if (args.found("shellProperties"))
     {
@@ -115,9 +116,9 @@ int main(int argc, char *argv[])
             << "Negative mass detected, the surface may be inside-out." << endl;
     }
 
-    vector eVal = eigenValues(symm(J));
+    vector eVal(eigenValues(J));
 
-    tensor eVec = eigenVectors(symm(J));
+    tensor eVec(eigenVectors(J));
 
     label pertI = 0;
 
@@ -133,9 +134,9 @@ int main(int argc, char *argv[])
         J.yy() *= 1.0 + SMALL*rand.sample01<scalar>();
         J.zz() *= 1.0 + SMALL*rand.sample01<scalar>();
 
-        eVal = eigenValues(symm(J));
+        eVal = eigenValues(J);
 
-        eVec = eigenVectors(symm(J));
+        eVec = eigenVectors(J);
 
         pertI++;
     }

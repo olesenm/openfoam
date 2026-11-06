@@ -749,7 +749,7 @@ Foam::scalar Foam::face::sweptVol
 }
 
 
-Foam::tensor Foam::face::inertia
+Foam::symmTensor Foam::face::inertia
 (
     const UList<point>& p,
     const point& refPt,
@@ -769,7 +769,7 @@ Foam::tensor Foam::face::inertia
 
     const point ctr = centre(p);
 
-    tensor J = Zero;
+    symmTensor J(Foam::zero{});
 
     forAll(*this, i)
     {

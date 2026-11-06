@@ -416,39 +416,40 @@ inline Foam::scalar Foam::triangle<Point, PointRef>::sweptVol
 
 
 template<class Point, class PointRef>
-inline Foam::tensor Foam::triangle<Point, PointRef>::inertia
+inline Foam::symmTensor Foam::triangle<Point, PointRef>::inertia
 (
     PointRef refPt,
     scalar density
 ) const
 {
-    Point aRel = a_ - refPt;
-    Point bRel = b_ - refPt;
-    Point cRel = c_ - refPt;
+    Point aRel(a_ - refPt);
+    Point bRel(b_ - refPt);
+    Point cRel(c_ - refPt);
 
-    tensor V
+    const Point sumRel(aRel + bRel + cRel);
+    const scalar sumSqr =
     (
-        aRel.x(), aRel.y(), aRel.z(),
-        bRel.x(), bRel.y(), bRel.z(),
-        cRel.x(), cRel.y(), cRel.z()
+        Foam::magSqr(aRel)
+      + Foam::magSqr(bRel)
+      + Foam::magSqr(cRel)
+      + Foam::magSqr(sumRel)
     );
 
-    scalar a = Foam::mag((b_ - a_)^(c_ - a_));
+    const scalar areaFactor = Foam::mag((b_ - a_)^(c_ - a_))/24.0;
 
-    tensor S = 1/24.0*(tensor::one + I);
-
-    return
+    return symmTensor
     (
-        a*I/24.0*
         (
-            (aRel & aRel)
-          + (bRel & bRel)
-          + (cRel & cRel)
-          + ((aRel + bRel + cRel) & (aRel + bRel + cRel))
-        )
-      - a*(V.T() & S & V)
-    )
-   *density;
+            areaFactor*sumSqr*symmTensor::I
+          - areaFactor*
+            (
+                Foam::sqr(aRel)
+              + Foam::sqr(bRel)
+              + Foam::sqr(cRel)
+              + Foam::sqr(sumRel)
+            )
+        )*density
+    );
 }
 
 

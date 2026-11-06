@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2019-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -388,7 +389,7 @@ void Foam::edgeCollapser::faceCollapseAxisAndAspectRatio
 {
     const pointField& pts = mesh_.points();
 
-    symmTensor J(symm(f.inertia(pts, fC)));
+    symmTensor J(f.inertia(pts, fC));
 
     // Find the dominant collapse direction by finding the eigenvector
     // that corresponds to the normal direction, discarding it.  The
