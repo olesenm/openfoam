@@ -290,12 +290,20 @@ public:
             );
 
             //- WIP. Store element-wise field.
-            virtual void setField(const labelList& values);
+            virtual void setField(const labelUList& values);
 
-            //- WIP. From a set of hits (points and
-            //  indices) get the specified field. Misses do not get set. Return
-            //  empty field if not supported.
-            virtual void getField(const List<pointIndexHit>&, labelList&) const;
+            //- WIP.
+            //- From a set of hits (points and indices) get the "values" field.
+            //- Entries corresponding to misses are left untouched.
+            virtual void getField
+            (
+                const List<pointIndexHit>&,
+                labelList& values
+            ) const;
+
+            //- WIP.
+            //- Retrieve the "values" field entries (if it exists)
+            virtual label getField(labelList& values) const;
 
             //- WIP.
             //- Query for surface information.

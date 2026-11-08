@@ -777,23 +777,94 @@ void Foam::searchableSurfaceCollection::distribute
 }
 
 
-void Foam::searchableSurfaceCollection::setField(const labelList& values)
+void Foam::searchableSurfaceCollection::setField(const labelUList& values)
 {
-    forAll(subGeom_, surfI)
+    if (subGeom_.size() == 1)
     {
-        subGeom_[surfI].setField
-        (
-            // The API needs an update!
-            static_cast<const labelList&>
+        subGeom_[0].setField(values);
+    }
+    else
+    {
+        forAll(subGeom_, surfi)
+        {
+            auto subValues = values.slice
             (
-                SubList<label>
-                (
-                    values,
-                    subGeom_[surfI].size(),
-                    indexOffset_.localStart(surfI)
-                )
-            )
-        );
+                indexOffset_.localStart(surfi),
+                indexOffset_.localSize(surfi)
+            );
+
+            subGeom_[surfi].setField(subValues);
+        }
+    }
+}
+
+
+Foam::label Foam::searchableSurfaceCollection::getField
+(
+    labelList& values
+) const
+{
+    if (subGeom_.size() == 0)
+    {
+        values.clear();
+        return 0;
+    }
+    if (subGeom_.size() == 1)
+    {
+        return subGeom_[0].getField(values);
+    }
+    else
+    {
+        // Multiple surfaces. Collected by surface.
+
+        // Any added elements are set to -1 (placeholder)
+        values.resize(indexOffset_.totalSize(), -1);
+
+        bool none = true;
+        label retrieved = 0;
+
+        forAll(subGeom_, surfi)
+        {
+            // Offset into the combined output, local size
+            const label localStart = indexOffset_.localStart(surfi);
+            const label localSize = indexOffset_.localSize(surfi);
+
+            if (localSize == 0)
+            {
+                continue;
+            }
+
+            // Deep copy in (since getField uses a resize)
+            labelList surfValues(values.slice(localStart, localSize));
+
+            retrieved += subGeom_[surfi].getField(surfValues);
+
+            // The localValues may have been cleared (if unsupported)
+            if (label count = surfValues.size(); count > 0)
+            {
+                none = false;
+                const label common = std::min(localSize, count);
+
+                values.slice(localStart, common) = surfValues.slice(0, common);
+            }
+        }
+
+        // TBD: what is the correct behaviour if none of the surfaces
+        // in the collection actually supported getField?
+        // For example,
+
+        // if (none)
+        // {
+        //     values.clear();
+        // }
+
+        if (debug && none)
+        {
+            WarningInFunction
+                << "No fields retrieved from any surfaces" << endl;
+        }
+
+        return retrieved;
     }
 }
 

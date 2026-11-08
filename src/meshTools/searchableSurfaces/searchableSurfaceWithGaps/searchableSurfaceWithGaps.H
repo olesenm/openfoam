@@ -309,14 +309,15 @@ public:
             //}
 
             //- WIP. Store element-wise field.
-            virtual void setField(const labelList& values)
+            virtual void setField(const labelUList& values)
             {
                 subGeom_[0].setField(values);
             }
 
-            //- WIP. From a set of hits (points and
-            //  indices) get the specified field. Misses do not get set. Return
-            //  empty field if not supported.
+            //- WIP.
+            //- From a set of hits (points and indices) get the "values" field.
+            //- Clears the \p values output parameter if not supported.
+            //- Entries corresponding to misses are left untouched.
             virtual void getField
             (
                 const List<pointIndexHit>& info,
@@ -325,6 +326,15 @@ public:
             {
                 surface().getField(info, values);
             }
+
+            //- WIP.
+            //- Retrieve the "values" field entries (if it exists)
+            //- Clears the \p values output parameter if not supported.
+            virtual label getField(labelList& values) const
+            {
+                return surface().getField(values);
+            }
+
 
             //- WIP.
             //- Query for surface information.
