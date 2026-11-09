@@ -325,21 +325,27 @@ void Foam::dynamicRefineFvMesh::mapFields(const mapPolyMesh& mpm)
         // might need the old interpolation fields (weights, etc).
         surfaceInterpolation::clearOut();
 
+        const bool warnMissingFluxes = !warnedFluxes_;
+
         for (surfaceScalarField& phi : fluxes)
         {
             const word& UName = correctFluxes_.lookup(phi.name(), word::null);
 
             if (UName.empty())
             {
-                WarningInFunction
-                    << "Cannot find surfaceScalarField " << phi.name()
-                    << " in user-provided flux mapping table "
-                    << correctFluxes_ << endl
-                    << "    The flux mapping table is used to recreate the"
-                    << " flux on newly created faces." << endl
-                    << "    Either add the entry if it is a flux or use ("
-                    << phi.name() << " none) to suppress this warning."
-                    << endl;
+                if (warnMissingFluxes)
+                {
+                    WarningInFunction
+                        << "Cannot find surfaceScalarField " << phi.name()
+                        << " in user-provided flux mapping table "
+                        << correctFluxes_ << endl
+                        << "    The flux mapping table is used to recreate the"
+                        << " flux on newly created faces." << endl
+                        << "    Either add the entry if it is a flux or use ("
+                        << phi.name() << " none) to suppress this warning."
+                        << endl;
+                }
+                warnedFluxes_ = true;
                 continue;
             }
             if (UName == "none")
@@ -651,21 +657,27 @@ Foam::dynamicRefineFvMesh::unrefine
             this->objectRegistry::sorted<surfaceScalarField>()
         );
 
+        const bool warnMissingFluxes = !warnedFluxes_;
+
         for (surfaceScalarField& phi : fluxes)
         {
             const word& UName = correctFluxes_.lookup(phi.name(), word::null);
 
             if (UName.empty())
             {
-                WarningInFunction
-                    << "Cannot find surfaceScalarField " << phi.name()
-                    << " in user-provided flux mapping table "
-                    << correctFluxes_ << endl
-                    << "    The flux mapping table is used to recreate the"
-                    << " flux on newly created faces." << endl
-                    << "    Either add the entry if it is a flux or use ("
-                    << phi.name() << " none) to suppress this warning."
-                    << endl;
+                if (warnMissingFluxes)
+                {
+                    WarningInFunction
+                        << "Cannot find surfaceScalarField " << phi.name()
+                        << " in user-provided flux mapping table "
+                        << correctFluxes_ << endl
+                        << "    The flux mapping table is used to recreate the"
+                        << " flux on newly created faces." << endl
+                        << "    Either add the entry if it is a flux or use ("
+                        << phi.name() << " none) to suppress this warning."
+                        << endl;
+                }
+                warnedFluxes_ = true;
                 continue;
             }
             if (UName == "none")
@@ -1158,7 +1170,8 @@ Foam::dynamicRefineFvMesh::dynamicRefineFvMesh
 :
     //dynamicFvMesh(io, doInit),
     dynamicMotionSolverListFvMesh(io, doInit),
-    meshCutter_(*this)
+    meshCutter_(*this),
+    warnedFluxes_(false)
 {
     if (doInit)
     {

@@ -69,6 +69,9 @@ Description
     }
     \endverbatim
 
+Note
+  - Warnings for fluxes missing from the mapping table are emitted only during
+    the first mesh update.
 
 SourceFiles
     dynamicRefineFvMesh.cxx
@@ -130,6 +133,9 @@ protected:
 
         //- Dump cellLevel for post-processing
         bool dumpLevel_;
+
+        //- Flag: whether warnings for unmapped fluxes have been emitted
+        bool warnedFluxes_;
 
 
     // Protected Member Functions
