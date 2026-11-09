@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -84,7 +85,7 @@ void Foam::fv::buoyancyTurbSource::buoyancyTurbSourceEpsilon
     );
 
     // (BMA:Eq. 6)
-    eqn -= fvm::SuSp(C1*tanh(mag(u/v))*B()/(k + k0), epsilon);
+    eqn -= fvm::SuSp(-C1*tanh(mag(u/v))*B()/(k + k0), epsilon);
 }
 
 
@@ -107,7 +108,7 @@ void Foam::fv::buoyancyTurbSource::buoyancyTurbSourceOmega
         );
 
     // (Heuristic approximation to BMA:Eq. 6)
-    eqn -= gamma/(nut + dimensionedScalar(nut.dimensions(), SMALL))*B();
+    eqn += gamma/(nut + dimensionedScalar(nut.dimensions(), SMALL))*B();
 }
 
 
@@ -120,7 +121,7 @@ void Foam::fv::buoyancyTurbSource::buoyancyTurbSourceK
     const dimensionedScalar k0(k.dimensions(), SMALL);
 
     // (BMA: Eq. 5)
-    eqn -= fvm::Sp(B()/(k() + k0), k);
+    eqn -= fvm::SuSp(-B()/(k() + k0), k);
 }
 
 
