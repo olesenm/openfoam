@@ -74,6 +74,8 @@ Usage
         patches         (<patch1> ... <patchN>); // (wall1 "(wall2|wall3)");
         wallTraction    <bool>;
         writeFields     <bool>;
+        U               <word>;
+        nut             <word>;
 
         // Inherited entries
         ...
@@ -88,6 +90,8 @@ Usage
       patches    | Names of operand patches   | wordRes | no | all wall patches
       wallTraction | Flag to output full wall traction     | bool | no | false
       writeFields | Flag to write shear stress field       | bool |  no   | true
+      U        | Name of the custom velocity field         | word | no    | U
+      nut      | Name of the custom turbulent viscosity field | word | no | nut
     \endtable
 
     The inherited entries are elaborated in:
@@ -135,6 +139,15 @@ class wallShearStress
 
         //- Write the shear stress field ?
         bool writeFields_;
+
+        //- Flag to check if the custom turbulent viscosity field is used
+        bool useNutField_;
+
+        //- Name of the custom velocity field
+        word UName_;
+
+        //- Name of the custom turbulent viscosity field
+        word nutName_;
 
 
 protected:

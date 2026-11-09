@@ -30,6 +30,8 @@ License
 #include "wallShearStress.H"
 #include "volFields.H"
 #include "surfaceFields.H"
+#include "fvc.H"
+#include "eddyViscosity.H"
 #include "turbulentTransportModel.H"
 #include "turbulentFluidThermoModel.H"
 #include "wallPolyPatch.H"
@@ -45,6 +47,54 @@ namespace functionObjects
     addToRunTimeSelectionTable(functionObject, wallShearStress, dictionary);
 }
 }
+
+
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+
+// Check if the model has an eddy-viscosity contribution that can be replaced
+template<class TurbModel>
+static bool supportsCustomNut(const TurbModel& model)
+{
+    return
+        isA<eddyViscosity<incompressible::RASModel>>(model)
+     || isA<eddyViscosity<incompressible::LESModel>>(model)
+     || isA<eddyViscosity<compressible::RASModel>>(model)
+     || isA<eddyViscosity<compressible::LESModel>>(model);
+}
+
+
+// Lookup a custom kinematic-viscosity field and check its dimensions
+static const volScalarField* findCustomNut
+(
+    const objectRegistry& db,
+    const word& nutName
+)
+{
+    const auto* nutPtr = db.cfindObject<volScalarField>(nutName);
+    if (!nutPtr)
+    {
+        FatalErrorInFunction
+            << "Unable to find custom turbulent viscosity field "
+            << nutName << " in the database" << exit(FatalError);
+        return nullptr;
+    }
+    const auto& nut = *nutPtr;
+
+    if (nut.dimensions() != dimViscosity)
+    {
+        FatalErrorInFunction
+            << "Custom turbulent viscosity field " << nutName
+            << " has dimensions " << nut.dimensions()
+            << " instead of " << dimViscosity << exit(FatalError);
+        return nullptr;
+    }
+    return nutPtr;
+}
+
+} // End namespace Foam
 
 
 // * * * * * * * * * * * * * Protected Member Functions  * * * * * * * * * * //
@@ -99,7 +149,10 @@ Foam::functionObjects::wallShearStress::wallShearStress
     fvMeshFunctionObject(name, runTime, dict),
     writeFile(mesh_, name, typeName, dict),
     wallTraction_(false),
-    writeFields_(true)  // May change in the future
+    writeFields_(true),  // May change in the future
+    useNutField_(false),
+    UName_("U"),
+    nutName_("nut")
 {
     read(dict);
 
@@ -135,6 +188,11 @@ bool Foam::functionObjects::wallShearStress::read(const dictionary& dict)
     writeFile::read(dict);
 
     writeFields_ = true;   // May change in the future
+
+    UName_ = "U";
+    dict.readIfPresent("U", UName_);
+    nutName_ = "nut";
+    useNutField_ = dict.readIfPresent("nut", nutName_);
     dict.readIfPresent("writeFields", writeFields_);
 
     dict.readIfPresent("wallTraction", wallTraction_);
@@ -197,16 +255,60 @@ bool Foam::functionObjects::wallShearStress::execute()
     auto& wallShearStress =
         mesh_.lookupObjectRef<volVectorField>(scopedName(typeName));
 
+    const auto* Uptr = mesh_.cfindObject<volVectorField>(UName_);
+    if (!Uptr)
+    {
+        FatalErrorInFunction
+            << "Unable to find velocity field " << UName_
+            << " in the database" << exit(FatalError);
+        return false;
+    }
+    const auto& U = *Uptr;
+
     // Compressible
     {
         typedef compressible::turbulenceModel turbType;
 
-        const turbType* modelPtr =
-            findObject<turbType>(turbulenceModel::propertiesName);
+        const word& modelName = turbulenceModel::propertiesName;
 
-        if (modelPtr)
+        if (const auto* modelPtr = mesh_.cfindObject<turbType>(modelName))
         {
-            calcShearStress(modelPtr->devRhoReff(), wallShearStress);
+            const auto& model = *modelPtr;
+
+            if (useNutField_)
+            {
+                const auto* customNutPtr = findCustomNut(mesh_, nutName_);
+                const auto& customNut = *customNutPtr;
+
+                if (!supportsCustomNut(model))
+                {
+                    FatalErrorInFunction
+                        << "Custom turbulent viscosity field "
+                        << nutName_ << " is not supported by turbulence model "
+                        << model.type() << exit(FatalError);
+                }
+
+                // devRhoReff(U) = -rho*nuEff*D(U) + rho*nonLinearStress
+                // nuEff         = nu + nutModel
+                // D(U)          = devTwoSymm(grad(U))
+                // To replace only the model's linear nut while retaining its
+                // laminar and nonlinear terms, a subtraction is needed:
+                // ReffCustom = ReffModel - rho*(customNut - nutModel)*D(U)
+                const volScalarField& rho = model.rho();
+                tmp<volScalarField> tDeltaNut = customNut - model.nut();
+                tmp<volSymmTensorField> tDevTwoSymm = devTwoSymm(fvc::grad(U));
+                tmp<volSymmTensorField> tReff = model.devRhoReff(U);
+
+                tReff.ref() -= rho*tDeltaNut()*tDevTwoSymm();
+
+                calcShearStress(tReff.cref(), wallShearStress);
+            }
+            else
+            {
+                tmp<volSymmTensorField> tReff = model.devRhoReff(U);
+                calcShearStress(tReff.cref(), wallShearStress);
+            }
+
             return true;
         }
     }
@@ -215,12 +317,38 @@ bool Foam::functionObjects::wallShearStress::execute()
     {
         typedef incompressible::turbulenceModel turbType;
 
-        const turbType* modelPtr =
-            findObject<turbType>(turbulenceModel::propertiesName);
+        const word& modelName = turbulenceModel::propertiesName;
 
-        if (modelPtr)
+        if (const auto* modelPtr = mesh_.cfindObject<turbType>(modelName))
         {
-            calcShearStress(modelPtr->devReff(), wallShearStress);
+            const auto& model = *modelPtr;
+
+            if (useNutField_)
+            {
+                const auto* customNutPtr = findCustomNut(mesh_, nutName_);
+                const auto& customNut = *customNutPtr;
+
+                if (!supportsCustomNut(model))
+                {
+                    FatalErrorInFunction
+                        << "Custom turbulent viscosity field "
+                        << nutName_ << " is not supported by turbulence model "
+                        << model.type() << exit(FatalError);
+                }
+
+                tmp<volScalarField> tDeltaNut = customNut - model.nut();
+                tmp<volSymmTensorField> tDevTwoSymm = devTwoSymm(fvc::grad(U));
+                tmp<volSymmTensorField> tReff = model.devReff(U);
+                tReff.ref() -= tDeltaNut()*tDevTwoSymm();
+
+                calcShearStress(tReff.cref(), wallShearStress);
+            }
+            else
+            {
+                tmp<volSymmTensorField> tReff = model.devReff(U);
+                calcShearStress(tReff.cref(), wallShearStress);
+            }
+
             return true;
         }
     }
