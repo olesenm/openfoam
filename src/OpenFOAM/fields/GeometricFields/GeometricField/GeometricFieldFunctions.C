@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2018-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -509,8 +510,10 @@ BINARY_FUNCTION(Type, Type, Type, min)
 BINARY_FUNCTION(Type, Type, Type, cmptMultiply)
 BINARY_FUNCTION(Type, Type, Type, cmptDivide)
 
-BINARY_TYPE_FUNCTION(Type, Type, Type, max)
-BINARY_TYPE_FUNCTION(Type, Type, Type, min)
+// Value-based min/max: pre-apply local correction, clamp boundary after
+BINARY_TYPE_FUNCTION_pre(Type, Type, Type, max)
+BINARY_TYPE_FUNCTION_pre(Type, Type, Type, min)
+
 BINARY_TYPE_FUNCTION(Type, Type, Type, cmptMultiply)
 BINARY_TYPE_FUNCTION(Type, Type, Type, cmptDivide)
 
@@ -519,6 +522,8 @@ BINARY_TYPE_FUNCTION(Type, Type, Type, cmptDivide)
 
 // Clamp Methods
 
+// binary function with FS (field, scalar) input:
+// pre-apply local correction, clamp boundary after
 template<class Type, template<class> class PatchField, class GeoMesh>
 void clamp
 (
@@ -529,10 +534,13 @@ void clamp
 {
     const MinMax<Type> range(Foam::zero_one{});
 
-    clamp(result.primitiveFieldRef(), f1.primitiveField(), range);
-    clamp(result.boundaryFieldRef(), f1.boundaryField(), range);
     result.oriented() = f1.oriented();
+    clamp(result.primitiveFieldRef(), f1.primitiveField(), range);
+    // pre-apply the correction
     result.correctLocalBoundaryConditions();
+    // clamp after
+    clamp(result.boundaryFieldRef(), f1.boundaryField(), range);
+
     if (GeometricBoundaryField<Type, PatchField, GeoMesh>::debug)
     {
         result.boundaryField().check();
@@ -585,7 +593,8 @@ clamp
     return tres;
 }
 
-BINARY_TYPE_FUNCTION_FS(Type, Type, MinMax<Type>, clamp)
+// Value-based clamping: pre-apply local correction, clamp boundary after
+BINARY_TYPE_FUNCTION_FS_impl(Type, Type, MinMax<Type>, clamp, true)
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

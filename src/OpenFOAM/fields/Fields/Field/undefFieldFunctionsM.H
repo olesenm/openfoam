@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,8 +40,16 @@ License
 #undef BINARY_FUNCTION_INTERFACE
 
 #undef BINARY_TYPE_FUNCTION
+#undef BINARY_TYPE_FUNCTION_pre
+#undef BINARY_TYPE_FUNCTION_post
 #undef BINARY_TYPE_FUNCTION_SF
+#undef BINARY_TYPE_FUNCTION_SF_impl
+#undef BINARY_TYPE_FUNCTION_SF_pre
+#undef BINARY_TYPE_FUNCTION_SF_post
 #undef BINARY_TYPE_FUNCTION_FS
+#undef BINARY_TYPE_FUNCTION_FS_impl
+#undef BINARY_TYPE_FUNCTION_FS_pre
+#undef BINARY_TYPE_FUNCTION_FS_post
 #undef BINARY_FUNCTION_TRANSFORM_SF
 #undef BINARY_FUNCTION_INTERFACE_SF
 #undef BINARY_FUNCTION_TRANSFORM_FS
