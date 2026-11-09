@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2022 Louis Vittoz, SimScale GmbH
     Copyright (C) 2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,7 +28,6 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "fanMomentumSource.H"
-#include "IFstream.H"
 #include "addToRunTimeSelectionTable.H"
 #include "turbulentTransportModel.H"
 #include "turbulentFluidThermoModel.H"
@@ -317,16 +317,24 @@ Foam::fv::fanMomentumSource::fanMomentumSource
 
         fv::option::resetApplied();
 
-        // Read the initial pressure gradient from file if it exists
-        IFstream propsFile
+        // Read the initial pressure gradient if exists
+        IOdictionary propsDict
         (
-            mesh_.time().timePath()/"uniform"/(name_ + "Properties")
+            IOobject
+            (
+                name_ + "Properties",
+                mesh_.time().timeName(),
+                "uniform",
+                mesh_,
+                IOobjectOption::READ_IF_PRESENT,
+                IOobjectOption::NO_WRITE,
+                IOobjectOption::NO_REGISTER
+            )
         );
 
-        if (propsFile.good())
+        if (propsDict.found("gradient"))
         {
             Info<< "    Reading pressure gradient from file" << endl;
-            dictionary propsDict(propsFile);
             propsDict.readEntry("gradient", gradPFan_);
         }
 
