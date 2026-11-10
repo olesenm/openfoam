@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2013-2016 OpenFOAM Foundation
     Copyright (C) 2019-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -118,29 +119,25 @@ scalar detDecomposed
 }
 
 
-//- Return the determinant of SquareMatrix
-template<class Type>
-scalar det(const SquareMatrix<Type>& matrix)
-{
-    SquareMatrix<Type> matrixTmp = matrix;
-
-    labelList pivotIndices;
-    label sign;
-    LUDecompose(matrixTmp, pivotIndices, sign);
-
-    return detDecomposed(matrixTmp, sign);
-}
-
-
 //- Return the SquareMatrix det and the LU decomposition in the original matrix
 template<class Type>
-scalar det(SquareMatrix<Type>& matrix)
+scalar detAndDecompose(SquareMatrix<Type>& matrix)
 {
     labelList pivotIndices;
     label sign;
     LUDecompose(matrix, pivotIndices, sign);
 
     return detDecomposed(matrix, sign);
+}
+
+
+//- Return the determinant of SquareMatrix
+template<class Type>
+scalar det(const SquareMatrix<Type>& matrix)
+{
+    SquareMatrix<Type> matrixTmp = matrix;
+
+    return detAndDecompose(matrixTmp);
 }
 
 

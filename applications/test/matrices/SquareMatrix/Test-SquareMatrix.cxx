@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2020-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -799,6 +800,52 @@ void test_global_funcs(Type)
 }
 
 
+// Test determinant overload behavior for SquareMatrix<scalar>
+void test_determinant()
+{
+    SquareMatrix<scalar> A(2, Zero);
+    A(0, 0) = 1;
+    A(0, 1) = 2;
+    A(1, 0) = 3;
+    A(1, 1) = 4;
+
+    cmp
+    (
+        "  Return determinant without modifying a non-const matrix = ",
+        det(A),
+        scalar(-2)
+    );
+    cmp("  Preserve matrix element (0,0) after det = ", A(0, 0), scalar(1));
+    cmp("  Preserve matrix element (0,1) after det = ", A(0, 1), scalar(2));
+    cmp("  Preserve matrix element (1,0) after det = ", A(1, 0), scalar(3));
+    cmp("  Preserve matrix element (1,1) after det = ", A(1, 1), scalar(4));
+
+    SquareMatrix<scalar> LU(A);
+    cmp
+    (
+        "  Return determinant and store LU decomposition = ",
+        detAndDecompose(LU),
+        scalar(-2)
+    );
+    cmp("  LU decomposition U(0,0) = ", LU(0, 0), scalar(3));
+    cmp("  LU decomposition U(0,1) = ", LU(0, 1), scalar(4));
+    cmp
+    (
+        "  LU decomposition L(1,0) = ",
+        LU(1, 0),
+        scalar(1)/3,
+        1e-6
+    );
+    cmp
+    (
+        "  LU decomposition U(1,1) = ",
+        LU(1, 1),
+        scalar(2)/3,
+        1e-6
+    );
+}
+
+
 // Execute each global operators of SquareMatrix<Type>, and print output
 template<class Type>
 void test_global_opers(Type)
@@ -979,6 +1026,9 @@ int main()
     });
 
     run_tests(types, typeID);
+
+    Info<< nl << "## Test determinant behavior ##" << nl;
+    test_determinant();
 
     if (nFail_)
     {
