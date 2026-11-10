@@ -38,6 +38,7 @@ Description
 
 #include "DynamicList.H"
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -60,6 +61,42 @@ class memorybuf
 {
 protected:
 
+    //- True if there is a get area defined (avoids nullptr comparisons)
+    bool has_get_area() const
+    {
+        return (eback() && gptr() && egptr() && eback() != egptr());
+    }
+
+    //- True if there is a put area defined (avoids nullptr comparisons)
+    bool has_put_area() const
+    {
+        return (pbase() && pptr() && epptr() && pbase() != epptr());
+    }
+
+    //- Bump the get pointer, avoiding the 'int' limit of gbump()
+    void safer_gbump(std::streamoff count)
+    {
+        setg(eback(), gptr() + count, egptr());
+    }
+
+    //- Bump the put pointer, avoiding the 'int' limit of pbump()
+    void safer_pbump(std::streamoff count)
+    {
+        constexpr std::streamoff maxStep = std::numeric_limits<int>::max();
+
+        while (count > maxStep)
+        {
+            pbump(int(maxStep));
+            count -= maxStep;
+        }
+        while (count < -maxStep)
+        {
+            pbump(-int(maxStep));
+            count += maxStep;
+        }
+        pbump(int(count));
+    }
+
     //- Set position pointer to relative position
     virtual std::streampos seekoff
     (
@@ -71,51 +108,63 @@ protected:
         const bool testin  = which & std::ios_base::in;
         const bool testout = which & std::ios_base::out;
 
+        const bool emptyGet = !has_get_area();
+        const bool emptyPut = !has_put_area();
+
+        if
+        (
+            (off != 0) &&
+            ((testin && emptyGet) || (testout && emptyPut))
+        )
+        {
+            return -1;
+        }
+
         if (way == std::ios_base::beg)
         {
-            if (testin)
+            if (testin && !emptyGet)
             {
                 setg(eback(), eback(), egptr());
-                gbump(off);
+                safer_gbump(off);
             }
-            if (testout)
+            if (testout && !emptyPut)
             {
                 setp(pbase(), epptr());
-                pbump(off);
+                safer_pbump(off);
             }
         }
         else if (way == std::ios_base::cur)
         {
-            if (testin)
+            if (testin && !emptyGet)
             {
-                gbump(off);
+                safer_gbump(off);
             }
-            if (testout)
+            if (testout && !emptyPut)
             {
-                pbump(off);
+                safer_pbump(off);
             }
         }
         else if (way == std::ios_base::end)
         {
-            if (testin)
+            if (testin && !emptyGet)
             {
                 setg(eback(), eback(), egptr());
-                gbump(egptr() - eback() - off);
+                safer_gbump(egptr() - eback() - off);
             }
-            if (testout)
+            if (testout && !emptyPut)
             {
                 setp(pbase(), epptr());
-                pbump(epptr() - pbase() - off);
+                safer_pbump(epptr() - pbase() - off);
             }
         }
 
         if (testin)
         {
-            return (gptr() - eback()); // span_tellg()
+            return emptyGet ? 0 : (gptr() - eback()); // span_tellg()
         }
         if (testout)
         {
-            return (pptr() - pbase()); // span_tellp()
+            return emptyPut ? 0 : (pptr() - pbase()); // span_tellp()
         }
 
         return -1;
@@ -137,8 +186,10 @@ public:
     // Forward Declarations
     class in_base;
     class in_dynamic;
+    class in_vector;
     class out_base;
     class out_dynamic;
+    class out_vector;
 };
 
 
@@ -157,10 +208,10 @@ protected:
     virtual std::streamsize xsgetn(char* s, std::streamsize n)
     {
         std::streamsize count = 0;
-        while (count < n && gptr() < egptr())
+        while (count < n && has_get_area() && gptr() < egptr())
         {
             *(s + count++) = *(gptr());
-            gbump(1);
+            safer_gbump(1);
         }
         return count;
     }
@@ -199,22 +250,36 @@ public:
         }
 
         //- The current buffer get position
-        std::streamsize span_tellg() const { return (gptr() - eback()); }
+        std::streamsize span_tellg() const
+        {
+            return (has_get_area() ? (gptr() - eback()) : 0);
+        }
 
         //- The get buffer capacity
-        std::streamsize span_capacity() const { return (egptr() - eback()); }
+        std::streamsize span_capacity() const
+        {
+            return (has_get_area() ? (egptr() - eback()) : 0);
+        }
 
         //- The number of characters remaining in the get area
         std::streamsize span_remaining() const
         {
-            return (gptr() < egptr()) ? (egptr() - gptr()) : 0;
+            return
+            (
+                has_get_area() && (gptr() < egptr())
+              ? (egptr() - gptr())
+              : 0
+            );
         }
 
         //- The span data (start of input characters)
         char* data_bytes() const { return eback(); }
 
         //- The span size (number of input characters)
-        std::streamsize size_bytes() const { return (egptr() - eback()); }
+        std::streamsize size_bytes() const
+        {
+            return (has_get_area() ? (egptr() - eback()) : 0);
+        }
 
         //- True if position is within the current input range
         bool in_range(std::streampos pos) const
@@ -225,7 +290,13 @@ public:
         //- A string view of the current input region
         std::string_view view() const
         {
-            return std::string_view(data_bytes(), size_bytes());
+            const std::streamsize nbytes = size_bytes();
+
+            if (nbytes)
+            {
+                return std::string_view(data_bytes(), nbytes);
+            }
+            return std::string_view();
         }
 
         //- A sub-slice string view of the current input region
@@ -300,7 +371,7 @@ public:
             sync_gbuffer();
         }
 
-        //- Move construct from List
+        //- Move construct from content
         in_dynamic(::Foam::List<char>&& buffer)
         :
             storage_(std::move(buffer))
@@ -359,9 +430,96 @@ public:
 
         //- Reset buffer and return contents.
         //- The list size and capacity are identical
-        DynamicList<char> release()
+        dynamic_type release()
         {
-            DynamicList<char> chars(std::move(storage_));
+            dynamic_type chars(std::move(storage_));
+            sync_gbuffer();
+            return chars;
+        }
+};
+
+
+/*---------------------------------------------------------------------------*\
+                    Class memorybuf::in_vector Declaration
+\*---------------------------------------------------------------------------*/
+
+//- An input streambuf for memory access, backed by std::vector<char>
+class memorybuf::in_vector
+:
+    public memorybuf::in_base
+{
+private:
+
+    //- Character storage
+    std::vector<char> storage_;
+
+public:
+
+    // Data Types
+
+        //- The dynamic container type when swapping out character content
+        typedef std::vector<char> dynamic_type;
+
+
+    // Constructors
+
+        //- Default construct - empty
+        in_vector() = default;
+
+        //- Copy construct from content
+        in_vector(const char* s, std::streamsize n)
+        {
+            if (s && n > 0)
+            {
+                storage_.assign(s, (s + n));
+            }
+            sync_gbuffer();
+        }
+
+        //- Move construct from content
+        in_vector(std::vector<char>&& buffer)
+        :
+            storage_(std::move(buffer))
+        {
+            sync_gbuffer();
+        }
+
+
+    // Member Functions
+
+        //- Sync get buffer pointers to agree with vector dimensions
+        //  Sets get pointer to the begin (rewind).
+        void sync_gbuffer()
+        {
+            resetg(storage_.data(), storage_.size());
+        }
+
+        //- Reset content (copy)
+        void reset(const char* s, std::streamsize n)
+        {
+            if (s && n > 0)
+            {
+                storage_.assign(s, (s + n));
+            }
+            else
+            {
+                storage_.clear();
+            }
+            sync_gbuffer();
+        }
+
+        //- Exchange buffer content and parameter contents, reset positions
+        void swap(std::vector<char>& other)
+        {
+            other.swap(storage_);  // Swap contents
+            sync_gbuffer();
+        }
+
+        //- Reset buffer and return contents.
+        //- The vector is left empty
+        dynamic_type release()
+        {
+            dynamic_type chars(std::move(storage_));
             sync_gbuffer();
             return chars;
         }
@@ -386,7 +544,7 @@ protected:
         while (count < n && pptr() < epptr())
         {
             *(pptr()) = *(s + count++);
-            pbump(1);
+            safer_pbump(1);
         }
         return count;
     }
@@ -427,16 +585,25 @@ public:
         }
 
         //- The current buffer put position
-        std::streamsize span_tellp() const { return (pptr() - pbase()); }
+        std::streamsize span_tellp() const
+        {
+            return (has_put_area() ? (pptr() - pbase()) : 0);
+        }
 
         //- The put buffer capacity
-        std::streamsize span_capacity() const { return (epptr() - pbase()); }
+        std::streamsize span_capacity() const
+        {
+            return (has_put_area() ? (epptr() - pbase()) : 0);
+        }
 
         //- The span data (start of output characters)
         char* data_bytes() const { return pbase(); }
 
         //- The span size (size of output buffer)
-        std::streamsize size_bytes() const { return (pptr() - pbase()); }
+        std::streamsize size_bytes() const
+        {
+            return (has_put_area() ? (pptr() - pbase()) : 0);
+        }
 
         //- True if position is within the current output range
         bool in_range(std::streampos pos) const
@@ -447,7 +614,13 @@ public:
         //- A string view of the current output region
         std::string_view view() const
         {
-            return std::string_view(data_bytes(), size_bytes());
+            const std::streamsize nbytes = size_bytes();
+
+            if (nbytes)
+            {
+                return std::string_view(data_bytes(), nbytes);
+            }
+            return std::string_view();
         }
 
         //- A sub-slice string view of the current output region
@@ -479,9 +652,14 @@ public:
         //- Decrease the put area by 1 or more elements
         void pop_back(int n = 1)
         {
-            for (; (n > 0 && (pbase() < pptr())); --n)
+            while
+            (
+                (n > 0)
+             && has_put_area() && pbase() != pptr() && pbase() < pptr()
+            )
             {
-                pbump(-1);
+                safer_pbump(-1);
+                --n;
             }
         }
 
@@ -538,6 +716,24 @@ private:
     //  stream pointers.
     List<char> storage_;
 
+    //- Check if requested size is addressable as an int32 label.
+    static void checkLabelLimit
+    (
+        [[maybe_unused]] std::streamsize len
+    )
+    {
+        if constexpr (sizeof(Foam::label) == sizeof(int32_t))
+        {
+            if (std::streamsize(UList<char>::max_size()) < len)
+            {
+                FatalErrorInFunction
+                    << "Requested buffer size " << int64_t(len/1024)
+                    << " kB exceeds 2GB (int) limit\n"
+                    << Foam::abort(FatalError);
+            }
+        }
+    }
+
 protected:
 
     //- Handle overflow
@@ -549,7 +745,7 @@ protected:
             extend(1);
 
             *(pptr()) = c;
-            pbump(1);
+            safer_pbump(1);
         }
         return c;
     }
@@ -564,7 +760,7 @@ protected:
         while (count < n && pptr() < epptr())
         {
             *(pptr()) = *(s + count++);
-            pbump(1);
+            safer_pbump(1);
         }
 
         return count;
@@ -652,6 +848,8 @@ public:
             {
                 const auto cur = span_tellp();  // Output position
 
+                checkLabelLimit(len);
+
                 label size = min_size();
 
                 if (size < len)
@@ -696,7 +894,7 @@ public:
 
                 storage_.resize_copy(cur, size);
                 sync_pbuffer();
-                pbump(cur);
+                safer_pbump(cur);
             }
         }
 
@@ -708,9 +906,11 @@ public:
             {
                 const auto cur = span_tellp();  // Output position
 
+                checkLabelLimit(len);
+
                 storage_.resize_copy(cur, len);
                 sync_pbuffer();
-                pbump(cur);
+                safer_pbump(cur);
             }
         }
 
@@ -740,7 +940,7 @@ public:
 
             storage_.resize(cur);
             sync_pbuffer();
-            pbump(cur);
+            safer_pbump(cur);
         }
 
         //- Exchange buffer content and parameter contents, reset positions
@@ -766,22 +966,192 @@ public:
 
         //- Reset buffer and return contents as a DynamicList.
         //- The list size corresponds to the region of output.
-        DynamicList<char> release()
+        dynamic_type release()
         {
             const auto cur = span_tellp();  // Addressed length
-            DynamicList<char> chars(std::move(storage_));
+            dynamic_type chars(std::move(storage_));
             chars.resize(cur);              // Restrict to output length
-
-            if (chars.empty()) chars.clearStorage();  // Can destroy now
+            if (chars.empty())
+            {
+                // Empty buffer, so really remove its content
+                chars.clearStorage();
+            }
             sync_pbuffer();
             return chars;
         }
+};
 
 
-    // Housekeeping
+/*---------------------------------------------------------------------------*\
+                   Class memorybuf::out_vector Declaration
+\*---------------------------------------------------------------------------*/
 
-        //- Same as shrink_to_fit()
-        void shrink() { shrink_to_fit(); }
+//- An output streambuf for memory access, backed by std::vector<char>
+class memorybuf::out_vector
+:
+    public memorybuf::out_base
+{
+private:
+
+    //- Character storage.
+    std::vector<char> storage_;
+
+protected:
+
+    //- Handle overflow
+    virtual int overflow(int_type c = traits_type::eof())
+    {
+        if (c != traits_type::eof())
+        {
+            // Needed more space?
+            extend(1);
+
+            *(pptr()) = c;
+            safer_pbump(1);
+        }
+        return c;
+    }
+
+    //- Put sequence of characters
+    virtual std::streamsize xsputn(const char* s, std::streamsize n)
+    {
+        // Enough space so that appends work without problem
+        extend(n);
+
+        std::streamsize count = 0;
+        while (count < n && pptr() < epptr())
+        {
+            *(pptr()) = *(s + count++);
+            safer_pbump(1);
+        }
+
+        return count;
+    }
+
+
+public:
+
+    // Data Types
+
+        //- The dynamic container type when swapping out character content
+        typedef std::vector<char> dynamic_type;
+
+
+    // Constructors
+
+        //- Default construct - no initial reserved number of bytes.
+        out_vector()
+        {
+            sync_pbuffer();
+        }
+
+        //- Default construct with initial reserved number of bytes.
+        out_vector(size_t nbytes)
+        :
+            storage_(nbytes)
+        {
+            sync_pbuffer();
+        }
+
+        //- Move construct from contents
+        out_vector(std::vector<char>&& buffer)
+        :
+            storage_(std::move(buffer))
+        {
+            sync_pbuffer();
+        }
+
+
+    // Member Functions
+
+        //- Sync put buffer pointers to the full vector capacity.
+        //  Sets put pointer to the begin (rewind).
+        void sync_pbuffer()
+        {
+            storage_.resize(storage_.capacity());  // Use entire space
+            resetp(storage_.data(), storage_.size());
+        }
+
+        //- Increase capacity (if needed) and adjust buffer pointers.
+        //- Growth strategy is left to std::vector.
+        void reserve(const std::streamsize len)
+        {
+            if (std::streamsize(storage_.capacity()) < len)
+            {
+                const auto cur = span_tellp();  // Output position
+
+                storage_.resize(len);  // std::vector growth strategy
+                sync_pbuffer();
+                safer_pbump(cur);
+            }
+        }
+
+        //- Increase capacity for at least this size.
+        //- Growth strategy is left to std::vector.
+        void reserve_exact(const std::streamsize len)
+        {
+            if (std::streamsize(storage_.capacity()) < len)
+            {
+                const auto cur = span_tellp();  // Output position
+
+                storage_.resize(len);  // std::vector growth strategy
+                sync_pbuffer();
+                safer_pbump(cur);
+            }
+        }
+
+        //- Increase (reserve) space for another \c count entries
+        void extend(std::streamsize count)
+        {
+            reserve(span_tellp() + count);
+        }
+
+        //- Increase (reserve) space for another \c count entries.
+        void extend_exact(std::streamsize count)
+        {
+            reserve_exact(span_tellp() + count);
+        }
+
+        //- Clear storage
+        void clearStorage()
+        {
+            std::vector<char>().swap(storage_);  // Release memory
+            sync_pbuffer();
+        }
+
+        //- Shrink storage to addressed storage
+        void shrink_to_fit()
+        {
+            const auto cur = span_tellp();  // Addressed length
+
+            storage_.resize(cur);
+            storage_.shrink_to_fit();
+            sync_pbuffer();
+            safer_pbump(cur);
+        }
+
+        //- Exchange buffer content and parameter contents, reset positions
+        void swap(std::vector<char>& other)
+        {
+            storage_.resize(span_tellp());  // Restrict to output length
+            other.swap(storage_);
+            sync_pbuffer();
+        }
+
+        //- Reset buffer and return contents as a std::vector.
+        //- The vector size corresponds to the region of output.
+        dynamic_type release()
+        {
+            storage_.resize(span_tellp());  // Restrict to output length
+            dynamic_type chars(std::move(storage_));
+            if (chars.empty())
+            {
+                // Empty buffer, so really remove its content
+                dynamic_type().swap(chars);
+            }
+            sync_pbuffer();
+            return chars;
+        }
 };
 
 
