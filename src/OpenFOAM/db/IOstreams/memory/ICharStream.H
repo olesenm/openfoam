@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2017-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,8 +33,8 @@ Description
     as string to allow reuse of List contents without copying.
 
 See Also
-    Foam::OCharStream
     Foam::ISpanStream
+    Foam::OCharStream
     Foam::OSpanStream
 
 \*---------------------------------------------------------------------------*/
@@ -47,15 +48,6 @@ See Also
 
 namespace Foam
 {
-
-// Forward Declarations
-class icharstream;
-class ICharStream;
-class OCharStream;
-
-// Older names (prior to 2023-08)
-typedef ICharStream IListStream;
-
 
 /*---------------------------------------------------------------------------*\
                         Class icharstream Declaration
@@ -75,6 +67,16 @@ class icharstream
 
 public:
 
+    // Data Types
+
+        //- The dynamic container type of the buffer character content
+        typedef typename buffer_type::dynamic_type dynamic_type;
+
+        //- True if the buffer uses std::vector<char> storage
+        static constexpr bool is_vector_buffer =
+        std::is_base_of_v<std::vector<char>, dynamic_type>;
+
+
     // Constructors
 
         //- Default construct - empty
@@ -85,26 +87,20 @@ public:
         {}
 
         //- Copy construct from content
-        icharstream(const char* buffer, size_t nbytes)
-        :
-            icharstream()
+        icharstream(const char* buffer, size_t nbytes) : icharstream()
         {
             reset(buffer, nbytes);
         }
 
         //- Move construct from List
-        icharstream(List<char>&& buffer)
-        :
-            icharstream()
+        icharstream(List<char>&& buffer) : icharstream()
         {
             swap(buffer);
         }
 
         //- Move construct from DynamicList
         template<int SizeMin>
-        icharstream(DynamicList<char,SizeMin>&& buffer)
-        :
-            icharstream()
+        icharstream(DynamicList<char,SizeMin>&& buffer) : icharstream()
         {
             swap(buffer);
         }
@@ -132,22 +128,12 @@ public:
         }
 
         //- A string_view of buffer contents
-        auto view() const { return buffer_type::view(); }
+        std::string_view view() const { return buffer_type::view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return buffer_type::view(pos, len);
-        }
-
-        //- A list 'span' of buffer contents (caution: is modifiable!!)
-        UList<char> list() const
-        {
-            return UList<char>
-            (
-                buffer_type::data_bytes(),
-                label(buffer_type::size_bytes())
-            );
         }
 
         //- For istringstream compatibility, return the buffer as string copy.
@@ -155,6 +141,17 @@ public:
         std::string str() const
         {
             return std::string
+            (
+                buffer_type::data_bytes(),
+                buffer_type::size_bytes()
+            );
+        }
+
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span()
+        {
+            return stdFoam::span<char>
             (
                 buffer_type::data_bytes(),
                 buffer_type::size_bytes()
@@ -200,10 +197,10 @@ public:
             stream_type::clear();  // Clear old errors
         }
 
-        //- Reset stream and return contents as a List
-        DynamicList<char> release()
+        //- Reset buffer and return contents as \c dynamic_type
+        auto release()
         {
-            DynamicList<char> chars(buffer_type::release());
+            auto chars(buffer_type::release());
             stream_type::clear();  // Clear old errors
             return chars;
         }
@@ -229,11 +226,19 @@ class ICharStream
     public Foam::Detail::StreamAllocator<Foam::icharstream>,
     public Foam::ISstream
 {
-    typedef
-        Foam::Detail::StreamAllocator<Foam::icharstream>
-        allocator_type;
+    //- The wrapped stream type (eg, icharstream)
+    using wrapped_type = stdFoam::remove_cvref_t<decltype(stream_)>;
 
 public:
+
+    // Data Types
+
+        //- The dynamic container type of the buffer character content
+        typedef typename wrapped_type::dynamic_type dynamic_content_type;
+
+        //- True if the buffer uses std::vector<char> storage
+        static constexpr bool is_vector_buffer = wrapped_type::is_vector_buffer;
+
 
     // Constructors
 
@@ -243,7 +248,6 @@ public:
             IOstreamOption streamOpt = IOstreamOption()
         )
         :
-            allocator_type(),
             ISstream(stream_, "input", streamOpt.format(), streamOpt.version())
         {}
 
@@ -296,7 +300,7 @@ public:
         std::streampos input_pos() const { return stream_.input_pos(); }
 
         //- The input list size. Same as capacity()
-        label size() const { return label(stream_.capacity()); }
+        std::streamsize size() const { return stream_.capacity(); }
 
         //- The get buffer capacity
         std::streamsize capacity() const { return stream_.capacity(); }
@@ -306,20 +310,21 @@ public:
         std::streamsize remaining() const { return stream_.remaining(); }
 
         //- A string_view of buffer contents
-        auto view() const { return stream_.view(); }
+        std::string_view view() const { return stream_.view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return stream_.view(pos, len);
         }
 
-        //- A list \em span of the input characters (is modifiable!)
-        UList<char> list() const { return stream_.list(); }
-
         //- For IStringStream compatibility, return the buffer as string copy.
         //  Use sparingly - it creates a full copy!!
         auto str() const { return stream_.str(); }
+
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span() { return stream_.span(); }
 
 
     // Edit
@@ -330,6 +335,24 @@ public:
             stream_.reset(buffer, nbytes);
             syncState();
         }
+
+        //- Rewind the stream, clearing any old errors
+        virtual void rewind() override
+        {
+            Istream::rewind();
+            stream_.rewind();
+            syncState();
+        }
+
+        //- Reposition the stream from the start
+        void seek(std::streampos pos)
+        {
+            stream_.seek(pos);
+            syncState();
+        }
+
+
+    // Additional content management
 
         //- Exchange stream content and parameter contents, reset positions
         void swap(List<char>& other)
@@ -346,27 +369,13 @@ public:
             syncState();
         }
 
-        //- Reset stream and return contents as a List
-        DynamicList<char> release()
+        //- Reset stream and return character content
+        //- as \c dynamic_content_type
+        auto release()
         {
-            DynamicList<char> chars(stream_.release());
+            auto chars(stream_.release());
             syncState();
             return chars;
-        }
-
-        //- Rewind the stream, clearing any old errors
-        virtual void rewind() override
-        {
-            Istream::rewind();
-            stream_.rewind();
-            syncState();
-        }
-
-        //- Reposition the stream from the start
-        void seek(std::streampos pos)
-        {
-            stream_.seek(pos);
-            syncState();
         }
 
 

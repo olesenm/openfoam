@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -72,15 +73,6 @@ See Also
 namespace Foam
 {
 
-// Forward Declarations
-class ispanstream;
-class ISpanStream;
-
-// Older names (prior to 2023-08)
-typedef ispanstream uiliststream;
-typedef ISpanStream UIListStream;
-
-
 /*---------------------------------------------------------------------------*\
                          Class ispanstream Declaration
 \*---------------------------------------------------------------------------*/
@@ -145,13 +137,14 @@ public:
             return buffer_type::span_remaining();
         }
 
-        //- A list \em span of the input characters (is modifiable!)
-        UList<char> list() const
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span()
         {
-            return UList<char>
+            return stdFoam::span<char>
             (
                 buffer_type::data_bytes(),
-                label(buffer_type::size_bytes())
+                buffer_type::size_bytes()
             );
         }
 
@@ -191,6 +184,7 @@ public:
                 stream_type::clear();  // Clear old errors
             }
         }
+
 
         //- Reset the get buffer area
         void reset(const char* buffer, size_t nbytes)
@@ -321,7 +315,7 @@ public:
         std::streampos input_pos() const { return stream_.input_pos(); }
 
         //- The input list size. Same as capacity()
-        label size() const { return label(stream_.capacity()); }
+        std::streamsize size() const { return stream_.capacity(); }
 
         //- The get buffer capacity
         std::streamsize capacity() const { return stream_.capacity(); }
@@ -339,13 +333,13 @@ public:
             return stream_.view(pos, len);
         }
 
-        //- A list \em span of the input characters (is modifiable!)
-        UList<char> list() const { return stream_.list(); }
-
         //- For IStringStream compatibility, return the buffer as string copy.
         //  Use sparingly - it creates a full copy!!
         auto str() const { return stream_.str(); }
 
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span() { return stream_.span(); }
 
         //- Reset input area, position to buffer start and clear errors
         void reset(const char* buffer, size_t nbytes)
@@ -353,6 +347,7 @@ public:
             stream_.reset(buffer, nbytes);
             syncState();
         }
+
 
         //- Reset input area to use data from a string
         void reset(const std::string& s)

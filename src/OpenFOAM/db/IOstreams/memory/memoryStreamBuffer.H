@@ -42,6 +42,7 @@ Description
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -265,7 +266,7 @@ public:
                     Class memorybuf::in_dynamic Declaration
 \*---------------------------------------------------------------------------*/
 
-//- An output streambuf for memory access
+//- An input streambuf for memory access, backed by Foam::List<char>
 class memorybuf::in_dynamic
 :
     public memorybuf::in_base
@@ -275,8 +276,13 @@ private:
     //- Character storage
     List<char> storage_;
 
-
 public:
+
+    // Data Types
+
+        //- The dynamic container type when swapping out character content
+        typedef ::Foam::DynamicList<char> dynamic_type;
+
 
     // Constructors
 
@@ -519,7 +525,7 @@ public:
                    Class memorybuf::out_dynamic Declaration
 \*---------------------------------------------------------------------------*/
 
-//- An output streambuf for memory access
+//- An output streambuf for memory access, backed by Foam::List<char>
 class memorybuf::out_dynamic
 :
     public memorybuf::out_base
@@ -566,6 +572,12 @@ protected:
 
 
 public:
+
+    // Data Types
+
+        //- The dynamic container type when swapping out character content
+        typedef ::Foam::DynamicList<char> dynamic_type;
+
 
     // Constructors
 

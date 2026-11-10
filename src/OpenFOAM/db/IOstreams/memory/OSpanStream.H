@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -90,14 +91,6 @@ See Also
 namespace Foam
 {
 
-// Forward Declarations
-class ospanstream;
-class OSpanStream;
-
-// Older names (prior to 2023-08)
-typedef OSpanStream UOListStream;
-
-
 /*---------------------------------------------------------------------------*\
                          Class ospanstream Declaration
 \*---------------------------------------------------------------------------*/
@@ -170,22 +163,12 @@ public:
         }
 
         //- A string_view of buffer contents
-        auto view() const { return buffer_type::view(); }
+        std::string_view view() const { return buffer_type::view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return buffer_type::view(pos, len);
-        }
-
-        //- Span of the current output characters (is modifiable!)
-        UList<char> list() const
-        {
-            return UList<char>
-            (
-                buffer_type::data_bytes(),
-                label(buffer_type::size_bytes())
-            );
         }
 
         //- For ostringstream compatibility, return the buffer as string copy.
@@ -198,6 +181,18 @@ public:
                 buffer_type::size_bytes()
             );
         }
+
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span()
+        {
+            return stdFoam::span<char>
+            (
+                buffer_type::data_bytes(),
+                buffer_type::size_bytes()
+            );
+        }
+
 
         //- Reset the put buffer area
         void reset(char* buffer, size_t nbytes)
@@ -342,26 +337,28 @@ public:
         std::streamsize count() const { return stream_.count(); }
 
         //- The current output size. Same as count(), output_pos(), tellp().
-        label size() const { return label(stream_.count()); }
+        std::streamsize size() const { return stream_.count(); }
 
         //- The put buffer capacity
         std::streamsize capacity() const { return stream_.capacity(); }
 
         //- A string_view of buffer contents
-        auto view() const { return stream_.view(); }
+        std::string_view view() const { return stream_.view(); }
 
         //- A sub-slice string view of the buffer contents
-        auto view(size_t pos, size_t len = std::string::npos) const
+        std::string_view view(size_t pos, size_t len = std::string::npos) const
         {
             return stream_.view(pos, len);
         }
 
-        //- Span of the current output characters (is modifiable!)
-        UList<char> list() const { return stream_.list(); }
-
         //- For OStringStream compatibility, return buffer as string copy.
         //  Use sparingly - it creates a full copy!!
         auto str() const { return stream_.str(); }
+
+        //- A modifiable span (view) of the buffer contents.
+        //- The caller really knows what they are doing.
+        stdFoam::span<char> span() { return stream_.span(); }
+
 
         //- Reset the put area
         void reset(char* buffer, size_t nbytes)
