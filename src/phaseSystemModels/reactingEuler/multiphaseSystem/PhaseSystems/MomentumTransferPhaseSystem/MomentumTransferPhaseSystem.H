@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2018 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -175,6 +176,12 @@ private:
 
     // Private member functions
 
+        //- Update the drag coefficients
+        void updateDragCoeffs();
+
+        //- Update the virtual mass coefficients
+        void updateVirtualMassCoeffs();
+
         //- Return the drag coefficient for the phase pair
         virtual tmp<volScalarField> Kd(const phasePairKey& key) const;
 
@@ -203,6 +210,9 @@ public:
 
 
     // Member Functions
+
+        //- Update the drag and virtual mass transfer coefficients
+        virtual void updateMomentumTransferCoeffs();
 
         //- Return the momentum transfer matrices for the cell-based algorithm.
         //  This includes implicit and explicit forces that add into the cell

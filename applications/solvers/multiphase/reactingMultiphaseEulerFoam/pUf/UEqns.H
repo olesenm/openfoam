@@ -3,8 +3,7 @@ Info<< "Constructing face momentum equations" << endl;
 PtrList<fvVectorMatrix> UEqns(phases.size());
 
 {
-    fluid.momentumTransfer(); // !!! Update coefficients shouldn't be necessary
-                              //     This should be done on demand
+    fluid.updateMomentumTransferCoeffs();
 
     autoPtr<phaseSystem::momentumTransferTable>
         momentumTransferPtr(fluid.momentumTransferf());

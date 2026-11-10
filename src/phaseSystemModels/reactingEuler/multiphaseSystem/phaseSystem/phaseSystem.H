@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2019 OpenFOAM Foundation
     Copyright (C) 2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -450,6 +451,9 @@ public:
 
 
         // Transfers
+
+            //- Update the drag and virtual mass transfer coefficients
+            virtual void updateMomentumTransferCoeffs() = 0;
 
             //- Return the momentum transfer matrices for the cell-based
             //  algorithm

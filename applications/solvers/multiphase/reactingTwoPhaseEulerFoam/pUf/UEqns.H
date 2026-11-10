@@ -4,8 +4,7 @@ fvVectorMatrix U1Eqn(U1, rho1.dimensions()*U1.dimensions()*dimVolume/dimTime);
 fvVectorMatrix U2Eqn(U2, rho2.dimensions()*U2.dimensions()*dimVolume/dimTime);
 
 {
-    fluid.momentumTransfer(); // !!! Update coefficients shouldn't be necessary
-                              //     This should be done on demand
+    fluid.updateMomentumTransferCoeffs();
 
     autoPtr<phaseSystem::momentumTransferTable>
         momentumTransferPtr(fluid.momentumTransferf());

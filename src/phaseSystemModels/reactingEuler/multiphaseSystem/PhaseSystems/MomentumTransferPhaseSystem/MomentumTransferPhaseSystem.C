@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2015-2018 OpenFOAM Foundation
     Copyright (C) 2020-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -113,6 +114,39 @@ Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::Vm
         this->mesh_,
         dimensionedScalar(virtualMassModel::dimK)
     );
+}
+
+
+template<class BasePhaseSystem>
+void Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::updateDragCoeffs()
+{
+    forAllConstIter
+    (
+        dragModelTable,
+        dragModels_,
+        dragModelIter
+    )
+    {
+        *Kds_[dragModelIter.key()] = dragModelIter()->K();
+        *Kdfs_[dragModelIter.key()] = dragModelIter()->Kf();
+    }
+}
+
+
+template<class BasePhaseSystem>
+void Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::
+updateVirtualMassCoeffs()
+{
+    forAllConstIter
+    (
+        virtualMassModelTable,
+        virtualMassModels_,
+        virtualMassModelIter
+    )
+    {
+        *Vms_[virtualMassModelIter.key()] = virtualMassModelIter()->K();
+        *Vmfs_[virtualMassModelIter.key()] = virtualMassModelIter()->Kf();
+    }
 }
 
 
@@ -273,6 +307,15 @@ Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
 template<class BasePhaseSystem>
+void Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::
+updateMomentumTransferCoeffs()
+{
+    updateDragCoeffs();
+    updateVirtualMassCoeffs();
+}
+
+
+template<class BasePhaseSystem>
 Foam::autoPtr<Foam::phaseSystem::momentumTransferTable>
 Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::momentumTransfer()
 {
@@ -295,17 +338,7 @@ Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::momentumTransfer()
         );
     }
 
-    // Update the drag coefficients
-    forAllConstIter
-    (
-        dragModelTable,
-        dragModels_,
-        dragModelIter
-    )
-    {
-        *Kds_[dragModelIter.key()] = dragModelIter()->K();
-        *Kdfs_[dragModelIter.key()] = dragModelIter()->Kf();
-    }
+    updateDragCoeffs();
 
     // Add the implicit part of the drag force
     forAllConstIter(KdTable, Kds_, KdIter)
@@ -324,17 +357,7 @@ Foam::MomentumTransferPhaseSystem<BasePhaseSystem>::momentumTransfer()
         }
     }
 
-    // Update the virtual mass coefficients
-    forAllConstIter
-    (
-        virtualMassModelTable,
-        virtualMassModels_,
-        virtualMassModelIter
-    )
-    {
-        *Vms_[virtualMassModelIter.key()] = virtualMassModelIter()->K();
-        *Vmfs_[virtualMassModelIter.key()] = virtualMassModelIter()->Kf();
-    }
+    updateVirtualMassCoeffs();
 
     // Add the virtual mass force
     forAllConstIter(VmTable, Vms_, VmIter)
