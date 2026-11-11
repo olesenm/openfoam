@@ -33,7 +33,7 @@ mixture
     }
     transport
     {
-        Pr          1.1e-3;
+        Pr          1.545;
         mu          1.7e-3;
     }
     thermodynamics
