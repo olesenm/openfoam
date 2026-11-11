@@ -603,7 +603,18 @@ void Foam::cyclicAMIFvPatchField<Type>::evaluate
     }
 
     // Use patchNeighbourField() and patchInternalField() to obtain face value
-    coupledFvPatchField<Type>::evaluate(commsType);
+    // Bypass coupledFvPatchField<Type>::evaluate(commsType) so we can do
+    // in-place lerp. This bypasses operator= so cannot be done for all
+    // coupledFvPatchFields.
+    lerp
+    (
+        *this,
+        this->patchNeighbourField()(),
+        this->patchInternalField()(),
+        this->patch().weights()
+    );
+
+    fvPatchField<Type>::evaluate();
 }
 
 
