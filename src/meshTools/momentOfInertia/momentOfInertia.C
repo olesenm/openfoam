@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2015 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -38,7 +39,7 @@ void Foam::momentOfInertia::massPropertiesSolid
     scalar density,
     scalar& mass,
     vector& cM,
-    tensor& J
+    symmTensor& J
 )
 {
     // Reimplemented from: Wm4PolyhedralMassProperties.cpp
@@ -77,27 +78,25 @@ void Foam::momentOfInertia::massPropertiesSolid
     // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
     // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-    const scalar r6 = 1.0/6.0;
-    const scalar r24 = 1.0/24.0;
-    const scalar r60 = 1.0/60.0;
-    const scalar r120 = 1.0/120.0;
+    constexpr scalar r6 = 1.0/6.0;
+    constexpr scalar r24 = 1.0/24.0;
+    constexpr scalar r60 = 1.0/60.0;
+    constexpr scalar r120 = 1.0/120.0;
 
-    // order:  1, x, y, z, x^2, y^2, z^2, xy, yz, zx
-    scalarField integrals(10, Zero);
+    // order: 1, x, y, z, x^2, y^2, z^2, xy, yz, zx
+    FixedList<scalar, 10> integrals(Foam::zero{});
 
-    forAll(triFaces, i)
+    for (const triFace& tri : triFaces)
     {
-        const triFace& tri(triFaces[i]);
-
         // vertices of triangle i
-        vector v0 = pts[tri[0]];
-        vector v1 = pts[tri[1]];
-        vector v2 = pts[tri[2]];
+        const vector& v0 = pts[tri[0]];
+        const vector& v1 = pts[tri[1]];
+        const vector& v2 = pts[tri[2]];
 
         // cross product of edges
-        vector eA = v1 - v0;
-        vector eB = v2 - v0;
-        vector n = eA ^ eB;
+        vector eA(v1 - v0);
+        vector eB(v2 - v0);
+        vector n(eA ^ eB);
 
         // compute integral terms
         scalar tmp0, tmp1, tmp2;
@@ -172,15 +171,12 @@ void Foam::momentOfInertia::massPropertiesSolid
     J.xx() = integrals[5] + integrals[6];
     J.xy() = -integrals[7];
     J.xz() = -integrals[9];
-    J.yx() = J.xy();
     J.yy() = integrals[4] + integrals[6];
     J.yz() = -integrals[8];
-    J.zx() = J.xz();
-    J.zy() = J.yz();
     J.zz() = integrals[4] + integrals[5];
 
     // inertia relative to center of mass
-    J -= mass*((cM & cM)*I - cM*cM);
+    J -= mass*(Foam::magSqr(cM)*symmTensor::I - Foam::sqr(cM));
 
     // Apply density
     mass *= density;
@@ -195,22 +191,20 @@ void Foam::momentOfInertia::massPropertiesShell
     scalar density,
     scalar& mass,
     vector& cM,
-    tensor& J,
+    symmTensor& J,
     bool doReduce
 )
 {
     // Reset properties for accumulation
 
     mass = 0.0;
-    cM = Zero;
-    J = Zero;
+    cM = Foam::zero{};
+    J = Foam::zero{};
 
     // Find centre of mass
 
-    forAll(triFaces, i)
+    for (const triFace& tri : triFaces)
     {
-        const triFace& tri(triFaces[i]);
-
         triPointRef t
         (
             pts[tri[0]],
@@ -237,10 +231,8 @@ void Foam::momentOfInertia::massPropertiesShell
 
     // Find inertia around centre of mass
 
-    forAll(triFaces, i)
+    for (const triFace& tri : triFaces)
     {
-        const triFace& tri(triFaces[i]);
-
         J += triPointRef
         (
             pts[tri[0]],
@@ -251,7 +243,7 @@ void Foam::momentOfInertia::massPropertiesShell
 
     if (doReduce)
     {
-        reduce(J, sumOp<tensor>());
+        reduce(J, sumOp<symmTensor>());
     }
 }
 
@@ -262,7 +254,7 @@ void Foam::momentOfInertia::massPropertiesSolid
     scalar density,
     scalar& mass,
     vector& cM,
-    tensor& J
+    symmTensor& J
 )
 {
     triFaceList faces(surf.size());
@@ -282,7 +274,7 @@ void Foam::momentOfInertia::massPropertiesShell
     scalar density,
     scalar& mass,
     vector& cM,
-    tensor& J,
+    symmTensor& J,
     bool doReduce
 )
 {
@@ -303,17 +295,15 @@ void Foam::momentOfInertia::massPropertiesPatch
     scalar density,
     scalar& mass,
     vector& cM,
-    tensor& J,
+    symmTensor& J,
     bool doReduce
 )
 {
     DynamicList<triFace> faces(3*pp.size());
 
     // decompose patch faces using triangle fan
-    forAll(pp, faceI)
+    for (const face& f : pp)
     {
-        const face& f = pp[faceI];
-
         if (f.size() > 2)
         {
             const label v0 = 0;
@@ -331,11 +321,11 @@ void Foam::momentOfInertia::massPropertiesPatch
 }
 
 
-Foam::tensor Foam::momentOfInertia::applyParallelAxisTheorem
+Foam::symmTensor Foam::momentOfInertia::applyParallelAxisTheorem
 (
     scalar mass,
     const vector& cM,
-    const tensor& J,
+    const symmTensor& J,
     const vector& refPt
 )
 {
@@ -343,30 +333,43 @@ Foam::tensor Foam::momentOfInertia::applyParallelAxisTheorem
     // new reference point from the centre of mass of the body that
     // the inertia tensor applies to.
 
-    vector d = (refPt - cM);
+    const vector d(refPt - cM);
 
-    return J + mass*((d & d)*I - d*d);
+    return J + mass*(Foam::magSqr(d)*symmTensor::I - Foam::sqr(d));
 }
 
 
-Foam::tmp<Foam::tensorField> Foam::momentOfInertia::meshInertia
+void Foam::momentOfInertia::meshInertia
 (
-    const polyMesh& mesh
+    const polyMesh& mesh,
+    List<symmTensor>& result
 )
 {
-    auto tTf = tmp<tensorField>::New(mesh.nCells());
-    auto& tf = tTf.ref();
+    result.resize_nocopy(mesh.nCells());
 
-    forAll(tf, cI)
+    forAll(result, celli)
     {
-        tf[cI] = meshInertia(mesh, cI);
+        result[celli] = meshInertia(mesh, celli);
     }
-
-    return tTf;
 }
 
 
-Foam::tensor Foam::momentOfInertia::meshInertia
+void Foam::momentOfInertia::meshInertia
+(
+    const polyMesh& mesh,
+    List<tensor>& result
+)
+{
+    result.resize_nocopy(mesh.nCells());
+
+    forAll(result, celli)
+    {
+        result[celli] = meshInertia(mesh, celli);
+    }
+}
+
+
+Foam::symmTensor Foam::momentOfInertia::meshInertia
 (
     const polyMesh& mesh,
     label celli
@@ -386,8 +389,8 @@ Foam::tensor Foam::momentOfInertia::meshInertia
     }
 
     scalar m = 0.0;
-    vector cM = Zero;
-    tensor J = Zero;
+    vector cM(Foam::zero{});
+    symmTensor J(Foam::zero{});
 
     massPropertiesSolid(mesh.points(), faces, 1.0, m, cM, J);
 

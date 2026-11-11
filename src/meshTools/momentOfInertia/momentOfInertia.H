@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -75,9 +76,43 @@ public:
         scalar density,
         scalar& mass,
         vector& cM,
-        tensor& J
+        symmTensor& J
     );
 
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
+    static void massPropertiesSolid
+    (
+        const pointField& pts,
+        const triFaceList& triFaces,
+        scalar density,
+        scalar& mass,
+        vector& cM,
+        tensor& J
+    )
+    {
+        symmTensor symmJ(Foam::zero{});
+        massPropertiesSolid(pts, triFaces, density, mass, cM, symmJ);
+        J = tensor(symmJ);
+    }
+
+    static void massPropertiesShell
+    (
+        const pointField& pts,
+        const triFaceList& triFaces,
+        scalar density,
+        scalar& mass,
+        vector& cM,
+        symmTensor& J,
+        bool doReduce = false
+    );
+
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
     static void massPropertiesShell
     (
         const pointField& pts,
@@ -87,7 +122,21 @@ public:
         vector& cM,
         tensor& J,
         bool doReduce = false
-    );
+    )
+    {
+        symmTensor symmJ(Foam::zero{});
+        massPropertiesShell
+        (
+            pts,
+            triFaces,
+            density,
+            mass,
+            cM,
+            symmJ,
+            doReduce
+        );
+        J = tensor(symmJ);
+    }
 
     static void massPropertiesSolid
     (
@@ -95,9 +144,41 @@ public:
         scalar density,
         scalar& mass,
         vector& cM,
-        tensor& J
+        symmTensor& J
     );
 
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
+    static void massPropertiesSolid
+    (
+        const triSurface& surf,
+        scalar density,
+        scalar& mass,
+        vector& cM,
+        tensor& J
+    )
+    {
+        symmTensor symmJ(Foam::zero{});
+        massPropertiesSolid(surf, density, mass, cM, symmJ);
+        J = tensor(symmJ);
+    }
+
+    static void massPropertiesShell
+    (
+        const triSurface& surf,
+        scalar density,
+        scalar& mass,
+        vector& cM,
+        symmTensor& J,
+        bool doReduce = false
+    );
+
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
     static void massPropertiesShell
     (
         const triSurface& surf,
@@ -106,8 +187,27 @@ public:
         vector& cM,
         tensor& J,
         bool doReduce = false
+    )
+    {
+        symmTensor symmJ(Foam::zero{});
+        massPropertiesShell(surf, density, mass, cM, symmJ, doReduce);
+        J = tensor(symmJ);
+    }
+
+    static void massPropertiesPatch
+    (
+        const polyPatch& pp,
+        scalar density,
+        scalar& mass,
+        vector& cM,
+        symmTensor& J,
+        bool doReduce = false
     );
 
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
     static void massPropertiesPatch
     (
         const polyPatch& pp,
@@ -116,24 +216,61 @@ public:
         vector& cM,
         tensor& J,
         bool doReduce = false
+    )
+    {
+        symmTensor symmJ(Foam::zero{});
+        massPropertiesPatch(pp, density, mass, cM, symmJ, doReduce);
+        J = tensor(symmJ);
+    }
+
+    static symmTensor applyParallelAxisTheorem
+    (
+        scalar mass,
+        const vector& cM,
+        const symmTensor& J,
+        const vector& refPt
     );
 
+    //- Tensor overload of the correct symmTensor overload
+    //
+    //  \deprecated(2026-11) - use symmTensor overload
+    FOAM_DEPRECATED_FOR(2026-11, "symmTensor overload")
     static tensor applyParallelAxisTheorem
     (
         scalar mass,
         const vector& cM,
         const tensor& J,
         const vector& refPt
+    )
+    {
+        const vector d(refPt - cM);
+        return J + mass*((d & d)*I - d*d);
+    }
+
+    static void meshInertia
+    (
+        const polyMesh& mesh,
+        List<symmTensor>& result
     );
 
-    // Calculate the inertia tensor for all cells in the mesh
-    static tmp<tensorField> meshInertia
+    static void meshInertia
+    (
+        const polyMesh& mesh,
+        List<tensor>& result
+    );
+
+    template<class TensorType = symmTensor>
+    static tmp<Field<TensorType>> meshInertia
     (
         const polyMesh& mesh
-    );
+    )
+    {
+        auto tresult = tmp<Field<TensorType>>::New();
+        meshInertia(mesh, tresult.ref());
+        return tresult;
+    }
 
-    // Calculate the inertia tensor the given cell
-    static tensor meshInertia
+    static symmTensor meshInertia
     (
         const polyMesh& mesh,
         label celli

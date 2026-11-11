@@ -428,9 +428,9 @@ public:
             //- Return swept-volume
             inline scalar sweptVol(const triangle& t) const;
 
-            //- Return the inertia tensor, with optional reference
+            //- Return the symmetric inertia tensor, with optional reference
             //  point and density specification
-            inline tensor inertia
+            inline symmTensor inertia
             (
                 PointRef refPt = Zero,
                 scalar density = 1.0

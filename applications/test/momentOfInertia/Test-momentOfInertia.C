@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2017 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -149,6 +150,93 @@ int main(int argc, char *argv[])
 
         momentOfInertia::massPropertiesSolid(pts, tetFaces, density, m, cM, J);
 
+        scalar symmMass = 0.0;
+        vector symmCM = zero{};
+        symmTensor symmJ(zero{});
+
+        momentOfInertia::massPropertiesSolid
+        (
+            pts,
+            tetFaces,
+            density,
+            symmMass,
+            symmCM,
+            symmJ
+        );
+
+        if
+        (
+            mag(m - symmMass) > SMALL
+         || mag(cM - symmCM) > SMALL
+         || mag(J - tensor(symmJ)) > SMALL
+        )
+        {
+            FatalErrorInFunction
+                << "Legacy solid mass properties differ from symmTensor API"
+                << exit(FatalError);
+        }
+
+        scalar shellMass = 0.0;
+        scalar shellSymmMass = 0.0;
+        vector shellCM = zero{};
+        vector shellSymmCM = zero{};
+        tensor shellJ(zero{});
+        symmTensor shellSymmJ(zero{});
+
+        momentOfInertia::massPropertiesShell
+        (
+            pts,
+            tetFaces,
+            density,
+            shellMass,
+            shellCM,
+            shellJ
+        );
+        momentOfInertia::massPropertiesShell
+        (
+            pts,
+            tetFaces,
+            density,
+            shellSymmMass,
+            shellSymmCM,
+            shellSymmJ
+        );
+
+        if
+        (
+            mag(shellMass - shellSymmMass) > SMALL
+         || mag(shellCM - shellSymmCM) > SMALL
+         || mag(shellJ - tensor(shellSymmJ)) > SMALL
+        )
+        {
+            FatalErrorInFunction
+                << "Legacy shell mass properties differ from symmTensor API"
+                << exit(FatalError);
+        }
+
+        const vector refPt(cM + vector(1, 2, 3));
+        const tensor shiftedJ
+        (
+            momentOfInertia::applyParallelAxisTheorem(m, cM, J, refPt)
+        );
+        const symmTensor shiftedSymmJ
+        (
+            momentOfInertia::applyParallelAxisTheorem
+            (
+                m,
+                cM,
+                symmJ,
+                refPt
+            )
+        );
+
+        if (mag(shiftedJ - tensor(shiftedSymmJ)) > SMALL)
+        {
+            FatalErrorInFunction
+                << "Legacy parallel-axis result differs from symmTensor API"
+                << exit(FatalError);
+        }
+
         vector eVal = eigenValues(symm(J));
 
         tensor eVec = eigenVectors(symm(J));
@@ -201,9 +289,23 @@ int main(int argc, char *argv[])
     {
         const label celli = args.getOrDefault<label>("cell", 0);
 
-        tensorField mI(momentOfInertia::meshInertia(mesh));
+        tensorField mI(momentOfInertia::meshInertia<tensor>(mesh));
+        symmTensorField symmMI(momentOfInertia::meshInertia(mesh));
 
         tensor& J = mI[celli];
+        const symmTensor& symmJ = symmMI[celli];
+        const tensor cellJ(momentOfInertia::meshInertia(mesh, celli));
+
+        if
+        (
+            mag(J - tensor(symmJ)) > SMALL
+         || mag(cellJ - tensor(symmJ)) > SMALL
+        )
+        {
+            FatalErrorInFunction
+                << "Legacy mesh inertia differs from meshInertia"
+                << exit(FatalError);
+        }
 
         vector eVal = eigenValues(symm(J));
 

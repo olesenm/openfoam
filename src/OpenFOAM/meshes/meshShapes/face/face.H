@@ -254,9 +254,9 @@ public:
             const UList<point>& newPoints
         ) const;
 
-        //- Return the inertia tensor, with optional reference
+        //- Return the symmetric inertia tensor, with optional reference
         //- point and density specification
-        tensor inertia
+        symmTensor inertia
         (
             const UList<point>& p,
             const point& refPt = vector::zero,

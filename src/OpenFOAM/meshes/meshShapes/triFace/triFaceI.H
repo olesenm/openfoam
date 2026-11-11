@@ -304,7 +304,7 @@ inline Foam::scalar Foam::triFace::sweptVol
 }
 
 
-Foam::tensor Foam::triFace::inertia
+Foam::symmTensor Foam::triFace::inertia
 (
     const UList<point>& points,
     const point& refPt,
