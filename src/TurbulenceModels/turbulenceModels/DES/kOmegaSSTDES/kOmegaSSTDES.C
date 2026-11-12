@@ -147,7 +147,11 @@ tmp<volScalarField::Internal> kOmegaSSTDES<BasicTurbulenceModel>::GbyNu0
 {
     if (this->useSigma_)
     {
-        return S2();
+        return tmp<volScalarField::Internal>::New
+        (
+            IOobject::scopedName(this->type(), "GbyNu"),
+            S2()
+        );
     }
 
     return

@@ -8,6 +8,7 @@
     Copyright (C) 2015 OpenFOAM Foundation
     Copyright (C) 2022 Upstream CFD GmbH
     Copyright (C) 2016-2022 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -113,7 +114,11 @@ tmp<volScalarField::Internal> kOmegaSSTDDES<BasicTurbulenceModel>::GbyNu0
 {
     if (this->useSigma_)
     {
-        return S2();
+        return tmp<volScalarField::Internal>::New
+        (
+            IOobject::scopedName(this->type(), "GbyNu"),
+            S2()
+        );
     }
 
     return
