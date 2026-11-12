@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011 OpenFOAM Foundation
     Copyright (C) 2017-2024 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -32,7 +33,7 @@ Description
     for the actual input.
 
 SourceFiles
-    IFstream.C
+    IFstream.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -43,6 +44,7 @@ SourceFiles
 #include "className.H"
 #include "fstreamPointer.H"
 #include "DynamicList.H"
+#include <vector>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -91,11 +93,43 @@ public:
     // Static Functions
 
         //- Get file contents from specified file (compressed/uncompressed).
+        //- as \c DynamicList<char> content.
         //- Returns an empty list if the file cannot be opened.
-        static DynamicList<char> readContents(const fileName& pathname);
+        static DynamicList<char> readContents_list(const fileName& pathname);
 
         //- Get file contents from IFstream (assumed to be rewound)
-        static DynamicList<char> readContents(IFstream& ifs);
+        //- as \c DynamicList<char> content.
+        static DynamicList<char> readContents_list(IFstream& ifs);
+
+        //- Get file contents from specified file (compressed/uncompressed)
+        //- as \c std::string content.
+        //- Returns empty content if the file cannot be opened.
+        static std::string readContents_string(const fileName& pathname);
+
+        //- Get file contents from IFstream (assumed to be rewound)
+        //- as \c std::string content.
+        static std::string readContents_string(IFstream& ifs);
+
+        //- Get file contents from specified file (compressed/uncompressed)
+        //- as \c std::vector<char> content.
+        //- Returns empty content if the file cannot be opened.
+        static std::vector<char> readContents_vector(const fileName& pathname);
+
+        //- Get file contents from IFstream (assumed to be rewound)
+        //- as \c std::vector<char> content.
+        static std::vector<char> readContents_vector(IFstream& ifs);
+
+        //- Forward to readContents_list()
+        static DynamicList<char> readContents(const fileName& pathname)
+        {
+            return readContents_list(pathname);
+        }
+
+        //- Forward to readContents_list()
+        static DynamicList<char> readContents(IFstream& ifs)
+        {
+            return readContents_list(ifs);
+        }
 
 
     // Member Functions
