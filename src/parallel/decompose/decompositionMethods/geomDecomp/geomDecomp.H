@@ -160,6 +160,30 @@ public:
         //- Purely geometric methods
         virtual bool geometric() const { return true; }
 
+
+    // Domain Weighting
+
+        //- Has processor/domain weights?
+        bool hasWeights() const noexcept { return !procWeights_.empty(); }
+
+        //- The target load per domain (non-normalized)
+        const UList<scalar>& weights() const noexcept { return procWeights_; }
+
+        //- Remove processor/domain weighting
+        void clearWeights() { procWeights_.clear(); }
+
+        //- Set/reset the processor/domain weighting
+        void setWeights(const labelUList& weights);
+
+        //- Set/reset the processor/domain selection (weighting)
+        void setWeights(const bitSet& selection);
+
+        //- Set/reset the processor/domain selection (weighting)
+        void setWeights(const boolUList& selection);
+
+
+    // Member Functions
+
         //- Return for every coordinate the wanted processor number.
         virtual labelList decompose
         (

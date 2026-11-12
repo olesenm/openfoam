@@ -411,12 +411,6 @@ Foam::labelList Foam::treeDecomp::treeDecompose_impl
 {
     const auto numPoints = points.size();
 
-    if (numPoints <= numDomains)
-    {
-        // Trivial: one-to-one mapping
-        return Foam::identity(numPoints);
-    }
-
     // The final result
     labelList finalDecomp(numPoints, Foam::zero{});
 
@@ -556,8 +550,10 @@ Foam::labelList Foam::treeDecomp::treeDecompose
             );
         }
     }
-    else if (!UPstream::parRun())  // OR if (UPstream::is_rank(communicator))
+    else
     {
+        // Non-parallel (or single-proc multi-world)
+
         finalDecomp = treeDecompose_impl(numDomains, rotatedPoints, weights);
     }
 

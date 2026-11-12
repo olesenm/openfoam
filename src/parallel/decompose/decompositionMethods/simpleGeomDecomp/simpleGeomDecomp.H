@@ -67,7 +67,7 @@ class simpleGeomDecomp
         labelList decomposeOneProc
         (
             const pointField& points,
-            const scalarField& weights
+            const UList<scalar>& pointWeights
         ) const;
 
 
@@ -107,10 +107,7 @@ public:
     // Member Functions
 
         //- Sends all points to the master for decomposition.
-        virtual bool parallelAware() const
-        {
-            return true;
-        }
+        virtual bool parallelAware() const { return true; }
 
         //- Return for every coordinate the wanted processor number.
         //- using uniform or specified point weights.

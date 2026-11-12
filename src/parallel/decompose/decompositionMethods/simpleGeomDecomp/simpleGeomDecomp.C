@@ -48,37 +48,6 @@ namespace Foam
 
 // * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
 
-namespace Foam
-{
-
-// A list compare binary predicate for normal sort by vector component
-struct vectorLessOp
-{
-    const UList<vector>& values;
-    direction sortCmpt;
-
-    vectorLessOp(const UList<vector>& list, direction cmpt = vector::X)
-    :
-        values(list),
-        sortCmpt(cmpt)
-    {}
-
-    void setComponent(direction cmpt)
-    {
-        sortCmpt = cmpt;
-    }
-
-    bool operator()(const label a, const label b) const
-    {
-        return values[a][sortCmpt] < values[b][sortCmpt];
-    }
-};
-
-} // End namespace Foam
-
-
-// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
-
 // assignToProcessorGroup : given nCells cells and nProcGroup processor
 // groups to share them, how do we share them out? Answer : each group
 // gets nCells/nProcGroup cells, and the first few get one
@@ -127,7 +96,7 @@ static void assignToProcessorGroup
     labelUList& processorGroup,
     const label nProcGroup,
     const labelUList& indices,
-    const scalarField& weights,
+    const UList<scalar>& weights,
     const scalar summedWeights
 )
 {
@@ -170,7 +139,7 @@ static void assignToProcessorGroup
 (
     labelUList& processorGroup,
     const label nProcGroup,
-    const scalarUList& fractions    // per-band target fractions (sum 1)
+    const UList<scalar>& fractions  // per-band target fractions (sum 1)
 )
 {
     const label n = processorGroup.size();
@@ -200,9 +169,9 @@ static void assignToProcessorGroup
     labelUList& processorGroup,
     const label nProcGroup,
     const labelUList& indices,
-    const scalarField& weights,
+    const UList<scalar>& weights,
     const scalar summedWeights,
-    const scalarUList& fractions    // per-band target fractions (sum 1)
+    const UList<scalar>& fractions  // per-band target fractions (sum 1)
 )
 {
     const label n = processorGroup.size();
@@ -241,90 +210,63 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
 
     labelList processorGroups(points.size());
 
-    labelList pointIndices(identity(points.size()));
+    labelList pointIndices(Foam::identity(points.size()));
 
     const pointField rotatedPoints(adjustPoints(points));
 
-    vectorLessOp sorter(rotatedPoints);
+    // For each direction (X, then Y, then Z) assign the processors to
+    // groups of processors labelled 0..nX (or nY, nZ) to give a banded
+    // structure on the mesh. The actual processor number is constructed
+    // by treating the X group as the units, the Y group as a multiple of
+    // nX (columns) and the Z group as a multiple of nX*nY (layers).
 
-    // and one to take the processor group id's. For each direction.
-    // we assign the processors to groups of processors labelled
-    // 0..nX to give a banded structure on the mesh. Then we
-    // construct the actual processor number by treating this as
-    // the units part of the processor number.
+    label processed = 1;
 
-    sorter.setComponent(vector::X);
-    Foam::sort(pointIndices, sorter);
-
-    if (procWeights_.empty())
+    for (direction cmpt = 0; cmpt < vector::nComponents; ++cmpt)
     {
-        assignToProcessorGroup(processorGroups, n_.x());
-    }
-    else
-    {
-        assignToProcessorGroup
+        const label count = n_[cmpt];
+
+        Foam::sort
         (
-            processorGroups,
-            n_.x(),
-            axisWeightFractions(vector::X)
+            pointIndices,
+            [&rotatedPoints,cmpt](label a, label b)
+            {
+                return rotatedPoints[a][cmpt] < rotatedPoints[b][cmpt];
+            }
         );
-    }
 
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] = processorGroups[i];
-    }
+        if (procWeights_.empty())
+        {
+            assignToProcessorGroup(processorGroups, count);
+        }
+        else
+        {
+            assignToProcessorGroup
+            (
+                processorGroups,
+                count,
+                axisWeightFractions(cmpt)
+            );
+        }
 
+        if (cmpt == 0)
+        {
+            // Assign on the first pass
+            forAll(points, i)
+            {
+                finalDecomp[pointIndices[i]] = processorGroups[i];
+            }
+        }
+        else
+        {
+            // Accumulate on subsequent passes
+            forAll(points, i)
+            {
+                finalDecomp[pointIndices[i]] += processed*processorGroups[i];
+            }
+        }
 
-    // now do the same thing in the Y direction. These processor group
-    // numbers add multiples of nX to the proc. number (columns)
-
-    sorter.setComponent(vector::Y);
-    Foam::sort(pointIndices, sorter);
-
-    if (procWeights_.empty())
-    {
-        assignToProcessorGroup(processorGroups, n_.y());
-    }
-    else
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.y(),
-            axisWeightFractions(vector::Y)
-        );
-    }
-
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] += n_.x()*processorGroups[i];
-    }
-
-
-    // finally in the Z direction. Now we add multiples of nX*nY to give
-    // layers
-
-    sorter.setComponent(vector::Z);
-    Foam::sort(pointIndices, sorter);
-
-    if (procWeights_.empty())
-    {
-        assignToProcessorGroup(processorGroups, n_.z());
-    }
-    else
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.z(),
-            axisWeightFractions(vector::Z)
-        );
-    }
-
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] += n_.x()*n_.y()*processorGroups[i];
+        processed *= count;  // next
     }
 
     return finalDecomp;
@@ -334,134 +276,142 @@ Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
 Foam::labelList Foam::simpleGeomDecomp::decomposeOneProc
 (
     const pointField& points,
-    const scalarField& weights
+    const UList<scalar>& weights
 ) const
 {
-    if (weights.empty())
+    double totalWeight = 0;
+
+    bool hadNegative = false;
+
+    for (const auto& val : weights)
+    {
+        if (val < 0)
+        {
+            hadNegative = true;
+        }
+        else
+        {
+            totalWeight += double(val);
+        }
+    }
+
+    bool unweighted = (weights.empty() || hadNegative);
+
+    if (hadNegative)
+    {
+        WarningInFunction
+            << "Negative weights, ignoring weights" << nl;
+    }
+    else if (!weights.empty())
+    {
+        const double magTotal = std::fabs(totalWeight);
+
+        if (magTotal < double(VSMALL))
+        {
+            // Near zero weights for this scalar (float/double) type.
+            // Treat as unweighted without a message,
+            // it could be a legitimate input for unweighted
+
+            unweighted = true;
+        }
+        else if (double(VGREAT) < magTotal)
+        {
+            // Excessive total sum for scalar (float/double) type.
+            // This type of overflow will almost never occur
+            // since the regular inputs will be "normal" values
+            // like 0,1, 1000, etc. Never really anything silly like 1E+9...
+
+            // Report this rare case, and treat as unweighted so that
+            // things will work (not crash).
+
+            unweighted = true;
+            WarningInFunction
+                << "Sum of weights exceeds scalar range, ignoring weights"
+                << nl;
+        }
+    }
+
+    if (unweighted)
     {
         return decomposeOneProc(points);
     }
+
+    // Already checked that totalWeight was in range, non-negative etc so
+    // can just use it now.
+    const scalar summedWeights = scalar(totalWeight);
 
     // construct a list for the final result
     labelList finalDecomp(points.size());
 
     labelList processorGroups(points.size());
 
-    labelList pointIndices(identity(points.size()));
+    labelList pointIndices(Foam::identity(points.size()));
 
     const pointField rotatedPoints(adjustPoints(points));
 
-    vectorLessOp sorter(rotatedPoints);
+    // For each direction (X, then Y, then Z) assign the processors to
+    // groups of processors labelled 0..nX (or nY, nZ) to give a banded
+    // structure on the mesh. The actual processor number is constructed
+    // by treating the X group as the units, the Y group as a multiple of
+    // nX (columns) and the Z group as a multiple of nX*nY (layers).
 
-    // and one to take the processor group id's. For each direction.
-    // we assign the processors to groups of processors labelled
-    // 0..nX to give a banded structure on the mesh. Then we
-    // construct the actual processor number by treating this as
-    // the units part of the processor number.
+    label processed = 1;
 
-    sorter.setComponent(vector::X);
-    Foam::sort(pointIndices, sorter);
-
-    const scalar summedWeights = sum(weights);
-    if (procWeights_.empty())
+    for (direction cmpt = 0; cmpt < vector::nComponents; ++cmpt)
     {
-        assignToProcessorGroup
+        const label count = n_[cmpt];
+
+        Foam::sort
         (
-            processorGroups,
-            n_.x(),
             pointIndices,
-            weights,
-            summedWeights
+            [&rotatedPoints,cmpt](label a, label b)
+            {
+                return rotatedPoints[a][cmpt] < rotatedPoints[b][cmpt];
+            }
         );
-    }
-    else
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.x(),
-            pointIndices,
-            weights,
-            summedWeights,
-            axisWeightFractions(vector::X)
-        );
-    }
 
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] = processorGroups[i];
-    }
+        if (procWeights_.empty())
+        {
+            assignToProcessorGroup
+            (
+                processorGroups,
+                count,
+                pointIndices,
+                weights,
+                summedWeights
+            );
+        }
+        else
+        {
+            assignToProcessorGroup
+            (
+                processorGroups,
+                count,
+                pointIndices,
+                weights,
+                summedWeights,
+                axisWeightFractions(cmpt)
+            );
+        }
 
+        if (cmpt == 0)
+        {
+            // Assign on the first pass
+            forAll(points, i)
+            {
+                finalDecomp[pointIndices[i]] = processorGroups[i];
+            }
+        }
+        else
+        {
+            // Accumulate on subsequent passes
+            forAll(points, i)
+            {
+                finalDecomp[pointIndices[i]] += processed*processorGroups[i];
+            }
+        }
 
-    // now do the same thing in the Y direction. These processor group
-    // numbers add multiples of nX to the proc. number (columns)
-
-    sorter.setComponent(vector::Y);
-    Foam::sort(pointIndices, sorter);
-
-    if (procWeights_.empty())
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.y(),
-            pointIndices,
-            weights,
-            summedWeights
-        );
-    }
-    else
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.y(),
-            pointIndices,
-            weights,
-            summedWeights,
-            axisWeightFractions(vector::Y)
-        );
-    }
-
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] += n_.x()*processorGroups[i];
-    }
-
-
-    // finally in the Z direction. Now we add multiples of nX*nY to give
-    // layers
-
-    sorter.setComponent(vector::Z);
-    Foam::sort(pointIndices, sorter);
-
-    if (procWeights_.empty())
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.z(),
-            pointIndices,
-            weights,
-            summedWeights
-        );
-    }
-    else
-    {
-        assignToProcessorGroup
-        (
-            processorGroups,
-            n_.z(),
-            pointIndices,
-            weights,
-            summedWeights,
-            axisWeightFractions(vector::Z)
-        );
-    }
-
-    forAll(points, i)
-    {
-        finalDecomp[pointIndices[i]] += n_.x()*n_.y()*processorGroups[i];
+        processed *= count;  // next
     }
 
     return finalDecomp;
@@ -494,51 +444,108 @@ Foam::labelList Foam::simpleGeomDecomp::decompose
     const scalarField& weights
 ) const
 {
-    // Uniform weighting if weights are empty or poorly sized
-    const bool hasWeights = returnReduceAnd(points.size() == weights.size());
+    // May want to handle different communicators in the future...
+    const int communicator = UPstream::worldComm;
+    const int messageTag = (UPstream::msgType() + 1812);
+    const auto commsType = globalIndex::defaultCommsType();
 
-    if (!UPstream::parRun())
+    // Uniform weighting if weights are empty or poorly sized
+    const bool isWeighted = returnReduceAnd
+    (
+        (points.size() == weights.size()),
+        communicator
+    );
+
+
+    labelList finalDecomp;
+
+    if (UPstream::is_parallel(communicator))
     {
-        if (hasWeights)
+        // Parallel
+        const globalIndex globalNumbers(points.size(), communicator);
+
+        if
+        (
+            globalNumbers.empty()
+         || (globalNumbers.localSize(0) == globalNumbers.totalSize())
+        )
         {
-            return decomposeOneProc(points, weights);
+            // Only have values on the master (ie, decomposing)
+            if (UPstream::master(communicator))
+            {
+                if (isWeighted)
+                {
+                    finalDecomp = decomposeOneProc(points, weights);
+                }
+                else
+                {
+                    finalDecomp = decomposeOneProc(points);
+                }
+            }
         }
         else
         {
-            return decomposeOneProc(points);
+            // Gather all, decompose on master, scatter back
+
+            pointField allPoints
+            (
+                globalNumbers.gather
+                (
+                    points,
+                    messageTag, commsType, communicator
+                )
+            );
+
+            labelList allDecomp;
+            if (isWeighted)
+            {
+                // Non-uniform weighting
+                scalarField allWeights
+                (
+                    globalNumbers.gather
+                    (
+                        weights,
+                        messageTag, commsType, communicator
+                    )
+                );
+
+                if (UPstream::master(communicator))
+                {
+                    allDecomp = decomposeOneProc(allPoints, allWeights);
+                }
+            }
+            else
+            {
+                if (UPstream::master(communicator))
+                {
+                    allDecomp = decomposeOneProc(allPoints);
+                }
+            }
+
+            allPoints.clear();
+
+            finalDecomp = globalNumbers.scatter
+            (
+                allDecomp,
+                messageTag, commsType, communicator
+            );
         }
     }
     else
     {
-        // Parallel
-        const globalIndex globalNumbers(points.size());
+        // Non-parallel (or single-proc multi-world)
 
-        labelList allDecomp;
-        pointField allPoints(globalNumbers.gather(points));
-        scalarField allWeights;
-
-        if (hasWeights)
+        if (isWeighted)
         {
-            // Non-uniform weighting
-            allWeights = globalNumbers.gather(weights);
+            finalDecomp = decomposeOneProc(points, weights);
         }
-
-        if (UPstream::master())
+        else
         {
-            if (hasWeights)
-            {
-                allDecomp = decomposeOneProc(allPoints, allWeights);
-            }
-            else
-            {
-                allDecomp = decomposeOneProc(allPoints);
-            }
-            allPoints.clear();  // Not needed anymore
-            allWeights.clear(); // ...
+            finalDecomp = decomposeOneProc(points);
         }
-
-        return globalNumbers.scatter(allDecomp);
     }
+
+    return finalDecomp;
 }
 
 
