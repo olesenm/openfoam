@@ -64,21 +64,18 @@ void Foam::searchableCone::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.setSize(1);
-    centres[0] = 0.5*(point1_ + point2_);
+    centres.resize_fill(1, 0.5*(point1_ + point2_));
+    const auto& ctr = centres[0];
 
-    radiusSqr.setSize(1);
-    if (radius1_ > radius2_)
-    {
-        radiusSqr[0] = Foam::magSqr(point1_-centres[0]) + Foam::sqr(radius1_);
-    }
-    else
-    {
-        radiusSqr[0] = Foam::magSqr(point2_-centres[0]) + Foam::sqr(radius2_);
-    }
+    scalar distSqr =
+    (
+        (radius1_ > radius2_)
+      ? (ctr.distSqr(point1_) + Foam::sqr(radius1_))
+      : (ctr.distSqr(point2_) + Foam::sqr(radius2_))
+    );
 
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    radiusSqr.resize_fill(1, distSqr + Foam::sqr(SMALL));
 }
 
 
@@ -323,7 +320,7 @@ Foam::scalar Foam::searchableCone::radius2
 
 // From mrl.nyu.edu/~dzorin/rend05/lecture2.pdf,
 // Ray Tracing II, Infinite cone ray intersection.
-void Foam::searchableCone::findLineAll
+void Foam::searchableCone::findLineAll_impl
 (
     const searchableCone& cone,
     const scalar innerRadius1,
@@ -754,7 +751,7 @@ const Foam::wordList& Foam::searchableCone::regions() const
 {
     if (regions_.empty())
     {
-        regions_.setSize(1);
+        regions_.resize(1);
         regions_[0] = "region0";
     }
     return regions_;
@@ -772,11 +769,11 @@ void Foam::searchableCone::findNearest
 
     scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
+    vector normal;
     forAll(samples, i)
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        vector normal;
         findNearestAndNormal(samples[i], maxDistSqr, info[i], normal);
     }
 }
@@ -789,13 +786,13 @@ void Foam::searchableCone::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
+    pointIndexHit b;
     forAll(start, i)
     {
         // Pick nearest intersection. If none intersected take second one.
-        pointIndexHit b;
-        findLineAll
+        findLineAll_impl
         (
             *this,
             innerRadius1_,
@@ -805,7 +802,7 @@ void Foam::searchableCone::findLine
             info[i],
             b
         );
-        if (!info[i].hit() && b.hit())
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
@@ -827,20 +824,15 @@ void Foam::searchableCone::findLine
             0.0
         );
 
+        pointIndexHit near, far;
         forAll(info, i)
         {
-            point newEnd;
-            if (info[i].hit())
-            {
-                newEnd = info[i].point();
-            }
-            else
-            {
-                newEnd = end[i];
-            }
-            pointIndexHit near;
-            pointIndexHit far;
-            findLineAll
+            const point& newEnd =
+            (
+                info[i].hit() ? info[i].point() : end[i]
+            );
+
+            findLineAll_impl
             (
                 innerCone,
                 innerRadius1_,
@@ -871,13 +863,13 @@ void Foam::searchableCone::findLineAny
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
+    pointIndexHit b;
     forAll(start, i)
     {
         // Discard far intersection
-        pointIndexHit b;
-        findLineAll
+        findLineAll_impl
         (
             *this,
             innerRadius1_,
@@ -887,11 +879,12 @@ void Foam::searchableCone::findLineAny
             info[i],
             b
         );
-        if (!info[i].hit() && b.hit())
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
     }
+
     if (innerRadius1_ > 0.0 || innerRadius2_ > 0.0)
     {
         IOobject io(*this);
@@ -907,12 +900,12 @@ void Foam::searchableCone::findLineAny
             0.0
         );
 
+        pointIndexHit b;
         forAll(info, i)
         {
-            if (!info[i].hit())
+            if (info[i].not_hit())
             {
-                pointIndexHit b;
-                findLineAll
+                findLineAll_impl
                 (
                     cone,
                     innerRadius1_,
@@ -922,7 +915,7 @@ void Foam::searchableCone::findLineAny
                     info[i],
                     b
                 );
-                if (!info[i].hit() && b.hit())
+                if (info[i].not_hit() && b.hit())
                 {
                     info[i] = b;
                 }
@@ -939,12 +932,12 @@ void Foam::searchableCone::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
+    pointIndexHit near, far;
     forAll(start, i)
     {
-        pointIndexHit near, far;
-        findLineAll
+        findLineAll_impl
         (
             *this,
             innerRadius1_,
@@ -959,22 +952,20 @@ void Foam::searchableCone::findLineAll
         {
             if (far.hit())
             {
-                info[i].setSize(2);
+                info[i].resize_nocopy(2);
                 info[i][0] = near;
                 info[i][1] = far;
             }
             else
             {
-                info[i].setSize(1);
-                info[i][0] = near;
+                info[i].resize_fill(1, near);
             }
         }
         else
         {
             if (far.hit())
             {
-                info[i].setSize(1);
-                info[i][0] = far;
+                info[i].resize_fill(1, far);
             }
             else
             {
@@ -998,11 +989,10 @@ void Foam::searchableCone::findLineAll
             0.0
         );
 
+        pointIndexHit near, far;
         forAll(info, i)
         {
-            pointIndexHit near;
-            pointIndexHit far;
-            findLineAll
+            findLineAll_impl
             (
                 cone,
                 innerRadius1_,
@@ -1032,8 +1022,7 @@ void Foam::searchableCone::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -1043,23 +1032,85 @@ void Foam::searchableCone::getNormal
     vectorField& normal
 ) const
 {
-    normal.setSize(info.size());
-    normal = Zero;
+    normal.resize_nocopy(info.size());
 
+    pointIndexHit near;
     forAll(info, i)
     {
         if (info[i].hit())
         {
-            pointIndexHit nearInfo;
             findNearestAndNormal
             (
                 info[i].point(),
                 Foam::sqr(GREAT),
-                nearInfo,
+                near,
                 normal[i]
             );
         }
+        else
+        {
+            normal[i] = Foam::zero{};
+        }
     }
+}
+
+
+Foam::label Foam::searchableCone::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    const point ctr(0.5*(point1_ + point2_));
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, ctr);
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        const scalar distSqr =
+        (
+            (radius1_ > radius2_)
+          ? (ctr.distSqr(point1_) + Foam::sqr(radius1_))
+          : (ctr.distSqr(point2_) + Foam::sqr(radius2_))
+        );
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill(output_size, distSqr + Foam::sqr(SMALL));
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is nominally undefined at the centre, but to be the same
+        // as having used boundingSpheres + findNearest etc.
+
+        pointIndexHit near;
+        vector n(vector::zero);
+
+        findNearestAndNormal(ctr, Foam::sqr(GREAT), near, n);
+
+        normals->resize_fill(output_size, n);
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 
@@ -1069,13 +1120,11 @@ void Foam::searchableCone::getVolumeType
     List<volumeType>& volType
 ) const
 {
-    volType.setSize(points.size());
+    volType.resize_fill(points.size(), volumeType::OUTSIDE);
 
     forAll(points, pointi)
     {
         const point& pt = points[pointi];
-
-        volType[pointi] = volumeType::OUTSIDE;
 
         vector v(pt - point1_);
 

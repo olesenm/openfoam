@@ -44,7 +44,7 @@ Note
     Longer type name : \c searchableCylinder
 
 SourceFiles
-    searchableCylinder.C
+    searchableCylinder.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -92,20 +92,18 @@ private:
 
     // Private Member Functions
 
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
         //- Find nearest point on cylinder.
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         scalar radius2(const point& pt) const;
 
         //- Find intersection with cylinder
-        void findLineAll
+        void findLineAll_impl
         (
             const point& start,
             const point& end,
@@ -116,14 +114,16 @@ private:
         //- Return the boundBox of the cylinder
         boundBox calcBounds() const;
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableCylinder(const searchableCylinder&) = delete;
 
         //- No copy assignment
         void operator=(const searchableCylinder&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableCylinder");
@@ -256,6 +256,24 @@ public:
                 const pointField& points,
                 List<volumeType>& volType
             ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const;
+
 
 
         // regIOobject implementation

@@ -54,22 +54,22 @@ namespace Foam
 
 Foam::direction Foam::searchablePlate::calcNormal(const point& span)
 {
-    direction normalDir = 3;
+    direction normalDir = vector::nComponents;
 
     for (direction dir = 0; dir < vector::nComponents; ++dir)
     {
         if (span[dir] < 0)
         {
             // Negative entry. Flag and exit.
-            normalDir = 3;
+            normalDir = vector::nComponents;
             break;
         }
         else if (span[dir] < VSMALL)
         {
-            if (normalDir != 3)
+            if (normalDir != vector::nComponents)
             {
                 // Multiple zero entries. Flag and exit.
-                normalDir = 3;
+                normalDir = vector::nComponents;
                 break;
             }
 
@@ -77,7 +77,7 @@ Foam::direction Foam::searchablePlate::calcNormal(const point& span)
         }
     }
 
-    if (normalDir == 3)
+    if (normalDir == vector::nComponents)
     {
         FatalErrorInFunction
             << "Span should have two positive and one zero entry: "
@@ -90,10 +90,11 @@ Foam::direction Foam::searchablePlate::calcNormal(const point& span)
 
 
 // Returns miss or hit with face (always 0)
-Foam::pointIndexHit Foam::searchablePlate::findNearest
+void Foam::searchablePlate::findNearest_impl
 (
     const point& sample,
-    const scalar nearestDistSqr
+    const scalar nearestDistSqr,
+    pointIndexHit& info
 ) const
 {
     // For every component direction can be
@@ -105,7 +106,7 @@ Foam::pointIndexHit Foam::searchablePlate::findNearest
     //   that.
 
     // Project point on plane.
-    pointIndexHit info(true, sample, 0);
+    info.hitPoint(sample, 0);
     info.point()[normalDir_] = origin_[normalDir_];
 
     // Clip to edges if outside
@@ -126,28 +127,22 @@ Foam::pointIndexHit Foam::searchablePlate::findNearest
 
     // Check if outside. Optimisation: could do some checks on distance already
     // on components above
-    if (info.point().distSqr(sample) > nearestDistSqr)
+    if (nearestDistSqr < info.point().distSqr(sample))
     {
         info.setMiss();
         info.setIndex(-1);
     }
-
-    return info;
 }
 
 
-Foam::pointIndexHit Foam::searchablePlate::findLine
+void Foam::searchablePlate::findLine_impl
 (
     const point& start,
-    const point& end
+    const point& end,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info
-    (
-        true,
-        Zero,
-        0
-    );
+    info.hitPoint(point::zero, 0);
 
     const vector dir(end-start);
 
@@ -155,39 +150,39 @@ Foam::pointIndexHit Foam::searchablePlate::findLine
     {
         info.setMiss();
         info.setIndex(-1);
+        return;
     }
-    else
+
+    const scalar t = (origin_[normalDir_]-start[normalDir_]) / dir[normalDir_];
+
+    if (t < 0 || t > 1)
     {
-        scalar t = (origin_[normalDir_]-start[normalDir_]) / dir[normalDir_];
+        info.setMiss();
+        info.setIndex(-1);
+        return;
+    }
 
-        if (t < 0 || t > 1)
-        {
-            info.setMiss();
-            info.setIndex(-1);
-        }
-        else
-        {
-            info.point() = start+t*dir;
-            info.point()[normalDir_] = origin_[normalDir_];
 
-            // Clip to edges
-            for (direction dir = 0; dir < vector::nComponents; ++dir)
+    // hit (probably)
+    info.point() = start+t*dir;
+    info.point()[normalDir_] = origin_[normalDir_];
+
+    // Clip to edges
+    for (direction dir = 0; dir < vector::nComponents; ++dir)
+    {
+        if (dir != normalDir_)
+        {
+            if (info.point()[dir] < origin_[dir])
             {
-                if (dir != normalDir_)
-                {
-                    if (info.point()[dir] < origin_[dir])
-                    {
-                        info.setMiss();
-                        info.setIndex(-1);
-                        break;
-                    }
-                    else if (info.point()[dir] > origin_[dir]+span_[dir])
-                    {
-                        info.setMiss();
-                        info.setIndex(-1);
-                        break;
-                    }
-                }
+                info.setMiss();
+                info.setIndex(-1);
+                break;
+            }
+            else if (info.point()[dir] > origin_[dir]+span_[dir])
+            {
+                info.setMiss();
+                info.setIndex(-1);
+                break;
             }
         }
     }
@@ -210,8 +205,6 @@ Foam::pointIndexHit Foam::searchablePlate::findLine
                 << abort(FatalError);
         }
     }
-
-    return info;
 }
 
 
@@ -263,7 +256,7 @@ const Foam::wordList& Foam::searchablePlate::regions() const
 
 Foam::tmp<Foam::pointField> Foam::searchablePlate::coordinates() const
 {
-    return tmp<pointField>::New(1, origin_ + 0.5*span_);
+    return tmp<pointField>::New(1, (origin_ + 0.5*span_));
 }
 
 
@@ -273,14 +266,9 @@ void Foam::searchablePlate::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.resize(1);
-    radiusSqr.resize(1);
-
-    centres[0] = origin_ + 0.5*span_;
-    radiusSqr[0] = Foam::magSqr(0.5*span_);
-
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    centres.resize_fill(1, (origin_ + 0.5*span_));
+    radiusSqr.resize_fill(1, (Foam::magSqr(0.5*span_) + Foam::sqr(SMALL)));
 }
 
 
@@ -324,11 +312,11 @@ void Foam::searchablePlate::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(samples.size());
+    info.resize_nocopy(samples.size());
 
     forAll(samples, i)
     {
-        info[i] = findNearest(samples[i], nearestDistSqr[i]);
+        findNearest_impl(samples[i], nearestDistSqr[i], info[i]);
     }
 }
 
@@ -340,11 +328,11 @@ void Foam::searchablePlate::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
-        info[i] = findLine(start[i], end[i]);
+        findLine_impl(start[i], end[i], info[i]);
     }
 }
 
@@ -367,20 +355,20 @@ void Foam::searchablePlate::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    List<pointIndexHit> nearestInfo;
-    findLine(start, end, nearestInfo);
+    info.resize_nocopy(start.size());
 
-    info.setSize(start.size());
-    forAll(info, pointi)
+    forAll(start, i)
     {
-        if (nearestInfo[pointi].hit())
+        pointIndexHit near;
+        findLine_impl(start[i], end[i], near);
+
+        if (near.hit())
         {
-            info[pointi].setSize(1);
-            info[pointi][0] = nearestInfo[pointi];
+            info[i].resize_fill(1, near);
         }
         else
         {
-            info[pointi].clear();
+            info[i].clear();
         }
     }
 }
@@ -392,8 +380,7 @@ void Foam::searchablePlate::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -403,12 +390,63 @@ void Foam::searchablePlate::getNormal
     vectorField& normal
 ) const
 {
-    normal.setSize(info.size());
-    normal = Zero;
-    forAll(normal, i)
+    normal.resize_fill(info.size(), Foam::zero{});
+
+    for (auto& n : normal)
     {
-        normal[i][normalDir_] = 1.0;
+        n[normalDir_] = 1.0;
     }
+}
+
+
+Foam::label Foam::searchablePlate::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, (origin_ + 0.5*span_));
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            (Foam::magSqr(0.5*span_) + Foam::sqr(SMALL))
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        normals->resize_fill(output_size, Foam::zero{});
+
+        for (auto& n : *normals)
+        {
+            n[normalDir_] = 1.0;
+        }
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

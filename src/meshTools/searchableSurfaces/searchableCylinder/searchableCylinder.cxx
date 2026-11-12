@@ -65,14 +65,16 @@ void Foam::searchableCylinder::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.setSize(1);
-    centres[0] = 0.5*(point1_ + point2_);
-
-    radiusSqr.setSize(1);
-    radiusSqr[0] = Foam::magSqr(point1_-centres[0]) + Foam::sqr(radius_);
+    centres.resize_fill(1, 0.5*(point1_ + point2_));
+    const auto& ctr = centres[0];
 
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    radiusSqr.resize_fill
+    (
+        1,
+        ctr.distSqr(point1_) + Foam::sqr(radius_)
+      + Foam::sqr(SMALL)
+    );
 }
 
 
@@ -88,13 +90,14 @@ Foam::tmp<Foam::pointField> Foam::searchableCylinder::points() const
 }
 
 
-Foam::pointIndexHit Foam::searchableCylinder::findNearest
+void Foam::searchableCylinder::findNearest_impl
 (
     const point& sample,
-    const scalar nearestDistSqr
+    const scalar nearestDistSqr,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info(false, sample, -1);
+    info = pointIndexHit(false, sample, -1);
 
     vector v(sample - point1_);
 
@@ -186,8 +189,6 @@ Foam::pointIndexHit Foam::searchableCylinder::findNearest
         info.setHit();
         info.setIndex(0);
     }
-
-    return info;
 }
 
 
@@ -200,7 +201,7 @@ Foam::scalar Foam::searchableCylinder::radius2(const point& pt) const
 
 // From http://www.gamedev.net/community/forums/topic.asp?topic_id=467789 -
 // intersection of cylinder with ray
-void Foam::searchableCylinder::findLineAll
+void Foam::searchableCylinder::findLineAll_impl
 (
     const point& start,
     const point& end,
@@ -527,7 +528,7 @@ const Foam::wordList& Foam::searchableCylinder::regions() const
 {
     if (regions_.empty())
     {
-        regions_.setSize(1);
+        regions_.resize(1);
         regions_[0] = "region0";
     }
     return regions_;
@@ -541,7 +542,7 @@ void Foam::searchableCylinder::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(samples.size());
+    info.resize_nocopy(samples.size());
 
     scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
@@ -549,7 +550,7 @@ void Foam::searchableCylinder::findNearest
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        info[i] = findNearest(samples[i], maxDistSqr);
+        findNearest_impl(samples[i], maxDistSqr, info[i]);
     }
 }
 
@@ -561,14 +562,15 @@ void Foam::searchableCylinder::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
+    pointIndexHit b;
     forAll(start, i)
     {
         // Pick nearest intersection. If none intersected take second one.
-        pointIndexHit b;
-        findLineAll(start[i], end[i], info[i], b);
-        if (!info[i].hit() && b.hit())
+        findLineAll_impl(start[i], end[i], info[i], b);
+
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
@@ -583,14 +585,14 @@ void Foam::searchableCylinder::findLineAny
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
+    pointIndexHit b;
     forAll(start, i)
     {
-        // Discard far intersection
-        pointIndexHit b;
-        findLineAll(start[i], end[i], info[i], b);
-        if (!info[i].hit() && b.hit())
+        findLineAll_impl(start[i], end[i], info[i], b);
+
+        if (info[i].not_hit() && b.hit())
         {
             info[i] = b;
         }
@@ -605,33 +607,31 @@ void Foam::searchableCylinder::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
         pointIndexHit near, far;
-        findLineAll(start[i], end[i], near, far);
+        findLineAll_impl(start[i], end[i], near, far);
 
         if (near.hit())
         {
             if (far.hit())
             {
-                info[i].setSize(2);
+                info[i].resize_nocopy(2);
                 info[i][0] = near;
                 info[i][1] = far;
             }
             else
             {
-                info[i].setSize(1);
-                info[i][0] = near;
+                info[i].resize_fill(1, near);
             }
         }
         else
         {
             if (far.hit())
             {
-                info[i].setSize(1);
-                info[i][0] = far;
+                info[i].resize_fill(1, far);
             }
             else
             {
@@ -648,8 +648,7 @@ void Foam::searchableCylinder::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -659,12 +658,15 @@ void Foam::searchableCylinder::getNormal
     vectorField& normal
 ) const
 {
-    normal.setSize(info.size());
-    normal = Zero;
+    normal.resize_nocopy(info.size());
 
     forAll(info, i)
     {
-        if (info[i].hit())
+        if (info[i].not_hit())
+        {
+            normal[i] = Foam::zero{};
+        }
+        else
         {
             vector v(info[i].point() - point1_);
 
@@ -730,13 +732,83 @@ void Foam::searchableCylinder::getNormal
 }
 
 
+Foam::label Foam::searchableCylinder::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    const point ctr(0.5*(point1_ + point2_));
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, ctr);
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            ctr.distSqr(point1_) + Foam::sqr(radius_) + Foam::sqr(SMALL)
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is nominally undefined at the centre, but to be the same
+        // as having used boundingSpheres + findNearest etc.
+
+        vector n(unitDir_);  // End cap (a tie goes to the point2 cap)
+
+        // The centre is obviously exactly on centre line.
+        // Take any point on wall.
+        // - see code in findNearest_impl
+
+        if (radius_ < 0.5*magDir_)
+        {
+            // Wall is closer. Same arbitrary wall direction as findNearest
+            n = (point(1,0,0) ^ unitDir_);
+            scalar magN = mag(n);
+            if (magN < SMALL)
+            {
+                n = (point(0,1,0) ^ unitDir_);
+                magN = mag(n);
+            }
+            n /= magN;
+        }
+
+        normals->resize_fill(output_size, n);
+    }
+
+    return (usedParams ? output_size : 0);
+}
+
+
 void Foam::searchableCylinder::getVolumeType
 (
     const pointField& points,
     List<volumeType>& volType
 ) const
 {
-    volType.setSize(points.size());
+    volType.resize_nocopy(points.size());
 
     forAll(points, pointi)
     {

@@ -264,7 +264,7 @@ void Foam::searchableRotatedBox::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    info.resize(samples.size());
+    info.resize_nocopy(samples.size());
 
     scalar maxDistSqr = searchableSurface::defaultMaxDistSqr();
 
@@ -284,7 +284,7 @@ void Foam::searchableRotatedBox::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
@@ -300,7 +300,7 @@ void Foam::searchableRotatedBox::findLineAny
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
@@ -316,7 +316,7 @@ void Foam::searchableRotatedBox::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     // Work array
     DynamicList<pointIndexHit> hits;
@@ -327,51 +327,55 @@ void Foam::searchableRotatedBox::findLineAll
     // - it is significant (SMALL is smallest representative relative tolerance;
     //   we need something bigger since we're doing calculations)
     // - if the start-end vector is zero we still progress
-    const vectorField dirVec(end-start);
-    const scalarField magSqrDirVec(magSqr(dirVec));
-    const vectorField smallVec
-    (
-        Foam::sqrt(SMALL)*dirVec
-      + vector(ROOTVSMALL,ROOTVSMALL,ROOTVSMALL)
-    );
 
-    forAll(start, pointI)
+    forAll(start, pointi)
     {
+        info[pointi].clear();
+
+        const auto& startp = start[pointi];
+        const auto& endp = end[pointi];
+
         // See if any intersection between pt and end
-        pointIndexHit inter = findLine(start[pointI], end[pointI]);
+        pointIndexHit inter = findLine(startp, endp);
 
         if (inter.hit())
         {
+            // For progression
+            const vector dirVec = (endp - startp);
+            const scalar magSqrDirVec = dirVec.magSqr();
+            const vector smallVec
+            (
+                ROOTSMALL*dirVec + vector::uniform(ROOTVSMALL)
+            );
+
+            // Track last hit
+            label lastIndex = inter.index();
+            point pt = inter.point() + smallVec;
+
             hits.clear();
-            hits.append(inter);
+            hits.push_back(inter);
 
-            point pt = inter.point() + smallVec[pointI];
-
-            while (((pt-start[pointI])&dirVec[pointI]) <= magSqrDirVec[pointI])
+            while (((pt-startp) & dirVec) <= magSqrDirVec)
             {
                 // See if any intersection between pt and end
-                pointIndexHit inter = findLine(pt, end[pointI]);
+                inter = findLine(pt, endp);
 
                 // Check for not hit or hit same face as before (can happen
                 // if vector along surface of face)
-                if
-                (
-                    !inter.hit()
-                 || (inter.index() == hits.last().index())
-                )
+                if (inter.not_hit() || (inter.index() == lastIndex))
                 {
                     break;
                 }
-                hits.append(inter);
 
-                pt = inter.point() + smallVec[pointI];
+                // update
+                lastIndex = inter.index();
+                pt = inter.point() + smallVec;
+
+                hits.push_back(inter);
             }
 
-            info[pointI].transfer(hits);
-        }
-        else
-        {
-            info[pointI].clear();
+            // copy (keep DynamicList for following loops)
+            info[pointi] = hits;
         }
     }
 }
@@ -383,8 +387,7 @@ void Foam::searchableRotatedBox::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -398,6 +401,38 @@ void Foam::searchableRotatedBox::getNormal
     box_.getNormal(info, normal);
 
     normal = transform_.globalVector(normal);
+}
+
+
+Foam::label Foam::searchableRotatedBox::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    label returnCount = box_.measure(centres, radiusSqr, regions, normals);
+
+    // Transform centres
+    if (centres)
+    {
+        for (auto& fc : *centres)
+        {
+            fc = transform_.globalPosition(fc);
+        }
+    }
+
+    // Transform normals
+    if (normals)
+    {
+        for (auto& n : *normals)
+        {
+            n = transform_.globalVector(n);
+        }
+    }
+
+    return returnCount;
 }
 
 

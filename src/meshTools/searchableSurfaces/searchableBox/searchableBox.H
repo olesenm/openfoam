@@ -48,7 +48,7 @@ Note
     Longer type name : \c searchableBox
 
 SourceFiles
-    searchableBox.C
+    searchableBox.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -87,17 +87,27 @@ class searchableBox
             pointIndexHit& info
         ) const;
 
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
+
+        //- Find nearest intersection of line between start and end.
+        void findLine_impl
+        (
+            const point& start,
+            const point& end,
+            pointIndexHit& info
+        ) const;
 
         //- Returns miss or hit with face (0..5)
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& bbMid,
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableBox(const searchableBox&) = delete;
@@ -105,8 +115,6 @@ class searchableBox
         //- No copy assignment
         void operator=(const searchableBox&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableBox");
@@ -178,6 +186,11 @@ public:
         {
             return boundBox::overlaps(bb);
         }
+
+
+        //- Inherit findNearest from searchableSurface
+        using searchableSurface::findNearest;
+
 
         // Single point queries.
 
@@ -283,6 +296,23 @@ public:
             (
                 const pointField& points,
                 List<volumeType>& volType
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

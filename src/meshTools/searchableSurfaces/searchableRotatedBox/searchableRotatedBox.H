@@ -58,7 +58,7 @@ Note
     Longer type name : \c searchableRotatedBox
 
 SourceFiles
-    searchableRotatedBox.C
+    searchableRotatedBox.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -93,8 +93,9 @@ class searchableRotatedBox
         //- The (global) corner points (in treeBoundBox order)
         pointField points_;
 
+public:
 
-    // Private Member Functions
+    // Generated Method
 
         //- No copy construct
         searchableRotatedBox(const searchableRotatedBox&) = delete;
@@ -102,8 +103,6 @@ class searchableRotatedBox
         //- No copy assignment
         void operator=(const searchableRotatedBox&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableRotatedBox");
@@ -178,10 +177,12 @@ public:
         // Does any part of the surface overlap the supplied bound box?
         virtual bool overlaps(const boundBox& bb) const;
 
-        // Single point queries.
 
-            //- Inherit findNearest from searchableSurface
-            using searchableSurface::findNearest;
+        //- Inherit findNearest from searchableSurface
+        using searchableSurface::findNearest;
+
+
+        // Single point queries.
 
             //- Calculate nearest point on surface.
             //  Returns
@@ -275,6 +276,23 @@ public:
             (
                 const pointField& points,
                 List<volumeType>& volType
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

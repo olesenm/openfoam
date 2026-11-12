@@ -343,6 +343,33 @@ Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, const triSurface& s)
 }
 
 
+Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io, triSurface&& s)
+:
+    searchableSurface(io),
+    objectRegistry
+    (
+        IOobject
+        (
+            io.name(),
+            io.instance(),
+            io.local(),
+            io.db(),
+            io.readOpt(),
+            io.writeOpt(),
+            false       // searchableSurface already registered under name
+        )
+    ),
+    triSurface(std::move(s)),
+    triSurfaceRegionSearch(static_cast<const triSurface&>(*this)),
+    minQuality_(-1),
+    surfaceClosed_(-1),
+    outsideVolType_(volumeType::UNKNOWN)
+{
+    // Local bound box (no reduction)
+    bounds() = treeBoundBox(triSurface::points());
+}
+
+
 Foam::triSurfaceMesh::triSurfaceMesh(const IOobject& io)
 :
     // Find instance for triSurfaceMesh
@@ -1423,7 +1450,7 @@ Foam::label Foam::triSurfaceMesh::measure
 }
 
 
-void Foam::triSurfaceMesh::setField(const labelList& values)
+void Foam::triSurfaceMesh::setField(const labelUList& values)
 {
     auto* fldPtr = getObjectPtr<triSurfaceLabelField>("values");
 
@@ -1487,8 +1514,8 @@ Foam::label Foam::triSurfaceMesh::getField_at
     {
         const auto& fld = *fldPtr;
 
-        // Field size dictates the upper limit
-        const label numFaces = fld.size();
+        // Treat out of bounds as unknown/ignore
+        const label numFaces = std::min(fld.size(), output_size);
 
         // NB: resize, not resize_nocopy!
         // Any added elements are set to -1 (placeholder)
@@ -1532,6 +1559,35 @@ Foam::label Foam::triSurfaceMesh::getField_at
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+Foam::label Foam::triSurfaceMesh::getField(labelList& values) const
+{
+    const triSurface& s = *this;
+
+    // The expected output size
+    const label output_size = s.size();
+
+    label numFaces = 0;
+
+    const auto* fldPtr = getObjectPtr<triSurfaceLabelField>("values");
+
+    if (fldPtr)
+    {
+        const auto& fld = *fldPtr;
+
+        // Treat out of bounds as unknown/ignore
+        numFaces = std::min(fld.size(), output_size);
+
+        // NB: resize, not resize_nocopy!
+        // Any added elements are set to -1 (placeholder)
+        values.resize(output_size, -1);
+
+        values.slice(0, numFaces) = fld.slice(0, numFaces);
+    }
+
+    return numFaces;
+}
+
 
 void Foam::triSurfaceMesh::getField
 (

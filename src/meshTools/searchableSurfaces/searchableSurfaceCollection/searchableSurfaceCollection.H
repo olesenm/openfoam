@@ -43,7 +43,7 @@ Note
     Longer type name : \c searchableSurfaceCollection
 
 SourceFiles
-    searchableSurfaceCollection.C
+    searchableSurfaceCollection.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -54,11 +54,15 @@ SourceFiles
 #include "treeBoundBox.H"
 #include "cartesianCS.H"
 #include "UPtrList.H"
+#include "CSRAddressing.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
+
+// Forward Declarations
+template<class T> class CompactListList;
 
 /*---------------------------------------------------------------------------*\
                  Class searchableSurfaceCollection Declaration
@@ -70,7 +74,7 @@ class searchableSurfaceCollection
 {
     // Private Member Data
 
-        // Per instance data
+        // Data per surface instance
 
             //- Instance name
             wordList instance_;
@@ -85,9 +89,9 @@ class searchableSurfaceCollection
 
             bool mergeSubRegions_;
 
-            //- Offsets for indices coming from different surfaces
-            //  (sized with size() of each surface)
-            labelList indexOffset_;
+            //- Size offsets for the different surfaces
+            CSRAddressing<label> indexOffset_;
+
 
         //- Names of regions
         mutable wordList regions_;
@@ -98,40 +102,37 @@ class searchableSurfaceCollection
 
     // Private Member Functions
 
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
-        //- Find point nearest to sample. Updates minDistSqr. Sets nearestInfo
-        //  and surface index
-        void findNearest
+        //- Find point nearest to sample. Updates minDistSqr.
+        //- Sets nearestInfo and surface index
+        void findNearest_impl
         (
             const pointField& samples,
             scalarField& minDistSqr,
             List<pointIndexHit>& nearestInfo,
-            labelList& nearestSurf
+            labelList* nearestSurface = nullptr
         ) const;
 
         //- Sort hits into per-surface bins. Misses are rejected.
         //  Maintains map back to position
         void sortHits
         (
-            const List<pointIndexHit>& info,
-            List<List<pointIndexHit>>& surfInfo,
-            labelListList& infoMap
+            const UList<pointIndexHit>& info,
+            CompactListList<pointIndexHit>& surfInfo,
+            CompactListList<label>& infoMap
         ) const;
 
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableSurfaceCollection
-        (
-            const searchableSurfaceCollection&
-        ) = delete;
+        (const searchableSurfaceCollection&) = delete;
 
         //- No copy assignment
         void operator=(const searchableSurfaceCollection&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSurfaceCollection");
@@ -289,12 +290,38 @@ public:
             );
 
             //- WIP. Store element-wise field.
-            virtual void setField(const labelList& values);
+            virtual void setField(const labelUList& values);
 
-            //- WIP. From a set of hits (points and
-            //  indices) get the specified field. Misses do not get set. Return
-            //  empty field if not supported.
-            virtual void getField(const List<pointIndexHit>&, labelList&) const;
+            //- WIP.
+            //- From a set of hits (points and indices) get the "values" field.
+            //- Entries corresponding to misses are left untouched.
+            virtual void getField
+            (
+                const List<pointIndexHit>&,
+                labelList& values
+            ) const;
+
+            //- WIP.
+            //- Retrieve the "values" field entries (if it exists)
+            virtual label getField(labelList& values) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const;
+
 
         // regIOobject implementation
 

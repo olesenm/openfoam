@@ -47,7 +47,7 @@ Note
     Longer type name : \c searchableSphere
 
 SourceFiles
-    searchableSphere.C
+    searchableSphere.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -142,20 +142,17 @@ private:
             );
         }
 
-
-        //- Inherit findNearest from searchableSurface
-        using searchableSurface::findNearest;
-
         //- Find nearest point on general spheroid.
         //  With some optimization for special shapes
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         //- Find intersection with general spheroid
-        void findLineAll
+        void findLineAll_impl
         (
             const point& start,
             const point& end,
@@ -163,6 +160,9 @@ private:
             pointIndexHit& far
         ) const;
 
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableSphere(const searchableSphere&) = delete;
@@ -170,8 +170,6 @@ private:
         //- No copy assignment
         void operator=(const searchableSphere&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSphere");
@@ -349,6 +347,23 @@ public:
             (
                 const pointField& points,
                 List<volumeType>& volType
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

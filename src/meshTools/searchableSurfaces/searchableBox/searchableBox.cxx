@@ -109,11 +109,12 @@ void Foam::searchableBox::projectOntoCoordPlane
 
 
 // Returns miss or hit with face (0..5) and region(always 0)
-Foam::pointIndexHit Foam::searchableBox::findNearest
+void Foam::searchableBox::findNearest_impl
 (
     const point& bbMid,
     const point& sample,
-    const scalar nearestDistSqr
+    const scalar nearestDistSqr,
+    pointIndexHit& info
 ) const
 {
     // Point can be inside or outside. For every component direction can be
@@ -128,7 +129,7 @@ Foam::pointIndexHit Foam::searchableBox::findNearest
 
 
     // Outside point projected onto cube. Assume faces 0..5.
-    pointIndexHit info(true, sample, -1);
+    info.hitPoint(sample, -1);
     bool outside = false;
 
     // (for internal points) per direction what nearest cube side is
@@ -191,8 +192,6 @@ Foam::pointIndexHit Foam::searchableBox::findNearest
         info.setMiss();
         info.setIndex(-1);
     }
-
-    return info;
 }
 
 
@@ -282,12 +281,10 @@ void Foam::searchableBox::boundingSpheres
         label pointi = treeBoundBox::octFaces()[facei][0];
         point corner = treeBoundBox::octCorner(pointi);
 
+        // Add a bit to make sure all points are tested inside
         centres[facei] = treeBoundBox::faceCentre(facei);
-        radiusSqr[facei] = centres[facei].distSqr(corner);
+        radiusSqr[facei] = (centres[facei].distSqr(corner) + Foam::sqr(SMALL));
     }
-
-    // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
 }
 
 
@@ -303,7 +300,10 @@ Foam::pointIndexHit Foam::searchableBox::findNearest
     const scalar nearestDistSqr
 ) const
 {
-    return findNearest(centre(), sample, nearestDistSqr);
+    pointIndexHit info;
+    findNearest_impl(centre(), sample, nearestDistSqr, info);
+    return info;
+
 }
 
 
@@ -393,15 +393,16 @@ Foam::pointIndexHit Foam::searchableBox::findNearest
 }
 
 
-Foam::pointIndexHit Foam::searchableBox::findLine
+void Foam::searchableBox::findLine_impl
 (
     const point& start,
-    const point& end
+    const point& end,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info(false, start, -1);
+    info = pointIndexHit(false, start, -1);
 
-    bool foundInter;
+    bool foundInter = false;
 
     if (posBits(start) == 0)
     {
@@ -451,7 +452,17 @@ Foam::pointIndexHit Foam::searchableBox::findLine
                 << " but it isn't." << abort(FatalError);
         }
     }
+}
 
+
+Foam::pointIndexHit Foam::searchableBox::findLine
+(
+    const point& start,
+    const point& end
+) const
+{
+    pointIndexHit info;
+    findLine_impl(start, end, info);
     return info;
 }
 
@@ -462,7 +473,9 @@ Foam::pointIndexHit Foam::searchableBox::findLineAny
     const point& end
 ) const
 {
-    return findLine(start, end);
+    pointIndexHit info;
+    findLine_impl(start, end, info);
+    return info;
 }
 
 
@@ -483,7 +496,7 @@ void Foam::searchableBox::findNearest
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        info[i] = findNearest(bbMid, samples[i], maxDistSqr);
+        findNearest_impl(bbMid, samples[i], maxDistSqr, info[i]);
     }
 }
 
@@ -495,11 +508,11 @@ void Foam::searchableBox::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
-        info[i] = findLine(start[i], end[i]);
+        findLine_impl(start[i], end[i], info[i]);
     }
 }
 
@@ -511,11 +524,11 @@ void Foam::searchableBox::findLineAny
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
-        info[i] = findLineAny(start[i], end[i]);
+        findLine_impl(start[i], end[i], info[i]);
     }
 }
 
@@ -527,7 +540,7 @@ void Foam::searchableBox::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     // Work array
     DynamicList<pointIndexHit> hits;
@@ -538,50 +551,56 @@ void Foam::searchableBox::findLineAll
     // - it is significant (SMALL is smallest representative relative tolerance;
     //   we need something bigger since we're doing calculations)
     // - if the start-end vector is zero we still progress
-    const vectorField dirVec(end-start);
-    const scalarField magSqrDirVec(Foam::magSqr(dirVec));
-    const vectorField smallVec
-    (
-        ROOTSMALL*dirVec + vector::uniform(ROOTVSMALL)
-    );
 
     forAll(start, pointi)
     {
+        info[pointi].clear();
+
+        const auto& startp = start[pointi];
+        const auto& endp = end[pointi];
+
         // See if any intersection between pt and end
-        pointIndexHit inter = findLine(start[pointi], end[pointi]);
+        pointIndexHit inter;
+        findLine_impl(startp, endp, inter);
 
         if (inter.hit())
         {
+            // For progression
+            const vector dirVec = (endp - startp);
+            const scalar magSqrDirVec = dirVec.magSqr();
+            const vector smallVec
+            (
+                ROOTSMALL*dirVec + vector::uniform(ROOTVSMALL)
+            );
+
+            // Track last hit
+            label lastIndex = inter.index();
+            point pt = inter.point() + smallVec;
+
             hits.clear();
-            hits.append(inter);
+            hits.push_back(inter);
 
-            point pt = inter.hitPoint() + smallVec[pointi];
-
-            while (((pt-start[pointi])&dirVec[pointi]) <= magSqrDirVec[pointi])
+            while (((pt-startp) & dirVec) <= magSqrDirVec)
             {
                 // See if any intersection between pt and end
-                pointIndexHit inter = findLine(pt, end[pointi]);
+                findLine_impl(pt, endp, inter);
 
                 // Check for not hit or hit same face as before (can happen
                 // if vector along surface of face)
-                if
-                (
-                    !inter.hit()
-                 || (inter.index() == hits.last().index())
-                )
+                if (inter.not_hit() || (inter.index() == lastIndex))
                 {
                     break;
                 }
-                hits.append(inter);
 
-                pt = inter.hitPoint() + smallVec[pointi];
+                // update
+                lastIndex = inter.index();
+                pt = inter.point() + smallVec;
+
+                hits.push_back(inter);
             }
 
-            info[pointi].transfer(hits);
-        }
-        else
-        {
-            info[pointi].clear();
+            // copy (keep DynamicList for following loops)
+            info[pointi] = hits;
         }
     }
 }
@@ -593,8 +612,7 @@ void Foam::searchableBox::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -604,20 +622,90 @@ void Foam::searchableBox::getNormal
     vectorField& normal
 ) const
 {
-    normal.setSize(info.size());
-    normal = Zero;
+    normal.resize_nocopy(info.size());
 
     forAll(info, i)
     {
-        if (info[i].hit())
+        if
+        (
+            label facei = info[i].index();
+            (info[i].hit() && (facei >= 0 && facei < treeBoundBox::nFaces()))
+        )
         {
-            normal[i] = treeBoundBox::faceNormals[info[i].index()];
+            normal[i] = treeBoundBox::faceNormals[facei];
         }
         else
         {
             // Set to what?
+            normal[i] = Foam::zero{};
         }
     }
+}
+
+
+Foam::label Foam::searchableBox::measure
+(
+    List<vector>* centres,
+    List<scalar>* boundingRadiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = treeBoundBox::nFaces();
+
+    bool usedParams = false;
+
+    // Extract face centres
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_nocopy(output_size); // MUST resize first
+        treeBoundBox::faceCentres(*centres);
+    }
+
+    // Extract bounding sphere radius squared
+    // Box faces are quads, points are axis-aligned,
+    // so the face centre is trivial and the only need one face corner
+    // to determine the bounding sphere radius
+
+    if (boundingRadiusSqr)
+    {
+        usedParams = true;
+        auto& radiusSqr = *boundingRadiusSqr;
+        radiusSqr.resize_nocopy(output_size);
+
+        for (label facei = 0; facei < treeBoundBox::nFaces(); ++facei)
+        {
+            label pointi = treeBoundBox::octFaces()[facei][0];
+            point corner = treeBoundBox::octCorner(pointi);
+            point fc = treeBoundBox::faceCentre(facei);
+
+            // Add a bit to make sure all points are tested inside
+            radiusSqr[facei] = (fc.distSqr(corner) + Foam::sqr(SMALL));
+        }
+    }
+
+    // Extract regions
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    // Extract normals
+    if (normals)
+    {
+        usedParams = true;
+        auto& normal = *normals;
+        normal.resize_nocopy(treeBoundBox::nFaces());
+
+        for (label facei = 0; facei < treeBoundBox::nFaces(); ++facei)
+        {
+            normal[facei] = treeBoundBox::faceNormals[facei];
+        }
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

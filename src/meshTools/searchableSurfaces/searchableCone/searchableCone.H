@@ -49,7 +49,7 @@ Note
     Longer type name : \c searchableCone
 
 SourceFiles
-    searchableCone.C
+    searchableCone.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -119,7 +119,7 @@ class searchableCone
         static scalar radius2(const searchableCone& cone, const point& pt);
 
         //- Find both intersections with cone. innerRadii supplied externally.
-        void findLineAll
+        void findLineAll_impl
         (
             const searchableCone& cone,
             const scalar innerRadius1,
@@ -142,14 +142,16 @@ class searchableCone
         //- Return the boundBox of the cylinder
         boundBox calcBounds() const;
 
+public:
+
+    // Generated Methods
+
         //- No copy construct
         searchableCone(const searchableCone&) = delete;
 
         //- No copy assignment
         void operator=(const searchableCone&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableCone");
@@ -288,6 +290,24 @@ public:
                 const pointField& points,
                 List<volumeType>& volType
             ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const;
+
 
 
         // regIOobject implementation

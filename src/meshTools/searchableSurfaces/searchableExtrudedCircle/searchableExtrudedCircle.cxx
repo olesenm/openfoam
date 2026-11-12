@@ -118,8 +118,8 @@ Foam::searchableExtrudedCircle::searchableExtrudedCircle
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
 
-Foam::searchableExtrudedCircle::~searchableExtrudedCircle()
-{}
+// Non-default in header (incomplete types)
+Foam::searchableExtrudedCircle::~searchableExtrudedCircle() = default;
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
@@ -128,7 +128,7 @@ const Foam::wordList& Foam::searchableExtrudedCircle::regions() const
 {
     if (regions_.empty())
     {
-        regions_.setSize(1);
+        regions_.resize(1);
         regions_[0] = "region0";
     }
     return regions_;
@@ -160,10 +160,13 @@ void Foam::searchableExtrudedCircle::boundingSpheres
 ) const
 {
     centres = eMeshPtr_().points();
-    radiusSqr.setSize(centres.size());
-    radiusSqr = Foam::sqr(radius_);
+
     // Add a bit to make sure all points are tested inside
-    radiusSqr += Foam::sqr(SMALL);
+    radiusSqr.resize_fill
+    (
+        centres.size(),
+        (Foam::sqr(radius_) + Foam::sqr(SMALL))
+    );
 }
 
 
@@ -174,9 +177,9 @@ void Foam::searchableExtrudedCircle::findNearest
     List<pointIndexHit>& info
 ) const
 {
-    const indexedOctree<treeDataEdge>& tree = edgeTree_();
+    const auto& tree = edgeTree_();
 
-    info.setSize(samples.size());
+    info.resize_nocopy(samples.size());
 
     forAll(samples, i)
     {
@@ -224,7 +227,7 @@ void Foam::searchableExtrudedCircle::findParametricNearest
 ) const
 {
     const edgeMesh& mesh = eMeshPtr_();
-    const indexedOctree<treeDataEdge>& tree = edgeTree_();
+    const auto& tree = edgeTree_();
     const auto& treeData = tree.shapes();
     const edgeList& edges = mesh.edges();
     const pointField& points = mesh.points();
@@ -375,9 +378,7 @@ void Foam::searchableExtrudedCircle::findParametricNearest
     // Now we have the lambdas, curvePoints and axialVecs.
 
 
-
-    info.setSize(lambdas.size());
-    info = pointIndexHit();
+    info.resize_fill(lambdas.size(), pointIndexHit());
 
     // Given the current lambdas interpolate radial direction inbetween
     // endpoints (all projected onto the starting coordinate system)
@@ -427,8 +428,7 @@ void Foam::searchableExtrudedCircle::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -439,18 +439,21 @@ void Foam::searchableExtrudedCircle::getNormal
 ) const
 {
     const edgeMesh& mesh = eMeshPtr_();
-    const indexedOctree<treeDataEdge>& tree = edgeTree_();
+    const auto& tree = edgeTree_();
     const edgeList& edges = mesh.edges();
     const pointField& points = mesh.points();
 
-    normal.setSize(info.size());
-    normal = Zero;
+    normal.resize_nocopy(info.size());
 
     const scalar distSqr = bounds().magSqr();
 
     forAll(info, i)
     {
-        if (info[i].hit())
+        if (info[i].not_hit())
+        {
+            normal[i] = Foam::zero{};
+        }
+        else
         {
             // Find nearest on curve
             pointIndexHit curvePt = tree.findNearest(info[i].point(), distSqr);
@@ -464,6 +467,55 @@ void Foam::searchableExtrudedCircle::getNormal
             normal[i].normalise();
         }
     }
+}
+
+
+Foam::label Foam::searchableExtrudedCircle::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const pointField& pts = eMeshPtr_().points();
+
+    const label output_size = pts.size();
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        (*centres) = pts;
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+
+        // Add a bit to make sure all points are tested inside
+        radiusSqr->resize_fill
+        (
+            output_size,
+            (Foam::sqr(radius_) + Foam::sqr(SMALL))
+        );
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        // Normal is undefined on the curve
+        normals->resize_fill(output_size, Foam::zero{});
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

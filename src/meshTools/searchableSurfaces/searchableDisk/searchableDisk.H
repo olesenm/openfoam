@@ -46,7 +46,7 @@ Note
     Longer type name : \c searchableDisk
 
 SourceFiles
-    searchableDisk.C
+    searchableDisk.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -88,19 +88,24 @@ private:
         using searchableSurface::findNearest;
 
         //- Find nearest point on disk
-        pointIndexHit findNearest
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
         //- Find intersection with disk
-        void findLine
+        void findLine_impl
         (
             const point& start,
             const point& end,
-            pointIndexHit&
+            pointIndexHit& info
         ) const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableDisk(const searchableDisk&) = delete;
@@ -108,7 +113,6 @@ private:
         //- No copy assignment
         void operator=(const searchableDisk&) = delete;
 
-public:
 
     //- Runtime type information
     TypeName("searchableDisk");
@@ -248,6 +252,24 @@ public:
                 const pointField& points,
                 List<volumeType>& volType
             ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const;
+
 
 
         // regIOobject implementation

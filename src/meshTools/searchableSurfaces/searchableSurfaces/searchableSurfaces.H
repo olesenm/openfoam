@@ -53,7 +53,7 @@ Description
     \endtable
 
 SourceFiles
-    searchableSurfaces.C
+    searchableSurfaces.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -102,6 +102,9 @@ class searchableSurfaces
             const pointIndexHit& hit
         );
 
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchableSurfaces(const searchableSurfaces&) = delete;
@@ -110,8 +113,7 @@ class searchableSurfaces
         void operator=(const searchableSurfaces&) = delete;
 
 
-public:
-
+    //- Runtime type information
     ClassName("searchableSurfaces");
 
 

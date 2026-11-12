@@ -34,8 +34,8 @@ SourceFiles
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef searchableSurfacesQueries_H
-#define searchableSurfacesQueries_H
+#ifndef Foam_searchableSurfacesQueries_H
+#define Foam_searchableSurfacesQueries_H
 
 #include "searchableSurface.H"
 
@@ -44,12 +44,12 @@ SourceFiles
 namespace Foam
 {
 
-// Forward declarations
+// Forward Declarations
 class plane;
 class pointConstraint;
 
 /*---------------------------------------------------------------------------*\
-                           Class searchableSurfacesQueries Declaration
+                  Class searchableSurfacesQueries Declaration
 \*---------------------------------------------------------------------------*/
 
 class searchableSurfacesQueries
@@ -81,8 +81,8 @@ public:
             //  surface is returned, not necessarily the nearest (to start).
             static void findAnyIntersection
             (
-                const PtrList<searchableSurface>&,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>&,
+                const labelUList& surfacesToTest,
                 const pointField& start,
                 const pointField& end,
                 labelList& surfaces,
@@ -93,8 +93,8 @@ public:
             //  every hit the index in surfacesToTest and the hit info.
             static void findAllIntersections
             (
-                const PtrList<searchableSurface>&,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>&,
+                const labelUList& surfacesToTest,
                 const pointField& start,
                 const pointField& end,
                 labelListList& surfaces,
@@ -104,8 +104,8 @@ public:
             //- Find intersections of edge nearest to both endpoints.
             static void findNearestIntersection
             (
-                const PtrList<searchableSurface>& allSurfaces,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>& allSurfaces,
+                const labelUList& surfacesToTest,
                 const pointField& start,
                 const pointField& end,
                 labelList& surface1,
@@ -118,8 +118,8 @@ public:
             //  point.
             static void findNearest
             (
-                const PtrList<searchableSurface>&,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>&,
+                const labelUList& surfacesToTest,
                 const pointField&,
                 const scalarField& nearestDistSqr,
                 labelList& surfaces,
@@ -129,8 +129,8 @@ public:
             //- Find nearest points to a specific regions of the surface
             static void findNearest
             (
-                const PtrList<searchableSurface>& allSurfaces,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>& allSurfaces,
+                const labelUList& surfacesToTest,
                 const labelListList& regionIndices,
                 const pointField& samples,
                 const scalarField& nearestDistSqr,
@@ -144,8 +144,8 @@ public:
             //   best guess). Wip.
             static void findNearest
             (
-                const PtrList<searchableSurface>& allSurfaces,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>& allSurfaces,
+                const labelUList& surfacesToTest,
                 const pointField& start,
                 const scalarField& distSqr,
                 pointField& near,
@@ -160,8 +160,8 @@ public:
             //      UNKNOWN : throw fatal error
             static void signedDistance
             (
-                const PtrList<searchableSurface>& allSurfaces,
-                const labelList& surfacesToTest,
+                const UPtrList<searchableSurface>& allSurfaces,
+                const labelUList& surfacesToTest,
                 const pointField& samples,
                 const scalarField& nearestDistSqr,
                 const volumeType illegalHandling,
@@ -172,7 +172,7 @@ public:
             //- Find the boundBox of the selected surfaces
             static boundBox bounds
             (
-                const PtrList<searchableSurface>& allSurfaces,
+                const UPtrList<searchableSurface>& allSurfaces,
                 const labelUList& surfacesToTest
             );
 };

@@ -42,22 +42,6 @@ namespace Foam
 Foam::closedTriSurfaceMesh::closedTriSurfaceMesh
 (
     const IOobject& io,
-    const triSurface& s
-)
-:
-    triSurfaceMesh(io, s)
-{}
-
-
-Foam::closedTriSurfaceMesh::closedTriSurfaceMesh(const IOobject& io)
-:
-    triSurfaceMesh(io)
-{}
-
-
-Foam::closedTriSurfaceMesh::closedTriSurfaceMesh
-(
-    const IOobject& io,
     const dictionary& dict
 )
 :

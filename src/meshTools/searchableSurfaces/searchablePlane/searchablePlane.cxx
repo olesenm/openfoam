@@ -53,17 +53,18 @@ namespace Foam
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-Foam::pointIndexHit Foam::searchablePlane::findLine
+void Foam::searchablePlane::findLine_impl
 (
     const point& start,
-    const point& end
+    const point& end,
+    pointIndexHit& info
 ) const
 {
-    pointIndexHit info(true, Zero, 0);
+    info.hitPoint(point::zero, 0);
 
     linePointRef l(start, end);
 
-    scalar t = lineIntersect(l);
+    const scalar t = plane::lineIntersect(l);
 
     if (t < 0 || t > 1)
     {
@@ -72,10 +73,8 @@ Foam::pointIndexHit Foam::searchablePlane::findLine
     }
     else
     {
-        info.setPoint(start+t*l.vec());
+        info.point() = (start+t*l.vec());
     }
-
-    return info;
 }
 
 
@@ -132,7 +131,7 @@ const Foam::wordList& Foam::searchablePlane::regions() const
 {
     if (regions_.empty())
     {
-        regions_.setSize(1);
+        regions_.resize(1);
         regions_[0] = "region0";
     }
     return regions_;
@@ -145,11 +144,8 @@ void Foam::searchablePlane::boundingSpheres
     scalarField& radiusSqr
 ) const
 {
-    centres.resize(1);
-    radiusSqr.resize(1);
-
-    centres[0] = origin();
-    radiusSqr[0] = Foam::sqr(GREAT);
+    centres.resize_fill(1, origin());
+    radiusSqr.resize_fill(1, Foam::sqr(GREAT));
 }
 
 
@@ -168,7 +164,7 @@ void Foam::searchablePlane::findNearest
     {
         if (i < nearestDistSqr.size()) { maxDistSqr = nearestDistSqr[i]; }
 
-        info[i].setPoint(nearestPoint(samples[i]));
+        info[i].setPoint(plane::nearestPoint(samples[i]));
 
         if (info[i].point().distSqr(samples[i]) > maxDistSqr)
         {
@@ -191,11 +187,11 @@ void Foam::searchablePlane::findLine
     List<pointIndexHit>& info
 ) const
 {
-    info.setSize(start.size());
+    info.resize_nocopy(start.size());
 
     forAll(start, i)
     {
-        info[i] = findLine(start[i], end[i]);
+        findLine_impl(start[i], end[i], info[i]);
     }
 }
 
@@ -218,20 +214,20 @@ void Foam::searchablePlane::findLineAll
     List<List<pointIndexHit>>& info
 ) const
 {
-    List<pointIndexHit> nearestInfo;
-    findLine(start, end, nearestInfo);
+    info.resize_nocopy(start.size());
 
-    info.setSize(start.size());
-    forAll(info, pointi)
+    forAll(start, i)
     {
-        if (nearestInfo[pointi].hit())
+        pointIndexHit near;
+        findLine_impl(start[i], end[i], near);
+
+        if (near.hit())
         {
-            info[pointi].setSize(1);
-            info[pointi][0] = nearestInfo[pointi];
+            info[i].resize_fill(1, near);
         }
         else
         {
-            info[pointi].clear();
+            info[i].clear();
         }
     }
 }
@@ -243,8 +239,7 @@ void Foam::searchablePlane::getRegion
     labelList& region
 ) const
 {
-    region.setSize(info.size());
-    region = 0;
+    region.resize_fill(info.size(), 0);
 }
 
 
@@ -254,8 +249,47 @@ void Foam::searchablePlane::getNormal
     vectorField& n
 ) const
 {
-    n.setSize(info.size());
-    n = normal();
+    n.resize_fill(info.size(), plane::normal());
+}
+
+
+Foam::label Foam::searchablePlane::measure
+(
+    List<vector>* centres,
+    List<scalar>* radiusSqr,
+    List<label>* regions,
+    List<vector>* normals
+) const
+{
+    const label output_size = 1;
+
+    bool usedParams = false;
+
+    if (centres)
+    {
+        usedParams = true;
+        centres->resize_fill(output_size, origin());
+    }
+
+    if (radiusSqr)
+    {
+        usedParams = true;
+        radiusSqr->resize_fill(output_size, Foam::sqr(GREAT));
+    }
+
+    if (regions)
+    {
+        usedParams = true;
+        regions->resize_fill(output_size, 0);
+    }
+
+    if (normals)
+    {
+        usedParams = true;
+        normals->resize_fill(output_size, plane::normal());
+    }
+
+    return (usedParams ? output_size : 0);
 }
 
 

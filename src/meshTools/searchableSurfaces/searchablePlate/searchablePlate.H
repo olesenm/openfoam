@@ -53,7 +53,7 @@ Note
     Longer type name : \c searchablePlate
 
 SourceFiles
-    searchablePlate.C
+    searchablePlate.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -99,17 +99,25 @@ class searchablePlate
         //- Inherit findNearest from searchableSurface
         using searchableSurface::findNearest;
 
-        pointIndexHit findNearest
+        //- Implementation detail
+        void findNearest_impl
         (
             const point& sample,
-            const scalar nearestDistSqr
+            const scalar nearestDistSqr,
+            pointIndexHit& info
         ) const;
 
-        pointIndexHit findLine
+        //- Implementation detail
+        void findLine_impl
         (
             const point& start,
-            const point& end
+            const point& end,
+            pointIndexHit& info
         ) const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchablePlate(const searchablePlate&) = delete;
@@ -117,8 +125,6 @@ class searchablePlate
         //- No copy assignment
         void operator=(const searchablePlate&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchablePlate");
@@ -149,10 +155,7 @@ public:
     // Member Functions
 
         //- The centre (origin) of the plate
-        inline const point& centre() const noexcept
-        {
-             return origin_;
-        }
+        const point& centre() const noexcept { return origin_; }
 
         //- Names of regions
         virtual const wordList& regions() const;
@@ -251,6 +254,23 @@ public:
             (
                 const pointField&,
                 List<volumeType>&
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

@@ -38,7 +38,7 @@ Description
     - index : unique index on surface (e.g. triangle for triSurfaceMesh)
 
 SourceFiles
-    searchableSurface.C
+    searchableSurface.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -72,14 +72,15 @@ class searchableSurface
 :
     public regIOobject
 {
-    // Private data
+    // Private Data
 
         const word name_;
 
         boundBox bounds_;
 
+public:
 
-    // Private Member Functions
+    // Generated Methods
 
         //- No copy construct
         searchableSurface(const searchableSurface&) = delete;
@@ -87,8 +88,6 @@ class searchableSurface
         //- No copy assignment
         void operator=(const searchableSurface&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchableSurface");
@@ -252,58 +251,9 @@ public:
         //- Does any part of the surface overlap the supplied bound box?
         virtual bool overlaps(const boundBox& bb) const = 0;
 
-        // Single point queries.
 
-            ////- Calculate nearest point on surface. Returns
-            ////  - bool : any point found nearer than nearestDistSqr
-            ////  - label: relevant index in surface
-            ////  - label: region in surface
-            ////  - point: actual nearest point found
-            //virtual pointIndexHit findNearest
-            //(
-            //    const point& sample,
-            //    const scalar nearestDistSqr
-            //) const = 0;
-            //
-            ////- Calculate nearest point on edge. Returns
-            ////  - bool : any point found nearer than nearestDistSqr
-            ////  - label: relevant index in surface
-            ////  - label: region in surface
-            ////  - point: actual nearest point found
-            //virtual pointIndexHit findNearestOnEdge
-            //(
-            //    const point& sample,
-            //    const scalar nearestDistSqr
-            //) const = 0;
-            //
-            ////- Find nearest to segment. Returns
-            ////  - bool : any point found?
-            ////  - label: relevant index in shapes
-            ////  - label: region in surface
-            ////  - point: actual nearest point found
-            ////  sets:
-            ////  - tightest  : bounding box
-            ////  - linePoint : corresponding nearest point on line
-            //virtual pointIndexHit findNearest
-            //(
-            //    const linePointRef& ln,
-            //    treeBoundBox& tightest,
-            //    point& linePoint
-            //) const = 0;
-            //
-            ////- Find nearest intersection of line between start and end.
-            //virtual pointIndexHit findLine
-            //(
-            //    const point& start,
-            //    const point& end
-            //) const = 0;
-            //
-            ////- Find any intersection of line between start and end.
-            //virtual pointIndexHit findLineAny
-            //(
-            //    const point& start,
-            //    const point& end
-            //) const = 0;
+        // Single point queries.
+        // (defunct since 2008)
 
 
         // Multiple point queries. When surface is distributed the index
@@ -317,7 +267,7 @@ public:
             ) const = 0;
 
             //- Find the nearest locations for the supplied points to a
-            //  particular region in the searchable surface.
+            //- particular region in the searchable surface.
             virtual void findNearest
             (
                 const pointField& samples,
@@ -377,8 +327,8 @@ public:
                 List<volumeType>&
             ) const = 0;
 
-            //- Find nearest, normal and region. Can be overridden with
-            //  optimised implementation
+            //- Find nearest, normal and region.
+            //- Can be overridden with optimised implementation
             virtual void findNearest
             (
                 const pointField& sample,
@@ -405,16 +355,56 @@ public:
             {}
 
             //- WIP. Store element-wise field.
-            virtual void setField(const labelList& values)
+            virtual void setField(const labelUList& values)
             {}
 
-            //- WIP. From a set of hits (points and
-            //  indices) get the specified field. Misses do not get set. Return
-            //  empty field if not supported.
-            virtual void getField(const List<pointIndexHit>&, labelList& values)
+            //- WIP.
+            //- From a set of hits (points and indices) get the "values" field.
+            //- Clears the \p values output parameter if not supported.
+            virtual void getField
+            (
+                const List<pointIndexHit>&,
+                labelList& values
+            )
             const
             {
                 values.clear();
+            }
+
+            //- WIP.
+            //- Retrieve the "values" field entries (if it exists)
+            //- Clears the \p values output parameter if not supported.
+            virtual label getField(labelList& values) const
+            {
+                values.clear();
+                return 0;
+            }
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            //
+            // The default "not-implemented" version returns 0 and clears
+            // all non-null parameters.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const
+            {
+                if (centres) centres->clear();
+                if (boundingRadiusSqr) boundingRadiusSqr->clear();
+                if (regions) regions->clear();
+                if (normals) normals->clear();
+                return 0;  // Nothing queried
             }
 };
 

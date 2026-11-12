@@ -60,7 +60,7 @@ Description
     \endtable
 
 SourceFiles
-    searchableSurfaceWithGaps.C
+    searchableSurfaceWithGaps.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -309,14 +309,15 @@ public:
             //}
 
             //- WIP. Store element-wise field.
-            virtual void setField(const labelList& values)
+            virtual void setField(const labelUList& values)
             {
                 subGeom_[0].setField(values);
             }
 
-            //- WIP. From a set of hits (points and
-            //  indices) get the specified field. Misses do not get set. Return
-            //  empty field if not supported.
+            //- WIP.
+            //- From a set of hits (points and indices) get the "values" field.
+            //- Clears the \p values output parameter if not supported.
+            //- Entries corresponding to misses are left untouched.
             virtual void getField
             (
                 const List<pointIndexHit>& info,
@@ -325,6 +326,37 @@ public:
             {
                 surface().getField(info, values);
             }
+
+            //- WIP.
+            //- Retrieve the "values" field entries (if it exists)
+            //- Clears the \p values output parameter if not supported.
+            virtual label getField(labelList& values) const
+            {
+                return surface().getField(values);
+            }
+
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
+            ) const
+            {
+                return surface()
+                    .measure(centres, boundingRadiusSqr, regions, normals);
+            }
+
 
         // regIOobject implementation
 

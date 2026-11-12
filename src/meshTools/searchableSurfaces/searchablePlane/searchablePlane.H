@@ -43,7 +43,7 @@ Note
     Longer type name : \c searchablePlane
 
 SourceFiles
-    searchablePlane.C
+    searchablePlane.cxx
 
 \*---------------------------------------------------------------------------*/
 
@@ -75,14 +75,20 @@ class searchablePlane
 
     // Private Member Functions
 
-        pointIndexHit findLine
+        //- Find intersection with plane
+        void findLine_impl
         (
             const point& start,
-            const point& end
+            const point& end,
+            pointIndexHit& info
         ) const;
 
         //- Return the boundBox of the plane
         boundBox calcBounds() const;
+
+public:
+
+    // Generated Methods
 
         //- No copy construct
         searchablePlane(const searchablePlane&) = delete;
@@ -90,8 +96,6 @@ class searchablePlane
         //- No copy assignment
         void operator=(const searchablePlane&) = delete;
 
-
-public:
 
     //- Runtime type information
     TypeName("searchablePlane");
@@ -229,6 +233,23 @@ public:
             (
                 const pointField&,
                 List<volumeType>&
+            ) const;
+
+            //- WIP.
+            //- Query for surface information.
+            //- \returns the number of surface elements queried.
+            //- \returns 0 for an empty surface or if all query parameters
+            //- were nullptr.
+            virtual label measure
+            (
+                //- [out] surface element centres
+                List<vector>* centres,
+                //- [out] surface element bounding sphere radius(squared)
+                List<scalar>* boundingRadiusSqr,
+                //- [out] surface element region ids
+                List<label>* regions,
+                //- [out] surface element unit normals
+                List<vector>* normals
             ) const;
 
 

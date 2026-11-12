@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2016-2018 OpenFOAM Foundation
     Copyright (C) 2025 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -39,17 +40,16 @@ Description
         - featureAngle: limit interpolation to current 'region' only.
                         Region limited by feature edges.
 
-
 SourceFiles
-    smoothTriSurfaceMesh.C
+    smoothTriSurfaceMesh.cxx
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef smoothTriSurfaceMesh_H
-#define smoothTriSurfaceMesh_H
+#ifndef Foam_smoothTriSurfaceMesh_H
+#define Foam_smoothTriSurfaceMesh_H
 
 #include "triSurfaceMesh.H"
-#include "PackedBoolList.H"
+#include "bitSet.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -64,7 +64,7 @@ class smoothTriSurfaceMesh
 :
     public triSurfaceMesh
 {
-private:
+    // Private Data
 
         //- Edges with discontinuity
         bitSet isBorderEdge_;
@@ -72,21 +72,26 @@ private:
         //- Points on border edges
         bitSet isPointOnBorderEdge_;
 
+
+    // Private Member Functions
+
         //- Mark feature edges
         void calcFeatureEdges(const scalar featureAngle);
 
         //- Calculate local point normal
-        vector pointNormal(const label, const label) const;
-
-
-        //- Disallow default bitwise copy construct
-        smoothTriSurfaceMesh(const smoothTriSurfaceMesh&) = delete;
-
-        //- Disallow default bitwise assignment
-        void operator=(const smoothTriSurfaceMesh&) = delete;
+        vector pointNormal(label startFacei, label localPointi) const;
 
 
 public:
+
+    // Generated Methods
+
+        //- No copy construct
+        smoothTriSurfaceMesh(const smoothTriSurfaceMesh&) = delete;
+
+        //- No copy assignment
+        void operator=(const smoothTriSurfaceMesh&) = delete;
+
 
     //- Runtime type information
     TypeName("smoothTriSurfaceMesh");
@@ -95,7 +100,7 @@ public:
     // Constructors
 
         //- Construct read, specify feature angle
-        smoothTriSurfaceMesh(const IOobject& io, const scalar featureAngle);
+        smoothTriSurfaceMesh(const IOobject& io, scalar featureAngle);
 
         //- Construct from IO and dictionary (used by searchableSurface).
         //  Dictionary may contain a 'scale' entry (eg, 0.001: mm -> m)
@@ -107,7 +112,7 @@ public:
 
 
     //- Destructor
-    virtual ~smoothTriSurfaceMesh();
+    virtual ~smoothTriSurfaceMesh() = default;
 
 
     // Member Functions
@@ -117,6 +122,23 @@ public:
         (
             const List<pointIndexHit>&,
             vectorField& normal
+        ) const;
+
+        //- WIP.
+        //- Query for surface information.
+        //- \returns the number of surface elements queried.
+        //- \returns 0 for an empty surface or if all query parameters
+        //- were nullptr.
+        virtual label measure
+        (
+            //- [out] surface element centres
+            List<vector>* centres,
+            //- [out] surface element bounding sphere radius(squared)
+            List<scalar>* boundingRadiusSqr,
+            //- [out] surface element region ids
+            List<label>* regions,
+            //- [out] surface element unit normals
+            List<vector>* normals
         ) const;
 };
 
