@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2019-2023 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -288,7 +289,9 @@ tmp<GeometricField<ReturnType, PatchField, GeoMesh>> Func                      \
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-#define BINARY_TYPE_FUNCTION_SF(ReturnType, Type1, Type2, Func)                \
+// Binary function with SF (scalar, field) input.
+// - pre-apply correctLocalBoundaryConditions instead of after?
+#define BINARY_TYPE_FUNCTION_SF_impl(ReturnType, Type1, Type2, Func, Preapply) \
                                                                                \
 TEMPLATE                                                                       \
 void Func                                                                      \
@@ -299,9 +302,16 @@ void Func                                                                      \
 )                                                                              \
 {                                                                              \
     Foam::Func(result.primitiveFieldRef(), dt1.value(), f2.primitiveField());  \
-    Foam::Func(result.boundaryFieldRef(), dt1.value(), f2.boundaryField());    \
     result.oriented() = f2.oriented();                                         \
-    result.correctLocalBoundaryConditions();                                   \
+    if constexpr (Preapply)                                                    \
+    {                                                                          \
+        result.correctLocalBoundaryConditions();                               \
+    }                                                                          \
+    Foam::Func(result.boundaryFieldRef(), dt1.value(), f2.boundaryField());    \
+    if constexpr (!Preapply)                                                   \
+    {                                                                          \
+        result.correctLocalBoundaryConditions();                               \
+    }                                                                          \
     if (GeometricBoundaryField<ReturnType, PatchField, GeoMesh>::debug)        \
     {                                                                          \
         result.boundaryField().check();                                        \
@@ -374,7 +384,9 @@ tmp<GeometricField<ReturnType, PatchField, GeoMesh>> Func                      \
 }
 
 
-#define BINARY_TYPE_FUNCTION_FS(ReturnType, Type1, Type2, Func)                \
+// Binary function with FS (field, scalar) input.
+// - pre-apply correctLocalBoundaryConditions instead of after?
+#define BINARY_TYPE_FUNCTION_FS_impl(ReturnType, Type1, Type2, Func, Preapply) \
                                                                                \
 TEMPLATE                                                                       \
 void Func                                                                      \
@@ -385,9 +397,16 @@ void Func                                                                      \
 )                                                                              \
 {                                                                              \
     Foam::Func(result.primitiveFieldRef(), f1.primitiveField(), dt2.value());  \
-    Foam::Func(result.boundaryFieldRef(), f1.boundaryField(), dt2.value());    \
     result.oriented() = f1.oriented();                                         \
-    result.correctLocalBoundaryConditions();                                   \
+    if constexpr (Preapply)                                                    \
+    {                                                                          \
+        result.correctLocalBoundaryConditions();                               \
+    }                                                                          \
+    Foam::Func(result.boundaryFieldRef(), f1.boundaryField(), dt2.value());    \
+    if constexpr (!Preapply)                                                   \
+    {                                                                          \
+        result.correctLocalBoundaryConditions();                               \
+    }                                                                          \
     if (GeometricBoundaryField<ReturnType, PatchField, GeoMesh>::debug)        \
     {                                                                          \
         result.boundaryField().check();                                        \
@@ -460,9 +479,16 @@ tmp<GeometricField<ReturnType, PatchField, GeoMesh>> Func                      \
 }
 
 
+// Normal calling, local correct (pre-apply: false)
 #define BINARY_TYPE_FUNCTION(ReturnType, Type1, Type2, Func)                   \
-    BINARY_TYPE_FUNCTION_SF(ReturnType, Type1, Type2, Func)                    \
-    BINARY_TYPE_FUNCTION_FS(ReturnType, Type1, Type2, Func)
+    BINARY_TYPE_FUNCTION_SF_impl(ReturnType, Type1, Type2, Func, false)        \
+    BINARY_TYPE_FUNCTION_FS_impl(ReturnType, Type1, Type2, Func, false)
+
+
+// Alternative calling, local correct (pre-apply: true)
+#define BINARY_TYPE_FUNCTION_pre(ReturnType, Type1, Type2, Func)               \
+    BINARY_TYPE_FUNCTION_SF_impl(ReturnType, Type1, Type2, Func, true)         \
+    BINARY_TYPE_FUNCTION_FS_impl(ReturnType, Type1, Type2, Func, true)
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
