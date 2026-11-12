@@ -71,8 +71,6 @@ namespace Foam
 // Forward Declarations
 class boundBoxTree;
 Ostream& operator<<(Ostream&, const boundBoxTree&);
-
-template<>
 Ostream& operator<<(Ostream&, const InfoProxy<boundBoxTree>&);
 
 /*---------------------------------------------------------------------------*\

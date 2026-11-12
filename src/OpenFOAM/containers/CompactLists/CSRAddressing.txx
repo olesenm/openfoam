@@ -225,7 +225,7 @@ template<class IntType>
 void Foam::CSRAddressing<IntType>::reset
 (
     const labelUList& rowSizes,
-    bool checkOverflow
+    [[maybe_unused]] bool checkOverflow
 )
 {
     if (const label len = rowSizes.size(); len > 0)
