@@ -28,9 +28,9 @@ Class
     Foam::ICharStream
 
 Description
-    An input stream that reads from a List and manages the List storage.
-    Similar to IStringStream but with a List for its storage instead of
-    as string to allow reuse of List contents without copying.
+    An input stream with internal array storage.
+    Similar to IStringStream but with an array storage
+    to enable reuse of its contents without copying.
 
 See Also
     Foam::ISpanStream
@@ -48,21 +48,24 @@ See Also
 
 namespace Foam
 {
+namespace Detail
+{
 
 /*---------------------------------------------------------------------------*\
-                        Class icharstream Declaration
+                     Class Detail::icharstream Declaration
 \*---------------------------------------------------------------------------*/
 
 //- Similar to std::istringstream, but with the ability to swap
 //- character content.
 //- Has some similarity to std::ispanstream (C++23)
+template<class BufferType>
 class icharstream
 :
     virtual public std::ios,
-    protected Foam::memorybuf::in_dynamic,
+    protected BufferType,
     public std::istream
 {
-    typedef Foam::memorybuf::in_dynamic buffer_type;
+    typedef BufferType buffer_type;
     typedef std::istream stream_type;
 
 public:
@@ -92,17 +95,41 @@ public:
             reset(buffer, nbytes);
         }
 
-        //- Move construct from List
-        icharstream(List<char>&& buffer) : icharstream()
+        //- Move construct from std::vector (for vector buffer only)
+        template
+        <
+            bool IsCharVector = is_vector_buffer,
+            std::enable_if_t<IsCharVector, bool> = true
+        >
+        icharstream(std::vector<char>&& buffer) : icharstream()
         {
-            swap(buffer);
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
         }
 
-        //- Move construct from DynamicList
-        template<int SizeMin>
+        //- Move construct from List (for List buffer only)
+        template
+        <
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        icharstream(List<char>&& buffer) : icharstream()
+        {
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
+        }
+
+        //- Move construct from DynamicList (for List buffer only)
+        template
+        <
+            int SizeMin,
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
         icharstream(DynamicList<char,SizeMin>&& buffer) : icharstream()
         {
-            swap(buffer);
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
         }
 
 
@@ -183,15 +210,40 @@ public:
         }
 
         //- Exchange stream content and parameter contents, reset positions
-        void swap(List<char>& other)
+        //- (for vector buffer only)
+        template
+        <
+            bool IsCharVector = is_vector_buffer,
+            std::enable_if_t<IsCharVector, bool> = true
+        >
+        void swap(std::vector<char>& other)
         {
             buffer_type::swap(other);
             stream_type::clear();  // Clear old errors
         }
 
         //- Exchange stream content and parameter contents, reset positions
-        template<int SizeMin>
-        void swap(DynamicList<char,SizeMin>& other)
+        //- (for List buffer only)
+        template
+        <
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        void swap(Foam::List<char>& other)
+        {
+            buffer_type::swap(other);
+            stream_type::clear();  // Clear old errors
+        }
+
+        //- Exchange stream content and parameter contents, reset positions
+        //- (for List buffer only)
+        template
+        <
+            int SizeMin,
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        void swap(Foam::DynamicList<char,SizeMin>& other)
         {
             buffer_type::swap(other);
             stream_type::clear();  // Clear old errors
@@ -215,15 +267,18 @@ public:
         void print(Ostream& os) const { debug_info(os); os << '\n'; }
 };
 
+} // End namespace Detail
+
 
 /*---------------------------------------------------------------------------*\
                          Class ICharStream Declaration
 \*---------------------------------------------------------------------------*/
 
-//- An ISstream with internal List storage. Always UNCOMPRESSED.
+//- An ISstream with internal array storage. Always UNCOMPRESSED.
 class ICharStream
 :
-    public Foam::Detail::StreamAllocator<Foam::icharstream>,
+    public Foam::Detail::StreamAllocator
+    <Foam::Detail::icharstream<Foam::memorybuf::in_dynamic>>,
     public Foam::ISstream
 {
     //- The wrapped stream type (eg, icharstream)
@@ -242,7 +297,8 @@ public:
 
     // Constructors
 
-        //- Default construct (empty), optionally with specified stream option
+        //- Default construct (empty),
+        //- optionally with specified stream option
         explicit ICharStream
         (
             IOstreamOption streamOpt = IOstreamOption()
@@ -263,29 +319,58 @@ public:
             stream_.reset(buffer.data(), buffer.size());
         }
 
-        //- Move construct from List
+        //- Move construct from std::vector (for vector buffer only),
+        //- using its current size for the input window.
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<StreamType::is_vector_buffer, bool> = true
+        >
         explicit ICharStream
         (
-            List<char>&& buffer,
+            std::vector<char>&& buffer,
             IOstreamOption streamOpt = IOstreamOption()
         )
         :
             ICharStream(streamOpt)
         {
-            stream_.swap(buffer);
+            static_cast<StreamType&>(stream_).swap(buffer);
         }
 
-        //- Move construct from DynamicList (uses current size)
-        template<int SizeMin>
+        //- Move construct from List (for List buffer only)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
         explicit ICharStream
         (
-            DynamicList<char,SizeMin>&& buffer,
+            ::Foam::List<char>&& buffer,
             IOstreamOption streamOpt = IOstreamOption()
         )
         :
             ICharStream(streamOpt)
         {
-            stream_.swap(buffer);
+            static_cast<StreamType&>(stream_).swap(buffer);
+        }
+
+        //- Move construct from DynamicList (for List buffer only),
+        //- using its current size for the input window.
+        template
+        <
+            int SizeMin,
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
+        explicit ICharStream
+        (
+            ::Foam::DynamicList<char,SizeMin>&& buffer,
+            IOstreamOption streamOpt = IOstreamOption()
+        )
+        :
+            ICharStream(streamOpt)
+        {
+            static_cast<StreamType&>(stream_).swap(buffer);
         }
 
 
@@ -355,17 +440,42 @@ public:
     // Additional content management
 
         //- Exchange stream content and parameter contents, reset positions
-        void swap(List<char>& other)
+        //- (for vector buffer only)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<StreamType::is_vector_buffer, bool> = true
+        >
+        void swap(std::vector<char>& other)
         {
-            stream_.swap(other);
+            static_cast<StreamType&>(stream_).swap(other);
             syncState();
         }
 
         //- Exchange stream content and parameter contents, reset positions
-        template<int SizeMin>
+        //- (for List buffer only)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
+        void swap(Foam::List<char>& other)
+        {
+            static_cast<StreamType&>(stream_).swap(other);
+            syncState();
+        }
+
+        //- Exchange stream content and parameter contents, reset positions
+        //- (for List buffer only)
+        template
+        <
+            int SizeMin,
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
         void swap(DynamicList<char,SizeMin>& other)
         {
-            stream_.swap(other);
+            static_cast<StreamType&>(stream_).swap(other);
             syncState();
         }
 
@@ -400,6 +510,14 @@ public:
             return const_cast<ICharStream&>(*this);
         }
 };
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Typedefs
+
+//- Simple icharstream with List storage
+typedef Detail::icharstream<Foam::memorybuf::in_dynamic> icharstream;
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

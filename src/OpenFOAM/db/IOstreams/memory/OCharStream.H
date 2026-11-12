@@ -28,11 +28,9 @@ Class
     Foam::OCharStream
 
 Description
-    An output stream that writes to a List and manages the List storage.
-    Similar to OStringStream but with a List for its storage instead of
-    as string to allow reuse of List contents without copying.
-
-    Internally imposes a 512 byte min-size and uses capacity doubling.
+    An output stream with internal array storage.
+    Similar to OStringStream but with an array storage
+    to enable reuse of its contents without copying.
 
 See Also
     Foam::ICharStream
@@ -50,21 +48,24 @@ See Also
 
 namespace Foam
 {
+namespace Detail
+{
 
 /*---------------------------------------------------------------------------*\
-                        Class ocharstream Declaration
+                     Class Detail::ocharstream Declaration
 \*---------------------------------------------------------------------------*/
 
 //- Similar to std::ostringstream, but with the ability to swap
 //- character content.
 //- Has some similarity to std::ospanstream (C++23)
+template<class BufferType>
 class ocharstream
 :
     virtual public std::ios,
-    protected Foam::memorybuf::out_dynamic,
+    protected BufferType,
     public std::ostream
 {
-    typedef Foam::memorybuf::out_dynamic buffer_type;
+    typedef BufferType buffer_type;
     typedef std::ostream stream_type;
 
 public:
@@ -88,17 +89,41 @@ public:
             stream_type(static_cast<buffer_type*>(this))
         {}
 
-        //- Move construct from List
-        ocharstream(List<char>&& buffer) : ocharstream()
+        //- Move construct from std::vector (for vector buffer only)
+        template
+        <
+            bool IsCharVector = is_vector_buffer,
+            std::enable_if_t<IsCharVector, bool> = true
+        >
+        ocharstream(std::vector<char>&& buffer) : ocharstream()
         {
-            swap(buffer);
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
         }
 
-        //- Move construct from DynamicList
-        template<int SizeMin>
+        //- Move construct from List (for List buffer only)
+        template
+        <
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        ocharstream(List<char>&& buffer) : ocharstream()
+        {
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
+        }
+
+        //- Move construct from DynamicList (for List buffer only)
+        template
+        <
+            int SizeMin,
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
         ocharstream(DynamicList<char,SizeMin>&& buffer) : ocharstream()
         {
-            swap(buffer);
+            buffer_type::swap(buffer);
+            stream_type::clear();  // Clear old errors
         }
 
 
@@ -196,23 +221,47 @@ public:
             );
         }
 
-
         //- Exchange stream content and parameter contents, reset positions
-        void swap(List<char>& other)
+        //- (for vector buffer only)
+        template
+        <
+            bool IsCharVector = is_vector_buffer,
+            std::enable_if_t<IsCharVector, bool> = true
+        >
+        void swap(std::vector<char>& other)
         {
             buffer_type::swap(other);
             stream_type::clear();  // Clear old errors
         }
 
         //- Exchange stream content and parameter contents, reset positions
-        template<int SizeMin>
-        void swap(DynamicList<char,SizeMin>& other)
+        //- (for List buffer only)
+        template
+        <
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        void swap(::Foam::List<char>& other)
         {
             buffer_type::swap(other);
             stream_type::clear();  // Clear old errors
         }
 
-        //- Reset buffer and return contents as \c dynamic_type
+        //- Exchange stream content and parameter contents, reset positions
+        //- (for List buffer only)
+        template
+        <
+            int SizeMin,
+            bool IsCharList = !is_vector_buffer,
+            std::enable_if_t<IsCharList, bool> = true
+        >
+        void swap(::Foam::DynamicList<char,SizeMin>& other)
+        {
+            buffer_type::swap(other);
+            stream_type::clear();  // Clear old errors
+        }
+
+        //- Reset stream and return contents as \c dynamic_type
         auto release()
         {
             auto chars(buffer_type::release());
@@ -288,15 +337,18 @@ public:
         std::streamsize size_bytes() const { return buffer_type::size_bytes(); }
 };
 
+} // End namespace Detail
+
 
 /*---------------------------------------------------------------------------*\
                          Class OCharStream Declaration
 \*---------------------------------------------------------------------------*/
 
-//- An OSstream with internal List storage
+//- An OSstream with internal array storage.
 class OCharStream
 :
-    public Foam::Detail::StreamAllocator<Foam::ocharstream>,
+    public Foam::Detail::StreamAllocator
+    <Foam::Detail::ocharstream<Foam::memorybuf::out_dynamic>>,
     public Foam::OSstream
 {
     //- The wrapped stream type (eg, ocharstream)
@@ -324,7 +376,31 @@ public:
             OSstream(stream_, "output", streamOpt.format(), streamOpt.version())
         {}
 
+        //- Move construct from std::vector of initial storage
+        //- (for vector buffer only)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<StreamType::is_vector_buffer, bool> = true
+        >
+        explicit OCharStream
+        (
+            std::vector<char>&& buffer,
+            IOstreamOption streamOpt = IOstreamOption()
+        )
+        :
+            OCharStream(streamOpt)
+        {
+            static_cast<StreamType&>(stream_).swap(buffer);
+        }
+
         //- Move construct from a List of initial storage
+        //- (for List buffer only)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
         explicit OCharStream
         (
             ::Foam::List<char>&& buffer,
@@ -333,12 +409,18 @@ public:
         :
             OCharStream(streamOpt)
         {
-            stream_.swap(buffer);
+            static_cast<StreamType&>(stream_).swap(buffer);
         }
 
-        //- Move construct from a DynamicList of initial storage
-        //- (uses entire capacity)
-        template<int SizeMin>
+        //- Move construct from DynamicList of initial storage
+        //- (uses entire capacity).
+        //- (for List buffer only).
+        template
+        <
+            int SizeMin,
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
         explicit OCharStream
         (
             ::Foam::DynamicList<char,SizeMin>&& buffer,
@@ -347,7 +429,7 @@ public:
         :
             OCharStream(streamOpt)
         {
-            stream_.swap(buffer);
+            static_cast<StreamType&>(stream_).swap(buffer);
         }
 
 
@@ -425,17 +507,40 @@ public:
     // Additional content management
 
         //- Exchange stream content and parameter contents, reset positions
-        void swap(List<char>& other)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<StreamType::is_vector_buffer, bool> = true
+        >
+        void swap(std::vector<char>& other)
         {
-            stream_.swap(other);
+            static_cast<StreamType&>(stream_).swap(other);
             syncState();
         }
 
         //- Exchange stream content and parameter contents, reset positions
-        template<int SizeMin>
-        void swap(DynamicList<char,SizeMin>& other)
+        template
+        <
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
+        void swap(Foam::List<char>& other)
         {
-            stream_.swap(other);
+            static_cast<StreamType&>(stream_).swap(other);
+            syncState();
+        }
+
+        //- Exchange stream content and parameter contents, reset positions
+        //- (for List buffer only)
+        template
+        <
+            int SizeMin,
+            class StreamType = wrapped_type,
+            std::enable_if_t<!StreamType::is_vector_buffer, bool> = true
+        >
+        void swap(Foam::DynamicList<char,SizeMin>& other)
+        {
+            static_cast<StreamType&>(stream_).swap(other);
             syncState();
         }
 
@@ -498,6 +603,14 @@ public:
             stream_.overwrite(pos, sv.data(), sv.size());
         }
 };
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Typedefs
+
+//- Simple ocharstream with List storage
+typedef Detail::ocharstream<Foam::memorybuf::out_dynamic> ocharstream;
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
