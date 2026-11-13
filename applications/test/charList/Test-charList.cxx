@@ -73,14 +73,12 @@ int main(int argc, char *argv[])
     }
 
     {
-        // ICharStream istr(ostr.release());
         ISpanStream istr(ostr.view());
         List<char> alphabet(istr);
 
         Info<< "re-read: " << alphabet << nl;
 
         // Can assign zero?
-//Fails:        alphabet = char(Zero);
         alphabet = Foam::zero{};
 
         // alphabet = '@';

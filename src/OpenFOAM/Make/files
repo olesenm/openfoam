@@ -265,9 +265,9 @@ gzstream = $(Streams)/gzstream
 $(gzstream)/gzstream.C
 
 Fstreams = $(Streams)/Fstreams
-$(Fstreams)/IFstream.C
-$(Fstreams)/OFstream.C
-$(Fstreams)/fstreamPointers.C
+$(Fstreams)/IFstream.cxx
+$(Fstreams)/OFstream.cxx
+$(Fstreams)/fstreamPointers.cxx
 $(Fstreams)/masterOFstream.C
 
 Tstreams = $(Streams)/Tstreams

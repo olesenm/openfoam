@@ -182,9 +182,6 @@ See also
 
 - no description
 
-## Test-ICharStream1  (directory: ICharStream1)
-
-
 
 ## Test-IFstream  (directory: IFstream)
 
@@ -279,10 +276,6 @@ See also
     like swak4Foam etc.
 
 
-## Test-OCharStream1  (directory: OCharStream1)
-
-
-
 ## Test-OCountStream  (directory: OCountStream)
 
     Test null and counting output streams
@@ -374,10 +367,6 @@ See also
 
 
 ## Test-SLList  (directory: SLList)
-
-
-
-## Test-SpanStream1  (directory: SpanStream1)
 
 
 

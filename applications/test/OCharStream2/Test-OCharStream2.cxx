@@ -277,13 +277,6 @@ int main(int argc, char *argv[])
     obuf.pop_back(8);
     printInfo(obuf);
 
-    // Slightly silly test
-    {
-        const auto list = obuf.list();
-        Info<< "list content:" << list << nl;
-        Info<< "view content:" << nl << list.view() << nl;
-    }
-
     obuf.overwrite(4, labelbuf.view());
     printInfo(obuf);
 
