@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -27,6 +28,65 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "BSpline.H"
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Implementation
+#include "splineIntegrationImpl.cxx"
+
+
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+Foam::scalar Foam::BSpline::derivative
+(
+    const label segment,
+    const scalar mu
+) const
+{
+    const point& p0 = points()[segment];
+    const point& p1 = points()[segment+1];
+
+    // Determine the end points
+    point e0;
+    point e1;
+
+    if (segment == 0)
+    {
+        // end: simple reflection
+        e0 = 2*p0 - p1;
+    }
+    else
+    {
+        e0 = points()[segment-1];
+    }
+
+    if (segment+1 == nSegments())
+    {
+        // end: simple reflection
+        e1 = 2*p1 - p0;
+    }
+    else
+    {
+        e1 = points()[segment+2];
+    }
+
+    const point derivativePoint
+    (
+        1.0/6.0
+       *(
+            (-3*e0 + 3*p1)
+          + mu
+           *(
+                2*(3*e0 - 6*p0 + 3*p1)
+              + mu*3*(-e0 + 3*p0 - 3*p1 + e1)
+            )
+        )
+    );
+
+    return Foam::mag(derivativePoint);
+}
+
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -133,8 +193,21 @@ Foam::point Foam::BSpline::position
 
 Foam::scalar Foam::BSpline::length() const
 {
-    NotImplemented;
-    return 1;
+    const label segmentsLen = nSegments();
+    scalar sum = 0;
+
+    for (label segment = 0; segment < segmentsLen; ++segment)
+    {
+        sum += splineIntegration::adaptiveGaussKronrod15
+        (
+            [this, segment](const scalar mu)
+            {
+                return derivative(segment, mu);
+            }
+        );
+    }
+
+    return sum;
 }
 
 

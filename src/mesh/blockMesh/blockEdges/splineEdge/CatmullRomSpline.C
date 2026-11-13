@@ -6,6 +6,7 @@
      \\/     M anipulation  |
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -26,6 +27,13 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "CatmullRomSpline.H"
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Implementation
+#include "splineIntegrationImpl.cxx"
+
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -183,29 +191,18 @@ Foam::point Foam::CatmullRomSpline::position
 
 Foam::scalar Foam::CatmullRomSpline::length() const
 {
-    const solveScalar xi[5]=
+    const label segmentsLen = nSegments();
+    scalar sum = 0;
+
+    for (label segment = 0; segment < segmentsLen; ++segment)
     {
-        -0.9061798459386639927976,
-        -0.5384693101056830910363,
-        0,
-        0.5384693101056830910363,
-        0.9061798459386639927976
-    };
-    const solveScalar wi[5]=
-    {
-        0.2369268850561890875143,
-        0.4786286704993664680413,
-        0.5688888888888888888889,
-        0.4786286704993664680413,
-        0.2369268850561890875143
-    };
-    scalar sum=0;
-    for (label segment=0;segment<nSegments();segment++)
-    {
-        for (int i=0;i<5;i++)
-        {
-            sum+=wi[i]*derivative(segment,(xi[i]+1.0)/2.0)/2.0;
-        }
+        sum += splineIntegration::adaptiveGaussKronrod15
+        (
+            [this, segment](const scalar mu)
+            {
+                return derivative(segment, mu);
+            }
+        );
     }
 
     return sum;

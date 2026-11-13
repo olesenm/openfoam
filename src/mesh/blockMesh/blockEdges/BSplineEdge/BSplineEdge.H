@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2014-2016 OpenFOAM Foundation
     Copyright (C) 2019-2021 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -113,7 +114,6 @@ public:
         virtual point position(const scalar) const;
 
         //- The length of the spline curve
-        //  \note NotImplemented
         virtual scalar length() const;
 };
 
