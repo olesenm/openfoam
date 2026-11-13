@@ -471,6 +471,7 @@ $(snGradSchemes)/quadraticFitSnGrad/quadraticFitSnGrads.C
 $(snGradSchemes)/linearFitSnGrad/linearFitSnGrads.C
 $(snGradSchemes)/skewCorrectedSnGrad/skewCorrectedSnGrads.C
 $(snGradSchemes)/relaxedSnGrad/relaxedSnGrads.C
+$(snGradSchemes)/fourthSnGrad/fourthSnGrads.cxx
 
 convectionSchemes = finiteVolume/convectionSchemes
 $(convectionSchemes)/convectionScheme/convectionSchemes.C
