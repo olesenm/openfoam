@@ -7,6 +7,7 @@
 -------------------------------------------------------------------------------
     Copyright (C) 2011-2016 OpenFOAM Foundation
     Copyright (C) 2020 OpenCFD Ltd.
+    Copyright (C) 2026 Keysight Technologies
 -------------------------------------------------------------------------------
 License
     This file is part of OpenFOAM.
@@ -78,6 +79,16 @@ class BSpline
 :
     public polyLine
 {
+    // Private Member Functions
+
+        //- Derivative magnitude of spline
+        scalar derivative
+        (
+            const label segment,
+            const scalar mu
+        ) const;
+
+
 public:
 
     // Constructors
@@ -101,7 +112,6 @@ public:
         point position(const label segment, const scalar lambda) const;
 
         //- The length of the curve
-        //  \note NotImplemented
         scalar length() const;
 };
 
