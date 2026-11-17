@@ -254,6 +254,19 @@ inline Foam::DynamicList<T, SizeMin>::DynamicList
 
 
 template<class T, int SizeMin>
+template<class... Args>
+inline Foam::DynamicList<T, SizeMin>::DynamicList
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    List<T>(Foam::direct_construct_t{}, std::forward<Args>(vals)...),
+    capacity_(List<T>::size())
+{}
+
+
+template<class T, int SizeMin>
 template<class Addr>
 inline Foam::DynamicList<T, SizeMin>::DynamicList
 (

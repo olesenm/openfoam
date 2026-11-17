@@ -228,6 +228,19 @@ inline Foam::DynamicField<T, SizeMin>::DynamicField
 
 
 template<class T, int SizeMin>
+template<class... Args>
+inline Foam::DynamicField<T, SizeMin>::DynamicField
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    Field<T>(Foam::direct_construct_t{}, std::forward<Args>(vals)...),
+    capacity_(Field<T>::size())
+{}
+
+
+template<class T, int SizeMin>
 inline Foam::DynamicField<T, SizeMin>::DynamicField
 (
     List<T>&& content

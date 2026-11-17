@@ -124,6 +124,10 @@ public:
         template<class Addr>
         inline explicit DynamicField(const IndirectListBase<T, Addr>& list);
 
+        //- Construct (pseudo-aggregate) from a parameter list
+        template<class... Args>
+        inline explicit DynamicField(Foam::direct_construct_t, Args&&... vals);
+
         //- Move construct from List contents
         inline explicit DynamicField(List<T>&& content) noexcept;
 

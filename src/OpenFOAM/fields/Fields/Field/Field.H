@@ -207,6 +207,10 @@ public:
         template<class Addr>
         inline explicit Field(const IndirectListBase<Type, Addr>& list);
 
+        //- Construct (pseudo-aggregate) from a parameter list
+        template<class... Args>
+        inline explicit Field(Foam::direct_construct_t, Args&&... vals);
+
         //- Move construct from Field
         inline Field(Field<Type>&& fld) noexcept;
 

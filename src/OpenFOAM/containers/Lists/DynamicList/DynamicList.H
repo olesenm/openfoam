@@ -143,6 +143,10 @@ public:
         //- Copy construct from an initializer list. Capacity set to list size.
         inline explicit DynamicList(std::initializer_list<T> list);
 
+        //- Construct (pseudo-aggregate) from a parameter list
+        template<class... Args>
+        inline explicit DynamicList(Foam::direct_construct_t, Args&&... vals);
+
         //- Copy construct from IndirectList
         template<class Addr>
         inline explicit DynamicList(const IndirectListBase<T, Addr>& lst);

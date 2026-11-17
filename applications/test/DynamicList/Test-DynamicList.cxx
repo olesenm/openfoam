@@ -99,10 +99,15 @@ int main(int argc, char *argv[])
 {
     List<DynamicList<label>> ldl(2);
 
-    ldl[0](0) = 0;
-    ldl[0](2) = 2;
-    ldl[0](3) = 3;
-    ldl[0](1) = 1;
+    // Aggregate construction...
+    ldl[0] = DynamicList<label>
+    (
+        Foam::direct_construct_t{},
+        0, 10, 20, 30
+    );
+
+    Info<< "List<List> : " << ldl << endl;
+
 
     ldl[0].setCapacity(5);    // increase allocated size
     ldl[1].setCapacity(10);   // increase allocated size

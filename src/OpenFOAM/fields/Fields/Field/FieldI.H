@@ -98,6 +98,18 @@ inline Foam::Field<Type>::Field(const IndirectListBase<Type, Addr>& list)
 
 
 template<class Type>
+template<class... Args>
+inline Foam::Field<Type>::Field
+(
+    Foam::direct_construct_t,
+    Args&&... vals
+)
+:
+    List<Type>(Foam::direct_construct_t{}, std::forward<Args>(vals)...)
+{}
+
+
+template<class Type>
 inline Foam::Field<Type>::Field(Field<Type>&& fld) noexcept
 :
     List<Type>(std::move(static_cast<List<Type>&>(fld)))
